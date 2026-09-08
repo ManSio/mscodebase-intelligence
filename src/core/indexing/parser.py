@@ -124,21 +124,34 @@ class CodeParser:
         "impl_item",                    # Rust impl
         "method_declaration",           # Java, C#
         "function_declaration",         # Go, Swift, Kotlin, C, C++
+        "method",                       # Ruby def
     }
 
-    # Узлы вызовов функций — для построения графа вызовов
+    # Узлы вызовов функций — для построения графа вызовов.
+    # Имена сверены с реальными грамматиками (05-grammar-node-kinds.md,
+    # Verified 2026-08-18 + живые прогоны tree-sitter):
+    # Java → method_invocation, PHP → function/member/scoped_call_expression,
+    # TS/JS/C++/Dart → new_expression, Kotlin/Dart → constructor_invocation.
     CALL_NODES = {
-        "call_expression",  # Python, JS, Go, Rust
-        "call",  # Альтернативные грамматики
-        "function_invocation",  # Java
-        "invocation_expression",  # Java (method invocation)
-        "macro_invocation",  # Rust macros!
+        "call_expression",  # Python, JS, Go, Rust, Scala, Swift, Kotlin, C, C++
+        "call",  # Python, Ruby
+        "method_invocation",  # Java
+        "explicit_constructor_invocation",  # Java
+        "invocation_expression",  # C#
+        "macro_invocation",  # Rust, Swift
+        "function_call_expression",  # PHP
+        "member_call_expression",  # PHP
+        "nullsafe_member_call_expression",  # PHP
+        "scoped_call_expression",  # PHP
+        "new_expression",  # TS/JS, C++, Dart
+        "constructor_invocation",  # Kotlin, Dart
     }
 
     # Типы узлов, которые мы считаем "идентификаторами" при поиске вызовов
     CALL_IDENTIFIER_TYPES = {
         "identifier",
         "type_identifier",
+        "simple_identifier",  # Swift, Kotlin, Dart
         "field_expression",  # JS/TS: obj.method()
         "attribute",  # Python: self.method() / obj.method()
         "scoped_identifier",  # module::func()
@@ -831,50 +844,78 @@ class CodeParser:
 
     # ── Unified AST Walker (один parse → два результата) ──
 
-    # Узлы импортов для разных языков — для построения IMPORTS-рёбер
+    # Узлы импортов для разных языков — для построения IMPORTS-рёбер.
+    # Имена сверены с реальными грамматиками (05-grammar-node-kinds.md,
+    # Verified 2026-08-18 + живые прогоны tree-sitter):
+    # Kotlin → `import` (нет import_declaration); C/C++ → preproc_include
+    # (нет include_statement); Dart → library_import/library_export;
+    # Ruby: require/include — это `call` (обрабатывается отдельно, т.к.
+    # узел call_имя_сомнения в грамматике не имеет собственного типа).
+    IMPORT_KEYWORDS = {
+        "import", "from", "use", "require", "include",
+        "as", "pub", "crate", "self", "super",
+    }
     IMPORT_NODE_MAP = {
         ".py": {"import_statement", "import_from_statement"},
         ".rs": {"use_declaration"},
-        ".ts": {"import_statement", "import_declaration"},
-        ".tsx": {"import_statement", "import_declaration"},
+        ".ts": {"import_statement"},
+        ".tsx": {"import_statement"},
         ".go": {"import_declaration"},
-        ".js": {"import_statement", "import_declaration"},
+        ".js": {"import_statement"},
         ".java": {"import_declaration"},
         ".cs": {"using_directive"},
-        ".rb": {"require", "include"},
-        ".php": {"include_expression", "require_expression"},
-        ".kt": {"import_declaration"},
+        ".rb": {"call"},  # require/require_relative/include — обычные call (фильтр по имени в _extract_imports_recursive)
+        ".php": {
+            "include_expression", "include_once_expression",
+            "require_expression", "require_once_expression",
+            "namespace_use_declaration",
+        },
+        ".kt": {"import"},
         ".swift": {"import_declaration"},
-        ".c": {"include_statement", "import_declaration"},
-        ".cpp": {"include_statement", "import_declaration"},
-        ".cxx": {"include_statement", "import_declaration"},
-        ".hpp": {"include_statement", "import_declaration"},
-        ".scala": {"import"},
-        ".dart": {"import_declaration", "export_declaration"},
-        ".sh": {"source_statement"},
-        ".bash": {"source_statement"},
+        ".c": {"preproc_include"},
+        ".cpp": {"preproc_include"},
+        ".cxx": {"preproc_include"},
+        ".hpp": {"preproc_include"},
+        ".scala": {"import_declaration", "export_declaration"},
+        ".dart": {
+            "library_import", "library_export", "import_specification",
+        },
+        # Bash отказ по дизайну: source — это команда (command с name=source),
+        # ловить всех command как импорты — шум, спец-типа на него нет (05 п.3.1).
     }
 
-    # Типы assignment-узлов для разных языков (мультиязычность)
+    # Типы assignment-узлов для разных языков (мультиязычность).
+    # Имена сверены с реальными грамматиками + живые прогоны (2026-08-18):
+    # Go "x := src" → short_var_declaration; Ruby "x += y" → operator_assignment;
+    # Java consts → variable_declarator; Rust let → let_declaration.
     ASSIGNMENT_NODE_MAP = {
         ".py": {"assignment", "augmented_assignment"},
-        ".rs": {"let_declaration", "assignment_expression"},
-        ".ts": {"variable_declarator", "assignment_expression"},
-        ".tsx": {"variable_declarator", "assignment_expression"},
+        ".rs": {"let_declaration", "assignment_expression",
+                  "compound_assignment_expr"},
+        ".ts": {"variable_declarator", "assignment_expression",
+                  "augmented_assignment_expression"},
+        ".tsx": {"variable_declarator", "assignment_expression",
+                   "augmented_assignment_expression"},
         ".go": {"short_var_declaration", "assignment_statement",
                   "var_spec", "send_statement"},
-        ".js": {"variable_declarator", "assignment_expression"},
-        ".java": {"variable_declarator", "assignment_expression"},
+        ".js": {"variable_declarator", "assignment_expression",
+                  "augmented_assignment_expression"},
+        ".java": {"variable_declarator", "assignment_expression",
+                    "local_variable_declaration"},
         ".cs": {"variable_declarator", "assignment_expression"},
-        ".rb": {"assignment", "op_assignment"},
-        ".php": {"assignment_expression", "variable_declarator"},
-        ".kt": {"property_declaration"},
-        ".swift": {"property_declaration"},
-        ".c": {"init_declarator"},
-        ".cpp": {"init_declarator"},
-        ".cxx": {"init_declarator"},
-        ".hpp": {"init_declarator"},
-        ".scala": {"val_definition", "var_definition"},
+        ".rb": {"assignment", "operator_assignment"},
+        ".php": {"assignment_expression", "augmented_assignment_expression",
+                   "reference_assignment_expression",
+                   "static_variable_declaration"},
+        ".kt": {"property_declaration", "assignment",
+                  "variable_declaration"},
+        ".swift": {"property_declaration", "assignment"},
+        ".c": {"init_declarator", "assignment_expression"},
+        ".cpp": {"init_declarator", "assignment_expression"},
+        ".cxx": {"init_declarator", "assignment_expression"},
+        ".hpp": {"init_declarator", "assignment_expression"},
+        ".scala": {"val_definition", "var_definition",
+                     "assignment_expression"},
         ".dart": {"initialized_variable_definition",
                     "local_variable_declaration"},
         # Bash, SQL, YAML, TOML, HTML, CSS, HCL — без ASSIGNED_FROM
@@ -895,12 +936,130 @@ class CodeParser:
         "metadata",             # Dart @deprecated
     }
 
-    # Узлы, которые создают "условный контекст" для ASSIGNED_FROM
+    # Узлы, которые создают "условный контекст" для ASSIGNED_FROM.
+    # Python-набор — дефолт; для других языков — пер-языковые карты ниже.
     CONDITIONAL_NODES = {
         "if_statement", "else_clause",
         "for_statement", "while_statement",
         "with_statement", "try_statement",
         "except_clause", "match_statement", "case_clause",
+    }
+
+    # Пер-языковые conditional-узлы (05 п.3.3): Rust/Scala используют *_expression
+    # (if_expression, match_expression...), Kotlin — if_expression/try_expression/
+    # when_entry, Ruby — без _statement-суффикса (if, while, case, unless).
+    # Для остальных языков словари дополняют Python-набор спецификой
+    # (catch_clause, switch_*, ternary_expression).
+    CONDITIONAL_NODE_MAP = {
+        ".py": {
+            "if_statement", "else_clause",
+            "for_statement", "while_statement",
+            "with_statement", "try_statement",
+            "except_clause", "match_statement", "case_clause",
+        },
+        ".rs": {
+            "if_expression", "for_expression", "while_expression",
+            "match_expression", "loop_expression",
+            "try_expression", "try_block",
+            "else_clause", "match_arm", "match_block",
+        },
+        ".ts": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "try_statement", "catch_clause",
+            "finally_clause", "switch_statement", "switch_body",
+            "switch_case", "switch_default", "ternary_expression",
+            "with_statement",
+        },
+        ".tsx": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "try_statement", "catch_clause",
+            "finally_clause", "switch_statement", "switch_body",
+            "switch_case", "switch_default", "ternary_expression",
+            "with_statement",
+        },
+        ".go": {
+            "if_statement", "else_clause", "for_statement",
+            "expression_switch_statement", "type_switch_statement",
+            "communication_case", "expression_case", "default_case",
+        },
+        ".js": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "try_statement", "catch_clause",
+            "finally_clause", "switch_statement", "switch_body",
+            "switch_case", "switch_default", "ternary_expression",
+            "with_statement",
+        },
+        ".java": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "enhanced_for_statement", "try_statement",
+            "try_with_resources_statement", "catch_clause", "switch_expression",
+            "switch_block", "switch_block_statement_group", "switch_rule",
+            "ternary_expression",
+        },
+        ".cs": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "try_statement", "catch_clause", "catch_declaration",
+            "catch_filter_clause", "finally_clause", "switch_statement",
+            "switch_section", "switch_body", "switch_expression",
+            "conditional_expression", "conditional_access_expression",
+        },
+        ".rb": {
+            "if", "unless", "while", "case", "else",
+            "if_modifier", "while_modifier", "conditional",
+            "case_match", "match_pattern",
+        },
+        ".php": {
+            "if_statement", "else_clause", "else_if_clause", "for_statement",
+            "while_statement", "do_statement", "try_statement", "catch_clause",
+            "finally_clause", "switch_statement", "switch_block",
+            "conditional_expression", "match_expression", "match_block",
+        },
+        ".kt": {
+            "if_expression", "try_expression", "when_entry",
+            "for_statement", "while_statement", "do_while_statement",
+            "catch_block",
+        },
+        ".swift": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "repeat_while_statement", "try_statement", "try_expression",
+            "catch_block", "do_statement", "switch_statement",
+            "ternary_expression",
+        },
+        ".c": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "switch_statement", "case_statement",
+            "conditional_expression",
+        },
+        ".cpp": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "for_range_loop", "try_statement", "catch_clause",
+            "switch_statement", "case_statement", "conditional_expression",
+            "noexcept",
+        },
+        ".cxx": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "for_range_loop", "try_statement", "catch_clause",
+            "switch_statement", "case_statement", "conditional_expression",
+            "noexcept",
+        },
+        ".hpp": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "for_range_loop", "try_statement", "catch_clause",
+            "switch_statement", "case_statement", "conditional_expression",
+            "noexcept",
+        },
+        ".scala": {
+            "if_expression", "for_expression", "while_expression",
+            "match_expression", "try_expression", "catch_clause",
+            "case_block", "case_clause",
+        },
+        ".dart": {
+            "if_statement", "else_clause", "for_statement", "do_statement",
+            "while_statement", "try_statement", "catch_clause",
+            "catch_parameters", "switch_statement", "switch_block",
+            "switch_expression", "conditional_expression",
+            "if_null_expression", "if_element",
+        },
     }
 
     def _get_tree(self, file_path: Path):
@@ -1115,10 +1274,14 @@ class CodeParser:
         )
         assignments = []
         assignment_types = self.ASSIGNMENT_NODE_MAP.get(ext, set())
+        conditional_types = self.CONDITIONAL_NODE_MAP.get(
+            ext, set(self.CONDITIONAL_NODES)
+        )
         self._extract_assignments_recursive(
             tree.root_node, code, file_path, assignments,
             current_function="", assigned=None,
             condition_path=None, assignment_types=assignment_types,
+            conditional_types=conditional_types,
         )
         imports = []
         import_types = self.IMPORT_NODE_MAP.get(ext, set())
@@ -1127,6 +1290,27 @@ class CodeParser:
                 tree.root_node, code, file_path, imports,
                 import_types=import_types,
             )
+        else:
+            # Основной grammar-путь недоступен (ext вне IMPORT_NODE_MAP):
+            # best-effort fallback из language_imports (режим 2). Гейт флага
+            # внутри iter_import_candidate_nodes — при выключенном
+            # MSCODEBASE_LANGUAGE_PACK это no-op.
+            self._extract_fallback_imports(
+                tree.root_node, code, file_path, imports
+            )
+        # Дедуп: Dart library_import оборачивает import_specification
+        # (оба узла дают один target на одной строке); Kotlin import
+        # содержит keyword-ребёнок. Оставляем первое вхождение.
+        # Общий для точного и fallback-пути (вложенные import-узлы).
+        seen = set()
+        uniq = []
+        for imp in imports:
+            key = (imp["target_module"], imp["line"])
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(imp)
+        imports = uniq
         return calls, assignments, imports
 
     def extract_calls(self, file_path: Path) -> List[Dict]:
@@ -1177,10 +1361,17 @@ class CodeParser:
         # классом ("Class.method") — иначе CALLS-рёбра из методов не
         # находят узел определения в PropertyGraph (узлы хранятся с
         # qualified name) и молча дропаются add_edge().
-        if node.type in self.TARGET_NODES:
-            name_node = self._find_child_by_type(
-                node, "identifier"
-            ) or self._find_child_by_type(node, "name")
+        # Dart: функция = function_signature (без function_definition);
+        # имя — первый identifier/type_identifier (m), не сигнатурный узел.
+        if node.type in self.TARGET_NODES or node.type in (
+            "function_signature", "method_signature",
+        ):
+            name_node = (
+                self._find_child_by_type(node, "identifier")
+                or self._find_child_by_type(node, "name")
+                or self._find_child_by_type(node, "simple_identifier")
+                or self._find_child_by_type(node, "type_identifier")
+            )
             if name_node:
                 fname = code[
                     name_node.start_byte : name_node.end_byte
@@ -1188,6 +1379,24 @@ class CodeParser:
                 current_function = (
                     f"{current_class}.{fname}" if current_class else fname
                 )
+        # Dart function_body — сиблинг function_signature (не ребёнок):
+        # имя функции живёт в соседнем узле того же parent.
+        elif node.type == "function_body" and node.parent is not None:
+            for sib in node.parent.children:
+                if sib.type not in ("function_signature", "method_signature"):
+                    continue
+                name_node = (
+                    self._find_child_by_type(sib, "identifier")
+                    or self._find_child_by_type(sib, "type_identifier")
+                )
+                if name_node:
+                    fname = code[
+                        name_node.start_byte : name_node.end_byte
+                    ].decode("utf-8", errors="ignore")
+                    current_function = (
+                        f"{current_class}.{fname}" if current_class else fname
+                    )
+                    break
 
         # Если это узел вызова — извлекаем имя вызываемой функции
         if node.type in self.CALL_NODES:
@@ -1217,6 +1426,29 @@ class CodeParser:
         - Цепочки: a.b.c() → "c"
         - Scoped: module::func() → "func"
         """
+        # Java method_invocation: поле name = имя метода (obj.run() → run)
+        if call_node.type == "method_invocation":
+            name_field = call_node.child_by_field_name("name")
+            if name_field is not None:
+                return code[name_field.start_byte : name_field.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
+        # PHP: *_call_expression хранит имя функции в последнем name-ребёнке
+        # (scoped_call_expression: mod::bar → bar, member: obj->run → run)
+        if call_node.type in (
+            "function_call_expression",
+            "member_call_expression",
+            "nullsafe_member_call_expression",
+            "scoped_call_expression",
+        ):
+            last_name = None
+            for child in call_node.children:
+                if child.type == "name":
+                    last_name = code[child.start_byte : child.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    )
+            if last_name:
+                return last_name
         # Ищем идентификатор среди прямых детей
         for child in call_node.children:
             if child.type in self.CALL_IDENTIFIER_TYPES:
@@ -1775,15 +2007,30 @@ class CodeParser:
             import_types: Множество типов узлов импорта для этого языка
         """
         if node.type in import_types:
-            # Извлекаем текст импорта (всё строковое содержимое узла)
-            import_text = code[node.start_byte : node.end_byte].decode(
-                "utf-8", errors="ignore"
-            )
+            # Ruby: require/require_relative/include — это обычные call-узлы.
+            # Фильтруем по первому identifier-ребёнку (маловероятная коллизия
+            # с Python call — Ruby-импорты не имеют собственного типа узла).
+            if node.type == "call":
+                callee = self._node_name(node, code)
+                if callee not in ("require", "require_relative", "include"):
+                    import_text = ""
+                else:
+                    import_text = code[node.start_byte : node.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    )
+            else:
+                import_text = code[node.start_byte : node.end_byte].decode(
+                    "utf-8", errors="ignore"
+                )
             if import_text.strip():
                 # Для разных языков импорт выглядит по-разному,
                 # но нас интересует имя модуля/пакета.
                 # Извлекаем первое имя после ключевого слова import/use.
                 module_name = self._extract_import_target(node, code)
+                # Kotlin/прочие: keyword-узел import (текст = "import") без
+                # целевого модуля — не импорт, пропускаем.
+                if module_name and module_name.lower() in self.IMPORT_KEYWORDS:
+                    module_name = ""
                 if module_name:
                     imports.append(
                         {
@@ -1848,7 +2095,44 @@ class CodeParser:
             ):
                 return w_clean.split(".")[0].split("::")[0]
 
+        # Fallback 2: C/C++ #include <stdio.h> / #include "config.h"
+        inc = re.search(r"#include\s*[<\"']([^>\"]+)", text)
+        if inc:
+            return inc.group(1).split(".")[0]
+
         return text.split()[0] if text else ""
+
+    def _extract_fallback_imports(
+        self, node, code: bytes, file_path: Path, imports: List[Dict]
+    ):
+        """Best-effort импорты для ext без точной карты (language_imports, режим 2).
+
+        Основной grammar-путь (IMPORT_NODE_MAP) всегда приоритетен: метод
+        вызывается ТОЛЬКО когда для ext нет карты (_walk_file, else-ветка).
+        Двойной гейт: активация флагом MSCODEBASE_LANGUAGE_PACK внутри
+        iter_import_candidate_nodes (language_pack.is_enabled) + локальный
+        импорт (модульный создал бы цикл: language_imports деривирует карту
+        из CodeParser.IMPORT_NODE_MAP на верхнем уровне).
+        """
+        from src.core.language_imports import iter_import_candidate_nodes
+
+        for imp_node in iter_import_candidate_nodes(node):
+            module_name = self._extract_import_target(imp_node, code)
+            # Ключевые слова не становятся модулями (как в точном пути).
+            if module_name and module_name.lower() in self.IMPORT_KEYWORDS:
+                module_name = ""
+            if not module_name:
+                continue
+            imports.append(
+                {
+                    "source_file": str(file_path),
+                    "target_module": module_name,
+                    "line": imp_node.start_point[0] + 1,
+                    "text": code[imp_node.start_byte : imp_node.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    ).strip(),
+                }
+            )
 
     def _extract_assignments_recursive(
         self,
@@ -1860,6 +2144,7 @@ class CodeParser:
         assigned: Optional[Set[str]] = None,
         condition_path: Optional[List[str]] = None,
         assignment_types: Optional[Set[str]] = None,
+        conditional_types: Optional[Set[str]] = None,
         scope_id: Optional[str] = None,
     ):
         """Рекурсивно обходит AST, отслеживая присваивания внутри функций.
@@ -1874,11 +2159,15 @@ class CodeParser:
                             для отслеживания контекста присваивания.
             assignment_types: set[str] — типы assignment-узлов для языка.
                               None → Python ("assignment", "augmented_assignment").
+            conditional_types: set[str] — типы conditional-узлов для языка.
+                               None → self.CONDITIONAL_NODES (Python-набор).
             scope_id: str — идентификатор scope (файл::функция::строка).
                       None для глобального scope.
         """
         if assignment_types is None:
             assignment_types = {"assignment", "augmented_assignment"}
+        if conditional_types is None:
+            conditional_types = set(self.CONDITIONAL_NODES)
         if assigned is None:
             assigned = set()
         if condition_path is None:
@@ -1886,7 +2175,7 @@ class CodeParser:
 
         # ── Управление стеком условных блоков ──
         pushed_conditional = False
-        if node.type in self.CONDITIONAL_NODES:
+        if node.type in conditional_types:
             condition_path.append(node.type)
             pushed_conditional = True
 
@@ -1937,6 +2226,16 @@ class CodeParser:
                     left_name = code[left.start_byte : left.end_byte].decode(
                         "utf-8", errors="ignore"
                     )
+                elif left.type == "variable_name":
+                    # PHP: $a = ... → variable_name { $, name }
+                    name_node = (
+                        left.child_by_field_name("name")
+                        or self._find_child_by_type(left, "name")
+                    )
+                    if name_node:
+                        left_name = code[name_node.start_byte : name_node.end_byte].decode(
+                            "utf-8", errors="ignore"
+                        )
                 elif left.type == "expression_list":
                     # Берём первый identifier из списка (x, y := ...)
                     for child in left.children:
@@ -1945,10 +2244,19 @@ class CodeParser:
                                 "utf-8", errors="ignore"
                             )
                             break
+                elif left.type == "directly_assignable_expression":
+                    # Swift: a = 2 → directly_assignable_expression
+                    # содержит simple_identifier (a) или navigation (x.y)
+                    for sub in left.children:
+                        if sub.type == "simple_identifier":
+                            left_name = code[sub.start_byte : sub.end_byte].decode(
+                                "utf-8", errors="ignore"
+                            )
+                            break
             else:
                 # Fallback: ищем первый identifier среди детей (Go var_spec, Kotlin)
                 for child in node.children:
-                    if child.type == "identifier":
+                    if child.type in ("identifier", "simple_identifier"):
                         left_name = code[child.start_byte : child.end_byte].decode(
                             "utf-8", errors="ignore"
                         )
@@ -1956,7 +2264,7 @@ class CodeParser:
                     # Kotlin: property_declaration → variable_declaration → identifier
                     if child.type == "variable_declaration":
                         for sub in child.children:
-                            if sub.type == "identifier":
+                            if sub.type in ("identifier", "simple_identifier"):
                                 left_name = code[sub.start_byte : sub.end_byte].decode(
                                     "utf-8", errors="ignore"
                                 )
@@ -1990,6 +2298,7 @@ class CodeParser:
                 assigned,
                 condition_path,
                 assignment_types,
+                conditional_types,
                 scope_id,
             )
 
@@ -2057,6 +2366,13 @@ class CodeParser:
                 "utf-8", errors="ignore"
             )
             names.append(name)
+        elif node.type == "name":
+            # PHP/Rust: $var → variable_name { name }, module.name → name
+            name = code[node.start_byte : node.end_byte].decode(
+                "utf-8", errors="ignore"
+            )
+            if name and not name.startswith(("$", "#")):
+                names.append(name)
         # Не заходим в вложенные определения — их идентификаторы
         # относятся к внутреннему scope
         if node.type not in ("function_definition", "class_definition"):
