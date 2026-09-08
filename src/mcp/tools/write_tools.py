@@ -11,13 +11,16 @@ import asyncio
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.core.indexing.symbol_index import SymbolIndex
 from src.core.modification_guard import modification_guard
 from src.mcp.tools.base import MCPTool
+
+if TYPE_CHECKING:
+    from src.core.execution_contract import ChangeIntent
 
 logger = logging.getLogger("mscodebase_server.write_tools")
 
@@ -200,12 +203,57 @@ class WriteTool(MCPTool):
                 )
                 intent.verified = bool(verify.get("verified"))
                 ledger.record(intent)
+                self._contract_receipt(intent, verify.get("verified", False), base_commit)
                 return verify
             ledger.record(intent)
+            self._contract_receipt(intent, True, base_commit)
             return {"verified": True, "recorded": True}
         except Exception as e:  # noqa: BLE001
             logger.warning(f"ChangeIntent record skipped for {file_path}: {e}")
             return {}
+
+    def _contract_receipt(
+        self,
+        intent: "ChangeIntent",
+        verified: bool,
+        base_commit: str,
+    ) -> None:
+        """WS4/§11: пишет ActionReceipt рядом с ChangeIntent'ом.
+
+        Receipt — независимо проверяем артефакт записи (verdict + шаг).
+        Не ломает запись при сбое (warning-only), как и ChangeIntent.
+        """
+        try:
+            from src.core.action_receipt import ActionReceiptStore, build_receipt
+
+            project_root = self._contract_project_root()
+            claim = f"{intent.operation}: {intent.symbol or intent.file}"
+            results = [
+                {
+                    "action": "change_intent",
+                    "verified": verified,
+                    "file": intent.file,
+                    "symbol": intent.symbol,
+                    "base_commit": base_commit,
+                }
+            ]
+            receipt = build_receipt(
+                action_type=f"write:{intent.operation}",
+                results=results,
+                claim=claim,
+                before_hash=intent.before_hash,
+                after_hash=intent.after_hash,
+                file_path=intent.file,
+                workdir=project_root,
+            )
+            store = ActionReceiptStore(project_root)
+            if store.record(receipt):
+                logger.info(
+                    "ActionReceipt %s (%s) recorded → %s",
+                    receipt.action_id, receipt.action_type, receipt.verdict,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("ActionReceipt запись пропущена (не влияет на write): %s", e)
 
     @error_boundary("write", timeout_ms=30000)
     @modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600.0)
@@ -503,6 +551,9 @@ class WriteTool(MCPTool):
         new_lines_list = self._indent_new_lines(
             new_code, len(lines[start_idx]) - len(lines[start_idx].lstrip())
         )
+        before_hash = _sha256_text(content)
+        intended = "".join(lines[:start_idx] + new_lines_list + lines[end_idx:])
+        after_hash = _sha256_text(intended)
 
         # P3-8 audit: синтаксис-валидация new_code перед записью (Python-файлы),
         # чтобы пользователь не получил сломанный файл без предупреждения.
@@ -535,6 +586,15 @@ class WriteTool(MCPTool):
         except Exception as _si_err:
             # Stale symbol cache — последующие get_symbol_info вернут устаревшие данные
             logger.debug(f"remove_file из symbol index не удался: {_si_err}")
+
+        self._contract_record(
+            "replace",
+            str(abs_path),
+            before_hash=before_hash,
+            after_hash=after_hash,
+            expected_hash=after_hash,
+            symbol=symbol,
+        )
 
         msg = f"✅ **Replaced** `{symbol}` in `{source_file}` ({len(original_lines)} → {len(new_lines_list)} lines)"
         if preflight_note:
@@ -600,6 +660,9 @@ class WriteTool(MCPTool):
             return preview_msg
 
         new_lines = self._build_insert_lines(new_code, position, insert_at, lines)
+        before_hash = _sha256_text(content)
+        intended = "".join(lines[:insert_at] + new_lines + lines[insert_at:])
+        after_hash = _sha256_text(intended)
 
         lines[insert_at:insert_at] = new_lines
         preflight = await self._preflight_validate(
@@ -614,6 +677,14 @@ class WriteTool(MCPTool):
             preflight_note = ""
         _atomic_write(abs_path, "".join(lines))
         await self._invalidate_lsp_cache(source_file)
+        self._contract_record(
+            f"insert_{position}",
+            str(abs_path),
+            before_hash=before_hash,
+            after_hash=after_hash,
+            expected_hash=after_hash,
+            symbol=anchor_symbol,
+        )
         msg = f"✅ **Inserted {position}** `{anchor_symbol}` in `{source_file}` (+{len(new_lines)} lines)"
         if preflight_note:
             msg += f"\n\n⚠️ **Preflight:** {preflight_note}"
@@ -969,6 +1040,14 @@ class WriteTool(MCPTool):
                             lines[start["line"]] = first[:start["character"]] + new_text
                             del lines[start["line"] + 1:end["line"] + 1]
                 _atomic_write(abs_path, "".join(lines))
+                self._contract_record(
+                    "rename",
+                    str(abs_path),
+                    before_hash=_sha256_text(content),
+                    after_hash=_sha256_text("".join(lines)),
+                    expected_hash=_sha256_text("".join(lines)),
+                    symbol=old_name,
+                )
                 files_modified.append(file_path)
                 await self._invalidate_lsp_cache(file_path)
             except Exception as e:
@@ -1051,6 +1130,7 @@ class WriteTool(MCPTool):
         try:
             src_path = Path(source_file).resolve()
             content = src_path.read_text(encoding="utf-8")
+            src_before = _sha256_text(content)
             lines = content.splitlines(True)
             si = self.resolve_symbol_index()
             defs = si.find_definitions(symbol)
@@ -1066,12 +1146,30 @@ class WriteTool(MCPTool):
                     extracted.append(line)
                     i += 1
                 del lines[def_line:i]
+                src_after = _sha256_text("".join(lines))
                 _atomic_write(src_path, "".join(lines))
                 modified.append(source_file)
                 target_path = Path(target_file)
                 target_path.parent.mkdir(parents=True, exist_ok=True)
-                _atomic_write(target_path, "".join(extracted))
+                target_content = "".join(extracted)
+                _atomic_write(target_path, target_content)
                 modified.append(target_file)
+                self._contract_record(
+                    "move",
+                    str(src_path),
+                    before_hash=src_before,
+                    after_hash=src_after,
+                    expected_hash=src_after,
+                    symbol=symbol,
+                )
+                self._contract_record(
+                    "move",
+                    str(target_path),
+                    before_hash="",
+                    after_hash=_sha256_text(target_content),
+                    expected_hash=_sha256_text(target_content),
+                    symbol=symbol,
+                )
                 await self._invalidate_lsp_cache(source_file)
                 await self._invalidate_lsp_cache(target_file)
 
@@ -1080,10 +1178,20 @@ class WriteTool(MCPTool):
                     continue
                 ref_path = Path(ref.file_path).resolve()
                 if ref_path.exists():
-                    ref_content = ref_path.read_text(encoding="utf-8")
-                    ref_content = ref_content.replace(f"from {source_package} import {symbol}", f"from {target_package} import {symbol}")
+                    old_ref = ref_path.read_text(encoding="utf-8")
+                    ref_before = _sha256_text(old_ref)
+                    ref_content = old_ref.replace(f"from {source_package} import {symbol}", f"from {target_package} import {symbol}")
+                    ref_after = _sha256_text(ref_content)
                     _atomic_write(ref_path, ref_content)
                     modified.append(ref.file_path)
+                    self._contract_record(
+                        "move",
+                        str(ref_path),
+                        before_hash=ref_before,
+                        after_hash=ref_after,
+                        expected_hash=ref_after,
+                        symbol=symbol,
+                    )
                     await self._invalidate_lsp_cache(ref.file_path)
         except Exception as e:
             errors.append(str(e))
