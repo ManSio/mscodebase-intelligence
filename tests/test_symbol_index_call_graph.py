@@ -769,3 +769,124 @@ def test_stats_includes_references(symbol_index):
     assert stats["total_definitions"] == 2
     assert stats["total_references"] == 1
     assert stats["total_symbols"] == 2
+
+
+# ── B4: Fallback-режим 2 (language_imports) в реальном пути _walk_file ────
+
+
+class _FakeNode:
+    """Минимальный duck-typed tree-sitter узел с байтовыми офсетами."""
+
+    def __init__(self, ntype, children=(), start_byte=0, end_byte=0,
+                 start_point=(0, 0)):
+        self.type = ntype
+        self.children = list(children)
+        self.start_byte = start_byte
+        self.end_byte = end_byte
+        self.start_point = start_point
+
+
+class _FakeTree:
+    def __init__(self, root):
+        self.root_node = root
+
+
+class _FakeParser:
+    def __init__(self, root):
+        self._root = root
+
+    def parse(self, code):
+        return _FakeTree(self._root)
+
+
+class TestFallbackImports:
+    """Интеграция fallback-режима 2 language_imports в CodeParser._walk_file.
+
+    Основной grammar-путь (IMPORT_NODE_MAP) всегда приоритетен; fallback
+    активен только для ext без карты и только при MSCODEBASE_LANGUAGE_PACK.
+    """
+
+    @staticmethod
+    def _install_fake_parser(monkeypatch, parser, ext, root):
+        """Регистрирует ext и подменяет шов _get_parser (без tree-sitter)."""
+        parser.parsers[ext] = object()  # guard ext in self.parsers
+        monkeypatch.setattr(
+            CodeParser, "_get_parser", lambda self, e: _FakeParser(root)
+        )
+
+    @staticmethod
+    def _spy_fallback(monkeypatch):
+        import src.core.language_imports as li
+
+        calls = []
+        original = li.iter_import_candidate_nodes
+
+        def spy(tree):
+            calls.append(tree)
+            yield from original(tree)
+
+        monkeypatch.setattr(li, "iter_import_candidate_nodes", spy)
+        return calls
+
+    def test_fallback_fires_for_unmapped_ext_when_flag_on(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        src = b"import mod\n"
+        root = _FakeNode("program", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".xyz", root)
+        f = tmp_path / "a.xyz"
+        f.write_bytes(src)
+
+        imports = p.extract_imports(f)
+        assert [i["target_module"] for i in imports] == ["mod"]
+        assert imports[0]["line"] == 1
+        assert imports[0]["text"] == "import mod"
+
+    def test_fallback_silent_when_flag_off(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("MSCODEBASE_LANGUAGE_PACK", raising=False)
+        src = b"import mod\n"
+        root = _FakeNode("program", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".xyz", root)
+        f = tmp_path / "a.xyz"
+        f.write_bytes(src)
+
+        assert p.extract_imports(f) == []
+
+    def test_mapped_ext_never_uses_fallback(self, tmp_path, monkeypatch):
+        """Негативный тест: для ext из карты fallback не вызывается никогда
+        (основной grammar-путь приоритетен), даже с включённым флагом."""
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        calls = self._spy_fallback(monkeypatch)
+        src = b"import os\n"
+        root = _FakeNode("module", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".py", root)
+        f = tmp_path / "a.py"
+        f.write_bytes(src)
+
+        imports = p.extract_imports(f)
+        assert [i["target_module"] for i in imports] == ["os"]  # точный путь
+        assert calls == []  # fallback не активирован
+
+    def test_fallback_never_fires_when_ext_unparseable(
+        self, tmp_path, monkeypatch
+    ):
+        """Негативный тест: ext не регистрирован → дерево None → никакого
+        обхода и никакого fallback (нет грамматики — нет и импортов)."""
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        calls = self._spy_fallback(monkeypatch)
+        p = CodeParser()  # .xyz не в self.parsers
+        f = tmp_path / "a.xyz"
+        f.write_bytes(b"import mod\n")
+
+        assert p.extract_imports(f) == []
+        assert calls == []

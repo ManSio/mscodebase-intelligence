@@ -1827,3 +1827,10 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Tests:** 94 passed (assignments+calls+imports) > полный прогон 1646 passed. Новые live-тесты: TestMultiLangCalls (7) + TestMultiLangImports (9) в test_symbol_index_call_graph.py, PHP-assign в test_assignments.py. Red Team 5 атак отражены. temp probe-скрипты удалены.
 **Guard:** grammar-факты — только через живые tree-sitter пробы (raw grammar_kinds_raw.txt ненадёжен: Go short_var_declaration не перечислен, но существует).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1646 passed / 5 skipped / 91 deselected (Windows).
+## [2026-09-08 12:35] — B4: import-экстракция через language_imports (деривация карт + флаг-гейт)
+
+**Status:** ✅ Fixed / **Root Cause:** два источника node-типов импортов (parser.IMPORT_NODE_MAP и литерал LANGUAGE_IMPORT_NODES) расходились (kt/dart/php); ungated fallback-2 в мосте.
+**Fix:** LANGUAGE_IMPORT_NODES — производная IMPORT_NODE_MAP (вариант B); fallback-2 только в else-ветке _walk_file (ext без карты) за двойным гейтом MSCODEBASE_LANGUAGE_PACK (else-ветка + is_enabled в iter_import_candidate_nodes); extract_imports_from_file читает флаг через language_pack.is_enabled; дедуп общий. (коммит B4, main)
+**Tests:** целевые 103 passed; полный прогон 1651 passed / 5 skipped / 91 deselected (169.2s); ruff clean ×4 файла. Новые: TestMapConsistency (3), TestFallbackImports (4), гейт-тесты флага.
+**Guard:** TestMapConsistency структурно ловит любое расхождение карт; ungated-путь закреплён негативными тестами (флаг off → пусто). Lazy-цикл parser⇄language_imports (статика) — осознанный техдолг в _ALLOWED_CORE_CYCLES (KNOWN_ISSUES 2026-09-08), деривация карты переведена на module __getattr__ (PEP 562), на import-time ничего не исполняется.
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest зелёный.

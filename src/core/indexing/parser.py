@@ -1290,18 +1290,27 @@ class CodeParser:
                 tree.root_node, code, file_path, imports,
                 import_types=import_types,
             )
-            # Дедуп: Dart library_import оборачивает import_specification
-            # (оба узла дают один target на одной строке); Kotlin import
-            # содержит keyword-ребёнок. Оставляем первое вхождение.
-            seen = set()
-            uniq = []
-            for imp in imports:
-                key = (imp["target_module"], imp["line"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                uniq.append(imp)
-            imports = uniq
+        else:
+            # Основной grammar-путь недоступен (ext вне IMPORT_NODE_MAP):
+            # best-effort fallback из language_imports (режим 2). Гейт флага
+            # внутри iter_import_candidate_nodes — при выключенном
+            # MSCODEBASE_LANGUAGE_PACK это no-op.
+            self._extract_fallback_imports(
+                tree.root_node, code, file_path, imports
+            )
+        # Дедуп: Dart library_import оборачивает import_specification
+        # (оба узла дают один target на одной строке); Kotlin import
+        # содержит keyword-ребёнок. Оставляем первое вхождение.
+        # Общий для точного и fallback-пути (вложенные import-узлы).
+        seen = set()
+        uniq = []
+        for imp in imports:
+            key = (imp["target_module"], imp["line"])
+            if key in seen:
+                continue
+            seen.add(key)
+            uniq.append(imp)
+        imports = uniq
         return calls, assignments, imports
 
     def extract_calls(self, file_path: Path) -> List[Dict]:
@@ -2092,6 +2101,38 @@ class CodeParser:
             return inc.group(1).split(".")[0]
 
         return text.split()[0] if text else ""
+
+    def _extract_fallback_imports(
+        self, node, code: bytes, file_path: Path, imports: List[Dict]
+    ):
+        """Best-effort импорты для ext без точной карты (language_imports, режим 2).
+
+        Основной grammar-путь (IMPORT_NODE_MAP) всегда приоритетен: метод
+        вызывается ТОЛЬКО когда для ext нет карты (_walk_file, else-ветка).
+        Двойной гейт: активация флагом MSCODEBASE_LANGUAGE_PACK внутри
+        iter_import_candidate_nodes (language_pack.is_enabled) + локальный
+        импорт (модульный создал бы цикл: language_imports деривирует карту
+        из CodeParser.IMPORT_NODE_MAP на верхнем уровне).
+        """
+        from src.core.language_imports import iter_import_candidate_nodes
+
+        for imp_node in iter_import_candidate_nodes(node):
+            module_name = self._extract_import_target(imp_node, code)
+            # Ключевые слова не становятся модулями (как в точном пути).
+            if module_name and module_name.lower() in self.IMPORT_KEYWORDS:
+                module_name = ""
+            if not module_name:
+                continue
+            imports.append(
+                {
+                    "source_file": str(file_path),
+                    "target_module": module_name,
+                    "line": imp_node.start_point[0] + 1,
+                    "text": code[imp_node.start_byte : imp_node.end_byte].decode(
+                        "utf-8", errors="ignore"
+                    ).strip(),
+                }
+            )
 
     def _extract_assignments_recursive(
         self,
