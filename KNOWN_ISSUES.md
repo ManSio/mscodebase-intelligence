@@ -114,3 +114,34 @@
 - **Fix:** CREATE_NO_WINDOW добавлен во все 5 сайтов (3 файла: resource_monitor.py ×2, llama_runner.py ×3). Guard: `tests/test_subprocess_windows.py` — из placeholder'ов превращён в реальный статический тест (grep по всем src/**/*.py за консоль-спавнами powershell/wsl/wmic/netstat/taskkill/nvidia-smi без флага → fail) + тест daemon-потоки без capture_output. Прогон: 2 passed.
 - **Статус:** ✅ Fixed
 
+
+## 2026-09-07 — Cypher-движок ломается на анонимных узлах/рёбрах (fixed) + Receipts не писались из write-пути (fixed) + collect() некорректно заявлен (open)
+
+- **Источник:** live-проба против реальной БД `bfe9644b/graph.db` (PropertyGraph, 6435 Variable / 22031 CALLS / 6152 ASSIGNED_FROM рёбер)
+- **Описание (Cypher, fixed):** работают только запросы с типизированными узлами: `MATCH (n:Variable) RETURN count(n)` → 6435 (1.1ms). НО `MATCH ()-[e:ASSIGNED_FROM]->()` падал `sqlite3.OperationalError: no such column: e`, а `MATCH ()-[:ASSIGNED_FROM]->()` — `no such column: n0.id`. **Fix внесён:** cypher_sql.py — (1) `from_node_alias` резолвится в `n{path_idx*2}` для анонимного левого узла; (2) переменные ребра `[e:]` регистрируются в `edge_vars` и резолвятся в колонки (`e.type/source_id/target_id`), включён `count(e)`. 10 регресс-тестов (SQL + E2E) + 5 Red Team атак (направления `<-`, WHERE e.target_id, OPTIONAL MATCH, оба анонимных конца, collect) — все защищены, корректность результатов подтверждена (count=2 для 2 рёбер). **⚠️ collect() остаётся нерабочим**: `_translate_return_expr` заявляет `collect` как Supported (стр. 434-438 «Supported: count, sum, avg, min, max, collect»), но SQLite не имеет функции COLLECT (Red Team: `no such function: COLLECT`). Ни одного теста на `RETURN collect(...)` нет — заявка и реализация расходятся.
+- **Описание (Receipts, fixed):** ActionReceipt компонент реализован (action_receipt.py, TD §11), но в проекте bfe9644b файла `action_receipts.jsonl` НЕТ — писались только в проектах 48baae8f/98d66cfa (19.08); `change_intents.jsonl` (96 записей) остаётся последней живой записью от 13.08. Receipt-путь для текущего проекта не срабатывал при повседневных MCP-вызовах (заполнялся только через lifecycle-tools reindex-путь).
+- **Fix (Cypher):** внесён (см. выше, коммит 80a7acf8). **Fix (collect):** либо реализовать JSON-агрегацию `collect()` (json_group_array в SQLite), либо убрать из списка Supported и добавить негативный тест. **Fix (Receipts):** внесён — `_contract_record` в write_tools.py теперь вызывает новый `_contract_receipt()` (ActionReceipt рядом с ChangeIntent), а сам `_contract_record` добавлен во ВСЕ write-пути: replace, insert_before/after, rename (LSP workspace edit + fallback), safe_delete, move (source/target/refs). Receipt-запись warning-only, не ломает write. Тест `tests/test_write_tools.py::test_apply_records_action_receipt` (создание action_receipts.jsonl из реального write-вызова). Коммит см. git log.
+- **Статус:** 🟢 Cypher-часть fixed; 🟢 receipts fixed; ⏳ collect() open
+
+
+## 2026-09-07 — Lazy-only верификация: память не проверяется без вызова агента; нет TTL/фона (open, эксперимент нужен)
+
+- **Источник:** live-срез project_memory.json текущего проекта (136 узлов) + grep точек вызова VOR/idle-планировщика
+- **Симптомы (все Verified):**
+  - VOR вызывается ровно из 1 места — `intel_get_project_memory` (layer.py:1097). Таймеров/старт-хуков/idle-подписок нет.
+  - У 42 узлов ACTIVE нет ни одного поля TTL/last_checked/next_check — висят без статуса с 2026-08-11 (1 месяц).
+  - Узлы без якорей (`file:/import:/env:/pkg:`) → INCONCLUSIVE → VOR **не пишет ничего** (ни статуса, ни verified_at) — их нельзя ни подтвердить, ни отозвать автоматически. Пример: ADRs с commit_hash в data, но без шпилей.
+  - IdleScheduler (`enable_idle_scheduler`, task_queue.py:345) включается только из `record_tool_call()` — после вызова инструмента; VOR туда не подключён; из 3 idle-задач 2 — заглушки (`_improve_summaries_batch`, `_check_index_health` — пустые тела, только debug-лог).
+  - Со стороны агента: вызвал `intel_get_project_memory` → 110/110 узлов проверено (47 VERIFIED, 63 не-refuted) — работает, но только «по руке».
+- **Дизайн-решение для эксперимента (следующий шаг):** непрерывная проверка «без вызова» — (a) idle-тикер VOR в фоне по расписанию с cooldown; (b) react на git/файловые события (HEAD сменился → перепроверка затронутых узлов); (c) TTL/`verified_at` для INCONCLUSIVE → по возрастанию падать в REFUTED label «не подтверждён за N дней». Контр-риск: цена (CPU/disk) непрерывной проверки vs польза свежести — мерить, не угадывать (см. docs/research/universal-engine-study/10-continuous-verification.md).
+- **Статус:** ⏳ Open — нужен эксперимент (гипотеза → замер → выбор)
+
+
+## 2026-09-08 — B4: статический цикл parser ⇄ language_imports (осознанный техдолг, lazy, allowed)
+
+- **Источник:** `architecture_linter` (Invariant 3) после деривации `LANGUAGE_IMPORT_NODES` из `CodeParser.IMPORT_NODE_MAP` (B4).
+- **Описание:** `src.core.language_imports` импортирует `src.core.indexing.parser` (для деривации карты), а `parser._extract_fallback_imports` импортирует `language_imports` (fallback-режим 2). Статически — цикл; в рантайме ни один импорт при загрузке модулей не выполняется: parser импортирует language_imports только локально в функции; language_imports импортирует parser только лениво (module `__getattr__` → `_derive_language_import_nodes`, PEP 562) при первом обращении к `LANGUAGE_IMPORT_NODES`.
+- **Fix:** пара добавлена в `_ALLOWED_CORE_CYCLES` (scripts/architecture_linter.py) с комментарием; `LANGUAGE_IMPORT_NODES` переведён на ленивую деривацию (кэш `_LANGUAGE_IMPORT_NODES_CACHE`, `__getattr__`), прямое обращение к карте внутри модуля заменено на `_get_language_import_nodes()`. Удалить из allowlist после выноса `IMPORT_NODE_MAP` в нейтральный модуль (не историю карт в parser) — тогда language_imports сможет импортировать parser односторонне.
+- **Статус:** ✅ Fixed (allowed tech debt, deferred refactor; целевые 68 passed, architecture_linter 4/4 OK)
+
+>>>>>>> 86ef986d (feat(indexing): derive import maps from parser and gate fallback behind language pack flag)

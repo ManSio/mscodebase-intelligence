@@ -98,8 +98,25 @@ class TestExtractImports:
         # "TypeScript" → нормализация в tsx/рабочий ключ
         assert extract_imports(_py_tree(), "PYTHON")  # не падает, lang нормализуется
 
-    def test_unknown_language_fallback_no_crash(self):
-        """Negative control: экзотический язык без карты — тишина, не падение."""
+    def test_unknown_language_fallback_gated_by_flag(self, monkeypatch):
+        """Fallback-режим 2 МОЛЧИТ при выключенном MSCODEBASE_LANGUAGE_PACK.
+
+        Негативный тест требования «fallback только за флагом»: без флага
+        экзотический язык без карты даёт пустой результат, не падение.
+        """
+        monkeypatch.delenv("MSCODEBASE_LANGUAGE_PACK", raising=False)
+        exo = N(
+            "weird_doc",
+            children=[
+                N("import_like_thing", children=[N("name", text="x")]),
+                N("ordinary_statement", children=[N("name", text="y")]),
+            ],
+        )
+        assert extract_imports(exo, "mooncript") == []
+
+    def test_unknown_language_fallback_active_with_flag(self, monkeypatch):
+        """Позитивный контроль: тот же язык с флагом — best-effort находит x."""
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
         exo = N(
             "weird_doc",
             children=[
@@ -109,7 +126,28 @@ class TestExtractImports:
         )
         mods = extract_imports(exo, "mooncript")
         assert isinstance(mods, list)
-        assert all(m == "x" for m in mods) or "x" in mods  # import_like_thing пойман
+        assert "x" in mods  # import_like_thing пойман fallback-ом
+
+    def test_mapped_lang_never_falls_back_even_with_flag(self, monkeypatch):
+        """Негативный тест: язык из карты использует ТОЧНЫЙ режим даже с флагом.
+
+        'useless_thing' содержит 'use' — по fallback-подстроке подошёл бы,
+        но rust есть в карте: посторонние типы не матчатся.
+        """
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        tree = N(
+            "source_file",
+            children=[
+                N(
+                    "use_declaration",
+                    children=[N("scoped_identifier", text="std::io")],
+                ),
+                N("useless_thing", children=[N("name", text="junk")]),
+            ],
+        )
+        mods = extract_imports(tree, "rust")
+        assert mods == ["std::io"]
+        assert "junk" not in mods
 
     def test_no_junk_from_keywords(self):
         """Negative control: ключевые слова не становятся модулями."""
@@ -184,3 +222,39 @@ def test_known_languages_cover_original_20():
         "csharp", "ruby", "php", "kotlin", "swift", "c", "cpp", "scala", "dart",
     ):
         assert original in langs, f"слой потерял язык {original}"
+
+
+class TestMapConsistency:
+    """Единый источник истины (B4): LANGUAGE_IMPORT_NODES — производная
+    CodeParser.IMPORT_NODE_MAP. Падает при любом расхождении двух карт:
+    ручная правка производной, новый ext без маппинга, смена деривации.
+    """
+
+    def test_derived_from_parser_map(self):
+        from src.core.indexing.parser import CodeParser
+        from src.core.language_imports import _EXT_TO_LANG, LANGUAGE_IMPORT_NODES
+
+        merged: dict = {}
+        for ext, types in CodeParser.IMPORT_NODE_MAP.items():
+            assert ext in _EXT_TO_LANG, (
+                f"ext {ext} из IMPORT_NODE_MAP без маппинга _EXT_TO_LANG"
+            )
+            merged.setdefault(_EXT_TO_LANG[ext], set()).update(types)
+        assert {k: set(v) for k, v in LANGUAGE_IMPORT_NODES.items()} == merged
+
+    def test_no_literal_legacy_entries(self):
+        """Исторические неверные имена старой карты не должны вернуться
+        (докстринг language_imports: карта однажды была фактически неверной)."""
+        from src.core.language_imports import LANGUAGE_IMPORT_NODES
+
+        assert LANGUAGE_IMPORT_NODES["kotlin"] == ("import",)
+        assert "import_header" not in LANGUAGE_IMPORT_NODES["kotlin"]
+        assert "library_import" in LANGUAGE_IMPORT_NODES["dart"]
+        assert "import_directive" not in LANGUAGE_IMPORT_NODES["dart"]
+        assert "require_expression" in LANGUAGE_IMPORT_NODES["php"]
+        assert "export_statement" not in LANGUAGE_IMPORT_NODES["typescript"]
+
+    def test_known_languages_matches_map(self):
+        from src.core.language_imports import LANGUAGE_IMPORT_NODES
+
+        assert known_languages() == sorted(LANGUAGE_IMPORT_NODES)
