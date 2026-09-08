@@ -415,6 +415,216 @@ def test_parser_extract_calls_unsupported_extension():
     assert calls == []
 
 
+# ── Мультиязычные live-тесты парсера (B3) ────────────────────────────────
+
+
+@pytest.fixture
+def live_parser():
+    """CodeParser с реальными tree-sitter грамматиками."""
+    p = CodeParser()
+    if not p.parsers:
+        pytest.skip("Tree-sitter parsers not available")
+    return p
+
+
+def _tmp_file(suffix: str, code: str) -> Path:
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    import os as _os
+
+    _os.close(fd)
+    f = Path(path)
+    f.write_text(code, encoding="utf-8")
+    return f
+
+
+class TestMultiLangCalls:
+    """Извлечение вызовов через реальные грамматики (B3):"""
+
+    @staticmethod
+    def _has(live_parser, ext: str) -> bool:
+        return ext in live_parser.parsers
+
+    def test_php_calls(self, live_parser):
+        if not self._has(live_parser, ".php"):
+            pytest.skip("tree_sitter_php not available")
+        code = """<?php
+function m() {
+    foo($a);
+    $obj->run($b);
+    mod::bar($c);
+}"""
+        f = _tmp_file(".php", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "foo" and c["caller"] == "m" for c in calls)
+        assert any(c["callee"] == "run" for c in calls)
+        assert any(c["callee"] == "bar" for c in calls)
+
+    def test_java_method_invocation_callee(self, live_parser):
+        if not self._has(live_parser, ".java"):
+            pytest.skip("tree_sitter_java not available")
+        code = """import java.util.List;
+class F {
+    void m() { obj.run(); }
+}"""
+        f = _tmp_file(".java", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_dart_constructor_callee(self, live_parser):
+        if not self._has(live_parser, ".dart"):
+            pytest.skip("tree_sitter_dart not available")
+        code = """import 'package:foo/bar.dart';
+void m() { run(1); var a = new Foo(1); }"""
+        f = _tmp_file(".dart", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        # Dart: обычные вызовы — identifier+selector (не call_expression),
+        # конструктор — new_expression. Ловим хотя бы конструктор.
+        assert any(c["callee"] == "Foo" for c in calls)
+
+    def test_swift_call_expression(self, live_parser):
+        if not self._has(live_parser, ".swift"):
+            pytest.skip("tree_sitter_swift not available")
+        code = """
+import Foundation
+func m() { run(1); }"""
+        f = _tmp_file(".swift", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_kotlin_call_expression(self, live_parser):
+        if not self._has(live_parser, ".kt"):
+            pytest.skip("tree_sitter_kotlin not available")
+        code = """
+import kotlinx.coroutines
+fun m() { run(1); }"""
+        f = _tmp_file(".kt", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_rust_macro_and_fn_call(self, live_parser):
+        if not self._has(live_parser, ".rs"):
+            pytest.skip("tree_sitter_rust not available")
+        code = """
+use std::io;
+fn m() { println!("x"); run(1); }"""
+        f = _tmp_file(".rs", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_ruby_call(self, live_parser):
+        if not self._has(live_parser, ".rb"):
+            pytest.skip("tree_sitter_ruby not available")
+        code = """
+require 'json'
+def m
+  foo()
+end"""
+        f = _tmp_file(".rb", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "foo" for c in calls)
+
+
+class TestMultiLangImports:
+    """Извлечение импортов через реальные грамматики (B3):"""
+
+    @staticmethod
+    def _has(live_parser, ext: str) -> bool:
+        return ext in live_parser.parsers
+
+    def test_java_import(self, live_parser):
+        if not self._has(live_parser, ".java"):
+            pytest.skip("tree_sitter_java not available")
+        f = _tmp_file(".java", "import java.util.List;\nclass F {}")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "java" for i in imports)
+
+    def test_c_preproc_include(self, live_parser):
+        if not self._has(live_parser, ".c"):
+            pytest.skip("tree_sitter_c not available")
+        f = _tmp_file(".c", "#include <stdio.h>\n#include \"mycfg.h\"\nint x;")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "stdio" in targets
+        assert "mycfg" in targets
+
+    def test_cpp_preproc_include(self, live_parser):
+        if not self._has(live_parser, ".cpp"):
+            pytest.skip("tree_sitter_cpp not available")
+        f = _tmp_file(".cpp", "#include <vector>\n#include \"cfg.h\"\nint x;")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "vector" in targets
+        assert "cfg" in targets
+
+    def test_php_namespace_use(self, live_parser):
+        if not self._has(live_parser, ".php"):
+            pytest.skip("tree_sitter_php not available")
+        code = """<?php
+use App\\Models\\User;
+namespace Web;"""
+        f = _tmp_file(".php", code)
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "App\\Models\\User" for i in imports)
+
+    def test_ruby_require(self, live_parser):
+        if not self._has(live_parser, ".rb"):
+            pytest.skip("tree_sitter_ruby not available")
+        code = "require 'json'\nrequire_relative 'helper'\ninclude Mod\n"
+        f = _tmp_file(".rb", code)
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "json" in targets
+        assert "helper" in targets
+        assert "Mod" in targets
+
+    def test_kotlin_import_no_keyword_dup(self, live_parser):
+        if not self._has(live_parser, ".kt"):
+            pytest.skip("tree_sitter_kotlin not available")
+        f = _tmp_file(".kt", "import kotlinx.coroutines.launch\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = [i["target_module"] for i in imports]
+        assert targets.count("import") == 0
+        assert any(t == "kotlinx" for t in targets)
+
+    def test_dart_import_no_dup(self, live_parser):
+        if not self._has(live_parser, ".dart"):
+            pytest.skip("tree_sitter_dart not available")
+        f = _tmp_file(".dart", "import 'package:foo/bar.dart';\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = [i["target_module"] for i in imports]
+        assert targets.count("package:foo") == 1
+
+    def test_rust_use(self, live_parser):
+        if not self._has(live_parser, ".rs"):
+            pytest.skip("tree_sitter_rust not available")
+        f = _tmp_file(".rs", "use std::collections::HashMap;\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "std" for i in imports)
+
+    def test_swift_import(self, live_parser):
+        if not self._has(live_parser, ".swift"):
+            pytest.skip("tree_sitter_swift not available")
+        f = _tmp_file(".swift", "import Foundation\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "Foundation" for i in imports)
+
+
 # ── Тест 6: Impact Analysis ───────────────────────────────────────────────
 
 
@@ -559,3 +769,124 @@ def test_stats_includes_references(symbol_index):
     assert stats["total_definitions"] == 2
     assert stats["total_references"] == 1
     assert stats["total_symbols"] == 2
+
+
+# ── B4: Fallback-режим 2 (language_imports) в реальном пути _walk_file ────
+
+
+class _FakeNode:
+    """Минимальный duck-typed tree-sitter узел с байтовыми офсетами."""
+
+    def __init__(self, ntype, children=(), start_byte=0, end_byte=0,
+                 start_point=(0, 0)):
+        self.type = ntype
+        self.children = list(children)
+        self.start_byte = start_byte
+        self.end_byte = end_byte
+        self.start_point = start_point
+
+
+class _FakeTree:
+    def __init__(self, root):
+        self.root_node = root
+
+
+class _FakeParser:
+    def __init__(self, root):
+        self._root = root
+
+    def parse(self, code):
+        return _FakeTree(self._root)
+
+
+class TestFallbackImports:
+    """Интеграция fallback-режима 2 language_imports в CodeParser._walk_file.
+
+    Основной grammar-путь (IMPORT_NODE_MAP) всегда приоритетен; fallback
+    активен только для ext без карты и только при MSCODEBASE_LANGUAGE_PACK.
+    """
+
+    @staticmethod
+    def _install_fake_parser(monkeypatch, parser, ext, root):
+        """Регистрирует ext и подменяет шов _get_parser (без tree-sitter)."""
+        parser.parsers[ext] = object()  # guard ext in self.parsers
+        monkeypatch.setattr(
+            CodeParser, "_get_parser", lambda self, e: _FakeParser(root)
+        )
+
+    @staticmethod
+    def _spy_fallback(monkeypatch):
+        import src.core.language_imports as li
+
+        calls = []
+        original = li.iter_import_candidate_nodes
+
+        def spy(tree):
+            calls.append(tree)
+            yield from original(tree)
+
+        monkeypatch.setattr(li, "iter_import_candidate_nodes", spy)
+        return calls
+
+    def test_fallback_fires_for_unmapped_ext_when_flag_on(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        src = b"import mod\n"
+        root = _FakeNode("program", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".xyz", root)
+        f = tmp_path / "a.xyz"
+        f.write_bytes(src)
+
+        imports = p.extract_imports(f)
+        assert [i["target_module"] for i in imports] == ["mod"]
+        assert imports[0]["line"] == 1
+        assert imports[0]["text"] == "import mod"
+
+    def test_fallback_silent_when_flag_off(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("MSCODEBASE_LANGUAGE_PACK", raising=False)
+        src = b"import mod\n"
+        root = _FakeNode("program", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".xyz", root)
+        f = tmp_path / "a.xyz"
+        f.write_bytes(src)
+
+        assert p.extract_imports(f) == []
+
+    def test_mapped_ext_never_uses_fallback(self, tmp_path, monkeypatch):
+        """Негативный тест: для ext из карты fallback не вызывается никогда
+        (основной grammar-путь приоритетен), даже с включённым флагом."""
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        calls = self._spy_fallback(monkeypatch)
+        src = b"import os\n"
+        root = _FakeNode("module", children=[
+            _FakeNode("import_statement", start_byte=0, end_byte=len(src) - 1),
+        ])
+        p = CodeParser()
+        self._install_fake_parser(monkeypatch, p, ".py", root)
+        f = tmp_path / "a.py"
+        f.write_bytes(src)
+
+        imports = p.extract_imports(f)
+        assert [i["target_module"] for i in imports] == ["os"]  # точный путь
+        assert calls == []  # fallback не активирован
+
+    def test_fallback_never_fires_when_ext_unparseable(
+        self, tmp_path, monkeypatch
+    ):
+        """Негативный тест: ext не регистрирован → дерево None → никакого
+        обхода и никакого fallback (нет грамматики — нет и импортов)."""
+        monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
+        calls = self._spy_fallback(monkeypatch)
+        p = CodeParser()  # .xyz не в self.parsers
+        f = tmp_path / "a.xyz"
+        f.write_bytes(b"import mod\n")
+
+        assert p.extract_imports(f) == []
+        assert calls == []

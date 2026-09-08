@@ -19,12 +19,15 @@ All notable changes to this project will be documented in this file.
 - **Jupyter support**: `.ipynb` в INDEX/PARSE_EXTENSIONS; `CodeParser._parse_notebook` — code cells → чанки через tree-sitter (stdlib json; nbformat не требуется).
 - **find_duplicates**: детектор copy-paste — AST-нормализованные отпечатки + multiset-Jaccard + minhash-LSH, мультиязычно через грамматики CodeParser (src/core/duplication.py).
 - **get_context(targets=[...])**: task-shaped агрегатор — контекст по нескольким символам одним вызовом (обёртка над get_symbol_info/impact_analysis).
+- **Per-language grammar maps** (B3): `CALL_NODES`/`IMPORT_NODE_MAP`/`ASSIGNMENT_NODE_MAP`/`CONDITIONAL_NODE_MAP` in `CodeParser` verified against live tree-sitter grammars of 11 languages (callee `simple_identifier` for Swift/Kotlin/Dart, Ruby `method` target, PHP/Swift assigns, C/C++ `#include`, Dart `library_import` dedup, Ruby `require/include`; live tests TestMultiLangCalls/TestMultiLangImports).
+- **Derived import maps + gated fallback** (B4): `LANGUAGE_IMPORT_NODES` now derived from `CodeParser.IMPORT_NODE_MAP` (single source of truth; kt/dart/php drift gone); fallback mode 2 (extension without a map) runs only in the else-branch of `_walk_file` and is gated by the `MSCODEBASE_LANGUAGE_PACK` flag; import dedup moved to the shared path; derivation is lazy (module `__getattr__`, PEP 562 — parser is not imported at import-time).
 
 ### Changed
 - Регистрация MCP-тулов 55 → 57 (28 core + 13 intel + 13 inline + 4 dev); README/AGENTS.md/docs en+ru+zh синхронизированы; контракт-тест количества тулов обновлён до 57.
 
 ### Tests
 - +19 новых тестов (test_graph_path, test_duplication, test_jupyter, test_edge_transparency); полный pytest: 956 passed / 4 skipped / 94 deselected.
+- B3: 94 targeted passed (assignments+calls+imports), full run 1646 passed; B4: 68 targeted passed (language_imports + call_graph), full run 1651 passed / 5 skipped / 91 deselected (Windows).
 
 ---
 ## [3.3.13] — 2026-08-05 — get_last_progress → core (ARCH-03 закрыт полностью), bump_version fix, test sys.path pollution fix

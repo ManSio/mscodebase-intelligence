@@ -651,4 +651,19 @@ end'''
         edges = _edges_from(assign)
         assert ("x", "y") in edges
 
+    def test_php_assign(self, parser):
+        """PHP: $x = src; $y = $x → x→y (variable_name left/right)"""
+        if not self._has_grammar(".php", parser):
+            pytest.skip("tree_sitter_php not available")
+        code = b'''<?php
+function f() {
+    $x = $src;
+    $y = $x;
+}'''
+        f = _write_file(code, ".php")
+        assign = parser.extract_assignments(f)
+        f.unlink()
+        edges = _edges_from(assign)
+        assert ("x", "y") in edges
+
 

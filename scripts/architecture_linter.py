@@ -223,8 +223,15 @@ def _check_stale_references() -> list[str]:
 # task_queue.py:414 `from src.core.error_handler import _LAST_CALL_AT`) —
 # цикл разрывается в рантайме, при загрузке модулей не выполняется.
 # Удалить из исключений после рефакторинга (см. KNOWN_ISSUES 2026-08-24).
+#
+# parser ⇄ language_imports (B4): parser импортирует language_imports только
+# локально в _extract_fallback_imports; language_imports импортирует parser
+# ТОЛЬКО лениво (module __getattr__ → _derive_language_import_nodes) при первом
+# обращении к LANGUAGE_IMPORT_NODES. На import-time ничего не выполняется.
+# Удалить после выноса IMPORT_NODE_MAP в нейтральный модуль (см. KNOWN_ISSUES B4).
 _ALLOWED_CORE_CYCLES: set[frozenset[str]] = {
     frozenset({"src.core.error_handler", "src.core.task_queue"}),
+    frozenset({"src.core.indexing.parser", "src.core.language_imports"}),
 }
 
 

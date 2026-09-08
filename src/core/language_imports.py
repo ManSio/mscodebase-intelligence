@@ -4,54 +4,100 @@
 commit 142761d), удалён рефакторингом к 04.08.2026 — claim «20 языков» в
 CHANGELOG разошёлся с кодом (закрыто 24.08.2026).
 
+ЕДИНЫЙ ИСТОЧНИК ИСТИНЫ по node-типам импортов — CodeParser.IMPORT_NODE_MAP
+(parser.py, B3-карты, сверены с живыми грамматиками 2026-08-18).
+LANGUAGE_IMPORT_NODES ниже — ПРОИЗВОДНАЯ (ext→lang через _EXT_TO_LANG),
+литерала карты здесь больше нет; расхождение ловит TestMapConsistency
+в tests/test_language_imports.py.
+
 Экстрактор ЧИСТЫЙ и duck-typed: работает с любым деревом, у которого есть
 node.type / node.children / node.text — поэтому тестируется синтетикой БЕЗ
 tree-sitter (герметичность). Реальные грамматики (tree-sitter-language-pack,
 +56 языков) скачиваются по сети при первом использовании — это вне юнит-тестов.
 
 Два режима:
-  1. Точный: node-типы из LANGUAGE_IMPORT_NODES (исходные 20 языков).
+  1. Точный: node-типы из LANGUAGE_IMPORT_NODES (производной от IMPORT_NODE_MAP).
   2. Fallback: для языков без карты — любой node, чей тип содержит
      'import'/'use'/'include' (best-effort, никогда не падает — Negative control).
+     Активен ТОЛЬКО при MSCODEBASE_LANGUAGE_PACK=true; реальный путь parser.py
+     (_extract_fallback_imports) вызывает его только когда точная карта для
+     расширения отсутствует — при доступном основном grammar-пути fallback
+     не запускается никогда.
 
-Гейт включения — как у language_pack.py: MSCODEBASE_LANGUAGE_PACK=true.
+Гейт включения — как у language_pack.py: MSCODEBASE_LANGUAGE_PACK=true
+(единая точка чтения флага — language_pack.is_enabled()).
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Sequence
+
+from src.core.language_pack import is_enabled as _pack_enabled
 
 __all__ = [
     "extract_imports",
     "extract_imports_from_file",
-    "LANGUAGE_IMPORT_NODES",
+    "iter_import_candidate_nodes",
+    "LANGUAGE_IMPORT_NODES",  # noqa: F822 — ленивый lazy-export через module __getattr__ (PEP 562)
     "known_languages",
 ]
 
-# Язык -> node-типы tree-sitter, представляющие импорты (исходные 20).
-# Ключи нормализованы (нижний регистр, без расширений).
-LANGUAGE_IMPORT_NODES: Dict[str, tuple[str, ...]] = {
-    "python": ("import_statement", "import_from_statement"),
-    "rust": ("use_declaration",),
-    "javascript": ("import_statement", "export_statement"),
-    "typescript": ("import_statement", "export_statement"),
-    "tsx": ("import_statement", "export_statement"),
-    "go": ("import_declaration",),
-    "java": ("import_declaration",),
-    "csharp": ("using_directive",),
-    "ruby": ("call",),  # require / require_relative — фильтруем по имени вызова
-    "php": ("namespace_use_declaration",),
-    "kotlin": ("import_header",),
-    "swift": ("import_declaration",),
-    "c": ("preproc_include",),
-    "cpp": ("preproc_include",),
-    "scala": ("import_declaration",),
-    "dart": ("import_directive", "export_directive"),
-    "bash": ("declaration_command",),  # source / import — грубый best-effort
-    "objectivec": ("preproc_include",),
-    "cpp_objectivec": ("preproc_include",),
-    "vue": ("import_statement", "export_statement"),
+logger = logging.getLogger(__name__)
+
+# Каноническое соответствие расширение → имя языка. Обслуживает и деривацию
+# карты из parser.IMPORT_NODE_MAP, и _lang_for_ext — второй копии быть не должно.
+_EXT_TO_LANG: Dict[str, str] = {
+    ".py": "python", ".rs": "rust", ".js": "javascript", ".jsx": "javascript",
+    ".ts": "typescript", ".tsx": "tsx", ".vue": "vue", ".go": "go",
+    ".java": "java", ".cs": "csharp", ".rb": "ruby", ".php": "php",
+    ".kt": "kotlin", ".swift": "swift", ".c": "c", ".h": "c",
+    ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+    ".scala": "scala", ".dart": "dart", ".sh": "bash", ".bash": "bash",
+    ".m": "objectivec",
 }
+
+
+def _derive_language_import_nodes() -> Dict[str, tuple[str, ...]]:
+    """Строит LANGUAGE_IMPORT_NODES из CodeParser.IMPORT_NODE_MAP (B3).
+
+    ВЫЗЫВАЕТСЯ ТОЛЬКО лениво (module __getattr__) при первом обращении,
+    НИКОГДА при загрузке модуля — иначе статический цикл
+    parser ⇄ language_imports (architecture_linter, _ALLOWED_CORE_CYCLES).
+    Ext без маппинга в _EXT_TO_LANG пропускается с warning; полноту покрытия
+    закрепляет консистентный тест.
+    """
+    from src.core.indexing.parser import CodeParser
+
+    merged: Dict[str, set] = {}
+    for ext, types in CodeParser.IMPORT_NODE_MAP.items():
+        lang = _EXT_TO_LANG.get(ext)
+        if lang is None:
+            logger.warning("language_imports: ext %s без маппинга _EXT_TO_LANG", ext)
+            continue
+        merged.setdefault(lang, set()).update(types)
+    return {lang: tuple(sorted(types)) for lang, types in sorted(merged.items())}
+
+
+# Язык -> node-типы tree-sitter, представляющие импорты (производная, см. выше).
+# ЛЕНИВАЯ: первый доступ (module __getattr__, PEP 562) деривирует карту из
+# CodeParser.IMPORT_NODE_MAP. При загрузке модуля parser НЕ импортируется —
+# иначе статический цикл parser ⇄ language_imports (architecture_linter).
+# Число синхронизировано с _ALLOWED_CORE_CYCLES (scripts/architecture_linter.py).
+_LANGUAGE_IMPORT_NODES_CACHE: Dict[str, tuple[str, ...]] | None = None
+
+
+def _get_language_import_nodes() -> Dict[str, tuple[str, ...]]:
+    global _LANGUAGE_IMPORT_NODES_CACHE
+    if _LANGUAGE_IMPORT_NODES_CACHE is None:
+        _LANGUAGE_IMPORT_NODES_CACHE = _derive_language_import_nodes()
+    return _LANGUAGE_IMPORT_NODES_CACHE
+
+
+def __getattr__(name: str):
+    if name == "LANGUAGE_IMPORT_NODES":
+        return _get_language_import_nodes()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 # Импорт НЕ должен содержать эти слова (ключевые слова/служебные имена).
 _IMPORT_KEYWORDS = frozenset(
@@ -63,6 +109,11 @@ _IMPORT_KEYWORDS = frozenset(
 )
 
 _FALLBACK_SUBSTR = ("import", "use", "include")
+
+
+def _fallback_type_match(ntype: str) -> bool:
+    """Подстрочный критерий fallback-режима 2 (одно определение на модуль)."""
+    return any(s in ntype for s in _FALLBACK_SUBSTR)
 
 
 def _iter_nodes(node) -> Sequence:
@@ -78,7 +129,7 @@ def _iter_nodes(node) -> Sequence:
 
 def _is_import_node(node, lang: str) -> bool:
     ntype = str(getattr(node, "type", "") or "")
-    targets = LANGUAGE_IMPORT_NODES.get(lang)
+    targets = _get_language_import_nodes().get(lang)
     if targets:
         if ntype not in targets:
             return False
@@ -90,7 +141,26 @@ def _is_import_node(node, lang: str) -> bool:
             )
         return True
     # Fallback для неизвестных языков: best-effort по имени node-типа.
-    return any(s in ntype for s in _FALLBACK_SUBSTR)
+    # Гейт: ТОЛЬКО при MSCODEBASE_LANGUAGE_PACK (докстринг модуля) — без флага
+    # незнакомый язык даёт пустой результат (негативный тест закреплён).
+    if not _pack_enabled():
+        return False
+    return _fallback_type_match(ntype)
+
+
+def iter_import_candidate_nodes(tree):
+    """Узлы-кандидаты fallback-режима 2 для реального пути parser.py.
+
+    CodeParser._extract_fallback_imports вызывает это ТОЛЬКО для ext без
+    точной карты (IMPORT_NODE_MAP) — основной grammar-путь всегда приоритетен.
+    Пустой генератор при выключенном MSCODEBASE_LANGUAGE_PACK
+    (language_pack.is_enabled).
+    """
+    if not _pack_enabled():
+        return
+    for node in _iter_nodes(tree):
+        if _fallback_type_match(str(getattr(node, "type", "") or "")):
+            yield node
 
 
 # Листья, из которых собирается имя модуля. Обычные 'identifier' НЕ входят:
@@ -184,15 +254,13 @@ def extract_imports_from_file(
     language_pack.try_enable). Для юнит-тестов передаём фейк-провайдера —
     сам мост остаётся герметичным.
     """
-    import os
     from pathlib import Path
 
     if lang is None:
         lang = _lang_for_ext(Path(file_path).suffix)
     if parser_provider is None:
-        if os.getenv("MSCODEBASE_LANGUAGE_PACK", "").strip().lower() not in (
-            "1", "true", "yes", "on",
-        ):
+        # Единый гейт флага (language_pack.is_enabled) — дубля чтения env нет.
+        if not _pack_enabled():
             return []
         parser_provider = _default_parser_provider
     try:
@@ -206,19 +274,12 @@ def extract_imports_from_file(
 
 
 def known_languages() -> List[str]:
-    return sorted(LANGUAGE_IMPORT_NODES)
+    return sorted(_get_language_import_nodes())
 
 
 def _lang_for_ext(ext: str) -> str:
-    _EXT_LANG = {
-        ".py": "python", ".rs": "rust", ".js": "javascript", ".jsx": "javascript",
-        ".ts": "typescript", ".tsx": "tsx", ".vue": "vue", ".go": "go",
-        ".java": "java", ".cs": "csharp", ".rb": "ruby", ".php": "php",
-        ".kt": "kotlin", ".swift": "swift", ".c": "c", ".h": "c",
-        ".cpp": "cpp", ".cc": "cpp", ".hpp": "cpp", ".scala": "scala",
-        ".dart": "dart", ".sh": "bash", ".bash": "bash", ".m": "objectivec",
-    }
-    return _EXT_LANG.get((ext or "").lower(), "")
+    # _EXT_TO_LANG — единственный словарь ext→lang в модуле (деривация + мост).
+    return _EXT_TO_LANG.get((ext or "").lower(), "")
 
 
 def _default_parser_provider(file_path: str, lang: str):
