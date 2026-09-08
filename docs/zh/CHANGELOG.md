@@ -21,12 +21,15 @@
 - **Jupyter 支持**: `.ipynb` 加入 INDEX/PARSE_EXTENSIONS；`CodeParser._parse_notebook` — code cells → chunks（stdlib json）。
 - **find_duplicates**: copy-paste 检测 — AST 归一化指纹 + multiset-Jaccard + minhash-LSH（src/core/duplication.py）。
 - **get_context(targets=[...])**: task-shaped 聚合 — 一次调用获取多个符号的上下文。
+- **逐语言语法映射（B3）**：`CALL_NODES`/`IMPORT_NODE_MAP`/`ASSIGNMENT_NODE_MAP`/`CONDITIONAL_NODE_MAP` 在 `CodeParser` 中对照 11 种语言的实时 tree-sitter 语法校验（Swift/Kotlin/Dart 的 callee `simple_identifier`、Ruby `method` 目标、PHP/Swift 赋值、C/C++ `#include`、Dart `library_import` 去重、Ruby `require/include`；live 测试 TestMultiLangCalls/TestMultiLangImports）。
+- **派生导入映射 + flag 门控的 fallback（B4）**：`LANGUAGE_IMPORT_NODES` 现由 `CodeParser.IMPORT_NODE_MAP` 派生（单一事实来源；kt/dart/php 漂移消除）；fallback 模式 2（无映射的扩展名）仅在 `_walk_file` 的 else 分支且 `MSCODEBASE_LANGUAGE_PACK` flag 开启时执行；导入去重移至共享路径；映射派生为惰性（module `__getattr__`，PEP 562 — import-time 不导入 parser）。
 
 ### 变更
 - MCP 工具注册 55 → 57（28 core + 13 intel + 13 inline + 4 dev）；README/AGENTS.md/docs en+ru+zh 同步；工具数量契约测试更新为 57。
 
 ### 测试
 - +19 个新测试（test_graph_path, test_duplication, test_jupyter, test_edge_transparency）；完整 pytest：956 passed / 4 skipped / 94 deselected。
+- B3：94 个定向测试通过（assignments+calls+imports），完整 1646 passed；B4：68 个定向测试通过（language_imports + call_graph），完整 1651 passed / 5 skipped / 91 deselected（Windows）。
 
 ---
 ## [3.3.13] — 2026-08-05 — get_last_progress → core（ARCH-03 完全关闭）、bump_version 修复、test sys.path 污染修复
