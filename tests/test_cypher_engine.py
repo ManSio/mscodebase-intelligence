@@ -323,6 +323,44 @@ class TestCypherToSQL:
         with pytest.raises(ValueError, match="Unsupported function"):
             self._translate("MATCH (a)-[:CALLS]->(b) RETURN cycle(a)")
 
+    def test_anonymous_node_from_alias(self):
+        """Регресс: MATCH ()-[:USAGE]->() должен генерировать FROM nodes AS n0
+        (совпадающий с алиасом в JOIN), а не n1 → 'no such column: n0.id'."""
+        sql, params = self._translate("MATCH ()-[:USAGE]->(m) RETURN m.name")
+        assert "FROM nodes AS n0" in sql
+        assert "JOIN edges AS e0" in sql
+        assert "USAGE" in params
+
+    def test_edge_variable_registered(self):
+        """Регресс: [e:...] должен регистрировать переменную ребра e (не e0)."""
+        sql, params = self._translate("MATCH (a)-[e:USAGE]->(m) RETURN e.type")
+        assert "JOIN edges AS e" in sql
+        assert "e.type" in sql  # резолв e.type → колонка типа, не json_extract
+
+    def test_edge_variable_where(self):
+        """Регресс: WHERE e.type = ... по переменной ребра."""
+        sql, params = self._translate(
+            "MATCH (a)-[e:USAGE]->(b) WHERE e.type = 'USAGE' RETURN a.name"
+        )
+        assert "e.type = ?" in sql
+        assert "USAGE" in params
+
+    def test_edge_variable_anonymous_rel_keeps_auto_alias(self):
+        """Анонимное ребро без переменной — прежний авто-алиас e0."""
+        sql, params = self._translate("MATCH (a)-[:USAGE]->(b) RETURN a.name")
+        assert "JOIN edges AS e0" in sql
+
+    def test_edge_variable_source_target(self):
+        """e.source_id / e.target_id — колонки ребра, не json_extract."""
+        sql, params = self._translate("MATCH (a)-[e:USAGE]->(b) RETURN e.source_id, e.target_id")
+        assert "e.source_id" in sql
+        assert "e.target_id" in sql
+
+    def test_edge_count_sql(self):
+        """count(e) над ребром → COUNT(e.id)."""
+        sql, params = self._translate("MATCH (a)-[e:USAGE]->(b) RETURN count(e)")
+        assert "COUNT(e.id)" in sql
+
 
 # ════════════════════════════════════════════════════════════
 # Phase 4: End-to-End Execution + OPTIONAL MATCH
@@ -661,3 +699,38 @@ class TestSchemaValidation:
         """D1: properties в паттерне не поддерживаются — понятная ошибка, не тихий игнор."""
         result = executor.execute("MATCH (n:Function {name: 'main'}) RETURN n.name")
         assert "error" in result
+
+    def test_anonymous_node_e2e(self, executor):
+        """Регресс: MATCH ()-[e:USAGE]->(m) — анонимный левый узел не роняет SQL."""
+        result = executor.execute(
+            "MATCH ()-[e:USAGE]->(m) RETURN m.name ORDER BY m.name"
+        )
+        assert "error" not in result
+        names = [r["m.name"] for r in result["results"]]
+        # config <- parse, db_conn <- validate (USAGE направлены на переменные)
+        assert "config" in names
+        assert "db_conn" in names
+
+    def test_edge_variable_return_e2e(self, executor):
+        """Регресс: [e:TYPE] и RETURN e.type — переменная ребра резолвится."""
+        result = executor.execute(
+            "MATCH (a)-[e:CALLS]->(b) RETURN a.name, e.type ORDER BY a.name"
+        )
+        assert "error" not in result
+        rows = result["results"]
+        assert rows
+        assert all(r["e.type"] == "CALLS" for r in rows)
+
+    def test_edge_variable_where_e2e(self, executor):
+        """Регресс: WHERE e.type = ... — фильтр по типу ребра."""
+        result = executor.execute(
+            "MATCH (a)-[e:CALLS]->(b) WHERE e.type = 'NONEXISTENT' RETURN a.name"
+        )
+        assert "error" not in result
+        assert result["results"] == []
+
+    def test_count_edges_e2e(self, executor):
+        """Регресс: count(e) по рёбрам на живом графе."""
+        result = executor.execute("MATCH (a)-[e:CALLS]->(b) RETURN count(e) AS n")
+        assert "error" not in result
+        assert result["results"][0]["n"] == 4  # 4 CALLS-рёбра в фикстуре
