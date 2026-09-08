@@ -1,6 +1,7 @@
 """Cypher query engine — компонент для подмножества openCypher."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -84,13 +85,27 @@ class CypherExecutor:
                 cursor = conn.execute(sql, sql_params)
                 rows = cursor.fetchall()
 
-            # 5. Format results
+            # 5. Format results. collect()-колонки (json_group_array возвращает
+            # строку) декодируются из JSON только по маркеру транслятора —
+            # обычные строковые колонки, выглядящие как JSON, НЕ трогаются.
+            collect_cols = set(translator.collect_cols)
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
             results = []
             for row in rows:
                 result_row = {}
                 for i, col in enumerate(columns):
-                    result_row[col] = row[i]
+                    value = row[i]
+                    if col in collect_cols and isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except ValueError:
+                            # json_group_array всегда валиден, но guard:
+                            # невалидная JSON-строка — не причина ронять запрос.
+                            logger.warning(
+                                f"Cypher collect column {col!r} is not valid JSON: "
+                                f"{value[:80]!r}"
+                            )
+                    result_row[col] = value
                 results.append(result_row)
 
             elapsed = (time.monotonic() - start) * 1000
