@@ -135,6 +135,8 @@ llama_msvc/
 .codebase/graph.db-wal
 .dev
 .agent_task_state.md
+.agent_task_state_*.md
+.agent_task_state_[*].md
 mcp_stdout.log
 tmp_*
 benchmark_results.json
