@@ -6,7 +6,7 @@
 ---
 
 
-**11 entries** — compressed per §4.8 R3 (conclusion-first)
+**14 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08)
 
 ## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
 
@@ -51,30 +51,6 @@
 - **Описание:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled — was installed via MCP after commits pushed, so never caught.
 - **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
 - **Статус:** ✅ Fixed
-
-## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
-**Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
-- **Статус:** автоматически синхронизировано
-
-
-## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
-**Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
-- **Статус:** автоматически синхронизировано
-
-
-## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
-**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
-- **Статус:** автоматически синхронизировано
-
 
 ## 2026-09-05 — Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
 
@@ -134,7 +110,8 @@
   - IdleScheduler (`enable_idle_scheduler`, task_queue.py:345) включается только из `record_tool_call()` — после вызова инструмента; VOR туда не подключён; из 3 idle-задач 2 — заглушки (`_improve_summaries_batch`, `_check_index_health` — пустые тела, только debug-лог).
   - Со стороны агента: вызвал `intel_get_project_memory` → 110/110 узлов проверено (47 VERIFIED, 63 не-refuted) — работает, но только «по руке».
 - **Дизайн-решение для эксперимента (следующий шаг):** непрерывная проверка «без вызова» — (a) idle-тикер VOR в фоне по расписанию с cooldown; (b) react на git/файловые события (HEAD сменился → перепроверка затронутых узлов); (c) TTL/`verified_at` для INCONCLUSIVE → по возрастанию падать в REFUTED label «не подтверждён за N дней». Контр-риск: цена (CPU/disk) непрерывной проверки vs польза свежести — мерить, не угадывать (см. docs/research/universal-engine-study/10-continuous-verification.md).
-- **Статус:** ⏳ Open — нужен эксперимент (гипотеза → замер → выбор)
+- **Статус:** ⏳ Open 🟡 — нужен эксперимент (гипотеза → замер → выбор)
+- **Дедлайн:** 2026-09-15 · **Owner:** ManSio
 
 
 ## 2026-09-08 — B4: статический цикл parser ⇄ language_imports (осознанный техдолг, lazy, allowed)
@@ -143,4 +120,5 @@
 - **Описание:** `src.core.language_imports` импортирует `src.core.indexing.parser` (для деривации карты), а `parser._extract_fallback_imports` импортирует `language_imports` (fallback-режим 2). Статически — цикл; в рантайме ни один импорт при загрузке модулей не выполняется: parser импортирует language_imports только локально в функции; language_imports импортирует parser только лениво (module `__getattr__` → `_derive_language_import_nodes`, PEP 562) при первом обращении к `LANGUAGE_IMPORT_NODES`.
 - **Fix:** пара добавлена в `_ALLOWED_CORE_CYCLES` (scripts/architecture_linter.py) с комментарием; `LANGUAGE_IMPORT_NODES` переведён на ленивую деривацию (кэш `_LANGUAGE_IMPORT_NODES_CACHE`, `__getattr__`), прямое обращение к карте внутри модуля заменено на `_get_language_import_nodes()`. Удалить из allowlist после выноса `IMPORT_NODE_MAP` в нейтральный модуль (не историю карт в parser) — тогда language_imports сможет импортировать parser односторонне.
 - **Статус:** ✅ Fixed (allowed tech debt, deferred refactor; целевые 68 passed, architecture_linter 4/4 OK)
+- **Дедлайн рефактора:** 2026-10-01 · **Owner:** ManSio
 
