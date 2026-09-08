@@ -361,6 +361,33 @@ class TestCypherToSQL:
         sql, params = self._translate("MATCH (a)-[e:USAGE]->(b) RETURN count(e)")
         assert "COUNT(e.id)" in sql
 
+    def test_collect_property_sql(self):
+        """collect(f.name) → json_group_array с NULL-фильтром, не алиасовый COLLECT."""
+        sql, params = self._translate("MATCH (f:Function) RETURN collect(f.name) AS names")
+        assert "json_group_array(f.name) FILTER (WHERE f.name IS NOT NULL)" in sql
+        assert "collect(" not in sql
+        assert params == ["Function"]
+
+    def test_collect_star_raises(self):
+        """collect(*) — явная ошибка, а не тихий невалидный SQL."""
+        with pytest.raises(ValueError, match="collect\\(\\*\\) is not supported"):
+            self._translate("MATCH (f:Function) RETURN collect(*)")
+
+    def test_collect_nested_raises(self):
+        """Вложенный collect(collect(...)) — явная ошибка."""
+        with pytest.raises(ValueError, match="is not supported; use a property"):
+            self._translate("MATCH (f:Function) RETURN collect(collect(f.name))")
+
+    def test_collect_distinct_raises(self):
+        """collect(DISTINCT ...) — явная ошибка (парсер режет первой скобкой)."""
+        with pytest.raises((SyntaxError, ValueError)):
+            self._translate("MATCH (f:Function) RETURN collect(DISTINCT f.name)")
+
+    def test_collect_no_alias_sql(self):
+        """collect(f.name) без алиаса — имя колонки = выражение (как у count)."""
+        sql, params = self._translate("MATCH (f:Function) RETURN collect(f.name)")
+        assert '"collect(f.name)"' in sql
+
 
 # ════════════════════════════════════════════════════════════
 # Phase 4: End-to-End Execution + OPTIONAL MATCH
@@ -468,6 +495,63 @@ class TestCypherE2E:
         result = query_graph(pg, "MATCH (f:Function) RETURN count(*)")
         assert result["results"][0]["count(*)"] == 5
 
+    def test_collect_list_e2e(self, executor):
+        """collect() возвращает Python list (json_group_array декодируется)."""
+        result = executor.execute(
+            "MATCH (f:Function) RETURN collect(f.name) AS names"
+        )
+        assert "error" not in result
+        names = result["results"][0]["names"]
+        assert isinstance(names, list)
+        assert "main" in names
+        assert "parse" in names
+
+    def test_collect_empty_match_returns_empty_list(self, executor):
+        """Пустой матч → [] (семантика Neo4j, не None)."""
+        result = executor.execute(
+            "MATCH (f:Function) WHERE f.name = 'NOPE' RETURN collect(f.name) AS x"
+        )
+        assert "error" not in result
+        assert result["results"][0]["x"] == []
+
+    def test_collect_grouped(self, executor):
+        """collect() с группировкой по src-name."""
+        result = executor.execute(
+            "MATCH (a)-[:CALLS]->(b) RETURN a.name AS src, collect(b.name) AS targets"
+        )
+        assert "error" not in result
+        rows = result["results"]
+        by_src = {r["src"]: r["targets"] for r in rows}
+        assert by_src["main"] == ["parse", "validate"]
+        assert by_src["validate"] == ["log_error"]
+
+    def test_collect_edge_property_e2e(self, executor):
+        """collect(e.type) — сбор значения свойства ребра."""
+        result = executor.execute(
+            "MATCH (a)-[e:CALLS]->(b) RETURN collect(e.type) AS types"
+        )
+        assert "error" not in result
+        types = result["results"][0]["types"]
+        assert isinstance(types, list)
+        assert types == ["CALLS"] * 4
+
+    def test_collect_non_collect_column_not_decoded(self, executor):
+        """Guard-коллизия: обычная строка, похожая на JSON, НЕ декодируется."""
+        from src.core.graph import NodeLabel
+
+        executor._graph.add_node(
+            '["not_a_list"]', label=NodeLabel.FUNCTION,
+            qualified_name='["not_a_list"]', file_path='weird.py',
+        )
+        result = executor.execute(
+            "MATCH (f:Function) WHERE f.name = '[\"not_a_list\"]' "
+            "RETURN f.name AS raw, collect(f.name) AS col"
+        )
+        assert "error" not in result
+        row = result["results"][0]
+        assert row["raw"] == '["not_a_list"]'  # НЕ декодируется
+        assert row["col"] == ['["not_a_list"]']  # декодируется как список
+
 
 # ════════════════════════════════════════════════════════════
 # Phase 5: Error Handling
@@ -532,6 +616,24 @@ class TestCypherErrors:
     def test_multiarg_function_returns_syntax_error(self, executor):
         """C4: cycle(a, b) — явная SyntaxError вместо молчаливой потери аргумента."""
         result = executor.execute("MATCH (a) RETURN cycle(a, b)")
+        assert "error" in result
+        assert "Syntax error" in result["error"]
+
+    def test_collect_star_returns_error(self, executor):
+        """collect(*) — понятная ошибка (не JSON, не невалидный SQL)."""
+        result = executor.execute("MATCH (a) RETURN collect(*)")
+        assert "error" in result
+        assert "collect(*) is not supported" in result["error"]
+
+    def test_collect_nested_returns_error(self, executor):
+        """Вложенный collect(collect()) — понятная ошибка."""
+        result = executor.execute("MATCH (a) RETURN collect(collect(a.name))")
+        assert "error" in result
+        assert "is not supported; use a property" in result["error"]
+
+    def test_collect_distinct_returns_error(self, executor):
+        """collect(DISTINCT ...) — понятная ошибка."""
+        result = executor.execute("MATCH (a) RETURN collect(DISTINCT a.name)")
         assert "error" in result
         assert "Syntax error" in result["error"]
 

@@ -25,6 +25,9 @@ class CypherToSQL:
     def __init__(self, graph):
         self._graph = graph
         self._cte_counter = 0
+        # Имена колонок, которые собраны через collect() → будут JSON-докодированы
+        # в executor (json_group_array возвращает строку).
+        self.collect_cols: List[str] = []
 
     def translate(self, query: Query) -> Tuple[str, List[Any]]:
         """Генерирует SQL из AST Cypher.
@@ -73,6 +76,7 @@ class CypherToSQL:
         # Фаза 3: RETURN
         agg_columns = []
         group_by = []
+        self.collect_cols = []
 
         for item in query.return_items:
             sql_col = self._translate_return_expr(item.expression, node_vars, edge_vars)
@@ -80,6 +84,15 @@ class CypherToSQL:
                 agg_columns.append(sql_col)
             else:
                 group_by.append(sql_col)
+            if re.match(r"collect\(", item.expression, re.IGNORECASE):
+                # Маркер collect-колонки: executor JSON-декодирует только эти
+                # колонки (json_group_array возвращает строку). Имя колонки —
+                # алиас, иначе выражение (всегда есть "." внутри свойства),
+                # иначе SQL-имя.
+                self.collect_cols.append(
+                    item.alias
+                    or (item.expression if "." in item.expression else sql_col)
+                )
             # Всегда используем AS для консистентности имён колонок
             if item.alias:
                 if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", item.alias):
@@ -443,6 +456,19 @@ class CypherToSQL:
         if agg_match:
             func = agg_match.group(1).upper()
             inner = agg_match.group(2)
+            if func == "COLLECT":
+                # collect(*) / вложенный вызов — явная ошибка вместо
+                # тихого невалидного SQL (json_group_array(*) / двойного call).
+                if inner == "*":
+                    raise ValueError(
+                        "collect(*) is not supported; use a property, "
+                        "e.g. collect(n.name) or collect(n.label)"
+                    )
+                if "(" in inner:
+                    raise ValueError(
+                        f"collect({inner}) is not supported; use a property, "
+                        f"e.g. collect(n.name)"
+                    )
             if inner in node_vars:
                 # C2: агрегат над узлом-переменной. count(n) → COUNT(n.id)
                 # (считает не-NULL узлы — точная семантика Cypher; раньше
@@ -466,6 +492,15 @@ class CypherToSQL:
                     f"use a property, e.g. {inner}.type"
                 )
             sql_inner = self._property_ref_to_sql(inner, node_vars, edge_vars)
+            if func == "COLLECT":
+                # collect(expr) → json_group_array(expr). NULL-семантика Cypher:
+                # пустые значения не попадают в список (neo4j collect) →
+                # FILTER (WHERE IS NOT NULL). Возврат всегда JSON-строка,
+                # декодируется в executor по маркеру self.collect_cols.
+                return (
+                    f"json_group_array({sql_inner}) "
+                    f"FILTER (WHERE {sql_inner} IS NOT NULL)"
+                )
             return f"{func}({sql_inner})"
 
         # C4: неизвестная функция в RETURN — явная ошибка вместо невалидного SQL

@@ -155,3 +155,11 @@
 **Tests:** целевые 103 passed; полный прогон 1651 passed / 5 skipped / 91 deselected (169.2s); ruff clean ×4 файла. Новые: TestMapConsistency (3), TestFallbackImports (4), гейт-тесты флага.
 **Guard:** TestMapConsistency структурно ловит любое расхождение карт; ungated-путь закреплён негативными тестами (флаг off → пусто). Lazy-цикл parser⇄language_imports (статика) — осознанный техдолг в _ALLOWED_CORE_CYCLES (KNOWN_ISSUES 2026-09-08), деривация карты переведена на module __getattr__ (PEP 562), на import-time ничего не исполняется.
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest зелёный.
+
+## [2026-09-08 19:40] — collect() в Cypher: json_group_array + типизированный декод (fixed)
+
+**Status:** ✅ Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 ⏳ — `_translate_return_expr` заявлял `collect` как Supported, но SQLite не имеет функции COLLECT («no such function»); ни одного теста на `RETURN collect(...)` не было.
+**Fix:** `cypher_sql.py` — COLLECT(expr) → `json_group_array(<sql>) FILTER (WHERE <sql> IS NOT NULL)` (семантика Neo4j: null-игнор, пустой матч → []); `collect(*)` и вложенный obtain → явные ValueError; DISTINCT — SyntaxError из парсера (не наш уровень). Маркер `collect_cols` на трансляторе, в `cypher_executor.py` step5 декодится json.loads ТОЛЬКО помеченных колонок со str-значением (try/except → warning, не роняет весь результат).
+**Tests:** 13 новых (SQL/E2E/errors incl. decode-collision `'["not_a_list"]'`); файл 93 passed; полный 1663 passed / 6 skipped / 91 deselected (168.6s). ruff clean, verify_diary 15/0. Эксперименты Г1/Г2 (sqlite 3.50.4, Python 3.14.3) — FILTER и empty→[] подтверждены сырым прогоном, см. .agent_task_state.md.
+**Guard:** тест «collect() без алиаса → имя колонки = выражение», decode-collision guard (не-decode не-marked колонок), Red Team 5/5 (empty, null, unicode/quotes, DISTINCT, nested/*).
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1663 passed green.
