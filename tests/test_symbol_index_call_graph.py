@@ -415,6 +415,216 @@ def test_parser_extract_calls_unsupported_extension():
     assert calls == []
 
 
+# ── Мультиязычные live-тесты парсера (B3) ────────────────────────────────
+
+
+@pytest.fixture
+def live_parser():
+    """CodeParser с реальными tree-sitter грамматиками."""
+    p = CodeParser()
+    if not p.parsers:
+        pytest.skip("Tree-sitter parsers not available")
+    return p
+
+
+def _tmp_file(suffix: str, code: str) -> Path:
+    fd, path = tempfile.mkstemp(suffix=suffix)
+    import os as _os
+
+    _os.close(fd)
+    f = Path(path)
+    f.write_text(code, encoding="utf-8")
+    return f
+
+
+class TestMultiLangCalls:
+    """Извлечение вызовов через реальные грамматики (B3):"""
+
+    @staticmethod
+    def _has(live_parser, ext: str) -> bool:
+        return ext in live_parser.parsers
+
+    def test_php_calls(self, live_parser):
+        if not self._has(live_parser, ".php"):
+            pytest.skip("tree_sitter_php not available")
+        code = """<?php
+function m() {
+    foo($a);
+    $obj->run($b);
+    mod::bar($c);
+}"""
+        f = _tmp_file(".php", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "foo" and c["caller"] == "m" for c in calls)
+        assert any(c["callee"] == "run" for c in calls)
+        assert any(c["callee"] == "bar" for c in calls)
+
+    def test_java_method_invocation_callee(self, live_parser):
+        if not self._has(live_parser, ".java"):
+            pytest.skip("tree_sitter_java not available")
+        code = """import java.util.List;
+class F {
+    void m() { obj.run(); }
+}"""
+        f = _tmp_file(".java", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_dart_constructor_callee(self, live_parser):
+        if not self._has(live_parser, ".dart"):
+            pytest.skip("tree_sitter_dart not available")
+        code = """import 'package:foo/bar.dart';
+void m() { run(1); var a = new Foo(1); }"""
+        f = _tmp_file(".dart", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        # Dart: обычные вызовы — identifier+selector (не call_expression),
+        # конструктор — new_expression. Ловим хотя бы конструктор.
+        assert any(c["callee"] == "Foo" for c in calls)
+
+    def test_swift_call_expression(self, live_parser):
+        if not self._has(live_parser, ".swift"):
+            pytest.skip("tree_sitter_swift not available")
+        code = """
+import Foundation
+func m() { run(1); }"""
+        f = _tmp_file(".swift", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_kotlin_call_expression(self, live_parser):
+        if not self._has(live_parser, ".kt"):
+            pytest.skip("tree_sitter_kotlin not available")
+        code = """
+import kotlinx.coroutines
+fun m() { run(1); }"""
+        f = _tmp_file(".kt", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_rust_macro_and_fn_call(self, live_parser):
+        if not self._has(live_parser, ".rs"):
+            pytest.skip("tree_sitter_rust not available")
+        code = """
+use std::io;
+fn m() { println!("x"); run(1); }"""
+        f = _tmp_file(".rs", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "run" for c in calls)
+
+    def test_ruby_call(self, live_parser):
+        if not self._has(live_parser, ".rb"):
+            pytest.skip("tree_sitter_ruby not available")
+        code = """
+require 'json'
+def m
+  foo()
+end"""
+        f = _tmp_file(".rb", code)
+        calls = live_parser.extract_calls(f)
+        f.unlink()
+        assert any(c["callee"] == "foo" for c in calls)
+
+
+class TestMultiLangImports:
+    """Извлечение импортов через реальные грамматики (B3):"""
+
+    @staticmethod
+    def _has(live_parser, ext: str) -> bool:
+        return ext in live_parser.parsers
+
+    def test_java_import(self, live_parser):
+        if not self._has(live_parser, ".java"):
+            pytest.skip("tree_sitter_java not available")
+        f = _tmp_file(".java", "import java.util.List;\nclass F {}")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "java" for i in imports)
+
+    def test_c_preproc_include(self, live_parser):
+        if not self._has(live_parser, ".c"):
+            pytest.skip("tree_sitter_c not available")
+        f = _tmp_file(".c", "#include <stdio.h>\n#include \"mycfg.h\"\nint x;")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "stdio" in targets
+        assert "mycfg" in targets
+
+    def test_cpp_preproc_include(self, live_parser):
+        if not self._has(live_parser, ".cpp"):
+            pytest.skip("tree_sitter_cpp not available")
+        f = _tmp_file(".cpp", "#include <vector>\n#include \"cfg.h\"\nint x;")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "vector" in targets
+        assert "cfg" in targets
+
+    def test_php_namespace_use(self, live_parser):
+        if not self._has(live_parser, ".php"):
+            pytest.skip("tree_sitter_php not available")
+        code = """<?php
+use App\\Models\\User;
+namespace Web;"""
+        f = _tmp_file(".php", code)
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "App\\Models\\User" for i in imports)
+
+    def test_ruby_require(self, live_parser):
+        if not self._has(live_parser, ".rb"):
+            pytest.skip("tree_sitter_ruby not available")
+        code = "require 'json'\nrequire_relative 'helper'\ninclude Mod\n"
+        f = _tmp_file(".rb", code)
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "json" in targets
+        assert "helper" in targets
+        assert "Mod" in targets
+
+    def test_kotlin_import_no_keyword_dup(self, live_parser):
+        if not self._has(live_parser, ".kt"):
+            pytest.skip("tree_sitter_kotlin not available")
+        f = _tmp_file(".kt", "import kotlinx.coroutines.launch\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = [i["target_module"] for i in imports]
+        assert targets.count("import") == 0
+        assert any(t == "kotlinx" for t in targets)
+
+    def test_dart_import_no_dup(self, live_parser):
+        if not self._has(live_parser, ".dart"):
+            pytest.skip("tree_sitter_dart not available")
+        f = _tmp_file(".dart", "import 'package:foo/bar.dart';\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = [i["target_module"] for i in imports]
+        assert targets.count("package:foo") == 1
+
+    def test_rust_use(self, live_parser):
+        if not self._has(live_parser, ".rs"):
+            pytest.skip("tree_sitter_rust not available")
+        f = _tmp_file(".rs", "use std::collections::HashMap;\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "std" for i in imports)
+
+    def test_swift_import(self, live_parser):
+        if not self._has(live_parser, ".swift"):
+            pytest.skip("tree_sitter_swift not available")
+        f = _tmp_file(".swift", "import Foundation\n")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        assert any(i["target_module"] == "Foundation" for i in imports)
+
+
 # ── Тест 6: Impact Analysis ───────────────────────────────────────────────
 
 
