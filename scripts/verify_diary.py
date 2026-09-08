@@ -55,6 +55,9 @@ _STDLIB_FUNCTIONS = {
     "from_pretrained",
     "getdefaultlocale", "get_inputs", "get_objects", "getrusage",
     "is_relative_to",
+    # SQLite aggregate — упоминается в дневнике как результат трансляции
+    # Cypher collect() → json_group_array, не символ проекта (2026-09-08).
+    "json_group_array",
     "kill",
     "optimize",
     "reindexing", "rmtree", "run_in_executor",
