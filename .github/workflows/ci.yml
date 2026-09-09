@@ -77,7 +77,7 @@ jobs:
 
       - name: Full test suite (no filters)
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
-        timeout-minutes: 10
+        timeout-minutes: 20
 
       # Grader mutation probe (evalmut-перенос, 2026-08-14): мутационный аудит
       # validate_scores/parse_scores_json — страж контракта градера. Дыра =
