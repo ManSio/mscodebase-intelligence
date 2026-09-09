@@ -122,3 +122,100 @@
 - **Статус:** ✅ Fixed (allowed tech debt, deferred refactor; целевые 68 passed, architecture_linter 4/4 OK)
 - **Дедлайн рефактора:** 2026-10-01 · **Owner:** ManSio
 
+## 2026-09-07 — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Open — зафиксировано как проблема + план эксперимента (10-continuous-verification.md)
+**Root Cause:** По дизайну (ADR-0003) VOR ленивый, но точки вызова всего одна (layer.py:1097); IdleSch...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-07 — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (оба блока закрыты, тесты зелёные)
+**Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+**Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+**Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-05 12:30 — FIX: stale_detector + predict_change стабильно таймаутили через MCP (-32001): блокирующий sync-код в async-контексте
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only, не запушено) — src/mcp/tools/doc_tools.py + predict_tools.py
+**Root Cause:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)` вокруг `execute`, но внутри `exec...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:00 — Починка lock_guard: таймаут 60s ломал весь .locks-протокол
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** `scripts/lock_guard.py` `_run` default timeout=60s — любой `git commit` прогоняет pre-commit hook (verify_diary → полный pytest 5-10 мин на Windows), поэтому acqu...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:30 — sync-subprocess в async-MCP (context_tool, system_tools) — fixed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only) / **Root Cause:** системная проверка после фикса stale/predict: нашлись ещё sync `subprocess.run` внутри async `execute`. `GetContextTool._section_git` (git log через s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** повтор инцидента 2026-08-14 (P-001, «чёрные окна CMD»). Фикс 2026-08-14 добавил CREATE_NO_WINDOW для git/netstat/wmic/taskkill в runtime, но ПОЗВОЛИЛ дыру: `resou...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 — B3: grammar-карты parser.py (imports/calls/assigns/conditions) внесены + живые фиксы
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause и итог:** внесены из study 05 карты CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (пер-язычные) в `src/core/indexing/parser.py`. Живые tree-sit...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 12:35 — B4: import-экстракция через language_imports (деривация карт + флаг-гейт)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** два источника node-типов импортов (parser.IMPORT_NODE_MAP и литерал LANGUAGE_IMPORT_NODES) расходились (kt/dart/php); ungated fallback-2 в мосте.
+**Fix:** LANGUAG...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 19:40 — collect() в Cypher: json_group_array + типизированный декод (fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 ⏳ — `_translate_return_expr` заявлял `collect` как Supported, но SQLite не имеет функции COLLECT («no such function»); ни одного теста на...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-09 19:35 - .h заголовки C не индексируются (SUPPORTED_EXTENSIONS без .h)
+
+- **Источник:** AutoCoder аудит/E-S1 live-проба 2026-09-09 (внешняя сессия, репо не изменялось до этой записи)
+- **Описание:** **Status:** Open. CodeParser.SUPPORTED_EXTENSIONS/parsers не содержат ".h" (есть .hpp/.cxx/.cpp) - заголовки C-проектов выпадают из индексации. Эмпирика E-S1 (shallow-клоны, кап 300 файлов/язык): curl - 65/300 файлов с явными #include дали 0 рёбер (преимущественно .h), dart-http .c-папка 0/9. Бонус-результат той же пробы: импорт-карты живые на 6 языках (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), вызовы php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - синтетический дефект "вызовы PHP/Ruby/C/Dart" снят.
+- **Fix:** добавить ".h" в SUPPORTED_EXTENSIONS + IMPORT_NODE_MAP (preproc_include) + ASSIGNMENT/CONDITIONAL карты по аналогии с .cpp; после фикса повторить E-S1 пробу на curl (ожидание: map_lies .h -> ~0).
+- **Статус:** Open

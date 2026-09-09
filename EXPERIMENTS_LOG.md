@@ -1764,3 +1764,24 @@ static_predict напрямую (терминал): ELAPSED 0.53s, changed=3, af
 **Урок:** «таймаут, который не может прервать работающий sync-блок, — фарс». В async MCP-инструментах любой потенциально долгий subprocess/filesystem-блок обязан быть в `asyncio.to_thread` (§9 incorporate). Завышенный впрок таймаут (60-120s) лучше заниженного (10s): реальная длительность изменчива (10→29s в потоке).
 
 **Связь:** AGENT_DIARY#2026-09-05-1230, KNOWN_ISSUES#2026-09-05-stale-predict-timeout, files src/mcp/tools/doc_tools.py, src/mcp/tools/predict_tools.py.
+
+## [2026-09-09] - E-S1/E-S2: языковые карты импортов/вызовов/скелета на живых топ-репо (6 языков) + свежесть индекса
+
+**Контекст:** закрыть незавершённые шаги E-S1/E-S2 из дока 05 §3 п.5 и дока 08 §3: эмпирически проверить карты parser.py (фиксы B3+B4, PR #25) на реальном коде; заодно перепроверить синтетический дефект «вызовы PHP/Ruby/C/Dart = 0» и свежесть индекса после PR #31. Прогон выполнен AutoCoder (внешняя сессия) без изменений репозитория: shallow-клоны 6 репо (commons-lang, composer, curl, kotlinx-serialization, dart-http, rspec-core) в рабочей папке вне репо; venv python; CodeParser.extract_imports/extract_calls/extract_assignments; кап 300 файлов/язык; read_text utf-8 errors=replace.
+
+**Сырые результаты (import_edge_rate / call_edge_rate / assignments+condition_path):**
+```
+java    commons-lang           files=300  imp=0.867 (1487)  lies=0   call=0.710 (26184)  asg=1983 cond=1197
+php     composer               files=300  imp=0.797 (1827)  lies=13  call=0.813 (16142)  asg=3473 cond=2058
+c       curl (.c)              files=300  imp=0.680 (1253)  lies=65  call=0.250 (5791)   asg=1685 cond=1332
+kotlin  kotlinx-serialization  files=300  imp=0.853 (1071)  lies=18  call=0.663 (5005)   asg=754  cond=220
+dart    dart-lang/http         files=300  imp=0.940 (1210)  lies=2   call=0.080 (57)     asg=549  cond=148
+ruby    rspec-core             files=233  imp=0.618 (557)   lies=21  call=0.562 (3620)   asg=731  cond=40
+lies = файлы с явными import/include/require в тексте, но 0 извлечённых рёбер ("карта врёт" по дока 05 §3 п.5)
+```
+
+**Вывод:** (1) E-S1 закрыт: карты импортов живые на всех 6 языках (61.8%-94% файлов дают рёбра). (2) Дефект «вызовы PHP/Ruby/C/Dart» со синтетической пробы СНЯТ: на реальном коде все 4 языка извлекают вызовы (0.08-0.81); синтетика вводила в заблуждение (мини-файлы без полного function-контекста -> current_function пуст). (3) E-S2 закрыт: скелет ASSIGNED_FROM+condition_path даёт тысячи строк вне Python. (4) Остаточный риск: ненулевые map_lies (curl 65/300 - преимущественно .h, php 13, kotlin 18, ruby 21, dart 2). (5) НОВАЯ НАХОДКА: ".h" отсутствует в SUPPORTED_EXTENSIONS/parsers (есть .hpp/.cxx/.cpp) - заголовки C-проектов выпадают из индекса (curl lies в осн. .h; dart-http .c 0/9). Кандидат в KNOWN_ISSUES. (6) Свежесть индекса: до реиндекса в PropertyGraph отсутствовали новые test_collect_* из PR #31; intel_trigger_reindex (Job 52f138be) поднял symbol index 11053->11081, но узлы графа для новых тестов так и не появились и chunks остались 9308 - lazy-реиндекс обновляет symbol index без пересборки графа (согласуется с KNOWN_ISSUES #13 Lazy-only).
+
+**Прав:** пробы выполнялись вне репозитория; файлы репо этим экспериментом не изменялись. Методологическая заметка: первая версия пробы AutoCoder падала TypeError str-in-bytes на каждом файле (баг пробы, не проекта) - после фикса все errs=0; полезное напоминание верифицировать нулевые результаты пробы на санинтарном файле перед выводами о картах.
+
+**Связи:** docs/research/universal-engine-study/05-grammar-node-kinds.md §3, docs/research/universal-engine-study/08-e-s1-polygon.md §3, KNOWN_ISSUES #13, аудиторский отчёт AutoCoder 2026-09-08/09 (delivery/mscodebase-readiness-audit-2026-09-08.html), полные JSON/логи пробы: .cluster/mscodebase-audit-0908/evidence/ (внешняя рабочая папка AutoCoder).
