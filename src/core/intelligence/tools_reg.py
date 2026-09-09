@@ -7,6 +7,7 @@ layer.py уменьшен с 1572 до ~1170 строк.
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Optional
 
 from src.utils.i18n import _
@@ -401,9 +402,21 @@ def register_intelligence_tools(mcp_app, intel_layer):
             verify_on_read=verify_on_read,
             project_root=project_root.strip() if project_root and project_root.strip() else None,
         )
-        from src.utils.ui_formatter import format_project_memory
+        from src.core.intelligence.alert_store import get_alert_store
+        from src.utils.ui_formatter import format_project_memory, format_system_alerts
 
-        return format_project_memory(memory, stats=stats, limit=limit)
+        # system_alerts: однократная доставка перед полным ответом.
+        # target_path резолвится так же, как в intel_get_project_memory.
+        target = project_root.strip() if project_root and project_root.strip() else None
+        _path = intel_layer.project_path
+        if target:
+            try:
+                _path = Path(target).resolve()
+            except Exception:  # noqa: BLE001
+                pass
+        alerts = get_alert_store(_path).collect_and_clear()
+        out = format_system_alerts(alerts)
+        return out + format_project_memory(memory, stats=stats, limit=limit)
 
     @mcp_app.tool("intel_add_memory_node")
     async def add_memory_node(section: str, data_json: str, status: str = "ACTIVE") -> str:

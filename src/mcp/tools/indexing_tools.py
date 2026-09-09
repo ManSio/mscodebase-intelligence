@@ -67,6 +67,21 @@ class NotifyChangeTool(MCPTool):
             _tracker = get_consistency_tracker()
             _tracker.mark_stale("source", f"notify_change: {rel_path_str}")
             _tracker.mark_stale("index", f"notify_change: {rel_path_str}")
+            # system_alerts: память тоже могла устареть (файлы меняются) —
+            # ставим STALE, чтобы следующий VOR-проход перепроверил узлы.
+            # Алерт — только при ПЕРВОМ переходе в STALE (не спамим на каждый
+            # notify_change: reason меняется, дедуп AlertStore его пропустит).
+            memory_state = _tracker.get("memory")["state"]
+            _tracker.mark_stale("memory", f"notify_change: {rel_path_str}")
+            if memory_state != "STALE":
+                from src.core.intelligence.alert_store import get_alert_store
+
+                get_alert_store(project_root).push(
+                    "memory_stale",
+                    "Файлы изменились — память отмечена STALE; узлы будут перепроверены "
+                    "следующим VOR-проходом (cooldown 120s)",
+                    {"reason": f"notify_change: {rel_path_str}"},
+                )
         except Exception:  # noqa: BLE001 — консистентность не блокирует индексацию
             pass
 

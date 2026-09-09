@@ -1069,6 +1069,22 @@ class ProjectIntelligenceLayer:
             stats.get("verified"),
             stats.get("latency_ms"),
         )
+        # system_alerts: idle-проход тоже генерит starved-алерт (агент может
+        # не вызывать intel_get_project_memory, но алерт мы доставим при первом
+        # любом tool-реадении).
+        starved = stats.get("starved_nodes") or []
+        if starved:
+            try:
+                from src.core.intelligence.alert_store import get_alert_store
+
+                get_alert_store(self.project_path).push(
+                    "memory_starved",
+                    f"{len(starved)} узлов памяти видны ≥2 циклов, "
+                    "но ни разу не проверены (MATCHED>0, DELIVERED=0)",
+                    {"starved_nodes": sorted(starved)[:10]},
+                )
+            except Exception:  # noqa: BLE001 — алерты не роняют фоновый VOR
+                logger.warning("alerts: не удалось записать memory_starved (bg)", exc_info=True)
         return stats
 
     async def intel_get_project_memory(
@@ -1147,6 +1163,19 @@ class ProjectIntelligenceLayer:
                     for node in nodes:
                         if node.get("node_id") in starved_ids:
                             node.setdefault("verification", "starved")
+                # system_alerts: систематическое голодание — агент должен знать
+                # (одноразовый alert, doc 10 §0.4; дедуп по kind+payload в AlertStore).
+                try:
+                    from src.core.intelligence.alert_store import get_alert_store
+
+                    get_alert_store(target_path).push(
+                        "memory_starved",
+                        f"{len(starved_ids)} узлов памяти видны ≥2 циклов, "
+                        "но ни разу не проверены (MATCHED>0, DELIVERED=0)",
+                        {"starved_nodes": sorted(starved_ids)[:10]},
+                    )
+                except Exception:  # noqa: BLE001 — алерты не роняют чтение памяти
+                    logger.warning("alerts: не удалось записать memory_starved", exc_info=True)
             # Пол Тома: узлы, не проверенные в этом цикле из-за бюджета,
             # несут устаревший статус — помечаем явно, чтобы потребитель не
             # принял вчерашний VERIFIED за свежую проверку.

@@ -558,6 +558,20 @@ def _register_inline_tools(mcp, services):
                 "  Run intel_trigger_reindex() then check status via intel_get_job_status()"
             )
 
+        # system_alerts: однократная доставка (Атомарный collect_and_clear —
+        # если memory-тул забрал первым, здесь уже пусто).
+        try:
+            from src.core.intelligence.alert_store import get_alert_store
+            from src.utils.ui_formatter import format_system_alerts
+
+            alerts = get_alert_store(target).collect_and_clear()
+            alert_text = format_system_alerts(alerts)
+            if alert_text:
+                lines.append("")
+                lines.append(alert_text.rstrip())
+        except Exception as e:  # noqa: BLE001 — алерты не роняют диагноз
+            logger.warning(f"explain_project_state: alerts недоступны: {e}")
+
         return chr(10).join(lines)
 
     # ─── 4. get_runtime_counters ──────────────────
