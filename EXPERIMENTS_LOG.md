@@ -1819,3 +1819,23 @@ lies = файлы с явными import/include/require в тексте, но 0
 **Урок:** проверять чужой план против РЕАЛЬНЫХ сигнатур через get_symbol_info/search_code, а не против «как это выглядит по описанию». Три угаданных API ≠ одна рабочая интеграция.
 
 **Связи:** KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (открыт), docs/research/universal-engine-study/10-continuous-verification.md (план H1/H2/H3, pending), ADR-0003 (Verify-On-Read), commit B (head-freshness, cb88c961).
+
+## [2026-09-10] — system_alerts цепь «файл изменён → STALE → VOR → alert агента» + idle-VOR (H1)
+
+**Контекст:** закрыть Exhibit #23 (MCP tool available but never invoked) и KNOWN_ISSUES 2026-09-07 по приоритету «(3) system_alerts после H1». H1 (idle-VOR) реализован в AGENT_DIARY 2026-09-09; здесь — (А) одноразовые system_alerts и сквозная доставка в MCP-ответы.
+
+**Гипотеза:** цепь «файл изменён → STALE → VOR → alert агента» собирается существующими механизмами (DebounceBatch notify_change → ConsistencyTracker STALE → фоновый VOR → AlertStore → формат в ответе) без новых watchdog-библиотек и без токен-оверхеда.
+
+**Дизайн (probe):** `AlertStore` (src/core/intelligence/alert_store.py) — JSON вне проекта (`<data_root>/projects/<hash>/intelligence/system_alerts.json`), `threading.Lock` (не asyncio — несколько event-loop'ов), дедуп по kind+payload, атомарный `collect_and_clear(limit=5)`, `ALERT_KINDS=("memory_stale","memory_starved")`, неизвестный kind игнорируется. Генераторы: `memory_stale` — только при ПЕРВОМ переходе UNKNOWN/CONSISTENT→STALE в `notify_change` (не на каждый save — иначе спам, reason меняется на файл); `memory_starved` — из idle-VOR и `intel_get_project_memory` (виден ≥2 циклов, MATCHED>0/DELIVERED=0). Доставка: prepend `format_system_alerts` в `intel_get_project_memory`, секция в `intel_explain_project_state` (в try/except — алерты не роняют диагноз).
+
+**Проверка (реальные запуски, не моки):**
+- `python -m pytest tests/test_alert_store.py tests/test_ui_formatter_memory.py -q` → 28 passed (11 новых AlertStore + 3 форматтера).
+- Полный `python -m pytest tests/ -q` → `1689 passed, 5 skipped, 91 deselected` (180.83s). Единственный фейл в первом прогоне — предсуществующий slow-тест `test_health_report.py::test_logs_with_errors` из-за переопределения addopts (`-m 'not slow...'`), не связан с изменением.
+- `scripts/architecture_linter.py` → «Все инварианты соблюдены»; ruff: 4 автофикса (W292×2, I001, F401) → чисто; pre-commit 9/9.
+- concurrency: 2 потока × 20 alerts → collect не теряет и не дублирует (at-most-once delivery подтверждён).
+
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА. Вся цепь собрана одним коммитом `1e0c1b4f` (feat(alerts), 10 файлов, +446/−4): AlertStore + 2 генератора + 2 точки доставки + 14 тестов. `verified_from_clean_state: ⚠️ не проверено` (чистый клон не гонялся).
+
+**Урок:** дедуп по kind+payload с атомарным `collect_and_clear` — правильная гранулярность одноразовых алертов: ловит и «спам на каждый save», и «гонка двух MCP-тулов» одновременно; limit=5 капает токены. Перевод STALE в alert — только на первом переходе, иначе тот же контент (reason меняется на имя файла) становится спамом несмотря на дедуп.
+
+**Связи:** AGENT_DIARY 2026-09-10 «H1 idle-VOR + system_alerts», KNOWN_ISSUES «Lazy-only верификация» (закрыт), docs/research/universal-engine-study/10-continuous-verification.md (H1/H2/H3).
