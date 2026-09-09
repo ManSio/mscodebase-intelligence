@@ -74,6 +74,7 @@ _EXT_TO_ENV_LANG: dict[str, str] = {
     ".kt": "kotlin",
     ".scala": "scala",
     ".c": "c",
+    ".h": "c",
     ".cpp": "cpp",
     ".cxx": "cpp",
     ".hpp": "cpp",
@@ -328,6 +329,7 @@ class CodeParser:
                 parser = Parser()
                 parser.language = Language(tsc.language())
                 self.parsers[".c"] = parser
+                self.parsers[".h"] = parser  # C-заголовки парсятся C-грамматикой
             except ImportError:
                 logger.debug("Tree-sitter C недоступен.")
 
@@ -873,6 +875,7 @@ class CodeParser:
         ".kt": {"import"},
         ".swift": {"import_declaration"},
         ".c": {"preproc_include"},
+        ".h": {"preproc_include"},
         ".cpp": {"preproc_include"},
         ".cxx": {"preproc_include"},
         ".hpp": {"preproc_include"},
