@@ -16,8 +16,12 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.core.action_receipt import ActionReceiptStore
+from src.core.artifact_paths import get_graph_db_path
 from src.core.error_handler import error_boundary
+from src.core.graph import EdgeType, PropertyGraph
 from src.core.intelligence.store import IntelligenceStore
+from src.core.search.graph_adapter import SymbolIndexAdapter
 from src.mcp.tools.base import MCPTool
 from src.mcp.tools.search_tools import GetSymbolInfoTool, ImpactAnalysisTool, SearchCodeTool
 
@@ -29,21 +33,27 @@ SECTION_BUDGETS = {
     "git": 300,
     "memory": 400,
     "fallback": 200,
+    "dataflow": 500,
+    "writes": 300,
+    "receipts": 400,
+    "tests": 300,
 }
 
 # Intent → sections mapping (from experiment D v3)
 INTENT_SECTIONS = {
     "explain": ["source", "symbols", "git"],
-    "modify": ["source", "symbols", "git", "memory"],
-    "debug": ["source", "symbols", "git"],
-    "test": ["source", "symbols", "memory", "git"],
+    "modify": ["source", "symbols", "git", "memory", "dataflow", "writes", "receipts", "tests"],
+    "debug": ["source", "symbols", "git", "dataflow"],
+    "test": ["source", "symbols", "memory", "git", "tests"],
     "git_history": ["source", "symbols", "git"],
     "find_caller_callee": ["symbols"],
-    "prepare_change": ["source", "symbols", "git", "memory"],
-    "verify_change": ["source", "symbols", "git"],
+    "prepare_change": ["source", "symbols", "git", "memory", "writes", "receipts", "tests"],
+    "verify_change": ["source", "symbols", "git", "receipts"],
 }
 
-SECTION_PRIORITY = {"source": 5, "symbols": 4, "git": 3, "memory": 2, "fallback": 1}
+SECTION_PRIORITY = {"source": 5, "symbols": 4, "git": 3, "dataflow": 3, "writes": 3,
+                    "receipts": 2, "tests": 2, "memory": 2, "fallback": 1}
+_VOR_KEEP = {"VERIFIED", "ACTIVE"}
 
 
 def _truncate_to_budget(text: str, budget: int) -> str:
@@ -73,6 +83,18 @@ class GetContextTool(MCPTool):
     def __init__(self, services):
         super().__init__(services, tool_name="get_context")
         self._store = IntelligenceStore(self._resolve_target_path(None) or Path.cwd())
+        self._flow_adapter = None
+
+    def _get_flow_adapter(self):
+        """Lazy SymbolIndexAdapter over the project PropertyGraph (None = degraded)."""
+        if self._flow_adapter is None:
+            try:
+                pg = PropertyGraph(get_graph_db_path(
+                    self._resolve_target_path(None) or Path.cwd()))
+                self._flow_adapter = SymbolIndexAdapter(pg)
+            except Exception:  # noqa: BLE001
+                return None
+        return self._flow_adapter
 
     @error_boundary("get_context", timeout_ms=30000)
     async def execute(
@@ -173,11 +195,35 @@ class GetContextTool(MCPTool):
             if git_data:
                 sections.append(git_data)
 
+        # Dataflow (ASSIGNED_FROM/TO + condition_path, molecule view)
+        if "dataflow" in keep_sections and symbols_data:
+            dataflow_data = self._section_dataflow(target, symbols_data)
+            if dataflow_data:
+                sections.append(dataflow_data)
+
+        # Writes (WRITES edges of the target symbol)
+        if "writes" in keep_sections and symbols_data:
+            writes_data = self._section_writes(symbols_data)
+            if writes_data:
+                sections.append(writes_data)
+
         # Memory
         if "memory" in keep_sections:
             memory_data = self._section_memory()
             if memory_data:
                 sections.append(memory_data)
+
+        # Receipts (ActionReceipts recorded for the target file)
+        if "receipts" in keep_sections and symbols_data:
+            receipts_data = self._section_receipts(symbols_data)
+            if receipts_data:
+                sections.append(receipts_data)
+
+        # Tests (affected tests from impact analysis)
+        if "tests" in keep_sections and symbols_data:
+            tests_data = self._section_tests(symbols_data)
+            if tests_data:
+                sections.append(tests_data)
 
         # Fallback (если symbols не дали definition)
         if "fallback" in keep_sections and symbols_data:
@@ -218,28 +264,46 @@ class GetContextTool(MCPTool):
                 pass
 
         full = "\n".join(text_parts)
+
+        # Structured handoff: downstream sections read meta instead of
+        # re-parsing the text with regexes.
+        meta: Dict[str, Any] = {}
+        if isinstance(sym_result, dict):
+            meta["file_path"] = sym_result.get("file") or sym_result.get("file_path")
+            meta["line"] = sym_result.get("line")
+            meta["symbol"] = sym_result.get("symbol") or target
+        else:
+            meta["symbol"] = target
+        if isinstance(imp_result, dict) and isinstance(imp_result.get("affected_files"), list):
+            meta["affected_files"] = imp_result["affected_files"]
+
         return {
             "name": "symbols",
             "text": full,
             "tokens": len(full) // 4,
             "signature": ("symbols", target),
+            "meta": meta,
         }
 
     def _section_source(self, target: str, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """source секция: чтение файла вокруг определения символа."""
         # Извлекаем file_path и line из symbols_data текста
-        text = symbols_data.get("text", "")
-        match = re.search(r"Definition: `([^`]+)` line (\d+)", text)
-        if not match:
-            # Пробуем из impact
-            match = re.search(r'"file":\s*"([^"]+)"', text)
-            if not match:
-                return None
-            file_path = match.group(1)
-            line = 1
-        else:
-            file_path = match.group(1)
-            line = int(match.group(2))
+        meta = symbols_data.get("meta", {})
+        file_path = meta.get("file_path")
+        line = meta.get("line")
+        if not file_path:
+            text = symbols_data.get("text", "")
+            match = re.search(r"Definition: `([^`]+)` line (\d+)", text)
+            if match:
+                file_path = match.group(1)
+                line = int(match.group(2))
+            else:
+                match = re.search(r'"file":\s*"([^"]+)"', text)
+                if not match:
+                    return None
+                file_path = match.group(1)
+                line = 1
+        line = int(line or 1)
 
         # Читаем файл
         try:
@@ -263,18 +327,18 @@ class GetContextTool(MCPTool):
 
     async def _section_git(self, target: str, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """git секция: последние 6 коммитов по файлу."""
-        text = symbols_data.get("text", "")
-        # Сначала пробуем из impact (affected_files)
-        match = re.search(r'"affected_files":\s*\[\s*"([^"]+)"', text)
-        if not match:
-            # Fallback: пробуем file из definition
-            match = re.search(r'"file":\s*"([^"]+)"', text)
-        if not match:
-            # Fallback: Definition: `file` line
-            match = re.search(r'Definition: `([^`]+)` line', text)
-        if not match:
-            return None
-        file_path = match.group(1)
+        meta = symbols_data.get("meta", {})
+        file_path = meta.get("file_path")
+        if not file_path:
+            text = symbols_data.get("text", "")
+            match = re.search(r'"affected_files":\s*\[\s*"([^"]+)"', text)
+            if not match:
+                match = re.search(r'"file":\s*"([^"]+)"', text)
+            if not match:
+                match = re.search(r'Definition: `([^`]+)` line', text)
+            if not match:
+                return None
+            file_path = match.group(1)
 
         try:
             project_root = self._resolve_target_path(None) or Path.cwd()
@@ -305,9 +369,16 @@ class GetContextTool(MCPTool):
             mem = self._store.load_memory()
             out_lines = ["Project Memory:"]
             for section, nodes in (mem or {}).items():
-                for n in (nodes or [])[:8]:
+                shown = 0
+                for n in (nodes or []):
+                    if shown >= 8:
+                        break
+                    status = n.get("status")
+                    if status and status not in _VOR_KEEP:
+                        continue  # REFUTED/INCONCLUSIVE/STALE are not shown (VOR)
                     title = n.get("title") or n.get("name") or str(n)[:80]
                     out_lines.append(f"  [{section}] {title}")
+                    shown += 1
             snippet = "\n".join(out_lines)
         except Exception as e:  # noqa: BLE001
             snippet = f"[memory error: {e}]"
@@ -366,4 +437,129 @@ class GetContextTool(MCPTool):
         # Восстанавливаем порядок приоритета
         sections.sort(key=lambda s: -SECTION_PRIORITY.get(s["name"], 0))
         return sections
+
+    def _section_dataflow(self, target: str, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """dataflow section: ASSIGNED_FROM/TO chains + condition_path for local
+        variables of the target file (deterministic, no LLM)."""
+        ga = self._get_flow_adapter()
+        if ga is None:
+            return None
+        meta = symbols_data.get("meta", {})
+        file_path = meta.get("file_path")
+        if not file_path:
+            return None
+        try:
+            fp = Path(file_path)
+            if not fp.exists():
+                return None
+            window = "\n".join(
+                fp.read_text(encoding="utf-8", errors="replace").splitlines()[:400])
+        except Exception:  # noqa: BLE001
+            return None
+
+        candidates: List[str] = []
+        for m in re.finditer(r"^\s{4,}(\w+)\s*=[^=]", window, re.MULTILINE):
+            name = m.group(1)
+            if name in ("self", "cls") or name in candidates:
+                continue
+            candidates.append(name)
+            if len(candidates) >= 3:
+                break
+        if not candidates:
+            return None
+
+        out_lines: List[str] = []
+        for var in candidates:
+            try:
+                flow = ga.get_variable_flow(var, file_path=str(file_path), max_depth=2)
+            except Exception:  # noqa: BLE001
+                continue
+            if not flow.get("variable"):
+                continue
+            out_lines.append(f"{var}: {flow['variable'].get('qualified_name', '?')}")
+            for step in (flow.get("chain") or [])[:4]:
+                cond = step.get("condition_path") or []
+                cond_s = f"  [if: {' & '.join(map(str, cond))}]" if cond else ""
+                out_lines.append(f"  <- {step.get('via', '?')} (line {step.get('line', '?')}){cond_s}")
+            if len(out_lines) >= 12:
+                break
+        if not out_lines:
+            return None
+        text = "\n".join(out_lines)
+        return {"name": "dataflow", "text": text, "tokens": len(text) // 4,
+                "signature": ("dataflow", target)}
+
+    def _section_writes(self, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """writes section: WRITES edges of the target symbol from PropertyGraph."""
+        ga = self._get_flow_adapter()
+        if ga is None:
+            return None
+        meta = symbols_data.get("meta", {})
+        file_path = meta.get("file_path")
+        symbol_name = meta.get("symbol")
+        if not file_path or not symbol_name:
+            return None
+        base = f"D:.{Path(file_path).as_posix()}"
+        lines: List[str] = []
+        try:
+            for qname in (f"{base}.{symbol_name}", base):
+                nb = ga._graph.get_neighbors(qname, edge_type=EdgeType.WRITES,
+                                             direction="outgoing", max_depth=1)
+                for node, edge, depth in nb[:10]:
+                    lines.append(f"  -> {getattr(node, 'qualified_name', '?')}")
+                if lines:
+                    break
+        except Exception:  # noqa: BLE001
+            return None
+        if not lines:
+            return None
+        text = "WRITES:\n" + "\n".join(lines)
+        return {"name": "writes", "text": text, "tokens": len(text) // 4,
+                "signature": ("writes", file_path)}
+
+    def _section_receipts(self, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """receipts section: recent ActionReceipts recorded for the target file."""
+        meta = symbols_data.get("meta", {})
+        file_path = meta.get("file_path")
+        if not file_path:
+            return None
+        try:
+            project_root = self._resolve_target_path(None) or Path.cwd()
+            entries = ActionReceiptStore(project_root).query(limit=100)
+        except Exception as e:  # noqa: BLE001
+            entries = []
+            err = f"[receipts error: {e}]"
+        else:
+            err = None
+        fp_norm = str(file_path).replace("\\", "/")
+        hits: List[Dict[str, Any]] = []
+        for e in entries:
+            for k in ("file_path", "file", "target_file", "path"):
+                v = str(e.get(k, "")).replace("\\", "/")
+                if v and (v.endswith(fp_norm) or fp_norm.endswith(v)):
+                    hits.append(e)
+                    break
+            if len(hits) >= 6:
+                break
+        if not hits:
+            return None
+        lines = ["Receipts:"] + [
+            f"  {e.get('action_type', '?')} {e.get('verdict', '?')} {str(e.get('ts', ''))[:19]}"
+            for e in hits]
+        if err:
+            lines.append(err)
+        text = "\n".join(lines)
+        return {"name": "receipts", "text": text, "tokens": len(text) // 4,
+                "signature": ("receipts", file_path)}
+
+    def _section_tests(self, symbols_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """tests section: affected tests from impact analysis affected_files."""
+        meta = symbols_data.get("meta", {})
+        affected = meta.get("affected_files") or []
+        tests = [f for f in affected if "test_" in f or f.endswith("_test.py")][:8]
+        if not tests:
+            return None
+        text = "Affected tests:\n" + "\n".join(f"  {t}" for t in tests)
+        return {"name": "tests", "text": text, "tokens": len(text) // 4,
+                "signature": ("tests", tests[0])}
 
