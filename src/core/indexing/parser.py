@@ -914,6 +914,7 @@ class CodeParser:
                   "variable_declaration"},
         ".swift": {"property_declaration", "assignment"},
         ".c": {"init_declarator", "assignment_expression"},
+        ".h": {"init_declarator", "assignment_expression"},
         ".cpp": {"init_declarator", "assignment_expression"},
         ".cxx": {"init_declarator", "assignment_expression"},
         ".hpp": {"init_declarator", "assignment_expression"},
@@ -1029,6 +1030,11 @@ class CodeParser:
             "ternary_expression",
         },
         ".c": {
+            "if_statement", "else_clause", "for_statement", "while_statement",
+            "do_statement", "switch_statement", "case_statement",
+            "conditional_expression",
+        },
+        ".h": {
             "if_statement", "else_clause", "for_statement", "while_statement",
             "do_statement", "switch_statement", "case_statement",
             "conditional_expression",
