@@ -110,6 +110,7 @@
   - IdleScheduler (`enable_idle_scheduler`, task_queue.py:345) включается только из `record_tool_call()` — после вызова инструмента; VOR туда не подключён; из 3 idle-задач 2 — заглушки (`_improve_summaries_batch`, `_check_index_health` — пустые тела, только debug-лог).
   - Со стороны агента: вызвал `intel_get_project_memory` → 110/110 узлов проверено (47 VERIFIED, 63 не-refuted) — работает, но только «по руке».
 - **Дизайн-решение для эксперимента (следующий шаг):** непрерывная проверка «без вызова» — (a) idle-тикер VOR в фоне по расписанию с cooldown; (b) react на git/файловые события (HEAD сменился → перепроверка затронутых узлов); (c) TTL/`verified_at` для INCONCLUSIVE → по возрастанию падать в REFUTED label «не подтверждён за N дней». Контр-риск: цена (CPU/disk) непрерывной проверки vs польза свежести — мерить, не угадывать (см. docs/research/universal-engine-study/10-continuous-verification.md).
+- **2026-09-09 аудит (Exhibit #23) подтверждает:** цепочка «файл изменён → STALE → VOR → alert агента» не существует ни в одном звене; ConsistencyTracker.mark_stale("memory") никогда не вызывается; system_alerts нет. Red Team: (a) H3 TTL-гниение НЕ применимо к INCONCLUSIVE (VOR статус не меняется без якорей) — нужен idle-ticker H1; (b) lock contention idle-VOR vs agent-VOR — добавить locked()-check; (c) import cycle — локальный импорт внутри try/except. Выбран приоритет: **H1 (idle-ticker в `_check_index_health`, ~15 строк)**.
 - **Статус:** ⏳ Open 🟡 — нужен эксперимент (гипотеза → замер → выбор)
 - **Дедлайн:** 2026-09-15 · **Owner:** ManSio
 

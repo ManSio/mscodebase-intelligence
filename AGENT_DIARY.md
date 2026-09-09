@@ -163,3 +163,12 @@
 **Tests:** 13 новых (SQL/E2E/errors incl. decode-collision `'["not_a_list"]'`); файл 93 passed; полный 1663 passed / 6 skipped / 91 deselected (168.6s). ruff clean, verify_diary 15/0. Эксперименты Г1/Г2 (sqlite 3.50.4, Python 3.14.3) — FILTER и empty→[] подтверждены сырым прогоном, см. .agent_task_state.md.
 **Guard:** тест «collect() без алиаса → имя колонки = выражение», decode-collision guard (не-decode не-marked колонок), Red Team 5/5 (empty, null, unicode/quotes, DISTINCT, nested/*).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1663 passed green.
+
+## [2026-09-09] — Аудит «Active MSCodeBase» (Exhibit #23: MCP tool available but never invoked)
+
+**Status:** Open — зафиксирован гэп (исследование + план, код НЕ вносился)
+**Root Cause:** фундамент (VOR / DebounceBatch / ConsistencyTracker / IdleScheduler / PropagationEngine) существует, но компоненты изолированы: цепь «файл изменён → STALE → VOR → alert агента» не собрана ни в одном звене. VOR вызывается ровно из 1 места (layer.py:1097, intel_get_project_memory); 2 из 3 idle-задач — пустые заглушки; ConsistencyTracker.mark_stale("memory") never called; system_alerts/precondition contract отсутствуют; FS-event-watcher отсутствует (только heartbeat-Watchdog).
+**Fix (план, не внесён):** H1 — подключить VOR в `_check_index_health` (idle-ticker, cooldown 120s уже есть; ~15 строк). Затем optional: mark_stale("memory") в notify_change; system_alerts в ответы MCP-тулов. НЕ добавлять watchdog lib сейчас (notify_change = тот же event).
+**Red Team:** (1) lock contention idle-VOR vs agent-VOR — один `_write_lock`, обёрнут asyncio.to_thread, добавить locked()-check; (2) H3 TTL-гниение НЕ применимо к INCONCLUSIVE (42 узла зависнут «навечно») — нужен H1; (3) import cycle — локальный import внутри try/except; (4) alerts токены — низкий риск (одноразовые); (5) concurrent FS при VOR — защищено freshness gate (commit B). 5/5 атак с защитой.
+**Guard:** правило §9: перед интеграцией по чужому плану — верифицировать КАЖДЫЙ API через get_symbol_info/search_code (чужой план дал 3 несуществующих API: self.context, vor.run(nodes=), get_active_nodes()).
+**verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md; факты из MCP, не из запуска)

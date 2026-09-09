@@ -1785,3 +1785,37 @@ lies = файлы с явными import/include/require в тексте, но 0
 **Прав:** пробы выполнялись вне репозитория; файлы репо этим экспериментом не изменялись. Методологическая заметка: первая версия пробы AutoCoder падала TypeError str-in-bytes на каждом файле (баг пробы, не проекта) - после фикса все errs=0; полезное напоминание верифицировать нулевые результаты пробы на санинтарном файле перед выводами о картах.
 
 **Связи:** docs/research/universal-engine-study/05-grammar-node-kinds.md §3, docs/research/universal-engine-study/08-e-s1-polygon.md §3, KNOWN_ISSUES #13, аудиторский отчёт AutoCoder 2026-09-08/09 (delivery/mscodebase-readiness-audit-2026-09-08.html), полные JSON/логи пробы: .cluster/mscodebase-audit-0908/evidence/ (внешняя рабочая папка AutoCoder).
+
+## [2026-09-09] — «MCP tool available but never invoked» (Exhibit #23) + Active MSCodeBase план: аудит компонентов
+
+**Гипотеза (из внешнего чат-лога GLM-5.3 + собственный повтор):** агент НЕ вызывает доступный MCP-тул даже при явной инструкции в промпте («вызови MCP») — промпт = рекомендация (suggestion), не enforcement. Результат — не галлюцинация, а «silent skip»: агент выглядит работающим, но данные не свежие. Решение по аналогии с #21 (modification guard): precondition contract — «не отвечай, пока данные не загружены», fail-closed. Архитектурный сдвиг: Pull (агент вызывает) → Push (система подготавливает данные ДО агента).
+
+**Проверка (MCP-first, все через search_code/get_symbol_info/read_live_file, не grep):**
+- `_check_index_health` (task_queue.py:373) — module-level функция (НЕ метод), тело = `logger.debug`. Заглушка.
+- `_improve_summaries_batch` (task_queue.py:385) — та же пустота. 2 из 3 idle-задач пустые; 3-я (`_update_docs_if_stale`) реальная.
+- `VerifyOnRead.run(memory, budget_ms=50)` (verify_on_read.py:679) — сигнатура принимает ПОЛНЫЙ dict памяти, НЕ пачку nodes.
+- `store.get_active_nodes()` — НЕ СУЩЕСТВУЕТ (search_code → not found). Память грузится `load_memory()`, фильтрация ACTIVE внутри VOR.
+- VOR вызывается ровно из 1 места: layer.py:1097 (`intel_get_project_memory`, verify_on_read=True). Lazy by design (ADR-0003).
+- `ConsistencyTracker.mark_stale("memory")` — домен "memory" объявлен в DOMAINS, но mark_stale для него нигде не вызывается. STALE не связан с VOR.
+- FS-watcher (watchdog.Observer/FileSystemEventHandler) — ОТСУТСТВУЕТ. Есть только heartbeat-Watchdog (индексатор) + `_start_zed_parent_watchdog` + llama idle-watchdog. FileSystemEventHandler — 0 results.
+- `system_alerts`/`pending_stale`/`stale_alerts` — ОТСУТСТВУЕТ (search фразы → 0).
+- `DebounceBatch` (rate_limiter.py:128) — ЕСТЬ, debounce 500ms, вызывается из `notify_change` (indexing_tools.py:69).
+- `IdleScheduler` (task_queue.py:337-438) — ЕСТЬ, включается из `record_tool_call()`, cooldown 120s, CPU-guard `_cpu_available()`. Точка интеграции для фонового VOR.
+- `PropagationEngine` (propagation_engine.py:59) — каскадная ретракция, но только при ручном `intel_retract`.
+
+**Ключевая находка:** фундамент ЕСТЬ (VOR / DebounceBatch / ConsistencyTracker / IdleScheduler / PropagationEngine), но компоненты ИЗОЛИРОВАНЫ — цепочка «файл изменён → STALE → VOR → alert агента» не существует ни в одном звене. Это и есть «23-й экземпляр», подтверждённый на собственном коде: VOR живёт, но не вызывается никем, кроме ручного read.
+
+**Отклонённый фрагмент чужого плана (Red Team):** чужой код-план (другой агент) использовал НЕсуществующие API: `self.context.verify_on_read` (нет self), `vor.run(nodes=...)` (нет такого параметра), `store.get_active_nodes()` (нет метода). Вердикт: план угадан по архитектуре, не по коду — брать концепт, не код.
+
+**Атаки Red Team на предложенную интеграцию (VOR в idle):**
+1. Lock contention idle-VOR vs agent-VOR (один `_write_lock`) → ⚠️ средний: `asyncio.to_thread` в layer.py:1107, idle-VOR идёт в отдельном потоке TaskQueue → нет deadlock, но добавить `locked()`-check перед запуском из idle.
+2. H3 TTL-гниение к INCONCLUSIVE-узлам НЕ применима (INCONCLUSIVE статус не меняется без якорей) → TTL гниение работает только VERIFIED→STALE; 42 узла без verified_at с 2026-08-11 останутся «навечно». Вывод: нужен H1 (idle-ticker), не H3.
+3. Import cycle task_queue → verify_on_read → layer → проверить architecture_linter. Защита: локальный import внутри try/except как `_update_docs_if_stale`.
+4. system_alerts оверхед токенов → низкий: alerts одноразовые (clear после delivery), VOR не частый (cooldown 120s).
+5. Concurrent файловые изменения при VOR → защищено freshness gate (evaluate_freshness/resolve_head_dirty, commit B): fingerprint кэшируется по build_head, mismatch → INCONCLUSIVE, не ложный REFUTED.
+
+**Вердикт:** ПОДТВЕРЖДЕНО (аудит несуществующей «активной» цепи) + REFUTED (чужой код-план: API не существует). Рекомендация: (1) реализовать H1 — подключить VOR в `_check_index_health` (idle-ticker, ~15 строк); (2) не добавлять watchdog lib сейчас — `notify_change` уже ловит save; (3) system_alerts добавить после H1 (инъекция в ответы MCP-тулов).
+
+**Урок:** проверять чужой план против РЕАЛЬНЫХ сигнатур через get_symbol_info/search_code, а не против «как это выглядит по описанию». Три угаданных API ≠ одна рабочая интеграция.
+
+**Связи:** KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (открыт), docs/research/universal-engine-study/10-continuous-verification.md (план H1/H2/H3, pending), ADR-0003 (Verify-On-Read), commit B (head-freshness, cb88c961).
