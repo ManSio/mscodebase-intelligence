@@ -39,6 +39,14 @@
 **verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md, live-данные из реального сервера PID 10036)
 
 ---
+## [2026-09-09] — H1: фоновый VOR-проход (IdleScheduler) — память перепроверяется без вызова агента
+**Status:** Fixed (6 новых тестов + 1674 полный pytest green; ветка chore/experiments-es1-es2-0909)
+**Root Cause:** VOR вызывался ровно из 1 места (intel_get_project_memory, layer.py:1097); idle-задача `_check_index_health` — заглушка → пока агент не дёрнет memory, REFUTED/VERIFIED не копились (Exhibit #23 аудит 2026-09-09; KNOWN_ISSUES 2026-09-07, дедлайн 2026-09-15).
+**Fix:** (1) `set_idle_vor_callback()` в task_queue.py + вызов в `_check_index_health` (hook-инъекция: task_queue не импортирует layer → нет cycle-import). (2) `run_background_verify(budget_ms=250)` в layer.py: locked()-guard (Red Team a1 — agent-путь приоритетнее), общий `_write_lock` + `get_verifier`-регистр → idle-VOR и agent-VOR сериализуются в `_persist_transitions` без второй lock/гонки; `_build_symbol_resolver` вынесен из `intel_get_project_memory` (DRY, эквивалентный рефакторинг). (3) Регистрация hook в `server_tools._register_intelligence_tools` после создания `intel_layer` (enable_idle_scheduler вызывается раньше — layer ещё нет). Red Team 3 атаки: lock contention (защищено общим lock+budget), блокировка idle-потока (budget_ms=250 + cooldown 120s), stale hook при перерегистрации (перезапись каждый старт + try/except).
+**Guard:** новые точки проверки памяти обязаны использовать существующий lock/verifier-регистр (не создавать второй) — иначе гонка записей project_memory.json.
+**verified_from_clean_state:** ⚠️ не проверено — коммит не запушен, clean-state script не прогонялся; полный pytest 1674 passed локально, ruff-ошибка Fix
+
+---
 ## [2026-09-07] — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
 **Status:** Fixed (оба блока закрыты, тесты зелёные)
 **Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; переменная ребра `[e:]` не регистрировалась → `no such column: e`. (2) Receipts: `_contract_record` (ChangeIntent) вызывался только в rename-fallback и safe_delete; replace/insert/move/workspace_edit писали файл напрямую → ни ChangeIntent, ни ActionReceipt.

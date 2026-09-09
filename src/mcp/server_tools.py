@@ -331,6 +331,17 @@ def _register_intelligence_tools(mcp, services):
         )
         register_intelligence_tools(mcp, intel_layer)
 
+        # ═══ Фоновый VOR-проход (H1) ═══
+        # IdleScheduler: без вызова агента память перепроверяется в фоне,
+        # чтобы REFUTED/VERIFIED не копились пока agent не дёрнет memory.
+        try:
+            from src.core.task_queue import set_idle_vor_callback
+
+            set_idle_vor_callback(intel_layer.run_background_verify)
+            logger.info("  🧠 Idle VOR hook registered")
+        except Exception as vor_e:
+            logger.info(f"  ⚠️ Idle VOR hook skip: {vor_e}")
+
         # ═══ Авто-сбор ADR при старте ═══
         # Заполняет project_memory.json архитектурными решениями из git-лога
         # без необходимости вручную вызывать intel_auto_collect_adrs.
