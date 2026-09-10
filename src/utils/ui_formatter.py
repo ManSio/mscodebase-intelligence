@@ -610,3 +610,26 @@ def format_analysis_result(title: str, data: Dict) -> str:
             result += f"• {k}: {str(v)[:80]}\n"
         result += "\n"
     return result
+
+
+def format_system_alerts(alerts: List[Dict]) -> str:
+    """Рендерит однократные системные оповещения (system_alerts).
+
+    alerts: список из AlertStore.collect_and_clear() — однократные,
+    после доставки удалены. Пустой список → пустая строка (обратная
+    совместимость: ответы без alerts не меняются).
+
+    Через i18n, чтобы не размножать строки по тулам.
+    """
+    if not alerts:
+        return ""
+    result = _("🚨 **System Alerts**\n\n")
+    for a in alerts[:5]:
+        kind = a.get("kind", "?")
+        message = a.get("message", "")
+        result += _("• **{kind}:** {message}\n", kind=kind, message=message)
+        payload = a.get("payload") or {}
+        for k, v in list(payload.items())[:3]:
+            result += f"    - {k}: {str(v)[:80]}\n"
+    result += "\n"
+    return result

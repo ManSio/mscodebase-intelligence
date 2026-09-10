@@ -556,6 +556,17 @@ class TestMultiLangImports:
         assert "stdio" in targets
         assert "mycfg" in targets
 
+    def test_h_header_preproc_include(self, live_parser):
+        """E-S1 следствие: .h-заголовки теперь парсятся C-грамматикой (imports)."""
+        if not self._has(live_parser, ".h"):
+            pytest.skip("tree_sitter_c not available")
+        f = _tmp_file(".h", "#include <stddef.h>\n#include \"config.h\"\nvoid init(void);")
+        imports = live_parser.extract_imports(f)
+        f.unlink()
+        targets = {i["target_module"] for i in imports}
+        assert "stddef" in targets
+        assert "config" in targets
+
     def test_cpp_preproc_include(self, live_parser):
         if not self._has(live_parser, ".cpp"):
             pytest.skip("tree_sitter_cpp not available")

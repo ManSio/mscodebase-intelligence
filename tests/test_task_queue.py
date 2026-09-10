@@ -8,7 +8,7 @@ import time
 
 import pytest
 
-from src.core.task_queue import TaskQueue, TaskStatus
+from src.core.task_queue import TaskQueue, TaskStatus, _check_index_health, set_idle_vor_callback
 
 
 def _raise_no_loop(coro, loop):
@@ -190,3 +190,37 @@ class TestTaskQueue:
         granted = [tid for tid in results if tid is not None]
         assert len(granted) == 1, f"Ожидался 1 task_id, получено {len(granted)}: {results}"
         assert queue.has_pending("foo") is True
+
+
+class TestIdleVorHook:
+    """H1: фоновый VOR-проход из idle-тика (set_idle_vor_callback / _check_index_health)."""
+
+    def test_check_index_health_invokes_callback(self):
+        """Зарегистрированный hook вызывается в _check_index_health."""
+        called = []
+
+        def fake_vor():
+            called.append("vor")
+
+        set_idle_vor_callback(fake_vor)
+        try:
+            _check_index_health()
+            assert called == ["vor"]
+        finally:
+            set_idle_vor_callback(None)
+
+    def test_check_index_health_no_callback(self):
+        """Без hook'а _check_index_health не падает (safe degradate)."""
+        set_idle_vor_callback(None)
+        _check_index_health()  # не должно бросить
+
+    def test_check_index_health_callback_error_swallowed(self):
+        """Ошибка внутри hook'а не ломает idle-тик (self-healing)."""
+        def broken_vor():
+            raise RuntimeError("verifier down")
+
+        set_idle_vor_callback(broken_vor)
+        try:
+            _check_index_health()  # не должно бросить (только log)
+        finally:
+            set_idle_vor_callback(None)

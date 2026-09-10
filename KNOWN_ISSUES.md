@@ -110,7 +110,10 @@
   - IdleScheduler (`enable_idle_scheduler`, task_queue.py:345) включается только из `record_tool_call()` — после вызова инструмента; VOR туда не подключён; из 3 idle-задач 2 — заглушки (`_improve_summaries_batch`, `_check_index_health` — пустые тела, только debug-лог).
   - Со стороны агента: вызвал `intel_get_project_memory` → 110/110 узлов проверено (47 VERIFIED, 63 не-refuted) — работает, но только «по руке».
 - **Дизайн-решение для эксперимента (следующий шаг):** непрерывная проверка «без вызова» — (a) idle-тикер VOR в фоне по расписанию с cooldown; (b) react на git/файловые события (HEAD сменился → перепроверка затронутых узлов); (c) TTL/`verified_at` для INCONCLUSIVE → по возрастанию падать в REFUTED label «не подтверждён за N дней». Контр-риск: цена (CPU/disk) непрерывной проверки vs польза свежести — мерить, не угадывать (см. docs/research/universal-engine-study/10-continuous-verification.md).
-- **Статус:** ⏳ Open 🟡 — нужен эксперимент (гипотеза → замер → выбор)
+- **2026-09-09 аудит (Exhibit #23) подтверждает:** цепочка «файл изменён → STALE → VOR → alert агента» не существует ни в одном звене; ConsistencyTracker.mark_stale("memory") никогда не вызывается; system_alerts нет. Red Team: (a) H3 TTL-гниение НЕ применимо к INCONCLUSIVE (VOR статус не меняется без якорей) — нужен idle-ticker H1; (b) lock contention idle-VOR vs agent-VOR — добавить locked()-check; (c) import cycle — локальный импорт внутри try/except. Выбран приоритет: **H1 (idle-ticker в `_check_index_health`, ~15 строк)**.
+- **2026-09-09 H1 реализован (коммит в ветке chore/experiments-es1-es2-0909):** `set_idle_vor_callback()` в task_queue.py + вызов из `_check_index_health` (idle-тик, cooldown 120s); `run_background_verify(budget_ms=250)` в layer.py с locked()-guard (Red Team a): общий `_write_lock` и `get_verifier`-регистр → idle-VOR и agent-VOR сериализуются без второй lock/гонки; `_build_symbol_resolver` вынесен из `intel_get_project_memory` (DRY, эквивалентный рефакторинг); регистрация hook в `server_tools._register_intelligence_tools` после создания `intel_layer`. Тесты: 3 idle-hook (test_task_queue) + 3 background-VOR (test_verify_on_read); полный pytest 1674 passed.
+- **Статус:** ✅ H1 Fixed (фоновая перепроверка памяти без вызова агента); ✅ system_alerts Fixed (см. ниже — доставка через alert-store реализована); данная дочерняя запись про `.h` закрыта
+- **2026-09-10 system_alerts реализован (коммит в ветке chore/experiments-es1-es2-0909):** `AlertStore` (src/core/intelligence/alert_store.py, JSON вне проекта, threading.Lock, дедуп по kind+payload, атомарный collect_and_clear). Источники: stale — `mark_stale("memory")` + одноразовый alert в notify_change (при переходе UNKNOWN/CONSISTENT→STALE); starved — idle VOR-проход (`run_background_verify`) и `intel_get_project_memory` (узлы видимы ≥2 циклов, MATCHED>0, DELIVERED=0). Доставка: `format_system_alerts` в ui_formatter; prepend в `intel_get_project_memory` (tools_reg) + последняя секция в `intel_explain_project_state` (server_tools). Red Team: дедуп предотвращает спам на каждый notify_change; атомарный clear — один alert уходит ровно одному тулу при гонке; limit=5 — токен-бюджет. Тесты: 11 (test_alert_store: push/collect/clear/дедуп/limit/коррапт-json/гонка 2 потоков/per-project/синглтон) + 3 (format_system_alerts); полный pytest 1689 passed.
 - **Дедлайн:** 2026-09-15 · **Owner:** ManSio
 
 
@@ -122,3 +125,100 @@
 - **Статус:** ✅ Fixed (allowed tech debt, deferred refactor; целевые 68 passed, architecture_linter 4/4 OK)
 - **Дедлайн рефактора:** 2026-10-01 · **Owner:** ManSio
 
+## 2026-09-07 — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (H1, 2026-09-09 — фоновая проверка через IdleScheduler-hook; см. основную запись выше)
+**Root Cause:** По дизайну (ADR-0003) VOR ленивый, но точки вызова всего одна (layer.py:1097); IdleSch...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-07 — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (оба блока закрыты, тесты зелёные)
+**Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+**Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+**Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-05 12:30 — FIX: stale_detector + predict_change стабильно таймаутили через MCP (-32001): блокирующий sync-код в async-контексте
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only, не запушено) — src/mcp/tools/doc_tools.py + predict_tools.py
+**Root Cause:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)` вокруг `execute`, но внутри `exec...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:00 — Починка lock_guard: таймаут 60s ломал весь .locks-протокол
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** `scripts/lock_guard.py` `_run` default timeout=60s — любой `git commit` прогоняет pre-commit hook (verify_diary → полный pytest 5-10 мин на Windows), поэтому acqu...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:30 — sync-subprocess в async-MCP (context_tool, system_tools) — fixed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only) / **Root Cause:** системная проверка после фикса stale/predict: нашлись ещё sync `subprocess.run` внутри async `execute`. `GetContextTool._section_git` (git log через s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** повтор инцидента 2026-08-14 (P-001, «чёрные окна CMD»). Фикс 2026-08-14 добавил CREATE_NO_WINDOW для git/netstat/wmic/taskkill в runtime, но ПОЗВОЛИЛ дыру: `resou...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 — B3: grammar-карты parser.py (imports/calls/assigns/conditions) внесены + живые фиксы
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause и итог:** внесены из study 05 карты CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (пер-язычные) в `src/core/indexing/parser.py`. Живые tree-sit...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 12:35 — B4: import-экстракция через language_imports (деривация карт + флаг-гейт)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** два источника node-типов импортов (parser.IMPORT_NODE_MAP и литерал LANGUAGE_IMPORT_NODES) расходились (kt/dart/php); ungated fallback-2 в мосте.
+**Fix:** LANGUAG...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 19:40 — collect() в Cypher: json_group_array + типизированный декод (fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 ⏳ — `_translate_return_expr` заявлял `collect` как Supported, но SQLite не имеет функции COLLECT («no such function»); ни одного теста на...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-09 19:35 - .h заголовки C не индексируются (SUPPORTED_EXTENSIONS без .h)
+
+- **Источник:** AutoCoder аудит/E-S1 live-проба 2026-09-09 (внешняя сессия, репо не изменялось до этой записи)
+- **Описание:** **Status:** ✅ Fixed (2026-09-09, commit 0301fa93). CodeParser.SUPPORTED_EXTENSIONS/parsers не содержали ".h" (есть .hpp/.cxx/.cpp) - заголовки C-проектов выпадали из AST-индексации (импорты/вызовы/присваивания). Эмпирика E-S1 (shallow-клоны, кап 300 файлов/язык): curl - 65/300 файлов с явными #include дали 0 рёбер (преимущественно .h), dart-http .c-папка 0/9. Бонус-результат той же пробы: импорт-карты живые на 6 языках (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), вызовы php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - синтетический дефект "вызовы PHP/Ruby/C/Dart" снят.
+- **Fix:** ".h" добавлен в PARSE_EXTENSIONS (src/core/extensions.py) + C-парсер для ".h" (parser.py) + карты: env (".h":"c"), IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator/assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/... как у ".c"). Пояснение: ".h" уже был в INDEX_EXTENSIONS (вектор индексировался), не хватало именно AST-слоя ⇒ map_lies. +1 тест (test_h_header_preproc_include). Повтор E-S1 пробы на curl (ожидание: map_lies .h -> ~0) — отложен, verified на уровнеunit-теста C-парсера.
+- **Статус:** ✅ Fixed

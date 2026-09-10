@@ -578,6 +578,46 @@ def test_layer_hook_verify_on_read_off(project: Path):
     assert layer.store._load_json("project_memory.json")[0].get("status", STATUS_ACTIVE) == STATUS_ACTIVE
 
 
+# =====================================================================
+# H1: IDLE BACKGROUND VOR (run_background_verify)
+# =====================================================================
+
+
+def test_run_background_verify_refutes_on_idle_pass(project: Path):
+    """H1: фоновый проход (без вызова агента) отзывает узел с несуществующим импортом."""
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    layer.store.save_memory([_node("N1", "b", anchors=[{"kind": "import", "value": "grafana"}])])
+
+    stats = layer.run_background_verify()
+    assert stats is not None
+    assert stats["nodes_seen"] == 1
+    assert stats["refuted"] == 1
+
+    raw = layer.store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_REFUTED
+    assert raw["retract_source"] == RETRACT_SOURCE
+
+
+def test_run_background_verify_skips_when_lock_held(project: Path):
+    """H1: при занятом _write_lock фоновый проход пропускается (agent-путь приоритетнее)."""
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    layer.store.save_memory([_node("N1", "b", anchors=[{"kind": "import", "value": "grafana"}])])
+
+    with layer._write_lock:
+        stats = layer.run_background_verify()
+    assert stats is None  # lock занят -> skip, без гонки с agent-путём
+    raw = layer.store._load_json("project_memory.json")[0]
+    assert raw.get("status", STATUS_ACTIVE) == STATUS_ACTIVE  # узел не тронут
+
+
+def test_run_background_verify_empty_memory_returns_none(project: Path):
+    """H1: пустая память — нечего проверять, фоновый проход деградирует без ошибки."""
+    layer = ProjectIntelligenceLayer(project, None, None, None)  # type: ignore[arg-type]
+    stats = layer.run_background_verify()
+    assert stats is not None  # VOR проходит по пустой памяти без сбоя
+    assert stats["nodes_seen"] == 0
+
+
 def test_write_capture_makes_verify_effective_on_prose(project: Path):
     """Write-time capture (ADR-0003): prose-claim с 'import X' получает точный якорь
     при записи -> verify-on-read проверяет его (урок Exp 1-V: голые токены -> артефакты)."""

@@ -39,6 +39,22 @@
 **verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md, live-данные из реального сервера PID 10036)
 
 ---
+## [2026-09-09] — H1: фоновый VOR-проход (IdleScheduler) — память перепроверяется без вызова агента
+**Status:** Fixed (6 новых тестов + 1674 полный pytest green; ветка chore/experiments-es1-es2-0909)
+**Root Cause:** VOR вызывался ровно из 1 места (intel_get_project_memory, layer.py:1097); idle-задача `_check_index_health` — заглушка → пока агент не дёрнет memory, REFUTED/VERIFIED не копились (Exhibit #23 аудит 2026-09-09; KNOWN_ISSUES 2026-09-07, дедлайн 2026-09-15).
+**Fix:** (1) `set_idle_vor_callback()` в task_queue.py + вызов в `_check_index_health` (hook-инъекция: task_queue не импортирует layer → нет cycle-import). (2) `run_background_verify(budget_ms=250)` в layer.py: locked()-guard (Red Team a1 — agent-путь приоритетнее), общий `_write_lock` + `get_verifier`-регистр → idle-VOR и agent-VOR сериализуются в `_persist_transitions` без второй lock/гонки; `_build_symbol_resolver` вынесен из `intel_get_project_memory` (DRY, эквивалентный рефакторинг). (3) Регистрация hook в `server_tools._register_intelligence_tools` после создания `intel_layer` (enable_idle_scheduler вызывается раньше — layer ещё нет). Red Team 3 атаки: lock contention (защищено общим lock+budget), блокировка idle-потока (budget_ms=250 + cooldown 120s), stale hook при перерегистрации (перезапись каждый старт + try/except).
+**Guard:** новые точки проверки памяти обязаны использовать существующий lock/verifier-регистр (не создавать второй) — иначе гонка записей project_memory.json.
+**verified_from_clean_state:** ⚠️ не проверено — коммит не запушен, clean-state script не прогонялся; полный pytest 1674 passed локально, ruff-ошибка Fix
+
+---
+## [2026-09-09] — H2: .h заголовки C включены в AST-индексацию (PARSE_EXTENSIONS + C-парсер)
+**Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
+**Root Cause:** ".h" был в INDEX_EXTENSIONS (вектор-чанкинг шёл), но НЕ в PARSE_EXTENSIONS → CodeParser.parse_file возвращал [], [] (parser.py:438). C-заголовки без AST: нет импортов (#include), вызовов, присваиваний, condition_path. E-S1 live-проба (2026-09-09): curl 65/300 файлов с #include дали 0 рёбер — преимущественно .h; dart-http .c 0/9.
+**Fix:** (1) extensions.py PARSE_EXTENSIONS: ".c" → ".c", ".h". (2) parser.py: регистрация `self.parsers[".h"] = <C-парсер>` (tree_sitter_c, не cpp — .h = C). (3) Карты языка по аналогии с ".c": `_EXT_TO_ENV_LANG` {".h": "c"}, IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator, assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/do/switch/case/conditional_expression). (4) +1 тест `test_h_header_preproc_include` (57 passed в файле; full gate-zero через pre-commit). Red Team: прототип-only .h → fallback-line-chunking (не ломается), пустой .h → 0, .hpp остаётся CPP (другая карта не тронута).
+**Guard:** интервал "вектор индексируется, AST нет" (INDEX_EXTENSIONS \ PARSE_EXTENSIONS) — проверять BATCH-check'ом при добавлении языка; тест на каждый новый suffix в PARSE_EXTENSIONS.
+**verified_from_clean_state:** ⚠️ не проверено — повтор E-S1 live-пробы на curl отложен (требует внешний клон); unit-проверка: CodeParser.parse_file(.h) real tree-sitter → chunks≥1, symbols=[helper]
+
+---
 ## [2026-09-07] — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
 **Status:** Fixed (оба блока закрыты, тесты зелёные)
 **Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; переменная ребра `[e:]` не регистрировалась → `no such column: e`. (2) Receipts: `_contract_record` (ChangeIntent) вызывался только в rename-fallback и safe_delete; replace/insert/move/workspace_edit писали файл напрямую → ни ChangeIntent, ни ActionReceipt.
@@ -163,3 +179,23 @@
 **Tests:** 13 новых (SQL/E2E/errors incl. decode-collision `'["not_a_list"]'`); файл 93 passed; полный 1663 passed / 6 skipped / 91 deselected (168.6s). ruff clean, verify_diary 15/0. Эксперименты Г1/Г2 (sqlite 3.50.4, Python 3.14.3) — FILTER и empty→[] подтверждены сырым прогоном, см. .agent_task_state.md.
 **Guard:** тест «collect() без алиаса → имя колонки = выражение», decode-collision guard (не-decode не-marked колонок), Red Team 5/5 (empty, null, unicode/quotes, DISTINCT, nested/*).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1663 passed green.
+
+## [2026-09-09] — Аудит «Active MSCodeBase» (Exhibit #23: MCP tool available but never invoked)
+
+**Status:** Open — зафиксирован гэп (исследование + план, код НЕ вносился)
+**Root Cause:** фундамент (VOR / DebounceBatch / ConsistencyTracker / IdleScheduler / PropagationEngine) существует, но компоненты изолированы: цепь «файл изменён → STALE → VOR → alert агента» не собрана ни в одном звене. VOR вызывается ровно из 1 места (layer.py:1097, intel_get_project_memory); 2 из 3 idle-задач — пустые заглушки; ConsistencyTracker.mark_stale("memory") never called; system_alerts/precondition contract отсутствуют; FS-event-watcher отсутствует (только heartbeat-Watchdog).
+**Fix (план, не внесён):** H1 — подключить VOR в `_check_index_health` (idle-ticker, cooldown 120s уже есть; ~15 строк). Затем optional: mark_stale("memory") в notify_change; system_alerts в ответы MCP-тулов. НЕ добавлять watchdog lib сейчас (notify_change = тот же event).
+**Red Team:** (1) lock contention idle-VOR vs agent-VOR — один `_write_lock`, обёрнут asyncio.to_thread, добавить locked()-check; (2) H3 TTL-гниение НЕ применимо к INCONCLUSIVE (42 узла зависнут «навечно») — нужен H1; (3) import cycle — локальный import внутри try/except; (4) alerts токены — низкий риск (одноразовые); (5) concurrent FS при VOR — защищено freshness gate (commit B). 5/5 атак с защитой.
+**Guard:** правило §9: перед интеграцией по чужому плану — верифицировать КАЖДЫЙ API через get_symbol_info/search_code (чужой план дал 3 несуществующих API: self.context, vor.run(nodes=), get_active_nodes()).
+**verified_from_clean_state:** ⚠️ не прогонялся (изменения только .md; факты из MCP, не из запуска)
+
+## [2026-09-10] — H1 idle-VOR + system_alerts (цепь «файл изменён → STALE → VOR → alert агента» собрана)
+
+**Status:** ✅ Fixed / **Root Cause (Exhibit #23, 2026-09-09):** компоненты цепи существовали по отдельности, но VOR вызывался ровно из 1 места (layer.py:intel_get_project_memory), mark_stale("memory") никогда не вызывался, system_alerts не было.
+**Fix (два коммита в ветке chore/experiments-es1-es2-0909):**
+- **H1:** `set_idle_vor_callback()` в task_queue.py + вызов из `_check_index_health` (idle-тик, cooldown 120s); `run_background_verify(budget_ms=250)` в layer.py с locked()-guard против agent-VOR (общий `_write_lock`, `get_verifier`-регистр); `_build_symbol_resolver` вынесен из `intel_get_project_memory` (DRY); регистрация hook в `server_tools`.
+- **system_alerts:** `AlertStore` (src/core/intelligence/alert_store.py, JSON вне проекта в <data_root>/projects/<hash>/intelligence/, threading.Lock т.к. несколько event-loop'ов, дедуп по kind+payload, атомарный collect_and_clear limit=5). Источники: (a) stale — `mark_stale("memory")` в notify_change ТОЛЬКО при переходе →STALE (не спамим на каждый save; reason меняется и дедуп по payload не спасёт); (b) starved — idle VOR-проход и `intel_get_project_memory` для узлов видимы ≥2 циклов (MATCHED>0, DELIVERED=0). Доставка: `format_system_alerts` prepend в `intel_get_project_memory` (tools_reg) + секция в `intel_explain_project_state` (server_tools, try/except — алерты не роняют диагноз).
+**Tests:** 11 в test_alert_store.py (push/collect/clear одноразовость/дедуп/limit/corrupt-json/гонка 2 threading-потоков 20 alerts/per-project изоляция/синглтон по resolved path/orphan) + 3 в test_ui_formatter_memory (empty/alerts render/payload limit 3). Полный pytest 1689 passed / 5 skipped / 91 deselected (180.8s); ruff clean после --fix; architecture_linter «Все инварианты соблюдены».
+**Red Team:** (1) дубль-доставка при гонке двух MCP-тулов — collect_and_clear атомарный (первый забрал, второй — пусто); (2) спам на каждый notify_change — alert только при первом переходе →STALE; (3) токен-оверхед — limit=5, payload до 3 ключей; (4) коррапт JSON — graceful reset; (5) multi-window — per-project store. 5/5 с защитой.
+**Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — отдельный коммит 0301fa93 (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1689 passed / 91 deselected (Windows, без e2e/shadow-маркеров — llama недоступен, slow/benchmark отсечены addopts).

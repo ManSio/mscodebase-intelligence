@@ -22,7 +22,7 @@ PARSE_EXTENSIONS: frozenset[str] = frozenset({
     # Core languages (полный граф: chunking + calls + data flow + imports)
     ".py", ".rs", ".ts", ".tsx", ".js", ".jsx", ".go",
     ".java", ".cs", ".rb", ".php", ".kt", ".swift",
-    ".c", ".cpp", ".cxx", ".hpp", ".scala", ".dart",
+    ".c", ".h", ".cpp", ".cxx", ".hpp", ".scala", ".dart",
     # Shell (calls + imports, без data flow)
     ".sh", ".bash",
     # Context-языки (только AST-парсинг и чанкинг)

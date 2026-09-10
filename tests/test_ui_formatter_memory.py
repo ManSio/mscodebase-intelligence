@@ -171,3 +171,45 @@ def test_no_metrics_no_line():
         _mem(1), stats={"verify_on_read": False}
     )
     assert "📊" not in out
+
+
+# ── system_alerts (AlertStore → format_system_alerts) ─────────────────────
+from src.utils.ui_formatter import format_system_alerts
+
+
+def test_alerts_empty_returns_empty():
+    assert format_system_alerts([]) == ""
+    assert format_system_alerts(None) == ""
+
+
+def test_alerts_renders_kind_message_payload():
+    out = format_system_alerts(
+        [
+            {
+                "kind": "memory_stale",
+                "message": "Файлы изменились",
+                "payload": {"reason": "notify_change: src/a.py"},
+            },
+            {
+                "kind": "memory_starved",
+                "message": "2 узлов starved",
+                "payload": {"starved_nodes": ["N1", "N2"]},
+            },
+        ]
+    )
+    assert "🚨 **System Alerts**" in out
+    assert "memory_stale" in out
+    assert "notify_change: src/a.py" in out
+    assert "memory_starved" in out
+    assert "N1" in out
+
+
+def test_alerts_limit_caps_payload_breadth():
+    payload = {f"k{i}": f"v{i}" for i in range(10)}
+    out = format_system_alerts(
+        [{"kind": "memory_stale", "message": "m", "payload": payload}]
+    )
+    # Рендерим максимум 3 ключа payload (токен-бюджет).
+    # k8 не должен встретиться в выводе.
+    assert "k8" not in out
+    assert "k1" in out
