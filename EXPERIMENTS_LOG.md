@@ -1839,3 +1839,53 @@ lies = файлы с явными import/include/require в тексте, но 0
 **Урок:** дедуп по kind+payload с атомарным `collect_and_clear` — правильная гранулярность одноразовых алертов: ловит и «спам на каждый save», и «гонка двух MCP-тулов» одновременно; limit=5 капает токены. Перевод STALE в alert — только на первом переходе, иначе тот же контент (reason меняется на имя файла) становится спамом несмотря на дедуп.
 
 **Связи:** AGENT_DIARY 2026-09-10 «H1 idle-VOR + system_alerts», KNOWN_ISSUES «Lazy-only верификация» (закрыт), docs/research/universal-engine-study/10-continuous-verification.md (H1/H2/H3).
+
+## [2026-09-10] — Exp 1: VOR Catch-up Rate (H1): throughput по бюджетам и cycles-to-finish
+
+**Контекст:** закрыть KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (3-й пункт — достыкован exp 2026-09-10 system_alerts). Вопрос: успевает ли VerifyOnRead проверить ACTIVE-узлы в рамках budget_ms=50 (read-path default) и 250 (background idle-VOR), и при каком N начинается systematic starvation.
+
+**Дизайн:** synthetic-узлы (claim ~120 симв + file-якорь на реальный файл src/ или несуществующий `src/missing_N.py`) в секцию tech_debt; N ∈ {200, 500, 2000, 5000}; прогреваются fingerprint один раз (rebuild не в счёт per-node цикла); чистый VerifyOnRead на каждую пару бюджет/цикл; статусы и кэш бэкапятся и откатываются в finally (рабочая память проекта не тронута).
+
+**Команда:** `venv/Scripts/python.exe <tmp>/exp1_vor_catchup.py` (scratch-cкрипт, удалён).
+
+**Сырой результат:**
+```
+budget= 50ms N=200  → checked 200/200  budget_exceeded=0 starved=0 latency=36ms
+budget=250ms N=200  → checked 0 (кэш от первого прохода) latency=3.5ms
+budget= 50ms N=500  → checked 492/500  budget_exceeded=8  starved=0 latency=79ms
+budget=250ms N=500  → checked 8 (кэш) latency=49ms
+budget= 50ms N=2000 → checked 420/2000 budget_exceeded=1580 latency=148ms
+budget=250ms N=2000 → checked 1580/2000 budget_exceeded=0 latency=311ms
+budget= 50ms N=5000 → checked 457/5000  budget_exceeded=4543 latency=323ms
+budget=250ms N=5000 → checked 1889/5000 budget_exceeded=2654 starved=2654
+catchup (budget=250): N=2000 за 1 проход, N=5000 за 2 прохода (todo→0)
+```
+
+**Вердикт:** ✅ гипотеза подтверждена для реального масштаба проекта (~247 узлов): budget=50 покрывает ~420-490 узлов/проход, budget=250 — ~1600-1900 узлов/проход; N≤2000 укладывается в 1 проход, N=5000 — за 2 прохода (не 30+). Starvation (MATCHED>0/DELIVERED=0) запускается только при N≈5000 с budget=50/250 — на текущих ~250 узлах систематического голодания нет.
+
+**Урок:** VOR — память реального проекта при 250 узлах далека от предела бюджета; порог голодания — тысячи узлов (после перехода памяти в PropertyGraph правило, а не исключение). Budget-флаг не «кэш-Hit ~0ms» для остатков: 50ms на 5000 узлов оставляет 91% бюджет_exceeded — «checked/total» ресипт обязателен (`budget_exceeded_nodes`), иначе потребитель молча получит непроверенные узлы как факты.
+
+**Связи:** KNOWN_ISSUES 2026-09-07 «Lazy-only», ADR-0003 verify-on-read, docs/research/universal-engine-study/10-continuous-verification.md (H1).
+
+## [2026-09-10] — Exp 3: VOR HEAD-polling ловит внешнее git-изменение без notify_change (H3)
+
+**Контекст:** закрыть вопрос «не будет ли агент использовать STALE-факты после внешнего git pull — когда notify_change не вызывался». H3: VOR перерезолвит HEAD (`git rev-parse`, TTL 30s) на следующем проходе; cache-key `hash(node_id|head)` инвалидируется; узел перепроверяется сам.
+
+**Дизайн:** изолированный temp-репо (основной проект не тронут): `src/foo.py` + `src/gone.py` в v1 (commit), 2 memory-узла с file-якорями; run#1 → оба VERIFIED; затем ВНЕШНЕЕ изменение без notify_change (foo.py модифицирован, gone.py удалён, commit v2); run#2 fresh-verifier.
+
+**Команда:** `venv/Scripts/python.exe <tmp>/exp3b_head_polling.py` (scratch-скрипт, удалён).
+
+**Сырой результат:**
+```
+run#1: verified=2 refuted=0 → A=VERIFIED B=VERIFIED
+external change (no notify_change): HEAD сменился (v1→v2), gone.py удалён
+run#2: verified=1 refuted=1 cache_hits=0 → A=VERIFIED B=REFUTED
+HEAD инвалидация: True | B→REFUTED после внешнего удаления: True | A пережил изменение: True
+VERDICT H3: CONFIRMED
+```
+
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА: без notify_change HEAD-polling поймал изменение (HEAD сменился → per-node cache key инвалидирован → узел с удалённым якорем REFUTED, узел с изменённым, но живым файлом VERIFIED). Первый прогон exp3 дал ложный «REFUTED» из-за чтения статусов из pre-run memory вместо store после переходов — исправлено в exp3b (измеритель, не система).
+
+**Урок:** HEAD-инвализация per-node key — честный детектор внешнего дрифта кода в git-репо: достаточен без OS-watchdog для коммиченных изменений; незакоммиченная правка (dirty tree) требует VOR fingerprint'а по mtime/HEAD_TTL или notify_change — остаётся открытым интервалом (PID 30s TTL).
+
+**Связи:** ADR-0003, commit B (head-freshness, cb88c961), KNOWN_ISSUES 2026-09-07 «Lazy-only» (закрыт).
