@@ -365,14 +365,33 @@ def _cpu_available() -> bool:
         return True
 
 
+_IDLE_VOR_CALLBACK = None  # type: ignore[assignment]
+
+
+def set_idle_vor_callback(fn=None):
+    """Регистрирует фоновый VOR-проход памяти (инжектируется из серверного слоя).
+
+    task_queue не импортирует слой интеллекта (избегаем cycle import) — только
+    держит хук-вызов. _check_index_health вызывает его в простое, чтобы память
+    перепроверялась без агентского вызова intel_get_project_memory.
+    """
+    global _IDLE_VOR_CALLBACK
+    _IDLE_VOR_CALLBACK = fn
+
+
 def _improve_summaries_batch(batch_size: int = 2):
     """Улучшает summaries для чанков без них (Preemptible)."""
     logger.debug("[Idle] improve_summaries batch=%s", batch_size)
 
 
 def _check_index_health():
-    """Проверка целостности индекса (preemptible)."""
+    """Проверка целостности индекса + фоновый VOR памяти (preemptible)."""
     logger.debug("[Idle] check_index_health")
+    if _IDLE_VOR_CALLBACK is not None:
+        try:
+            _IDLE_VOR_CALLBACK()
+        except Exception as e:
+            logger.debug("[Idle] VOR callback failed: %s", e)
 
 
 def _update_docs_if_stale():

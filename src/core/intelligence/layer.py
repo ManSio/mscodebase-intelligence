@@ -22,7 +22,7 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Импортируем модули ядра и глобальные настройки
 from src.core.indexing.indexer import Indexer
@@ -995,6 +995,98 @@ class ProjectIntelligenceLayer:
             "similar_incidents": matches[:5],
         }
 
+    def _build_symbol_resolver(self) -> Optional[Callable[[str], Optional[bool]]]:
+        """Freshness-gated symbol resolver (issue #21/#22, commit B).
+
+        A symbol anchor can REFUTE (False) ONLY when the index is provably fresh:
+        its recorded build_head equals the live HEAD and the working tree is clean.
+        Any other state (legacy index w/o build_head, HEAD mismatch, non-git repo,
+        dirty tree, resolver failure) -> None (INCONCLUSIVE) — absence is then
+        UNVERIFIABLE, never REFUTED.
+        Returns: True (referent on disk -> VERIFIED),
+                 False (fresh index, absent -> honest REFUTED),
+                 None (freshness unverifiable -> INCONCLUSIVE).
+        """
+        si = getattr(self, "symbol_index", None)
+        if si is None:
+            return None
+
+        def _resolve(qname: str) -> Optional[bool]:
+            try:
+                build_fn = getattr(si, "build_head", None)
+                build_head = build_fn() if build_fn is not None else None
+                if build_head is None:
+                    return None  # legacy/in-memory index -> unknown
+                from src.core.intelligence.verify_on_read import (
+                    evaluate_freshness,
+                    resolve_head_dirty,
+                )
+                cur = resolve_head_dirty(self.project_path)
+                if cur is None:
+                    return None  # non-git / unresolvable HEAD
+                cur_head, dirty = cur
+                if not evaluate_freshness(build_head, cur_head, dirty):
+                    return None  # mismatch / dirty / unknown -> inconclusive
+                defs = si.find_definitions(qname)
+                if defs is None:
+                    return None
+                for d in defs:
+                    fp = getattr(d, "file_path", None) or getattr(d, "file", None)
+                    if fp and Path(fp).exists():
+                        return True
+                # Fresh index + clean tree: absence is real evidence.
+                return False
+            except Exception:
+                # Graph/index/git unavailable -> unverifiable -> INCONCLUSIVE.
+                return None
+
+        return _resolve
+
+    def run_background_verify(self, budget_ms: float = 250.0) -> Optional[Dict[str, Any]]:
+        """Фоновый VOR-проход (IdleScheduler), без вызова агента.
+
+        Запускается из _check_index_health (task_queue) в фоновом потоке:
+        общий _write_lock и get_verifier-регистр с agent-путём не конфликтуют
+        (Red Team a1: lock contention). Пропускает проход, если lock уже занят
+        — agent-путь приоритетнее. Возвращает stats VOR или None при пропуске.
+        """
+        if self._write_lock.locked():
+            logger.debug("[VOR-background] _write_lock занят — проход пропущен")
+            return None
+        from src.core.intelligence.verify_on_read import get_verifier
+
+        verifier = get_verifier(
+            self.project_path, self.store, self._write_lock,
+            symbol_resolver=self._build_symbol_resolver(),
+        )
+        memory = self.store.load_memory(include_retracted=False)
+        _memory, stats = verifier.run(memory, budget_ms=budget_ms)
+        logger.info(
+            "[VOR-background] seen=%s checked=%s refuted=%s verified=%s latency_ms=%s",
+            stats.get("nodes_seen"),
+            stats.get("checked"),
+            stats.get("refuted"),
+            stats.get("verified"),
+            stats.get("latency_ms"),
+        )
+        # system_alerts: idle-проход тоже генерит starved-алерт (агент может
+        # не вызывать intel_get_project_memory, но алерт мы доставим при первом
+        # любом tool-реадении).
+        starved = stats.get("starved_nodes") or []
+        if starved:
+            try:
+                from src.core.intelligence.alert_store import get_alert_store
+
+                get_alert_store(self.project_path).push(
+                    "memory_starved",
+                    f"{len(starved)} узлов памяти видны ≥2 циклов, "
+                    "но ни разу не проверены (MATCHED>0, DELIVERED=0)",
+                    {"starved_nodes": sorted(starved)[:10]},
+                )
+            except Exception:  # noqa: BLE001 — алерты не роняют фоновый VOR
+                logger.warning("alerts: не удалось записать memory_starved (bg)", exc_info=True)
+        return stats
+
     async def intel_get_project_memory(
         self,
         include_retracted: bool = False,
@@ -1050,49 +1142,7 @@ class ProjectIntelligenceLayer:
         if verify_on_read and not include_retracted:
             from src.core.intelligence.verify_on_read import get_verifier
 
-            resolver = None
-            si = getattr(self, "symbol_index", None)
-            if si is not None:
-                def _symbol_resolver(qname: str) -> Optional[bool]:
-                    # Freshness-gated symbol resolver (issue #21/#22, commit B).
-                    # A symbol anchor can REFUTE (False) ONLY when the index is
-                    # provably fresh: its recorded build_head equals the live
-                    # HEAD and the working tree is clean. Any other state
-                    # (legacy index w/o build_head, HEAD mismatch, non-git repo,
-                    # dirty tree, resolver failure) -> None (INCONCLUSIVE) —
-                    # absence is then UNVERIFIABLE, never REFUTED.
-                    # Returns: True (referent on disk -> VERIFIED),
-                    #          False (fresh index, absent -> honest REFUTED),
-                    #          None (freshness unverifiable -> INCONCLUSIVE).
-                    try:
-                        build_fn = getattr(si, "build_head", None)
-                        build_head = build_fn() if build_fn is not None else None
-                        if build_head is None:
-                            return None  # legacy/in-memory index -> unknown
-                        from src.core.intelligence.verify_on_read import (
-                            evaluate_freshness,
-                            resolve_head_dirty,
-                        )
-                        cur = resolve_head_dirty(self.project_path)
-                        if cur is None:
-                            return None  # non-git / unresolvable HEAD
-                        cur_head, dirty = cur
-                        if not evaluate_freshness(build_head, cur_head, dirty):
-                            return None  # mismatch / dirty / unknown -> inconclusive
-                        defs = si.find_definitions(qname)
-                        if defs is None:
-                            return None
-                        for d in defs:
-                            fp = getattr(d, "file_path", None) or getattr(d, "file", None)
-                            if fp and Path(fp).exists():
-                                return True
-                        # Fresh index + clean tree: absence is real evidence.
-                        return False
-                    except Exception:
-                        # Graph/index/git unavailable -> unverifiable -> INCONCLUSIVE.
-                        return None
-
-                resolver = _symbol_resolver
+            resolver = self._build_symbol_resolver()
 
             verifier = get_verifier(target_path, store, self._write_lock, symbol_resolver=resolver)
             memory, stats = await asyncio.to_thread(verifier.run, memory)
@@ -1113,6 +1163,19 @@ class ProjectIntelligenceLayer:
                     for node in nodes:
                         if node.get("node_id") in starved_ids:
                             node.setdefault("verification", "starved")
+                # system_alerts: систематическое голодание — агент должен знать
+                # (одноразовый alert, doc 10 §0.4; дедуп по kind+payload в AlertStore).
+                try:
+                    from src.core.intelligence.alert_store import get_alert_store
+
+                    get_alert_store(target_path).push(
+                        "memory_starved",
+                        f"{len(starved_ids)} узлов памяти видны ≥2 циклов, "
+                        "но ни разу не проверены (MATCHED>0, DELIVERED=0)",
+                        {"starved_nodes": sorted(starved_ids)[:10]},
+                    )
+                except Exception:  # noqa: BLE001 — алерты не роняют чтение памяти
+                    logger.warning("alerts: не удалось записать memory_starved", exc_info=True)
             # Пол Тома: узлы, не проверенные в этом цикле из-за бюджета,
             # несут устаревший статус — помечаем явно, чтобы потребитель не
             # принял вчерашний VERIFIED за свежую проверку.

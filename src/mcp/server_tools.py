@@ -331,6 +331,17 @@ def _register_intelligence_tools(mcp, services):
         )
         register_intelligence_tools(mcp, intel_layer)
 
+        # ═══ Фоновый VOR-проход (H1) ═══
+        # IdleScheduler: без вызова агента память перепроверяется в фоне,
+        # чтобы REFUTED/VERIFIED не копились пока agent не дёрнет memory.
+        try:
+            from src.core.task_queue import set_idle_vor_callback
+
+            set_idle_vor_callback(intel_layer.run_background_verify)
+            logger.info("  🧠 Idle VOR hook registered")
+        except Exception as vor_e:
+            logger.info(f"  ⚠️ Idle VOR hook skip: {vor_e}")
+
         # ═══ Авто-сбор ADR при старте ═══
         # Заполняет project_memory.json архитектурными решениями из git-лога
         # без необходимости вручную вызывать intel_auto_collect_adrs.
@@ -546,6 +557,20 @@ def _register_inline_tools(mcp, services):
             lines.append(
                 "  Run intel_trigger_reindex() then check status via intel_get_job_status()"
             )
+
+        # system_alerts: однократная доставка (Атомарный collect_and_clear —
+        # если memory-тул забрал первым, здесь уже пусто).
+        try:
+            from src.core.intelligence.alert_store import get_alert_store
+            from src.utils.ui_formatter import format_system_alerts
+
+            alerts = get_alert_store(target).collect_and_clear()
+            alert_text = format_system_alerts(alerts)
+            if alert_text:
+                lines.append("")
+                lines.append(alert_text.rstrip())
+        except Exception as e:  # noqa: BLE001 — алерты не роняют диагноз
+            logger.warning(f"explain_project_state: alerts недоступны: {e}")
 
         return chr(10).join(lines)
 
