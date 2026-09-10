@@ -296,6 +296,25 @@ class SecurityConfig:
 
 
 @dataclass
+class MemoryConfig:
+    """Конфигурация Project Memory и fail-closed freshness gate.
+
+    Freshness gate (Exp 2 chain, 2026-09-10): memory-домен STALEится на каждый
+    notify_change; без гейта инструменты читали бы / писали поверх устаревшей
+    памяти «тихо» (inform-agent не работает: STALE 55.2% в исследовании).
+    Режимы:
+      off   — legacy-поведение (инструменты не проверяют состояние memory);
+      read  — чтение памяти блокирует неперепроверенные узлы (stale_unverified);
+      write — запись узлов блокируется, пока memory STALE;
+      both  — read + write (рекомендован research: server-side blocking = 0% stale).
+    """
+
+    freshness_gate: str = field(
+        default_factory=lambda: os.getenv("FRESHNESS_GATE", "both").lower().strip()
+    )
+
+
+@dataclass
 class Config:
     """Главная конфигурация, объединяющая все подконфигурации"""
 
@@ -305,6 +324,7 @@ class Config:
     index: IndexConfig = field(default_factory=IndexConfig)
     performance: PerformanceConfig = field(default_factory=PerformanceConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    memory: MemoryConfig = field(default_factory=MemoryConfig)
 
 
 # Глобальный экземпляр конфигурации

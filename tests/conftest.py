@@ -51,3 +51,19 @@ def _isolated_data_root(tmp_path: Path, monkeypatch) -> Path:
     root = tmp_path / "mscodebase_data"
     monkeypatch.setenv("MSCODEBASE_DATA_DIR", str(root))
     return root
+
+
+@pytest.fixture(autouse=True)
+def _reset_consistency_tracker():
+    """Сброс глобального ConsistencyTracker между тестами (синглтон).
+
+    С Edition 2026-09-10 (fail-closed freshness gate) глобальный синглтон
+    consistency-tracker живёт между тестами и может оставить STALE-состояние,
+    которое блокирует intel_add_memory_node в последующих тестах. Invalidate
+    до и после теста гарантирует UNKNOWN (default) для каждого теста.
+    """
+    from src.core.consistency import get_consistency_tracker
+
+    get_consistency_tracker().invalidate()
+    yield
+    get_consistency_tracker().invalidate()
