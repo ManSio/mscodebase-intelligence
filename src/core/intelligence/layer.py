@@ -1085,6 +1085,25 @@ class ProjectIntelligenceLayer:
                 )
             except Exception:  # noqa: BLE001 — алерты не роняют фоновый VOR
                 logger.warning("alerts: не удалось записать memory_starved (bg)", exc_info=True)
+        # Fail-closed freshness gate: фоновый полный проход (нет budget_exceeded,
+        # нет starved) замыкает memory-домен в CONSISTENT — иначе после первого
+        # notify_change память навсегда STALE (mark_consistent никем не звался).
+        try:
+            from src.config.settings import get_config as _get_cfg
+
+            _gate = _get_cfg().memory.freshness_gate
+        except Exception:  # noqa: BLE001
+            _gate = "off"
+        if _gate in ("read", "both"):
+            if (
+                not stats.get("budget_exceeded")
+                and not stats.get("starved_nodes")
+            ):
+                from src.core.consistency import get_consistency_tracker
+
+                get_consistency_tracker().mark_consistent(
+                    "memory", "VOR full pass (background)"
+                )
         return stats
 
     async def intel_get_project_memory(
@@ -1187,6 +1206,62 @@ class ProjectIntelligenceLayer:
                             node.setdefault("verification", "budget_exceeded")
         else:
             stats = {"verify_on_read": False}
+
+        # FAIL-CLOSED FRESHNESS GATE (Exp 2 chain, 2026-09-10): memory-домен
+        # STALEится на каждый notify_change (mark_stale в indexing_tools), а
+        # mark_consistent НИКТО не вызывает — без гейта память вечно устаревшая,
+        # а инструменты читали бы её как свежую. Read-gate работает ТОЛЬКО в
+        # verify_on_read-пути: если вызвано verify_on_read=False, узлы не
+        # проверялись и «удовлетворить» гейт нечем (stats={"verify_on_read": False}).
+        #   * полный проход VOR (нет budget_exceeded, нет starved) -> сейчас же
+        #     замыкает домен в CONSISTENT (перепроверка = подтверждение, кэш
+        #     заводская инвалидация по HEAD/dirty уже произошла);
+        #   * неполный проход -> узлы, НЕ перепроверенные в этом чтении,
+        #     помечаются stale_unverified — их «свежий» статус не подтверждён.
+        # OFF-режим через config.memory.freshness_gate (off|read|write|both).
+        if verify_on_read and not include_retracted:
+            try:
+                from src.config.settings import get_config as _get_cfg
+
+                _gate = _get_cfg().memory.freshness_gate
+            except Exception:  # noqa: BLE001 - конфиг сломан -> гейт off (не роняем чтение)
+                _gate = "off"
+            if _gate in ("read", "both"):
+                from src.core.consistency import get_consistency_tracker
+
+                mem_state = get_consistency_tracker().get("memory")["state"]
+                if mem_state == "STALE":
+                    full_pass = (
+                        not stats.get("budget_exceeded")
+                        and not stats.get("starved_nodes")
+                    )
+                    if full_pass:
+                        get_consistency_tracker().mark_consistent(
+                            "memory", "VOR full pass (read gate)"
+                        )
+                        stats["freshness_gate"] = "satisfied"
+                    else:
+                        # Пол Тома: узлы не перепроверенные в ЭТОМ чтении несут
+                        # статус, унаследованный от прошлых циклов — в момент
+                        # STALE выдавать их как свежие нельзя.
+                        stats["freshness_gate"] = "blocked"
+                        verified_ids = set(stats.get("budget_exceeded_nodes", []))
+                        verified_ids.update(stats.get("starved_nodes", []))
+                        for section, nodes in memory.items():
+                            for node in nodes:
+                                if node.get("node_id") in verified_ids:
+                                    # Прямое присваивание, не setdefault: budget_exceeded/
+                                    # starved могли уже проставить флаг раньше, но
+                                    # stale_unverified СИЛЬНЕЕ — fail-closed, метка не
+                                    # размывается более ранней категорией.
+                                    node["verification"] = "stale_unverified"
+                                else:
+                                    # setdefault (не перезапись): no_anchors-узлы
+                                    # (INCONCLUSIVE) уже несут честную свежую метку
+                                    # из этого прохода — не размывать её до
+                                    # «fresh_verified» (узел НЕ подтверждён).
+                                    node.setdefault("verification", "fresh_verified")
+
         stats["metrics"] = store.memory_metrics()
         return memory, stats
 
@@ -1237,6 +1312,29 @@ class ProjectIntelligenceLayer:
                 "Недопустимый статус: {status}. Допустимые: ACTIVE, VERIFIED.",
                 status=status,
             )
+
+        # FAIL-CLOSED WRITE GATE (Exp 2 chain, 2026-09-10): запись узла поверх
+        # STALE-памяти = фиксация факта на устаревшем «субстрате» (якоря пишутся
+        # из write-path fingerprint'а, а он может не отражать последние правки).
+        # Research: inform-agent не работает (STALE 55.2%), server-side blocking
+        # даёт 0% stale — поэтому блокируем, а не предупреждаем.
+        try:
+            from src.config.settings import get_config as _get_cfg
+
+            _gate = _get_cfg().memory.freshness_gate
+        except Exception:  # noqa: BLE001 - конфиг сломан -> гейт off
+            _gate = "off"
+        if _gate in ("write", "both"):
+            from src.core.consistency import get_consistency_tracker
+
+            mem_state = get_consistency_tracker().get("memory")["state"]
+            if mem_state == "STALE":
+                return _(
+                    "⛔ FRESHNESS GATE: память STALE (source изменился, узлы не "
+                    "перепроверены). Сначала вызови intel_get_project_memory — "
+                    "полный проход VOR перепроверит узлы и вернёт домен в "
+                    "CONSISTENT, затем повтори запись."
+                )
 
         try:
             data = json.loads(data_json)

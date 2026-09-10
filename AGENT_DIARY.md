@@ -229,3 +229,23 @@ VERDICT H3: CONFIRMED
 **Кросс-триггер (исследование):** веб-поиск показал, что inform-the-agent (alerts/STALE 55.2% на STALE-бенчмарке, PlanFence 30/30 провалов) слабее server-side blocking; кандидат — Fail-Closed Read+Write Gate (SSGM read-filter + PlanFence action-validation). Решение A/B/C — за владельцем.
 
 **Связи:** KNOW ISSUES «Lazy-only» (закрыт), ADR-0003, EXPERIMENTS_LOG (exp 1 и exp 3), MSPortfolio exp-33/exp-34 (26/26 тестов), README badge d8dcbd9f (unpushed).
+
+## [2026-09-10] — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
+
+**Status:** ✅ Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient — agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; server-side blocking required.
+
+**Exp 2 (s1 sandbox):** H1 delivery CONFIRMED, H2 enforcement REFUTED, H3 subagent REFUTED (opencode Task tool = isolated context). Key insight: **trust = false security**. Server-side gate is primary enforcement.
+
+**Exp 4 implementation (4 files):**
+- **Read gate (layer.py):** intel_get_project_memory: STALE + full VOR pass → mark_consistent("memory"); incomplete → blocked + stale_unverified on unverified nodes
+- **Write gate (layer.py):** intel_add_memory_node: STALE → refuse with instruction to call intel_get_project_memory
+- **Dirty fix (verify_on_read.py):** fingerprint rebuilds every dirty pass (never cached); verdict cache bypassed during dirty; dirty cache key = sha256(node_id|head|1)
+- **Config (settings.py):** MemoryConfig.freshness_gate via field(default_factory=...) for testability
+
+**Tests:** 9 new (test_freshness_gate.py); 1713 passed full suite; ruff clean ×5 files. ConsistencyTracker singleton leak fixed via conftest.py autouse reset.
+
+**Red Team:** 5/5 attacks with defense (dirty-cache-persistence, stale-verified-flood, config-reload, non-git-dirty, consistency-singleton-leak). 
+
+**Guard:** dataclass default=os.getenv() evaluated at import time — use field(default_factory=...) for monkeypatch. ConsistencyTracker singleton requires autouse reset in conftest.py.
+
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1713 passed green.
