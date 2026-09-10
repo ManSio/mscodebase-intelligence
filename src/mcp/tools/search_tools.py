@@ -585,12 +585,26 @@ class GetSymbolInfoTool(MCPTool):
                 callees=len(callees),
             )
             if defs:
-                d = defs[0]
-                result += _(
-                    "📄 Definition: `{file}` line {line}\n",
-                    file=d.get("file", "?"),
-                    line=d.get("line", "?"),
-                )
+                if len(defs) == 1:
+                    d = defs[0]
+                    result += _(
+                        "📄 Definition: `{file}` line {line}\n",
+                        file=d.get("file", "?"),
+                        line=d.get("line", "?"),
+                    )
+                else:
+                    result += _(
+                        "🚫 **AMBIGUOUS: {count} definitions found**\n\n",
+                        count=len(defs),
+                    )
+                    for i, d in enumerate(defs[:10]):
+                        result += (
+                            f"   {i+1}. `{d.get('file', '?')}` "
+                            f"line {d.get('line', '?')} ({d.get('kind', '?')})\n"
+                        )
+                    result += (
+                        "\n💡 Specify an explicit `file_path` to disambiguate.\n"
+                    )
             if callers:
                 result += _("\n⬆️ **Called from:**\n")
                 for c in callers[:5]:

@@ -466,6 +466,19 @@ def format_project_memory(
                 warn=warn,
                 starved=starved_warn,
             )
+            gate = stats.get("freshness_gate")
+            if gate == "blocked":
+                result += _(
+                    "⛔ **FRESHNESS GATE:** память STALE (source изменился, узлы не "
+                    "перепроверены полностью). Неперепроверенные узлы помечены "
+                    "verification='stale_unverified' — их статус не подтверждён. "
+                    "Повтори чтение (полный проход вернёт домен в CONSISTENT).\n\n"
+                )
+            elif gate == "satisfied":
+                result += _(
+                    "✅ **FRESHNESS GATE:** полный проход подтвердил память — "
+                    "домен memory возвращён в CONSISTENT.\n\n"
+                )
         metrics = stats.get("metrics")
         if metrics:
             by = metrics.get("by_status", {})

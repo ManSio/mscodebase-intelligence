@@ -496,6 +496,7 @@ class VerifyOnRead:
             "counters": {},  # per-node MATCHED/DELIVERED (Том) — ключ node_id, не head
         }
         self._head_cache: Dict[str, Any] = {"head": None, "ts": 0.0}
+        self._dirty_cache: Dict[str, Any] = {"dirty": False, "ts": 0.0}
         self._load_cache()
 
     # ── HEAD и отпечаток ──
@@ -540,7 +541,30 @@ class VerifyOnRead:
                     continue
         return f"mtime:{max_m}"
 
-    def _ensure_fingerprint(self, head: str) -> _Fingerprint:
+    def _is_dirty(self) -> bool:
+        """Dirty-флаг рабочего дерева с TTL-кэшем (git subprocess не на каждое чтение).
+
+        Dirty = незакоммиченные изменения (`git status --porcelain` непуст).
+        Non-git / нерезолвится -> False (fallback на mtime-head в _resolve_head
+        уже детектит правки файлов — dirty не нужен для инвалидации).
+        """
+        now = time.monotonic()
+        cached = self._dirty_cache.get("dirty")
+        if now - self._dirty_cache.get("ts", 0.0) < HEAD_TTL_SEC:
+            return bool(cached)
+        res = resolve_head_dirty(self.root)
+        dirty = False if res is None else res[1]
+        self._dirty_cache = {"dirty": dirty, "ts": now}
+        return dirty
+
+    def _ensure_fingerprint(self, head: str, dirty: bool = False) -> _Fingerprint:
+        # Dirty tree: незакоммиченные правки могут менять импорты/файлы — отпечаток
+        # строится заново КАЖДЫЙ проход (кэш по HEAD не действует: закоммиченный
+        # отпечаток лгал бы про живое дерево, а кэш отпечатка внутри dirty-интервала
+        # воспроизводил бы тот же toxic-interval, что чиним — внешняя правка без
+        # notify_change не была бы увидена). Дорого (~500ms), но dirty редок.
+        if dirty:
+            return _Fingerprint(root=self.root)
         if self._fingerprint is not None and self._head == head:
             return self._fingerprint
         cached_fp = self._cache.get("fingerprint")
@@ -557,8 +581,12 @@ class VerifyOnRead:
     # ── Кэш вердиктов ──
 
     @staticmethod
-    def _cache_key(node_id: str, head: str) -> str:
-        return hashlib.sha256(f"{node_id}|{head}".encode("utf-8")).hexdigest()[:16]
+    def _cache_key(node_id: str, head: str, dirty: bool = False) -> str:
+        # Dirty-флаг в ключе: незакоммиченные правки не должны переиспользовать
+        # вердикты чистого HEAD (и наоборот) — dirty дерево = другая реальность.
+        return hashlib.sha256(
+            f"{node_id}|{head}|{int(bool(dirty))}".encode("utf-8")
+        ).hexdigest()[:16]
 
     def _load_cache(self) -> None:
         try:
@@ -695,7 +723,8 @@ class VerifyOnRead:
         """
         t_start = time.perf_counter()
         head = self._resolve_head()
-        fp = self._ensure_fingerprint(head)
+        dirty = self._is_dirty()
+        fp = self._ensure_fingerprint(head, dirty)
         # Бюджет применяется к per-node циклу проверок, НЕ к одноразовой
         # постройке отпечатка (HEAD change платит rebuild один раз, амортизируется).
         t_check = time.perf_counter()
@@ -703,6 +732,7 @@ class VerifyOnRead:
         newly_refuted: Set[str] = set()
         stats: Dict[str, Any] = {
             "head": head,
+            "dirty": dirty,
             "fingerprint_build_ms": round(fp.build_ms, 1),
             "nodes_seen": 0,
             "cache_hits": 0,
@@ -739,16 +769,22 @@ class VerifyOnRead:
                     stats.setdefault("budget_exceeded_nodes", []).append(node_id)
                     continue
 
-                key = self._cache_key(node_id, head)
-                cached = self._cache.get("verdicts", {}).get(key)
-                if cached and cached.get("verdict"):
-                    stats["cache_hits"] += 1
-                    # cache-hit = вердикт этого HEAD уже разрешён в прошлом проходе
-                    # -> узел доставлен (delivered), а не голодает.
-                    counters[node_id]["delivered"] += 1
-                    if cached["verdict"] == VERDICT_NOT_FOUND:
-                        newly_refuted.add(node_id)
-                    continue
+                # Dirty-интервал: вердикт-кэш НЕ читается и НЕ пишется вообще.
+                # Dirty-флаг в ключе отделил бы этот проход от чистого HEAD, но
+                # второй проход ВНУТРИ dirty получил бы cache-hit по первому —
+                # а дерево между ними могло измениться (правка в dirty не меняет
+                # HEAD, ключ тот же). Полный пересчёт каждый dirty-проход — честно.
+                if not dirty:
+                    key = self._cache_key(node_id, head, dirty)
+                    cached = self._cache.get("verdicts", {}).get(key)
+                    if cached and cached.get("verdict"):
+                        stats["cache_hits"] += 1
+                        # cache-hit = вердикт этого HEAD уже разрешён в прошлом проходе
+                        # -> узел доставлен (delivered), а не голодает.
+                        counters[node_id]["delivered"] += 1
+                        if cached["verdict"] == VERDICT_NOT_FOUND:
+                            newly_refuted.add(node_id)
+                        continue
 
                 stats["checked"] += 1
                 counters[node_id]["delivered"] += 1
@@ -756,12 +792,13 @@ class VerifyOnRead:
                 # слова без src-импорта) тем же правилом, что и write-path.
                 anchors = extract_anchors(node, src_imports=fp.imports)
                 verdict, failed = self._classify(anchors, fp)
-                self._cache.setdefault("verdicts", {})[key] = {
-                    "node_id": node_id,
-                    "head": head,
-                    "verdict": verdict,
-                    "failed": failed,
-                }
+                if not dirty:
+                    self._cache.setdefault("verdicts", {})[key] = {
+                        "node_id": node_id,
+                        "head": head,
+                        "verdict": verdict,
+                        "failed": failed,
+                    }
                 if verdict == VERDICT_FOUND:
                     stats["verified"] += 1
                     transitions.append({"node_id": node_id, "status": STATUS_VERIFIED})
