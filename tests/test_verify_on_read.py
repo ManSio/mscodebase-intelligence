@@ -175,6 +175,63 @@ def test_extract_anchors_read_path_backward_compat():
     }
 
 
+def test_extract_anchors_read_path_trusts_explicit_anchors():
+    """Fix 2026-09-11 (1-B): при read_path=True и наличии явных data.anchors
+    проза тела НЕ сканируется. Исторический «X -> Y» путь в прозе (например
+    src/utils/paths.py -> adapters/local_fs/windows.py) не должен становиться
+    живым якорем — иначе rename-sweep ложно отзывает узлы (ADR-7232a6e2ba34)."""
+    node = _node(
+        "N1", "claim",
+        anchors=[{"kind": "file", "value": "src/main.py"}],
+    )
+    node["data"]["body"] = ("src/utils/paths.py -> adapters/local_fs/windows.py "
+                            "(POSIX no-op); src/utils/zed_config.py -> adapters/zed/zed_config.py")
+
+    with_fix = {(a.kind, a.value) for a in extract_anchors(node, read_path=True)}
+    assert ("file", "src/utils/paths.py") not in with_fix  # исторический путь не якорь
+    assert ("file", "src/utils/zed_config.py") not in with_fix
+    assert ("file", "src/main.py") in with_fix  # явный якорь сохранён
+
+    # Backward-compat без флага: проза по-прежнему сканируется (legacy-узлы).
+    legacy = {(a.kind, a.value) for a in extract_anchors(node)}
+    assert ("file", "src/utils/paths.py") in legacy
+
+
+def test_read_path_prose_history_not_refuting_live_node(project: Path):
+    """Fix 2026-09-11 (1-B): узел с живыми явными якорями НЕ отзывается по
+    историческому пути из прозы тела (rename-sweep в ADR-body)."""
+    store = IntelligenceStore(project)
+    node = _node(
+        "N1", "refactor: вынесли специфику Windows/Zed",
+        anchors=[{"kind": "file", "value": "src/main.py"}],
+    )
+    node["data"]["body"] = ("src/core/gone.py (SafePathManager) -> adapters/local_fs/windows.py "
+                            "(POSIX no-op); src/utils/zed_config.py -> adapters/zed/zed_config.py")
+    _seed(store, [node])
+    verifier = _make_verifier(project, store)
+
+    memory, stats = verifier.run(store.load_memory())
+    assert [n["node_id"] for n in memory["adrs"]] == ["N1"]  # не отсечён
+    assert stats["verified"] == 1 and stats["refuted"] == 0
+    raw = store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_VERIFIED
+    assert "retracted_at" not in raw
+
+
+def test_read_path_prose_history_legacy_node_keeps_refuting(project: Path):
+    """Fix 2026-09-11 (1-B): НАМЕРЕННЫЙ отзыв не сломан — узел БЕЗ явных якорей
+    (legacy auto-collect) по-прежнему отзывается по реальному дрейфу в прозе."""
+    store = IntelligenceStore(project)
+    node = _node("N1", "использует src/core/pathgone.py и src/utils/elt.py")
+    _seed(store, [node])
+    verifier = _make_verifier(project, store)
+
+    _, stats = verifier.run(store.load_memory())
+    assert stats["refuted"] == 1
+    raw = store._load_json("project_memory.json")[0]
+    assert raw["status"] == STATUS_REFUTED
+
+
 # =====================================================================
 # VERDICTS
 # =====================================================================

@@ -1,5 +1,26 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-11] — 1-B/1-C/RT: burst-rename vs fail-closed VOR (ответ Statewave)
+
+**Гипотеза (вопрос dev.to «How large does that queue get in practice?»):** после ОДНОГО refactor-коммита с массовыми move/rename fail-closed VOR (ADR-0003, path-якоря) отзывает ВСЕ затронутые узлы (queue = 100%), хотя файлы живы — это ложные отзывы; body-hash-якорь (limpet/OpenLore) переживает rename без потерь.
+**Команда:**
+```
+python experiments/1V_memory_contamination/burst_rename_audit.py   # реальная память (24 авто-REFUTED)
+python experiments/1V_memory_contamination/burst_sweep_exp.py      # синтетика: 30 файлов, git mv, 1 коммит
+python experiments/1V_memory_contamination/redteam_burst.py        # 3 атаки (batch-hazard/starve/present-trap)
+```
+**Сырой результат:**
+```
+[1-B реальная память] авто-REFUTED=24: anchor_junk 13, TRUE_REFUTE_deleted 10, FALSE_REFUTE_renamed 1 (9.1%)
+  ADR-7232a6e2ba34 FALSE_REFUTE_renamed src/utils/paths.py -> adapters/local_fs/windows.py (git R083)
+[1-C синтетика N=30] Baseline A: VERIFIED 30/0 REFUTED. Sweep B (git mv src/mod src/moved):
+  After sweep: VERIFIED 0 REFUTED 30/30 (100%)  |  body-hash carry: 30/30 (100% уцелели)
+[Red-Team-1 batch-hazard] коммит e661861f = D(adapters/local_fs/__init__.py) + R083(windows.py): «исчезли скопом = move» спас бы и правду, и удаление
+[Red-Team-3 starve] бюджет 0.05ms @ N=40: checked=1 inconclusive=39 budget_exceeded=39
+[Red-Team-4 present-trap] файл пересоздан на том же пути с другим телом: path-anchor VERIFIED (протух), body-hash честно delete+add
+```
+**Вердикт:** подтверждена частично. Очередь в практике = не огромная (24 накопленных авто-отзыва за месяц), но ДОМИНИРУЕТ мусор якорей (13/24: import:for/filter/maps, pkg:name/-), а не renames. Настоящие renames дали 1 ложный отзыв (ADR-7232a6e2ba34 — узел жив, якоря adapters/zed/*.py + src/main.py существуют; отозван по СТАРОМУ пути из prose тела). Синтетика показывает паттерн: один rename-sweep = 100% очереди. **Урок:** батч по коммиту НЕ решает — он смешивает move с delete (e661861f); нужна body-identity (exact-body/exact-signature, OpenLore PR#206) или уточнённый reviewer: сравнение failed-якоря против R*-src в git-истории (rename_sources в audit). Связь: ADR-0003, OpenLore#206, limpet (AST body-hash).
+
 ## [2026-08-05] — Neuro-Symbolic spike: NL → LLM → Cypher → parser+schema → PropertyGraph (exp-lab-2026-01)
 
 **Ожидание:** связка (LLM-генерация Cypher + двухслойная валидация parser+schema + исполнение) отсекает невалидные генерации ДО исполнения: 10 вопросов → 8 исполнимых + 2 отсечённых (галлюцинированная метка SERVICE, функция cycle()).

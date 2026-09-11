@@ -291,6 +291,7 @@ def extract_anchors(
     node: Dict[str, Any],
     project_root: Optional[Path] = None,
     src_imports: Optional[Set[str]] = None,
+    read_path: bool = False,
 ) -> List[Anchor]:
     """Извлекает checkable-якоря из data/claim узла (лёгкий regex, без LLM).
 
@@ -356,6 +357,12 @@ def extract_anchors(
             for a in raw_anchors:
                 if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg", "symbol"):
                     _add(str(a["kind"]), str(a.get("value", "")))
+        # Fix (2026-09-11, 1-B): явные якоря = write-time capture, проза тела —
+        # история («X -> Y» в ADR-body). При read_path=True и наличии явных
+        # якорей проза НЕ сканируется: исторический путь не должен отзывать
+        # живой узел (ложный REFUTED после rename-sweep).
+        if read_path and anchors:
+            return anchors
         parts: List[str] = []
         claim = data.get("claim") or ""
         if claim:
@@ -790,7 +797,7 @@ class VerifyOnRead:
                 counters[node_id]["delivered"] += 1
                 # ADR-0005 guard: read-path отсевает проза-«import X» (частотные
                 # слова без src-импорта) тем же правилом, что и write-path.
-                anchors = extract_anchors(node, src_imports=fp.imports)
+                anchors = extract_anchors(node, src_imports=fp.imports, read_path=True)
                 verdict, failed = self._classify(anchors, fp)
                 if not dirty:
                     self._cache.setdefault("verdicts", {})[key] = {

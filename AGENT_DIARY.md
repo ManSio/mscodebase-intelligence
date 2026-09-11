@@ -31,7 +31,16 @@
 
 ---
 
+## [2026-09-11] — Burst-rename: fail-closed VOR отзывает 100% при ONE rename-sweep (ответ Statewave на dev.to)
+
+**Status:** Closed (эксперименты, ответ опубликован)
+**Root Cause:** VOR (ADR-0003) проверяет ПУТЬ-якоря против текущего HEAD. Rename/move = старый путь отсутствует = SILENT_ABSENCE = отзыв, хотя файл жив. Синтетика (1-C): git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash carry → 30/30 уцелели. Реальная память (1-B): 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34: узел жив, отозван по старому пути src/utils/paths.py из prose «X → Y» в теле; хранимые якоря adapters/zed/zed_config.py + src/main.py существуют).
+**Fix (эксперименты, не код):** burst_rename_audit.py / burst_sweep_exp.py / redteam_burst.py в experiments/1V_memory_contamination/. Решение для производства не принято (вопрос владельцу: body-hash carry-compat против стоимости).
+**Guard:** Red-Team показал — «батч по коммиту» (мульти-уёдание = move) смешивает R* с D* (e661861f: init.py удалён + windows.py R083): спасал бы и настоящие удаления. Точный ревью complex: git --diff-filter=R по истории.
+**verified_from_clean_state:** ⚠️ не прогонялся (скрипты экспериментов, не runtime-код)
+
 ## [2026-09-07] — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
+
 **Status:** Open — зафиксировано как проблема + план эксперимента (10-continuous-verification.md)
 **Root Cause:** По дизайну (ADR-0003) VOR ленивый, но точки вызова всего одна (layer.py:1097); IdleScheduler включается только из record_tool_call(), VOR в idle не подключён, 2 из 3 idle-задач — заглушки (_improve_summaries_batch/_check_index_health — пустые тела). Живой срез текущего проекта: 42/136 узлов ACTIVE без verified_at/TTL висят с 2026-08-11; узлы без якорей → INCONCLUSIVE → VOR не пишет ничего → «проверено» = «кто-то когда-то вызвал».
 **Fix (план эксперимента, не внесён):** H1 idle-ticker VOR с budget; H2 event-driven на HEAD (ключ hash(node_id+commit_sha) уже есть); H3 TTL-гниение INCONCLUSIVE → STALE. Baseline замера: полный прогон 136 узлов = 431.6ms (fingerprint 371.6ms) — дешевле порога. Контр-риски: false_retraction не выше 0.083%, цена при нагрузке.
@@ -200,6 +209,13 @@
 **Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — отдельный коммит 0301fa93 (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1689 passed / 91 deselected (Windows, без e2e/shadow-маркеров — llama недоступен, slow/benchmark отсечены addopts).
 
+## [2026-09-11] — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
+
+**Status:** ✅ PR #34 создан, hooks green; скорость тестов — осознанное решение, код НЕ менялся.
+**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchors` уже были захвачены на write-path. Исторические «X → Y» пути из прозы (R083: src/utils/paths.py → adapters/local_fs/windows.py) оживали при rename-sweep и ложно REFUTEDали живой узел ADR-7232a6e2ba34. (2) «Коммит 8 мин» — gate-zero полный pytest ~178s standalone + 2 llama-server (embed+rerank) contention при коммите. Измерено: 1704 passed / 177s; hook-скрипты остальные 8 ≈10s; total ~189s standalone.
+**Fix:** (1) `extract_anchors(read_path=True)` в verify_on_read.py — при непустых явных якорях prose НЕ сканируется; legacy-узлы без якорей сохраняют проза-скан (backward compat, дрифт-детект жив). Write-path (layer.py:1250/1555) не тронут (default False). 3 новых regression-теста; 53+28 passed. PR: https://github.com/ManSio/mscodebase-intelligence/pull/34. (2) Владелец: pytest single-thread остаётся, ~178s — норма; xdist/smart-selection НЕ вносить. Зафиксировано в WISDOM.
+**Guard:** read-path проверяет ТОЛЬКО якоря, существовавшие на момент записи (не re-derives единственные из прозы); тест `test_read_path_prose_history_legacy_node_keeps_refuting` закрепляет обе ветки. basetemp-гонка (2 параллельных pytest → 452 ложных FileNotFoundError) — известна, не чиним.
+**verified_from_clean_state:** ✅ да, локально — PR #34 не merged (ждёт ревью), но: hooks 9/9 OK, полный pytest 1704 passed / 177s, VOR+retraction 53+28 passed.
 ## [2026-09-10] — Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR масштабирование и внешний дрифт
 
 **Status:** ✅ Fix (замеры, кода не менялось). **Root Cause (KNOW ISSUES «Lazy-only верификация»):** вопрос, успевает ли VOR проверить ACTIVE-узлы в рамках budget_ms=50 (read-path) / 250 (background idle), и детектит ли он внешнее git-pull изменение без notify_change (H3).
