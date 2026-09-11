@@ -8,6 +8,12 @@
 
 **14 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08)
 
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
+
+- **Источник:** AGENT_DIARY.md 2026-09-11 + EXPERIMENTS_LOG 1-B/1-C/RT
+- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-7232a6e2ba34 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (e661861f = D+R083 в одном коммите).
+- **Статус:** 🔬 открыт — решение не принято (вопрос владельцу: body-hash carry против стоимости)
+
 ## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
 
 - **Источник:** AGENT_DIARY.md
