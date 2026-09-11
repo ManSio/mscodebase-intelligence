@@ -85,6 +85,13 @@
 - LanceDB atomic delete+add: фикс table.version + restore(prev_version) при сбое add
   (db_writer.py) — нативный versioning лучше temp+os.replace.
 
+## Commit overhead — НЕ баг (2026-09-11, решение владельца)
+- Pre-commit gate-zero (scripts/verify_diary.py:443) = полный pytest ~178s standalone;
+  остальные 7 hook-скриптов ≈ 10s. «8-минутный коммит» — CPU contention от 2 llama-servers
+  (embed+rerank) при коммите, НЕ медленные тесты. pytest остаётся single-thread, НЕ хтейзить.
+- Помогать не нужно: временный `pytest --basetemp <tmp>` — при параллельных прогонах два pytest
+  коллизят на общем `pytest-of-misha/pytest-0` → 452 ложных FileNotFoundError (а не баг кода).
+
 ## Doc-vs-code semantic drift (2026-08-12)
 - stale_detector сверяет ТОЛЬКО version-строки — имена тулов/счётчики в доках
   НЕ проверяются. Кросс-чек: AGENTS.md B перечислял НЕСУЩЕСТВУЮЩИЕ тулы

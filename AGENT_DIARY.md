@@ -208,3 +208,11 @@
 **Red Team:** (1) дубль-доставка при гонке двух MCP-тулов — collect_and_clear атомарный (первый забрал, второй — пусто); (2) спам на каждый notify_change — alert только при первом переходе →STALE; (3) токен-оверхед — limit=5, payload до 3 ключей; (4) коррапт JSON — graceful reset; (5) multi-window — per-project store. 5/5 с защитой.
 **Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — отдельный коммит 0301fa93 (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1689 passed / 91 deselected (Windows, без e2e/shadow-маркеров — llama недоступен, slow/benchmark отсечены addopts).
+
+## [2026-09-11] — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
+
+**Status:** ✅ PR #34 создан, hooks green; скорость тестов — осознанное решение, код НЕ менялся.
+**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchors` уже были захвачены на write-path. Исторические «X → Y» пути из прозы (R083: src/utils/paths.py → adapters/local_fs/windows.py) оживали при rename-sweep и ложно REFUTEDали живой узел ADR-7232a6e2ba34. (2) «Коммит 8 мин» — gate-zero полный pytest ~178s standalone + 2 llama-server (embed+rerank) contention при коммите. Измерено: 1704 passed / 177s; hook-скрипты остальные 8 ≈10s; total ~189s standalone.
+**Fix:** (1) `extract_anchors(read_path=True)` в verify_on_read.py — при непустых явных якорях prose НЕ сканируется; legacy-узлы без якорей сохраняют проза-скан (backward compat, дрифт-детект жив). Write-path (layer.py:1250/1555) не тронут (default False). 3 новых regression-теста; 53+28 passed. PR: https://github.com/ManSio/mscodebase-intelligence/pull/34. (2) Владелец: pytest single-thread остаётся, ~178s — норма; xdist/smart-selection НЕ вносить. Зафиксировано в WISDOM.
+**Guard:** read-path проверяет ТОЛЬКО якоря, существовавшие на момент записи (не re-derives единственные из прозы); тест `test_read_path_prose_history_legacy_node_keeps_refuting` закрепляет обе ветки. basetemp-гонка (2 параллельных pytest → 452 ложных FileNotFoundError) — известна, не чиним.
+**verified_from_clean_state:** ✅ да, локально — PR #34 не merged (ждёт ревью), но: hooks 9/9 OK, полный pytest 1704 passed / 177s, VOR+retraction 53+28 passed.
