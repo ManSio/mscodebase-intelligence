@@ -1959,3 +1959,31 @@ Red Team: 5/5 атак с защитой (dirty-cache-persistence, stale-verifie
 **Урок:** dataclass field default = os.getenv(...) вычисляется ОДИН РАЗ при импорте класса — нужен field(default_factory=...) для тестов с monkeypatch. ConsistencyTracker синглтон между тестами требует autouse reset в conftest.py (test_propagation_engine ломался без него).
 
 **Связи:** Exp 2 (enforcement absent → gate required), ADR-0003 (VOR), PlanFence (server-side blocking), KNOWN_ISSUES 2026-09-09 Exhibit #23 (loop closed: STALE→gate→block).
+
+## [2026-09-11] — Exp 5: H3 TTL-гниение — порог N из live-распределения verified_at (doc 10)
+
+**Контекст:** закрыть doc 10-continuous-verification (H1 idle + H2 HEAD-инвалидация на main; остался H3 TTL для INCONCLUSIVE/непроверенных узлов, которые «висят вечно»: 42-70 ACTIVE без verified_at). Гипотеза выбора N: «сколько дней без подтверждения = не подтверждён» — мерить распределение verified_at live-памяти, а не угадывать.
+
+**Дизайн:** измерение live `project_memory.json` (C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\intelligence\project_memory.json) через scratch-скрипт (vor_ttl_audit.py, удалён); затем реализация: `last_checked` для всех проверенных (INCONCLUSIVE включительно, rate-limit записи `VOR_LAST_CHECKED_INTERVAL_SEC=6h` — H1 idle не переписывает файл каждый тик) + `stale_ttl_nodes` в stats (не проверен в проходе и след старше `VOR_TTL_DAYS`), label `verification="stale_ttl"`.
+
+**Команда:** `venv/Scripts/python.exe <tmp>/vor_ttl_audit.py`; `python -m pytest tests/test_verify_on_read_ttl.py -v`; полный `python -m pytest tests/ -q`.
+
+**Сырой результат:**
+```
+audit 2026-09-11 (bfe9644b project_memory.json, symlink D:\Project\MSCodeBase):
+  ACTIVE:     70 total, 70 без verified_at
+  REFUTED:    28 total, 27 без verified_at,  старейший age_days=28
+  SUPERSEDED:  4 total,  3 без verified_at,  старейший age_days=7
+  VERIFIED:   50 total,  2 без verified_at, verified_at age 0..31, mean 20.5, median 22
+
+tests/test_verify_on_read_ttl.py: 9 passed in 1.25s
+tests/ полный: 1725 passed, 5 skipped, 91 deselected in 180.67s
+ruff: all checks passed
+VERDICT H3: CONFIRMED
+```
+
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА. N=30 (default `VOR_TTL_DAYS`): медиана 22, потолок 31 день, коммитовый ритм ежедневный — 30 дней ≈ ~1 коммитовый цикл сверх потолка, ложноположительных stale не будет. Критерий stale: узел ACTIVE/VERIFIED, НЕ проверен в проходе, след (`verified_at`/`last_checked`) старше N; без следа (новый узел) → НЕ stale (starved ловит систематическое голодание отдельно); статус НЕ меняется (Red Team a2: INCONCLUSIVE неотзываем, guard false_retraction 0.0968%).
+
+**Урок:** порог гниения, обоснованный распределением (median/потолок), не требует «магического N»: 30 = потолок+1 коммитовый цикл. INCONCLUSIVE-узлы теперь имеют свежий `last_checked` при каждом idle-проходе (H1) — «висят вечно без дат» заменено на «проверяются каждые 6ч+30д» (физическая запись rate-limited, метка вычислительная).
+
+**Связи:** doc 10-continuous-verification (H3 done), KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (закрыт), ADR-0003 (VOR), Exp 1 (Catch-up), Exp 4 (Freshness Gate).

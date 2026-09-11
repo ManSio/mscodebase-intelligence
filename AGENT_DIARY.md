@@ -265,3 +265,12 @@ VERDICT H3: CONFIRMED
 **Guard:** dataclass default=os.getenv() evaluated at import time — use field(default_factory=...) for monkeypatch. ConsistencyTracker singleton requires autouse reset in conftest.py.
 
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1713 passed green.
+
+## [2026-09-11] — H3 TTL-гниение: last_checked для всех проверенных + label stale_ttl (doc 10 closed)
+
+**Status:** Fixed (9 новых тестов + 1725 полный pytest green; doc 10-continuous-verification H1+H2+H3 done)
+**Root Cause:** INCONCLUSIVE/непроверенные узлы «висят вечно» без следа проверки: live-срез 2026-09-11 — 70 ACTIVE без verified_at (KNOWN_ISSUES «42» устарел), verified_at VERIFIED median 22/max 31; VOR писал дату ТОЛЬКО при VERIFIED-переходе, INCONCLUSIVE — ничего.
+**Fix:** (1) `verify_on_read.py`: `last_checked` пишется для КАЖДОГО реально проверенного узла (cache-hit и fresh check, включая INCONCLUSIVE), физ-запись rate-limited `VOR_LAST_CHECKED_INTERVAL_SEC=6h` (H1 idle не переписывает project_memory.json каждый тик); `stale_ttl_nodes` в stats — ACTIVE/VERIFIED, не проверен в проходе, след старше `VOR_TTL_DAYS=30`; без следа (новый узел) → НЕ stale. (2) layer.py: `verification="stale_ttl"` прямым присваиванием (сильнее budget_exceeded, как stale_unverified). (3) ui_formatter.py: render + ресипт (`⏳ stale_ttl: N узлов не подтверждались > N дней`, lazy-import TTL). (4) Тесты tests/test_verify_on_read_ttl.py — 9 кейсов.
+**Guard:** узел не переписывается в терминальный статус меткой (Red Team a2: INCONCLUSIVE неотзываем, false_retraction 0.0968% цел); порог N измерен, не угадан.
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1725 passed, 5 skipped.
+**Связи:** doc 10-continuous-verification.md (closed), KNOWN_ISSUES «Lazy-only» (2026-09-07, закрыт), EXPERIMENTS_LOG Exp 5 (2026-09-11).

@@ -454,17 +454,33 @@ def format_project_memory(
                 if starved
                 else ""
             )
+            stale_ttl = stats.get("stale_ttl_nodes", [])
+            stale_days = ""
+            if stale_ttl:
+                try:
+                    from src.core.intelligence.verify_on_read import TTL_STALE_DAYS
+
+                    stale_days = str(TTL_STALE_DAYS)
+                except Exception:  # noqa: BLE001 - метрика не должна ронять формат
+                    stale_days = "N"
+            stale_warn = (
+                f" ⏳ stale_ttl: {len(stale_ttl)} узлов не подтверждались "
+                f">{stale_days} дней"
+                if stale_ttl
+                else ""
+            )
             warn = (
                 " ⚠️ бюджет исчерпан — непроверенные узлы несут статус прошлых циклов"
                 if stats.get("budget_exceeded")
                 else ""
             )
             result += _(
-                "🔎 **VOR coverage:** {checked}/{total} узлов проверено{warn}{starved}\n\n",
+                "🔎 **VOR coverage:** {checked}/{total} узлов проверено{warn}{starved}{stale}\n\n",
                 checked=checked,
                 total=total,
                 warn=warn,
                 starved=starved_warn,
+                stale=stale_warn,
             )
             gate = stats.get("freshness_gate")
             if gate == "blocked":
@@ -524,6 +540,8 @@ def format_project_memory(
                 title += " ❓️ [неверифицируемо по коду]"
             elif verification == "budget_exceeded":
                 title += " ⚠️ [не проверен: бюджет цикла исчерпан]"
+            elif verification == "stale_ttl":
+                title += " ⏳ [не подтверждён за N дней]"
             # Аудит-режим: статус + причина отзыва (ADR-0002: REFUTED не стирается,
             # остаётся в истории с причиной — её и показывает выдача).
             if audit and item.get("status"):

@@ -1204,6 +1204,18 @@ class ProjectIntelligenceLayer:
                     for node in nodes:
                         if node.get("node_id") in budget_exceeded_ids:
                             node.setdefault("verification", "budget_exceeded")
+            # H3 TTL-гниение (doc 10, 2026-09-11): узел не проверялся в этом
+            # проходе и его след проверки старше TTL_STALE_DAYS -> label
+            # «не подтверждён за N дней». Статус не меняем (не REFUTED).
+            stale_ttl_ids = set(stats.get("stale_ttl_nodes", []))
+            if stale_ttl_ids:
+                for section, nodes in memory.items():
+                    for node in nodes:
+                        if node.get("node_id") in stale_ttl_ids:
+                            # Прямое присваивание (как stale_unverified): stale_ttl
+                            # сильнее budget_exceeded (давно не подтверждался vs
+                            # не проверен в этом проходе) — метка не размывается.
+                            node["verification"] = "stale_ttl"
         else:
             stats = {"verify_on_read": False}
 
