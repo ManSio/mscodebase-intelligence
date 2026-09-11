@@ -216,3 +216,52 @@
 **Fix:** (1) `extract_anchors(read_path=True)` в verify_on_read.py — при непустых явных якорях prose НЕ сканируется; legacy-узлы без якорей сохраняют проза-скан (backward compat, дрифт-детект жив). Write-path (layer.py:1250/1555) не тронут (default False). 3 новых regression-теста; 53+28 passed. PR: https://github.com/ManSio/mscodebase-intelligence/pull/34. (2) Владелец: pytest single-thread остаётся, ~178s — норма; xdist/smart-selection НЕ вносить. Зафиксировано в WISDOM.
 **Guard:** read-path проверяет ТОЛЬКО якоря, существовавшие на момент записи (не re-derives единственные из прозы); тест `test_read_path_prose_history_legacy_node_keeps_refuting` закрепляет обе ветки. basetemp-гонка (2 параллельных pytest → 452 ложных FileNotFoundError) — известна, не чиним.
 **verified_from_clean_state:** ✅ да, локально — PR #34 не merged (ждёт ревью), но: hooks 9/9 OK, полный pytest 1704 passed / 177s, VOR+retraction 53+28 passed.
+## [2026-09-10] — Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR масштабирование и внешний дрифт
+
+**Status:** ✅ Fix (замеры, кода не менялось). **Root Cause (KNOW ISSUES «Lazy-only верификация»):** вопрос, успевает ли VOR проверить ACTIVE-узлы в рамках budget_ms=50 (read-path) / 250 (background idle), и детектит ли он внешнее git-pull изменение без notify_change (H3).
+
+**Команда:** `venv/Scripts/python.exe %TEMP%/opencode/exp1_vor_catchup.py` и `exp3b_head_polling.py` (scratch, изолированные temp-репо/project dirs, бэкапы restore в finally). Венв: `C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\venv`.
+
+**Сырые результаты (Exp 1, synthetic stale nodes, budgets 50/250ms):**
+```
+N=200  : 50ms→200/200 (0 exceeded, 36ms) | 250ms→checked=0 (cache-hit артефакт)
+N=500  : 50ms→492/500 (8 exceeded)      | 250ms→8 (cache)
+N=2000 : 50ms→420/2000 (1580 exceeded)   | 250ms→1580/2000 (0 exceeded, 311ms)
+N=5000 : 50ms→457/5000 (4543 exceeded)   | 250ms→1889/5000 (starved=2654, 560ms); catch-up 2 прохода
+```
+**Вердикт:** H1 CONFIRMED с оговоркой — реальный проект ~247 узлов покрывается за 1 проход (2× бюджет); систематическое голодание (MATCHED>0/DELIVERED=0) начинается при ~5000 узлов. Артефакт: второй прогон при том же HEAD даёт checked=0 — вердикт-кэш persist в verify_cache.json, не баг. → KNOWN_ISSUES «Lazy-only» закрыт полностью, риск бюджета снят.
+
+**Сырые результаты (Exp 3, изолированный temp-репо v1→v2, без notify_change):**
+```
+run#1: verified=2 → A=VERIFIED B=VERIFIED (якоря foo.py + gone.py живы)
+внешн. change: foo.py модифицирован, gone.py удалён, HEAD сменился (v1→v2)
+run#2 (fresh verifier): verified=1 refuted=1 cache_hits=0 → A=VERIFIED B=REFUTED
+VERDICT H3: CONFIRMED
+```
+**Вердикт:** H3 CONFIRMED — HEAD-инвалидация per-node cache key (hash(node_id|head)) сама перепроверяет узлы при внешнем git-изменении; OS-watchdog не нужен для коммиченных правок. Открытый интервал: незакоммиченная правка (dirty tree, HEAD прежний) остаётся на fingerprint/mtime + notify_change — до 30s TTL.
+
+**Урок (мера ошибки):** первый прогон exp3 дал ложный REFUTED — статусы читались из memory ДО применения transitions, а не из store после. «Измеритель молча возвращает непроверенное состояние» → читать вердикты только после персист-шага run(). Плюс: вставка новых JSON-объектов `,\r\n`-join'ом сломалла JSON (запятая в начале блока) → переписал корректно, guard-тест `pnpm test tests/lab.test.ts tests/evidence-eval.test.ts` 26/26 прошёл.
+
+**Кросс-триггер (исследование):** веб-поиск показал, что inform-the-agent (alerts/STALE 55.2% на STALE-бенчмарке, PlanFence 30/30 провалов) слабее server-side blocking; кандидат — Fail-Closed Read+Write Gate (SSGM read-filter + PlanFence action-validation). Решение A/B/C — за владельцем.
+
+**Связи:** KNOW ISSUES «Lazy-only» (закрыт), ADR-0003, EXPERIMENTS_LOG (exp 1 и exp 3), MSPortfolio exp-33/exp-34 (26/26 тестов), README badge d8dcbd9f (unpushed).
+
+## [2026-09-10] — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
+
+**Status:** ✅ Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient — agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; server-side blocking required.
+
+**Exp 2 (s1 sandbox):** H1 delivery CONFIRMED, H2 enforcement REFUTED, H3 subagent REFUTED (opencode Task tool = isolated context). Key insight: **trust = false security**. Server-side gate is primary enforcement.
+
+**Exp 4 implementation (4 files):**
+- **Read gate (layer.py):** intel_get_project_memory: STALE + full VOR pass → mark_consistent("memory"); incomplete → blocked + stale_unverified on unverified nodes
+- **Write gate (layer.py):** intel_add_memory_node: STALE → refuse with instruction to call intel_get_project_memory
+- **Dirty fix (verify_on_read.py):** fingerprint rebuilds every dirty pass (never cached); verdict cache bypassed during dirty; dirty cache key = sha256(node_id|head|1)
+- **Config (settings.py):** MemoryConfig.freshness_gate via field(default_factory=...) for testability
+
+**Tests:** 9 new (test_freshness_gate.py); 1713 passed full suite; ruff clean ×5 files. ConsistencyTracker singleton leak fixed via conftest.py autouse reset.
+
+**Red Team:** 5/5 attacks with defense (dirty-cache-persistence, stale-verified-flood, config-reload, non-git-dirty, consistency-singleton-leak). 
+
+**Guard:** dataclass default=os.getenv() evaluated at import time — use field(default_factory=...) for monkeypatch. ConsistencyTracker singleton requires autouse reset in conftest.py.
+
+**verified_from_clean_state:** ⚠️ не проверено — чистый clone требует сети (нет в сессии); локально полный pytest 1713 passed green.
