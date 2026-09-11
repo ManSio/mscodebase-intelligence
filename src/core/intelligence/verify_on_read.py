@@ -50,7 +50,7 @@ import os
 import re
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
@@ -78,6 +78,16 @@ STATUS_SUPERSEDED = "SUPERSEDED"
 DEFAULT_BUDGET_MS = 50.0
 CACHE_FILENAME = "verify_cache.json"
 HEAD_TTL_SEC = 30.0  # пере-резолв HEAD не чаще раза в 30с на инстанс (git ~50-100ms)
+
+# H3 TTL-гниение (doc 10-continuous-verification): узел, НЕ проверенный в проходе,
+# чей след проверки (verified_at/last_checked) старше TTL_STALE_DAYS → метка
+# stale_ttl «не подтверждён за N дней». N из распределения verified_at live-памяти
+# (медиана 22, потолок 31 день) — мерено 2026-09-11, плюс коммитовый ритм ежедневный.
+TTL_STALE_DAYS = int(os.getenv("VOR_TTL_DAYS", "30"))
+# Физическую запись last_checked rate-limit'им (H1 idle гоняет каждый тик; без
+# порога каждый тик переписывал бы project_memory.json). Порог — возраст следа.
+LAST_CHECKED_MIN_INTERVAL = float(os.getenv("VOR_LAST_CHECKED_INTERVAL_SEC", str(6 * 3600)))
+_TS_FMT = "%Y-%m-%d %H:%M:%S"
 
 MANIFEST_CACHE_TTL_S = 5.0  # write-path зовёт extract_anchors per-node; полный скан манифестов (B-1) дороже 3 файлов старого парсера
 
@@ -674,12 +684,22 @@ class VerifyOnRead:
 
     # ── Применение переходов (общий write-путь, тот же lock) ──
 
-    def _persist_transitions(self, transitions: List[Dict[str, Any]]) -> None:
-        if not transitions:
+    def _persist_transitions(
+        self, transitions: List[Dict[str, Any]], last_checked_ids: Optional[Set[str]] = None
+    ) -> None:
+        """Применяет статус-переходы и/или освежает last_checked узлов.
+
+        last_checked_ids — узлы, реально проверенные в этом проходе (включая
+        INCONCLUSIVE и cache-hit): след «проверен в <time>» для H3 TTL-гниения,
+        чтобы узлы без якорей (INCONCLUSIVE) перестали «висеть вечно» без дат.
+        Запись rate-limited (LAST_CHECKED_MIN_INTERVAL): H1 idle гоняет каждый тик,
+        без порога первый же тик перетестирует последнюю дату у ВСЕХ узлов.
+        """
+        if not transitions and not last_checked_ids:
             return
         with self.lock:
             nodes = self.store._load_json("project_memory.json")
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now().strftime(_TS_FMT)
             by_id = {n.get("node_id"): n for n in nodes if isinstance(n, dict)}
             changed = False
             for tr in transitions:
@@ -706,6 +726,28 @@ class VerifyOnRead:
                     n["status"] = STATUS_VERIFIED
                     n["verified_at"] = now
                 changed = True
+            # H3: свежий след «проверен» для узлов этого прохода (INCONCLUSIVE —
+            # статус не меняется, но TTL-метрика обязана существовать).
+            if last_checked_ids:
+                min_int = datetime.strptime(
+                    (datetime.now() - timedelta(seconds=LAST_CHECKED_MIN_INTERVAL)).strftime(_TS_FMT),
+                    _TS_FMT,
+                )
+                for nid in last_checked_ids:
+                    n = by_id.get(nid)
+                    if n is None:
+                        continue
+                    if n.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                        continue
+                    prev = n.get("last_checked")
+                    if prev:
+                        try:
+                            if datetime.strptime(prev, _TS_FMT) > min_int:
+                                continue
+                        except ValueError:
+                            pass
+                    n["last_checked"] = now
+                    changed = True
             if changed:
                 self.store._save_json("project_memory.json", nodes)
 
@@ -755,6 +797,9 @@ class VerifyOnRead:
         # matched — узел был виден в проходе; delivered — вердикт разрешён.
         counters = self._cache.setdefault("counters", {})
         seen_this_pass: Set[str] = set()
+        # H3: узлы, реально получившие вердикт в проходе (cache-hit или fresh
+        # check) — им обновляем last_checked; budget-exceeded в set не попадают.
+        touched_this_pass: Set[str] = set()
 
         for section, nodes in memory.items():
             for node in nodes:
@@ -789,12 +834,14 @@ class VerifyOnRead:
                         # cache-hit = вердикт этого HEAD уже разрешён в прошлом проходе
                         # -> узел доставлен (delivered), а не голодает.
                         counters[node_id]["delivered"] += 1
+                        touched_this_pass.add(node_id)
                         if cached["verdict"] == VERDICT_NOT_FOUND:
                             newly_refuted.add(node_id)
                         continue
 
                 stats["checked"] += 1
                 counters[node_id]["delivered"] += 1
+                touched_this_pass.add(node_id)
                 # ADR-0005 guard: read-path отсевает проза-«import X» (частотные
                 # слова без src-импорта) тем же правилом, что и write-path.
                 anchors = extract_anchors(node, src_imports=fp.imports, read_path=True)
@@ -834,8 +881,36 @@ class VerifyOnRead:
         if starved:
             stats["starved_nodes"] = starved
 
-        self._persist_transitions(transitions)
+        self._persist_transitions(transitions, last_checked_ids=touched_this_pass)
         self._persist_cache()
+
+        # H3 TTL-гниение (doc 10): узел жив (ACTIVE/VERIFIED), НЕ проверен в этом
+        # проходе (не в touched_this_pass — budget/пропущен) И его след проверки
+        # (last_checked/verified_at) отсутствует или старше TTL_STALE_DAYS ->
+        # stale_ttl «не подтверждён за N дней». Статус НЕ меняем (Red Team a2:
+        # INCONCLUSIVE неотзываем, ложный REFUTED бьёт по false_retraction).
+        stale_ttl: List[str] = []
+        now_dt = datetime.now()
+        for section, nodes in memory.items():
+            for node in nodes:
+                if not isinstance(node, dict) or not node.get("node_id"):
+                    continue
+                nid = str(node["node_id"])
+                if nid in touched_this_pass:
+                    continue
+                if node.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                    continue
+                last_ts = node.get("last_checked") or node.get("verified_at")
+                if not last_ts:
+                    continue  # нет следа вовсе (новый/never-checked) — не stale
+                try:
+                    age_days = (now_dt - datetime.strptime(last_ts, _TS_FMT)).days
+                except ValueError:
+                    continue  # неразбираемая дата — не флагаем
+                if age_days > TTL_STALE_DAYS:
+                    stale_ttl.append(nid)
+        if stale_ttl:
+            stats["stale_ttl_nodes"] = sorted(stale_ttl)
 
         if newly_refuted:
             memory = {
