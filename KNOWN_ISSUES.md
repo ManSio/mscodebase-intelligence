@@ -229,3 +229,10 @@
 - **Описание:** **Status:** ✅ Fixed (2026-09-09, commit 0301fa93). CodeParser.SUPPORTED_EXTENSIONS/parsers не содержали ".h" (есть .hpp/.cxx/.cpp) - заголовки C-проектов выпадали из AST-индексации (импорты/вызовы/присваивания). Эмпирика E-S1 (shallow-клоны, кап 300 файлов/язык): curl - 65/300 файлов с явными #include дали 0 рёбер (преимущественно .h), dart-http .c-папка 0/9. Бонус-результат той же пробы: импорт-карты живые на 6 языках (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), вызовы php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - синтетический дефект "вызовы PHP/Ruby/C/Dart" снят.
 - **Fix:** ".h" добавлен в PARSE_EXTENSIONS (src/core/extensions.py) + C-парсер для ".h" (parser.py) + карты: env (".h":"c"), IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator/assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/... как у ".c"). Пояснение: ".h" уже был в INDEX_EXTENSIONS (вектор индексировался), не хватало именно AST-слоя ⇒ map_lies. +1 тест (test_h_header_preproc_include). Повтор E-S1 пробы на curl (ожидание: map_lies .h -> ~0) — отложен, verified на уровнеunit-теста C-парсера.
 - **Статус:** ✅ Fixed
+
+## 2026-09-13 12:00 - H4: свежесть снапшота dev.to KB — «gone» 97.5% без метрики (open)
+
+- **Источник:** EXPERIMENTS_LOG Exp 6 (2026-09-13), exp-37 portfolio lab
+- **Описание:** **Status:** ⏳ Open (исследовательский хвост H4). При росте базы (13,519 статей/82,527 комментов) 97.5% хранимых комментариев — gone против live dev.to (live=2,030, gone=80,494), и нет метрики свежести снапшота. Локальная пересборка графа НЕ bottleneck (50,498 тредов за ~3с); узкое место — сетевая фаза capture (refresh own = 10м38с, 134 вызова dev.to API). Гипотеза: инкрементальный/осознанный refresh + быстрая метрика «доля gone» на снапшот вернут точность verify-on-read на частично свежем графе.
+- **Fix:** не оптимизировать сборку графа; добавить метрику свежести + запланировать инкрементальный refresh. Эксперимент завершён (verdict confirmed), задача на оптимизацию — открыта.
+- **Статус:** ⏳

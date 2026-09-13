@@ -1987,3 +1987,26 @@ VERDICT H3: CONFIRMED
 **Урок:** порог гниения, обоснованный распределением (median/потолок), не требует «магического N»: 30 = потолок+1 коммитовый цикл. INCONCLUSIVE-узлы теперь имеют свежий `last_checked` при каждом idle-проходе (H1) — «висят вечно без дат» заменено на «проверяются каждые 6ч+30д» (физическая запись rate-limited, метка вычислительная).
 
 **Связи:** doc 10-continuous-verification (H3 done), KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (закрыт), ADR-0003 (VOR), Exp 1 (Catch-up), Exp 4 (Freshness Gate).
+
+## [2026-09-13] — Exp 6 (H4): agent-memory lifecycle в масштабе dev.to KB — capture-латентность vs локальный граф
+
+**Контекст:** H4 из реестра: база dev.to выросла 3,989 → 13,519 статей (3.4x); проверить, как stale-detection/verify-on-read (read-путь агентной памяти) ведёт себя при росте графа — латентность и точность. Это эксперимент на живой community-memory базе (13k статей / 82k комментов / 19k тредов), не правка кода mscodebase.
+
+**Гипотеза:** «capture-латентность деградирует при росте графа (треды/связи), а не из-за числа статей; локальная пересборка производных (threads+mentions+cross_links) — бутылочное горлышко refresh».
+
+**Команда:** community-memory start_refresh(own) → job_status → get_trend(all) → get_statistics(all) → rebuild_derived(all) → search_memory-пробы.
+
+**Сырой результат:**
+`
+refresh own: 09:15:13Z → 09:25:50Z = 10m38s, 13,519 статей / 82,527 комментов / 19,101 тредов, 134 сетевых вызова, snapshot 16
+rebuild_derived: 50,498 тред-объектов за ~3s (09:41:27 → 09:41:30), snapshot 17  → граф НЕ bottleneck
+comment_status(all): live=2,030, gone=80,494 (97.5%), edited_since_capture=3
+trend: articles 3,989 → 13,519 (+3.4x); threads 9,106 → 19,101 (+2.1x)
+VERDICT H4: CONFIRMED
+`
+
+**Вердикт:** ✅ ПОДТВЕРЖДЕНА (с уточнением). Бутылочное горлышко — НЕ локальный граф (50k тредов за ~3с), а сетевая фаза capture (134 вызова rate-limited dev.to API за 10м38с). Точность: 97.5% хранимых комментариев gone против live dev.to → verify-on-read на частично свежем графе пропускает реальные обновления до следующего capture; read-путь точность сохраняет (live=2,030 верифицированы).
+
+**Урок:** оптимизировать сборку графа бесполезно (уже ~50k/3с); улучшение = инкрементальный/осознанный refresh (какая часть базы реально оверифицирована); «gone» 97.5% — кандидат на метрику свежести снапшота. exp-37 записан в portfolio lab (EN/RU конгруэнтны, bar-chart, links=exp-36, 26/26 тестов зелёные).
+
+**Связи:** exp-37 (portfolio lab), H3 (TTL-гниение — теперь база та же), community-memory snapshots 16-17, KNOWN_ISSUES H4.
