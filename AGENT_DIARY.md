@@ -274,3 +274,12 @@ VERDICT H3: CONFIRMED
 **Guard:** узел не переписывается в терминальный статус меткой (Red Team a2: INCONCLUSIVE неотзываем, false_retraction 0.0968% цел); порог N измерен, не угадан.
 **verified_from_clean_state:** ✅ да — CI run 34737070903 на 7429daad: clean-state PASS, full-suite PASS (ubuntu+windows), ruff/layer/linter/pip-audit PASS, transport-equiv PASS, manifest-parity PASS; локально полный pytest 1725 passed, 5 skipped.
 **Связи:** doc 10-continuous-verification.md (closed), KNOWN_ISSUES «Lazy-only» (2026-09-07, закрыт), EXPERIMENTS_LOG Exp 5 (2026-09-11).
+
+## [2026-09-13] — H4: agent-memory lifecycle в масштабе dev.to KB — бутылочное горлышко = сетевой capture, не граф
+
+**Status:** Fixed (эксперимент подтверждён; сопровождение задачи closed)
+**Root Cause:** при росте базы 3,989 → 13,519 статей (3.4x), refresh own занял 10м38с на 13.5k статей/82.5k комментов (134 сетевых вызова dev.to API). Гипотеза «бутылочное горлышко — локальная пересборка графа» ОПРОВЕРГНУТА измерением.
+**Fix:** (а) локальный граф НЕ bottleneck: rebuild_derived собрал 50,498 тред-объектов за ~3с (snapshot 17). Узкое место — сетевая фаза capture (rate-limited dev.to API за 10м38с). (б) Точность: comment_status live=2,030 / gone=80,494 (97.5% хранимых комментов отсутствуют против live dev.to) — read-путь verify-on-read на частично свежем графе пропускает реальные обновления до следующего capture. Верифицированные узлы точность сохраняют.
+**Guard:** snack: не оптимизировать сборку графа (уже 50k/3с); улучшение = инкрементальный/осознанный refresh + метрика свежести снапшота по «gone»-доле. exp-37 записан в portfolio lab.
+**verified_from_clean_state:** ⚠️ N/A — эксперимент на живой dev.to базе (community-memory MCP), код mscodebase не менялся; portfolio guard-тесты 26/26 green локально.
+**Связи:** exp-37 (portfolio lab, EN/RU конгруэнтны), EXPERIMENTS_LOG Exp 6 (2026-09-13), KNOWN_ISSUES H4, community-memory snapshots 16-17.
