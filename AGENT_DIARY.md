@@ -292,3 +292,12 @@ VERDICT H3: CONFIRMED
 **Guard:** link-эвристика должна ранжироваться импортами файла/класса (не именем теста); plugin не должен влиять на результат (1725 passed/5 skipped как baseline).
 **verified_from_clean_state:** ⚠️ не делал — эксперимент требует установленного пакета + работающих llama-серверов; портфолио guard 26/26 green (exp-38 EN/RU, chart, links=exp-37).
 **Артефакты:** experiments/bootstrap/dynamic_trace_plugin.py + trace_result.json; EXPERIMENTS_LOG Exp 7; KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline; exp-38 portfolio lab.
+
+## [2026-09-15] - Bootstrap Pipeline: веб-исследование слабых мест (расширение записи FEATURE)
+
+**Status:** Open (бэклог дополнен выводами; код не начат)
+**Root Cause/Проблема:** Владелец запросил по протоколу исследовать «где использовали в других проектах/реализации, проблемы и решения — максимально выявить гиблые места» перед реализацией.
+**Findings (5):** (1) **sysmon+dynamic_context — гипотеза опровергнута эмпирически**: на Python 3.14.3 + coverage 7.14.1 `core=sysmon` даёт верные контексты вида `<файл>.<функция>` (TODO «unused» в sysmon.py:201-204 устарел); контексты не пишутся только при ручном switch_context вне pytest. (2) Нужен повторный A/B замер sysmon-подхода против наших +13.6% sys.settrace. (3) Precision — главное гиблое место: TCTracer (MAP 85/92) использует Tarantula-ранжирование (часто данным тестом/редко другими) + ensemble — достижимо из trace_result.json без мутаций; LLM-трейсебилити F1~79-80% страдает от naming false-positives. (4) Mutation testing как оракул дорог/хрупок (эквивалентные мутанты неразрешимы, флаки +5-10% score, масштаб Google 33M/400k) — годен только для валидации выборки. (5) pytest-testmon (1012★) подтверждает реализуемость через coverage, но цели другие (test selection, line-level), наш TESTS-edge для LLM-контекста остаётся самостоятельной ценностью.
+**Guard:** перед реализацией — решить: coverage.py dynamic_context как штатный драйвер (минус самописный sys.settrace) + Tarantula-ранжирование в кандидатах.
+**verified_from_clean_state:** ⚠️ не проверено — исследование внешних источников + инспекция установленного coverage (вендор C:\Python314), а не код-пробег; эмпирика контекстов — во временной папке, вне репозитория.
+**Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline (дополнен), EXPERIMENTS_LOG Exp 7.
