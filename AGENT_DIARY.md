@@ -283,3 +283,12 @@ VERDICT H3: CONFIRMED
 **Guard:** snack: не оптимизировать сборку графа (уже 50k/3с); улучшение = инкрементальный/осознанный refresh + метрика свежести снапшота по «gone»-доле. exp-37 записан в portfolio lab.
 **verified_from_clean_state:** ⚠️ N/A — эксперимент на живой dev.to базе (community-memory MCP), код mscodebase не менялся; portfolio guard-тесты 26/26 green локально.
 **Связи:** exp-37 (portfolio lab, EN/RU конгруэнтны), EXPERIMENTS_LOG Exp 6 (2026-09-13), KNOWN_ISSUES H4, community-memory snapshots 16-17.
+
+## [2026-09-15] - Bootstrap Pipeline: Exp 7/38 — test->function linking static vs dynamic (KNOWN_ISSUES FEATURE, iter-точка)
+
+**Status:** Fixed (эксперимент закрыт: CONFIRMED partial; реализация НЕ начата — зафиксирована задача, iter-точка по решению владельца)
+**Root Cause:** Для шага 3 конвейера (тесты как ground truth) статическое связывание бесполезно: имя теста↔функция = 0% (выборка 109 тестов, 0 hits), импорты дают только файловый уровень (127/163 = 77.9%). Нужен динамический запуск.
+**Fix/Exp:** pytest-плагин `experiments/bootstrap/dynamic_trace_plugin.py` (sys.settrace внутри pytest_runtest_call, фильтр src-функций по SRC_ROOT). Полный прогон 1727 тестов: 1551 (89.8%) исполняют ≥1 src-функцию; 1212 уникальных; avg 10.1 (median 6, 1-118); точное имя-попадание в dynamic-выборке 2.7%; 176 тестов (10.2%) не исполняют src (моки). A/B та же сессия: no-trace 174.8s vs trace 198.6s → +13.6%. Побочно: @mcp_app.tool (22) в src НЕ эмитится как DECORATES-ребро; dataclass=46 чистых, pydantic/TypedDict=0, Table( — шум 90%; шаг 4 (intel_auto_collect_adrs) уже работает.
+**Guard:** link-эвристика должна ранжироваться импортами файла/класса (не именем теста); plugin не должен влиять на результат (1725 passed/5 skipped как baseline).
+**verified_from_clean_state:** ⚠️ не делал — эксперимент требует установленного пакета + работающих llama-серверов; портфолио guard 26/26 green (exp-38 EN/RU, chart, links=exp-37).
+**Артефакты:** experiments/bootstrap/dynamic_trace_plugin.py + trace_result.json; EXPERIMENTS_LOG Exp 7; KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline; exp-38 portfolio lab.

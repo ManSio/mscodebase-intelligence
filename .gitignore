@@ -178,6 +178,8 @@ experiments/compiler_concept*.json
 experiments/pagerank_out.txt
 experiments/exp_*.py
 experiments/research_internet_*.md
+experiments/bootstrap/trace_result.json
+experiments/bootstrap/__pycache__/
 docs/generated/MODULE_INDEX.md
 .local/state/gh/device-id
 

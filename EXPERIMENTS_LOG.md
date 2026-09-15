@@ -2010,3 +2010,29 @@ VERDICT H4: CONFIRMED
 **Урок:** оптимизировать сборку графа бесполезно (уже ~50k/3с); улучшение = инкрементальный/осознанный refresh (какая часть базы реально оверифицирована); «gone» 97.5% — кандидат на метрику свежести снапшота. exp-37 записан в portfolio lab (EN/RU конгруэнтны, bar-chart, links=exp-36, 26/26 тестов зелёные).
 
 **Связи:** exp-37 (portfolio lab), H3 (TTL-гниение — теперь база та же), community-memory snapshots 16-17, KNOWN_ISSUES H4.
+
+## [2026-09-15] Exp 7 (Bootstrap Pipeline): детерминированное извлечение бизнес-логики — test->function linking static vs dynamic
+
+**Hypothesis:** for a new project the pipeline (1 entities, 2 entry points, 3 tests as ground truth, 4 git-ADR) extracts entities and links deterministically. Contested step 3: static name-based test<->function linking (0%) vs dynamic trace (running tests).
+
+**Commands:**
+- static-name: sample 30 files/109 tests, grep "def <name>" in src -> 0/109
+- static-import: 163 test files, ^from src import -> 127 files (77.9%), 465 import-lines
+- dynamic: pytest --no-header -p experiments.bootstrap.dynamic_trace_plugin (sys.settrace inside pytest_runtest_call; src-function filter via SRC_ROOT)
+
+**Raw output (full 1727-test run, 198.6s wall):**
+```
+[dynamic_trace] total tests traced: 1727
+[dynamic_trace] tests executing >=1 src function: 1551 (89.8%)
+[dynamic_trace] unique src functions executed: 1212
+[dynamic_trace] avg src functions per linked test: 10.1
+median 6, range 1-118; distribution 1-3:558 / 4-10:520 / 11-30:353 / 31+:120
+tests with exact-name target hit in dynamic set: 47 (2.7%)
+A/B no-trace (same session): 174.8s vs 198.6s -> overhead +13.6%
+```
+
+**Verdict:** CONFIRMED (partial). Dynamic trace gives 89.8% test->function linkage vs 0% by name and 77.9% by imports; overhead +13.6% on full run — acceptable for bootstrap (one-off). 1212 unique src functions — rich ground truth. Limits: 176 tests (10.2%) execute no src functions (fixtures/conftest/pure-mocked unit); name-based hit inside dynamic set only 47/1727 (2.7%) — ranking the exact target function needs enrichment (file/class imports).
+
+**Implication:** step 3 feasible as dynamic-trace pass (plugin, not statics). Step 1 (entities): dataclass=46 (clean), pydantic/TypedDict=0, Table( is noisy (90% open_table). Step 2 (entry points): @mcp_app.tool=22 in src but NOT in graph DECORATES (deco-parser slices correctly, mcp_app.tool node exists, tool-edges absent). Step 4: intel_auto_collect_adrs already works (layer.py:1517, reflog+ADR_PATTERNS).
+
+**Artifacts:** experiments/bootstrap/dynamic_trace_plugin.py, trace_result.json (1727 functs); EXP_LOG Exp 7.
