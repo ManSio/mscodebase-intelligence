@@ -2036,3 +2036,41 @@ A/B no-trace (same session): 174.8s vs 198.6s -> overhead +13.6%
 **Implication:** step 3 feasible as dynamic-trace pass (plugin, not statics). Step 1 (entities): dataclass=46 (clean), pydantic/TypedDict=0, Table( is noisy (90% open_table). Step 2 (entry points): @mcp_app.tool=22 in src but NOT in graph DECORATES (deco-parser slices correctly, mcp_app.tool node exists, tool-edges absent). Step 4: intel_auto_collect_adrs already works (layer.py:1517, reflog+ADR_PATTERNS).
 
 **Artifacts:** experiments/bootstrap/dynamic_trace_plugin.py, trace_result.json (1727 functs); EXP_LOG Exp 7.
+
+## [2026-09-15] Exp 7b (Bootstrap follow-up): Tarantula ranking — can we identify "the" target function per test without mutations?
+
+**Hypothesis:** Tarantula heuristic (function called frequently by this test, rarely by others) gives ≥60-70% tests an unambiguous best candidate (rank≤3) — enough for test→function annotation without mutation oracle.
+
+**Command:** `python experiments/bootstrap/tarantula_analysis.py` on trace_result.json (1727 tests, 1551 with src, 1212 unique symbols).
+
+**Raw result:**
+```
+total tests: 1727, with src: 1551
+unique src symbols: 1212, exclusive (called by exactly 1 test): 267 (22.0%)
+unambiguous single best: 1192/1551 (76.9%)
+BUT: tests with best-candidate rank<=3: 391 (22.6% of all)
+best-rank distribution: rank=1:130(7.5%), rank=2:133(7.7%), rank=3:128(7.4%)
+rank<=3: only 22.6% — far below 60-70% threshold
+
+Hand-validation (5 examples):
+  rank=1: test_legacy_project_dirs_detected → legacy_project_dirs@artifact_paths.py ✅
+  rank=1: TestVerifyGitPush::test_returns_dict → verify_git_push@execution_contract.py ✅
+  rank=2: TestVerifyGitCommit::test_no_git_repo_fails → verify_git_commit@execution_contract.py ✅
+  rank=23 tied: test_verdict_all_pass → _is_inconclusive_result / verdict_from_results (both shared, 23+24 callers)
+
+File-level: even worse — 1.8% rank<=3 (files are universally shared).
+
+Noisiest shared functions: safe_mkdir (234 callers), get_data_root (234), project_hash (223)
+Noise filter (cutoff ≤N callers) does not improve: specific<=3 stays at 15.7% regardless of cutoff.
+```
+
+**Verdict:** REFUTED as recall metric (≥60-70% target NOT met). BUT **precision is high**: every rank 1-3 candidate hand-validated as correct target. Tarantula is useful as confidence annotation (not selection): TESTS-edge is built from full trace (correct by construction), Tarantula only annotates "which function is THE target" — available for ~16% of tests. Noise (shared utils) is the root cause.
+
+**Implication:** Step A (core pytest plugin with coverage dynamic_context + TESTS edges) proceeds — TESTS-edges are ground truth from trace, no ranking needed. Tarantula annotations are a bonus for ~16% of tests. Real bottleneck is shared-utils (safe_mkdir, get_data_root = autouse fixtures) — same finding as TRUE Coverage article ("500 lines, complexity in filtering noise, shared utilities in 50+ tests").
+
+**dev.to cross-check (2026-09-15):**
+1. "TRUE Coverage: How We Achieved 90% Faster CI" (Anthony Dawson, 2026-07-22): independent confirmation — static approaches (import-graph, naming, manual tags) ALL FAILED; per-test coverage → reverse file→tests map, 43min→4min CI; shared utilities (50+ tests) = main noise source. Verifies our architecture and our weak spots.
+2. "Empirical Failure Modes in Autonomous Agent Operations" (adevbelgium, 2026-07-31): Pass-Through Test Mirage (100% coverage but code never runs in production) = our phantom code; Python 3.14 sys.monitoring reachability tracing = same low-overhead mechanism as our coverage core=sysmon; AST orphan detection = our step 1 static validation.
+3. Neither project builds TESTS-edges for LLM context — they use per-test coverage only for test selection/rejection. Our niche confirmed.
+
+**Artifacts:** experiments/bootstrap/tarantula_analysis.py, tarantula_analysis2.py, tarantula_noise_filter.py; EXP_LOG Exp 7b.
