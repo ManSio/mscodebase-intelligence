@@ -541,7 +541,12 @@ def format_project_memory(
             elif verification == "budget_exceeded":
                 title += " ⚠️ [не проверен: бюджет цикла исчерпан]"
             elif verification == "stale_ttl":
-                title += " ⏳ [не подтверждён за N дней]"
+                try:
+                    from src.core.intelligence.verify_on_read import TTL_STALE_DAYS as _ttl
+
+                    title += f" ⏳ [не подтверждён за {_ttl} дней]"
+                except Exception:  # noqa: BLE001
+                    title += " ⏳ [не подтверждён за N дней]"
             # Аудит-режим: статус + причина отзыва (ADR-0002: REFUTED не стирается,
             # остаётся в истории с причиной — её и показывает выдача).
             if audit and item.get("status"):
