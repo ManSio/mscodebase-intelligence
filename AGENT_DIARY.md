@@ -301,3 +301,17 @@ VERDICT H3: CONFIRMED
 **Guard:** перед реализацией — решить: coverage.py dynamic_context как штатный драйвер (минус самописный sys.settrace) + Tarantula-ранжирование в кандидатах.
 **verified_from_clean_state:** ⚠️ не проверено — исследование внешних источников + инспекция установленного coverage (вендор C:\Python314), а не код-пробег; эмпирика контекстов — во временной папке, вне репозитория.
 **Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline (дополнен), EXPERIMENTS_LOG Exp 7.
+
+## [2026-09-15] Bootstrap Pipeline: Exp 7b Tarantula ranking + dev.to cross-check (C-шаг плана C→A→B)
+
+**Status:** опровергнуто как recall-метрика, подтверждено как precision-аннотация.
+
+**Exp 7b (C-шаг):** Tarantula-ранжирование на trace_result.json (1212 уникальных src-символа, 1551 тест с трассой). Ванильный Tarantula: 76.9% тестов имеют唯一 best-кандидат по аргминимуму, НО rank≤3 только 22.6% (дальше от 60-70% плана). Фильтрация «глобального шума» (cutoff по числу тестов) не помогает — specific<=3 стабильно ~16%. Ручная валидация 5 примеров: precision на низких рангах 100% (все rank1-3 = верные цели). Файловый уровень ещё хуже (1.8%). Причина: safe_mkdir/get_data_root/project_hash = autouse-фикстуры, 200+ вызовов each.
+
+**dev.to cross-check:** Две статьи подтверждают нашу архитектуру и слабые места: (1) TRUE Coverage (Dawson 2026) — независимо: все статические подходы провалились, per-test coverage → file→tests, shared utilities = основной шум (43→4 min CI); (2) Empirical Failure Modes (adevbelgium 2026) — Pass-Through Mirage = наш phantom code, sys.monitoring = тот же бэкенд что core=sysmon. Ниша TESTS-ребра для LLM-контекста незанята (оба project используют для selection, не для графа).
+
+**Implication для плана C→A→B:** Шаг A (core pytest plugin + TESTS-edges) proceed без изменений — TESTS-ребро ground truth из трассы, ранжирование = bonus-аннотация для ~16% тестов. Tarantula не блокирует A, но замерит только partial confidence.
+
+**verified_from_clean_state:** ⚠️ не проверено — аналитические скрипты (experiments/bootstrap/tarantula_*.py) на существующем trace_result.json, не код-пробег.
+
+**Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline (пункты 3+6 дополнены), EXPERIMENTS_LOG Exp 7b.
