@@ -2104,3 +2104,29 @@ sample ctx: test_action_receipt.test_build_receipt_generates_id_and_steps,
 **Implication:** keep `dynamic_trace_plugin.py` (sys.settrace) as the engine for `mscodebase bootstrap`; TESTS-edge stays built from trace_result.json. coverage.py dynamic_context remains a validation oracle (A/B cross-check on samples, not full runs). The earlier claim "sysmon ≈3-7% median loss" (KNOWN_ISSUES:249) is REJECTED by this measurement on the full suite.
 
 **Artifacts:** experiments/bootstrap/a1_sysmon_ab.py, a1_check_contexts.py, a1_ctx_quality.py; EXP_LOG Exp 8.
+
+## [2026-09-16] Exp 9 (Bootstrap Step B): Static Score Engine vs dynamic trace ground truth
+
+**Hypothesis:** static 3-level mapping (AST direct calls, lexical tokens, import proximity) against trace_result.json ground truth gives functional hit-rate ≥50% but aggregate recall ≤30% — статика = companion, dynamic остаётся драйвером. (Exp 7 мерил ТОЛЬКО signal «имя теста = имя функции» → 0%; call-level signal не измерялся.)
+
+**Command:** `python experiments/bootstrap/static_vs_dynamic.py` (v1: L1 file-level → методологически неверно, вызовы соседних тестов завышают hit; v2: L1 per-test, вызовы только из тела текущей тест-функции через AST).
+
+**Raw result (v2, per-test):**
+```
+Exp 9 v2 | Static Score Engine (per-test) vs trace | tests=1727 | empty-G=176
+level      hit%  recall% precision%  miss  noneS   avg|S|
+L1        88.4%    30.3%      68.0%  90.0  948.0     2.9
+L2        17.7%     3.8%      12.1% 331.0 1325.0     2.2
+L3        91.6%    72.0%      21.8% 130.0  178.0    41.4
+union     90.4%    70.0%      20.6% 156.0   94.0    40.5
+
+static кандидаты для динамически-пустых тестов: 88/176
+|G| per linked test: min=1 avg=10.1 max=118
+unique src funcs in trace: 1212
+```
+
+**Verdict:** PARTIALLY REFUTED (в положительную сторону). Hit ≥50% ✅ (union 90.4%, L1 88.4%). Recall ≤30% ❌ — union recall 70.0%. Статика существенно сильнее, чем следовало из Exp 7: там мерился сигнал «имя теста=имя функции» (слабый, L2 здесь 17.7% — подтверждает тот 0%); сигнал «имена прямых вызовов внутри тела теста» (L1) точен и узок: precision **68.0%** при avg 2.9 кандидата — хороший якорь, но recall 30.3%. L3 (импорты) даёт ширину (recall 72%) ценой шума (21.8% precision, avg 41.4).
+
+**Implication:** Шаг B уточняется без делегирования цифр на волю: **(1)** статический L1-call — ценный статический якорь для ранжирования (TCTracer-style ensemble может использовать его как tier-1); **(2)** Шаг 2 (DECORATES для @mcp_app.tool) — УЖЕ реализован (живой граф: mcp.tool→14, mcp_app.tool→20 рёбер; источник `19378296` vendor tree-sitter tags.scm) — KNOWN_ISSUES:245 устарел; **(3)** dynamic trace остаётся драйвером TESTS-edge: он даёт recall 100% на linked (1551/1727) и не требует early-decision по единственной «target»-функции; статика — fallback для динамически-пустых (88/176 мок-тестов имеют стат. кандидатов) и pre-filter ранжирования. **moc: не путать hit (любой из G) с recall (доля G) — hit 90% ≠ покрытие 90%.**
+
+**Artifacts:** experiments/bootstrap/static_vs_dynamic.py; EXP_LOG Exp 9; exp-41 portfolio lab.
