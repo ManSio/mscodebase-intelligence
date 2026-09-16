@@ -352,3 +352,21 @@ VERDICT H3: CONFIRMED
 **Guard:** (1) любой «детектор сущностей» в дальнейшем обязан использовать AST, не регекс по `Table(`; (2) порог «46 чисто» теперь воспроизводим скриптом, а не из памяти.
 **verified_from_clean_state:** ⚠️ не проверено — unit 8/8 + bootstrap-тесты 14/14 в рабочем дереве, live-сверка на рабочей БД; полный pytest не гонял (targeted прогон затрагиваемых модулей).
 **Связи:** KNOWN_ISSUES [FEATURE] (блок «Шаг 1 реализован» добавлен), tests/test_bootstrap_entities.py, experiments/bootstrap/b1_*.py.
+
+## [2026-09-17] Bootstrap Pipeline: внешняя валидация на чужих Python-проектах (anti-sleeveness)
+
+**Status:** Implemented (параметризация dynamic_trace_plugin.py) + валидация на внешних репо
+**Контекст:** ревизия всех 18 репо в D:\Project (субагент): кандидаты «чистого» кода — gemma_agent (1102 py, 464 test_*.py, git), 456789/ARCLUX (TS), bench_projects (black/httpbin/headroom). Цель — не быть слепым: детектор и TESTS-рёбра проверялись только на собственном репо.
+**Find Units:** bootstrap_entities.detect_entities на чужих: black(src)=16 dataclass/2 NT/73 classes, gemma_agent/core=65 dc/228 classes, gemma_agent/modules=1 dc, httpbin=0 (старый код без dataclass). Обнаружена слепота: детектор жёстко завязан на src/ (gemma_agent использует core/, libraries/, modules/ → нужен явный src_dir).
+**Fix:** dynamic_trace_plugin.py параметризован: TRACE_SRC_ROOT/TRACE_OUT (env, дефолт=свой repo). Иначе чужой проект нельзя трассировать.
+**Трассировка чужих:** black → НЕ работает: скомпилированный .pyd wheel, settrace не видит нативные кадры (0% всех тестов). gemma_agent (2882 теста) → 2737/2882 (95.0%) тестов имеют ≥1 src-функцию, 3827 уникальных src-функций, ~11.6 функций/тест — подтверждает обобщаемость A2 TESTS-рёбер на чужих проектах.
+**не забыть (KNOWN_ISSUES):** плагин не ловит .pyd-модули (скомпилированный wheel) — для бинарных проектов (black, некоторые пакеты) нужен другой механизм (это ограничение settrace, документальное).
+**verified_from_clean_state:** ⚠️ не прогонялся (изменение research-плагина experiments/, не runtime-код; тест trace_result.json дефолтный путь не менялся).
+**Комит:** параметризация плагина 11 insertions.
+
+## [2026-09-17] Web-исследование: тест→код маппинги (для «не быть слепым»)
+
+**Status:** Research (открытая нить)
+**Find Units (verified по websearch 2026-09-17):** covtracer (R-пакет, cran) — tra-функция covr::record_tests — маппинг тест→трасса (аналог нашей TESTS-идеи в R); CoverUp (LLM-генерация тестов с измерением покрытия); TELPA (LLM+coverage). НИКТО из них не строит граф-ребро TEST→код для LLM-контекста — наша ниша подтверждается.
+**Не изучено:** dev.to-поиск, CoverUp подробно.
+**не забыть:** фишка (не эксперимент) → портфолио-синк не требуется для этого коммита.
