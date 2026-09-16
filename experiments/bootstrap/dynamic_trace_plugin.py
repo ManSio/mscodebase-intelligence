@@ -2,6 +2,8 @@
 # Эксперимент Bootstrap Pipeline step 3: сколько связей тест→функция
 # даёт РЕАЛЬНЫЙ запуск (dynamic), в сравнении со статикой (0% по имени).
 # Использование: python -m pytest tests/ -p experiments.bootstrap.dynamic_trace_plugin
+# Для чужого проекта: TRACE_SRC_ROOT=<корень исходников> TRACE_OUT=<путь к json>
+# (иначе берутся src/ этого репо и trace_result.json рядом с плагином).
 
 import json
 import os
@@ -10,7 +12,14 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 
-SRC_ROOT = str(Path(__file__).resolve().parent.parent.parent / "src")
+SRC_ROOT = os.environ.get(
+    "TRACE_SRC_ROOT",
+    str(Path(__file__).resolve().parent.parent.parent / "src"),
+)
+TRACE_OUT = os.environ.get(
+    "TRACE_OUT",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "trace_result.json"),
+)
 
 per_test: dict[str, set[str]] = {}
 current_test: list[str | None] = [None]
@@ -47,7 +56,7 @@ def pytest_runtest_teardown(item, nextitem):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    json_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trace_result.json")
+    json_path = TRACE_OUT
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({k: sorted(v) for k, v in per_test.items()}, f, indent=1)
     total = len(per_test)
