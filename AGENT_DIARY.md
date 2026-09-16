@@ -324,3 +324,12 @@ VERDICT H3: CONFIRMED
 **Root Cause/Guard:** заявка «sysmon ≈3-7%» из прошлого исследования не подтвердилась на полном наборе — исправлена в KNOWN_ISSUES:249. Замечено: корневой `.coveragerc` раньше не читался (`configs_read: pyproject.toml`) — потому что файла не было; после создания конфиг подхватывается верно.
 **verified_from_clean_state:** ⚠️ не проверено — замер в рабочем дереве (`python experiments/bootstrap/a1_sysmon_ab.py`), не git clone; методология та же, что Exp 7.
 **Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] (пункт 2 обновлён verdict'ом Exp 8), EXPERIMENTS_LOG Exp 8. PR #35 MERGED + CI SUCCESS (закрыт).
+
+## [2026-09-16] Bootstrap Pipeline: A2 реализован — TESTS-рёбра из trace_result.json в PropertyGraph
+
+**Status:** Implemented (src/core/bootstrap_tests.py + 6 unit-тестов; live-прогон на реальной БД)
+**Атрибутика вывода:** для тестов индексатор даёт 6.2% узлов (160/1727, label=Function), TESTS-рёбер 0; функции в графе матчатся на 95.9% (15029/15669). Значит bootstrap ДОЛЖЕН создавать Test-узлы.
+**Fix:** `build_tests_edges(trace, project_root, graph_db)`: (1) Test-узел — `get_node` (reuse, label не перетирается — add_node с ON CONFLICT перезаписал бы Function→Test) иначе `add_node(label=NodeLabel.TEST)`; qname-конвенция та же, что у индексатора `{project}.{abs_posix}.{name}` (project=D: для abs-пути). (2) src-функции из `func@rel_path` — матч по file_path + суффикс имени (метод в графе `Class.method`, co_name голый). (3) `add_edge(TESTS, weight=1, properties={trace:dynamic_trace})` идемпотентен (UPSERT source/target/type). Live: **1595 Test-узлов создано**, 132 reused, 14985/15669 src-функций (95.7%), **16172 уникальных рёбер TESTS**; пропуски 684 = `<lambda>`/`<genexpr>` (не имеют узлов). Red Team 5/5: границы (пустой trace→skip), дубли имён (рёбра ко всем матчам file), перезапись label (get_node-первый), повторы (UPSERT), параметры (`[param]`→имя без скобок).
+**Guard:** (1) никогда `add_node` до `get_node` для тестов — label-перезапись; (2) Test-узлы не трогают индексаторные Function-узлы тестов. Осталось: команда `mscodebase bootstrap`, DECORATES (Шаг 2), CI-гейт TESTS.
+**verified_from_clean_state:** ⚠️ не проверено — live-прогон на рабочей БД (`experiments/bootstrap/a2_live_smoke.py`), не git clone; unit-прогон 6/6, полный pytest 1731 passed, ruff clean.
+**Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] (пункт «Прогресс Step A» добавлен), tests/test_bootstrap_tests.py, experiments/bootstrap/a2_*.py.
