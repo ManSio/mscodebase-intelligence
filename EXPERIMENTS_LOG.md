@@ -2074,3 +2074,33 @@ Noise filter (cutoff ≤N callers) does not improve: specific<=3 stays at 15.7% 
 3. Neither project builds TESTS-edges for LLM context — they use per-test coverage only for test selection/rejection. Our niche confirmed.
 
 **Artifacts:** experiments/bootstrap/tarantula_analysis.py, tarantula_analysis2.py, tarantula_noise_filter.py; EXP_LOG Exp 7b.
+
+## [2026-09-16] Exp 8 (Bootstrap step A1): sysmon (coverage run) overhead vs sys.settrace plugin
+
+**Hypothesis:** `coverage run --rcfile=.coveragerc` with `dynamic_context = test_function` on Py 3.14 uses sys.monitoring (sysmon core) → overhead <5% (KNOWN_ISSUES:249 target) → switch from our $13.6 sys.settrace plugin to coverage as the standard driver for `mscodebase bootstrap`.
+
+**Command:** `python experiments/bootstrap/a1_sysmon_ab.py` — same methodology as Exp 7 (pytest tests/ -q --no-header -p no:cacheprovider), same session, warmup + 2 alternating pairs, min taken. Then `a1_check_contexts.py` / `a1_ctx_quality.py` on the produced `.coverage`.
+
+**Raw result:**
+```
+=== RESULTS ===
+baseline: [184.88, 200.30]
+coverage: [221.78, 232.07]
+min baseline = 184.88s | min coverage = 221.78s
+overhead = +19.96%
+exp7 reference: sys.settrace = +13.6% (198.6 vs 174.8)
+
+contexts: 1549 (non-empty 1548, empty=1)   [1727 tests total; 1551 it src]
+src files with any context-lines: 160/179
+lines with context data: 20897
+  only empty ctx (import-time): 5116 (24.5%)
+  with real test ctx:           15781 (75.5%)
+sample ctx: test_action_receipt.test_build_receipt_generates_id_and_steps,
+           test_decorators_overrides.TestCypherAccess.test_decorates_queryable
+```
+
+**Verdict:** HYPOTHESIS REFUTED. sysmon overhead +19.96% — HIGHER than our sys.settrace plugin (+13.6%), target <5% not met. Context capture itself is high quality (1548/1549 non-empty, 75.5% src lines tied to tests) — but the driver is ~1.5x slower than our plugin, so coverage.py is NOT taken as the production driver.
+
+**Implication:** keep `dynamic_trace_plugin.py` (sys.settrace) as the engine for `mscodebase bootstrap`; TESTS-edge stays built from trace_result.json. coverage.py dynamic_context remains a validation oracle (A/B cross-check on samples, not full runs). The earlier claim "sysmon ≈3-7% median loss" (KNOWN_ISSUES:249) is REJECTED by this measurement on the full suite.
+
+**Artifacts:** experiments/bootstrap/a1_sysmon_ab.py, a1_check_contexts.py, a1_ctx_quality.py; EXP_LOG Exp 8.

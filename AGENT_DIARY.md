@@ -315,3 +315,12 @@ VERDICT H3: CONFIRMED
 **verified_from_clean_state:** ⚠️ не проверено — аналитические скрипты (experiments/bootstrap/tarantula_*.py) на существующем trace_result.json, не код-пробег.
 
 **Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] Bootstrap Pipeline (пункты 3+6 дополнены), EXPERIMENTS_LOG Exp 7b.
+
+## [2026-09-16] Bootstrap Pipeline: Exp 8 — sysmon overhead REFUTED, остаёмся на sys.settrace (A1-шаг)
+
+**Status:** гипотеза опровергнута (overhead sysmon +19.96% > sys.settrace +13.6%)
+**Exp 8 (A1):** Полный A/B в методике Exp 7 (warmup + 2 чередующиеся пары, min): baseline 184.88s vs coverage run 221.78s → **+19.96%**. Цель <5% (KNOWN_ISSUES:249) не достигнута. Качество контекстов при этом отличное: 1548/1549 непустых, 75.5% src-строк привязаны к тестам (`test_action_receipt.test_...`, `TestCypherAccess.test_decorates_queryable`), пустой контекст — только import-time строки (24.5%).
+**Решение:** шаг 3 `mscodebase bootstrap` строим на `dynamic_trace_plugin.py` (sys.settrace, +13.6%), coverage.py не берём как драйвер. coverage остаётся валидационным оракулом для выборок (A/B cross-check на сэмплах).
+**Root Cause/Guard:** заявка «sysmon ≈3-7%» из прошлого исследования не подтвердилась на полном наборе — исправлена в KNOWN_ISSUES:249. Замечено: корневой `.coveragerc` раньше не читался (`configs_read: pyproject.toml`) — потому что файла не было; после создания конфиг подхватывается верно.
+**verified_from_clean_state:** ⚠️ не проверено — замер в рабочем дереве (`python experiments/bootstrap/a1_sysmon_ab.py`), не git clone; методология та же, что Exp 7.
+**Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] (пункт 2 обновлён verdict'ом Exp 8), EXPERIMENTS_LOG Exp 8. PR #35 MERGED + CI SUCCESS (закрыт).
