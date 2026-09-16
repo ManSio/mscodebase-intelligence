@@ -65,6 +65,8 @@ desktop.ini
 # Testing
 .pytest_cache/
 .coverage
+.coverage*
+.coveragerc
 htmlcov/
 .tox/
 
