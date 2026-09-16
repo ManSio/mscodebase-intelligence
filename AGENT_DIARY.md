@@ -341,3 +341,14 @@ VERDICT H3: CONFIRMED
 **Вывод (Root Cause/Guard):** динамика остаётся драйвером TESTS-ребра (recall 100% на linked); статика ≠ замена (hit≠recall: union recall 70% < 100%); L1 — точный и узкий якорь (tier-1 для ранжирования), L3 — широкий кандидат-пул, L2 — игнор. **Шаг 2 (DECORATES @mcp_app.tool) — ЗАКРЫТ фактом:** живая БД уже содержит рёбра mcp.tool→14, mcp_app.tool→20 (источник `19378296`). KNOWN_ISSUES:245 «tool-рёбер нет» устарел. Остаётся: Шаг 1 как companion-слой (L1+L3 fallback для мок-тестов и pre-filter ранжирования) и Шаг 3 (`mscodebase bootstrap`).
 **verified_from_clean_state:** ⚠️ не проверено — аналитический скрипт на неизменяемом ground truth (`trace_result.json`), не git clone; воспроизводимо одной командой.
 **Связи:** KNOWN_ISSUES [FEATURE] (Прогресс Step A → добавлен блок Exp 9), EXPERIMENTS_LOG Exp 9, experiments/bootstrap/static_vs_dynamic.py, exp-41 portfolio lab (pending).
+
+## [2026-09-17] Bootstrap Pipeline: Шаг 1 (Data structures) реализован — детектор сущностей
+
+**Status:** Implemented (src/core/bootstrap_entities.py + 8 unit-тестов)
+**Задача:** найти чистые data structures нового проекта через AST-сигналы `@dataclass`/`NamedTuple`, НЕ регекс — последний даёт 90% шума `Table(` (это вызовы `db.open_table(...)`, LanceDB), а AST-детектор по классам их априори не видит.
+**Fix:** `detect_entities(project_root, src_dir, ignore_dirs)` — обход src/*.py через `ast.parse`, детект декоратора dataclass в 3 формах (Name/Call/Attribute, покрывает `@dataclass` со скобками и `@dataclasses.dataclass`) + базы NamedTuple (Name/Attribute). Счётчик `open_table_calls` — подтверждение, что регекс-шум не становится сущностями. Read-only, идемпотентно, без shared state (concurrency-safe). Ограничения документированы: импорт-алиасы (`NamedTuple as NT`) и pydantic/TypedDict не резолвятся.
+**Live-проверка:** `/b1_compare.py` — детектор 49 vs живая БД 46 dataclass Class-узлов; разница ровно 3 = наши bootstrap-классы (EntityShape/EntitiesBootstrapStats/TestsBootstrapStats), потерь 0 (46 из графа покрыты полностью), NamedTuple 0. Расхождение — не баг детектора, а не-переиндексированные новые файлы.
+**Red Team 5/5:** формы декоратора (Name/Call/Attribute), SQL-классы с именем Table (не попадут — нет сигнала), алиасы импортов (документированный non-target), битые файлы (SyntaxError→errors[], не падает), пустой src_dir (пустой stats).
+**Guard:** (1) любой «детектор сущностей» в дальнейшем обязан использовать AST, не регекс по `Table(`; (2) порог «46 чисто» теперь воспроизводим скриптом, а не из памяти.
+**verified_from_clean_state:** ⚠️ не проверено — unit 8/8 + bootstrap-тесты 14/14 в рабочем дереве, live-сверка на рабочей БД; полный pytest не гонял (targeted прогон затрагиваемых модулей).
+**Связи:** KNOWN_ISSUES [FEATURE] (блок «Шаг 1 реализован» добавлен), tests/test_bootstrap_entities.py, experiments/bootstrap/b1_*.py.
