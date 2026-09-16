@@ -32,6 +32,7 @@ extensions/**/*.vsix
 *~
 
 # Project data — всё, что генерируется при работе
+data/
 .codebase_index/
 .codebase_indices/
 .codebase_models/
