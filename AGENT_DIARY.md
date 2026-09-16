@@ -333,3 +333,11 @@ VERDICT H3: CONFIRMED
 **Guard:** (1) никогда `add_node` до `get_node` для тестов — label-перезапись; (2) Test-узлы не трогают индексаторные Function-узлы тестов. Осталось: команда `mscodebase bootstrap`, DECORATES (Шаг 2), CI-гейт TESTS.
 **verified_from_clean_state:** ⚠️ не проверено — live-прогон на рабочей БД (`experiments/bootstrap/a2_live_smoke.py`), не git clone; unit-прогон 6/6, полный pytest 1731 passed, ruff clean.
 **Связи:** KNOWN_ISSUES 2026-09-15 [FEATURE] (пункт «Прогресс Step A» добавлен), tests/test_bootstrap_tests.py, experiments/bootstrap/a2_*.py.
+
+## [2026-09-16] Bootstrap Pipeline: Exp 9 — static score vs dynamic ground truth (Шаг B пересмотрен)
+
+**Status:** Experiment (verdict PARTIALLY REFUTED в положительную сторону); решение по Шагу B уточнено фактами
+**Exp 9:** `python experiments/bootstrap/static_vs_dynamic.py` (v2, per-test; v1 file-level был методологически неверен — завышал L1 hit вызовами соседних тестов). против trace_result.json (1727 тестов): L1 (прямые вызовы из тела теста) hit 88.4% / recall 30.3% / **precision 68.0%** (avg 2.9 кандидата); L2 (токены имени) 17.7% / 3.8% / 12.1% (слабый — подтверждает Exp 7 «имя=0%»); L3 (импорты) 91.6% / 72.0% / 21.8% (avg 41.4); union 90.4% / 70.0% / 20.6%. Fallback для динамически-пустых: 88/176 мок-тестов имеют стат. кандидатов.
+**Вывод (Root Cause/Guard):** динамика остаётся драйвером TESTS-ребра (recall 100% на linked); статика ≠ замена (hit≠recall: union recall 70% < 100%); L1 — точный и узкий якорь (tier-1 для ранжирования), L3 — широкий кандидат-пул, L2 — игнор. **Шаг 2 (DECORATES @mcp_app.tool) — ЗАКРЫТ фактом:** живая БД уже содержит рёбра mcp.tool→14, mcp_app.tool→20 (источник `19378296`). KNOWN_ISSUES:245 «tool-рёбер нет» устарел. Остаётся: Шаг 1 как companion-слой (L1+L3 fallback для мок-тестов и pre-filter ранжирования) и Шаг 3 (`mscodebase bootstrap`).
+**verified_from_clean_state:** ⚠️ не проверено — аналитический скрипт на неизменяемом ground truth (`trace_result.json`), не git clone; воспроизводимо одной командой.
+**Связи:** KNOWN_ISSUES [FEATURE] (Прогресс Step A → добавлен блок Exp 9), EXPERIMENTS_LOG Exp 9, experiments/bootstrap/static_vs_dynamic.py, exp-41 portfolio lab (pending).
