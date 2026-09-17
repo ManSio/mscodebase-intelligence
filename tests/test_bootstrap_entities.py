@@ -154,3 +154,96 @@ def test_custom_src_dir(tmp_path):
 
     assert stats.dataclass_count == 1
     assert stats.entities[0].file_path.replace("\\", "/").endswith("pkg/models.py")
+
+
+def test_auto_detect_core_layout(tmp_path):
+    """Нет src/ — детектор сам находит core/ (раскладка gemma_agent)."""
+    _write(
+        tmp_path,
+        "core/models.py",
+        "@dataclass\nclass User:\n    id: int\n",
+    )
+    _write(tmp_path, "tests/test_models.py", "def test_x():\n    pass\n")
+
+    stats = detect_entities(tmp_path)
+
+    assert stats.files_scanned == 1
+    assert stats.dataclass_count == 1
+    assert stats.src_root is not None
+    assert Path(stats.src_root).name == "core"
+
+
+def test_auto_detect_project_name_dir(tmp_path):
+    """Пакет с именем проекта в корне (httpbin-стиль)."""
+    proj = tmp_path / "myproj"
+    _write(proj, "myproj/app.py", "@dataclass\nclass Item:\n    qty: int\n")
+
+    stats = detect_entities(proj)
+
+    assert stats.dataclass_count == 1
+    assert stats.src_root is not None
+    assert Path(stats.src_root).name == "myproj"
+
+
+def test_auto_detect_statistical_fallback(tmp_path):
+    """Без известных раскладок — побеждает каталог с максимумом .py,
+    кроме tests/docs (там .py обычно больше = ложный выбор)."""
+    _write(tmp_path, "widgets/a.py", "@dataclass\nclass A:\n    x: int\n")
+    _write(tmp_path, "widgets/b.py", "@dataclass\nclass B:\n    y: int\n")
+    _write(tmp_path, "docs/conf.py", "x = 1\n")
+    for i in range(6):
+        _write(tmp_path, f"tests/test_{i}.py", "def test_x():\n    pass\n")
+
+    stats = detect_entities(tmp_path)
+
+    assert stats.src_root is not None
+    assert Path(stats.src_root).name == "widgets"
+    assert stats.dataclass_count == 2
+
+
+def test_env_src_dir_overrides_auto(tmp_path, monkeypatch):
+    """MSCODEBASE_BOOTSTRAP_SRC_DIR задаёт корень без src/ и без раскладок."""
+    _write(
+        tmp_path,
+        "custom/entities.py",
+        "@dataclass\nclass Custom:\n    a: int\n",
+    )
+    _write(tmp_path, "core/other.py", "@dataclass\nclass Other:\n    b: int\n")
+    monkeypatch.setenv("MSCODEBASE_BOOTSTRAP_SRC_DIR", str(tmp_path / "custom"))
+
+    stats = detect_entities(tmp_path)
+
+    assert stats.dataclass_count == 1
+    assert stats.entities[0].name == "Custom"
+
+
+def test_explicit_src_dir_beats_env(tmp_path, monkeypatch):
+    """Явный src_dir — приоритет над env и над автодетектом."""
+    _write(
+        tmp_path,
+        "manual/models.py",
+        "@dataclass\nclass Manual:\n    a: int\n",
+    )
+    _write(
+        tmp_path,
+        "envdir/models.py",
+        "@dataclass\nclass FromEnv:\n    b: int\n",
+    )
+    monkeypatch.setenv("MSCODEBASE_BOOTSTRAP_SRC_DIR", str(tmp_path / "envdir"))
+
+    stats = detect_entities(tmp_path, src_dir=tmp_path / "manual")
+
+    assert stats.dataclass_count == 1
+    assert stats.entities[0].name == "Manual"
+    assert stats.src_root.replace("\\", "/").endswith("/manual")
+
+
+def test_missing_everything_returns_none_src_root(tmp_path_factory):
+    """Ни src/, ни раскладок, ни .py-файлов → src_root=None, пустой прогон."""
+    empty = tmp_path_factory.mktemp("totally_empty")
+
+    stats = detect_entities(empty)
+
+    assert stats.src_root is None
+    assert stats.files_scanned == 0
+    assert stats.entities_found == 0

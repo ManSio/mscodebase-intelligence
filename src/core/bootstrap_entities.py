@@ -17,12 +17,16 @@ fallback для динамически-пустых тестов (88/176 мок-
   NamedTuple (Name/Attribute). Pydantic/TypedDict в репо отсутствуют — не
   детектируются.
 - Не резолвим импорты (`from typing import NamedTuple as NT` вне скоупа).
+- Корень исходников НЕ хардкодится в src/: resolve_src_root определяет его
+  автоматически (известные раскладки src/lib/core → имя проекта → статистика)
+  или через env MSCODEBASE_BOOTSTRAP_SRC_DIR; явный src_dir — всегда приоритет.
 - Read-only, идемпотентно, без shared state — concurrency-safe по построению.
 """
 
 from __future__ import annotations
 
 import ast
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -31,6 +35,19 @@ SRC_DIR_NAME = "src"
 
 KIND_DATACLASS = "dataclass"
 KIND_NAMEDTUPLE = "namedtuple"
+
+# Имена известных раскладок исходников (порядок = приоритет).
+# gemma_agent использует core/, libraries/, modules/, httpbin — имя проекта,
+# black — src/ — покрываем все реальные случаи, виденные при валидации.
+_SRC_CANDIDATE_NAMES = ("src", "lib", "python", "packages", "app", "core", "libraries", "modules")
+
+# Каталоги, которые никогда не являются корнем исходников (исключения в
+# статистическом fallback и при проверке известных имён).
+_NON_SRC_DIRS = {
+    "venv", ".venv", ".git", "__pycache__", "node_modules", "site-packages",
+    "tests", "test", "docs", "doc", "scripts", "tools", "examples", "benchmarks",
+    "dist", "build", "data", "assets", "config", "backups", "wheels",
+}
 
 _IGNORED_DIRS = {".venv", "venv", ".git", "__pycache__", "node_modules", "site-packages"}
 
@@ -59,6 +76,7 @@ class EntityShape:
 class EntitiesBootstrapStats:
     """Счётчики прогона детектора сущностей."""
 
+    src_root: Optional[str] = None  # определённый корень исходников (null при пустом прогоне)
     files_scanned: int = 0
     classes_total: int = 0
     entities_found: int = 0
@@ -72,6 +90,7 @@ class EntitiesBootstrapStats:
 
     def as_dict(self) -> Dict:
         return {
+            "src_root": self.src_root,
             "files_scanned": self.files_scanned,
             "classes_total": self.classes_total,
             "entities_found": self.entities_found,
@@ -127,6 +146,60 @@ def _open_table_calls_in(tree: ast.AST) -> int:
     return count
 
 
+def resolve_src_root(project_root: Path, src_dir: Optional[Path] = None) -> Optional[Path]:
+    """Определить корень исходников проекта (без хардкода только src/).
+
+    Приоритет (детерминированный, первый сработавший):
+    1. Явный src_dir (каталог-параметр или каталог-файл).
+    2. Переменная окружения ``MSCODEBASE_BOOTSTRAP_SRC_DIR`` (настройка
+       через конфиг/.env, по Хартии §9).
+    3. Известные имена раскладок исходников (_SRC_CANDIDATE_NAMES): первый
+       подкаталог, в котором есть хотя бы один .py.
+    4. Каталог с именем проекта (httpbin-стиль: пакет в корне).
+    5. Статистический fallback: top-level каталог с наибольшим числом .py,
+       исключая _NON_SRC_DIRS и _IGNORED_DIRS.
+
+    Returns:
+        Path корня исходников или None, если не найдено ни одного .py.
+    """
+    root = Path(project_root).resolve()
+
+    if src_dir is not None:
+        s = src_dir if src_dir.is_absolute() else (root / src_dir)
+        return s.resolve() if s.exists() else None
+
+    env_src = os.environ.get("MSCODEBASE_BOOTSTRAP_SRC_DIR")
+    if env_src:
+        e = Path(env_src)
+        e = e if e.is_absolute() else (root / e)
+        if e.exists():
+            return e.resolve()
+
+    for name in _SRC_CANDIDATE_NAMES:
+        cand = root / name
+        if cand.is_dir() and any(cand.rglob("*.py")):
+            return cand
+
+    # Каталог с именем проекта в самом проекте (src-layout не обязателен).
+    name_dir = root / root.name
+    if name_dir.is_dir() and name_dir != root and any(name_dir.rglob("*.py")):
+        return name_dir
+
+    # Статистический fallback: максимум .py среди top-level каталогов,
+    # кроме заведомо не-исходных (tests/docs/venv...) — там .py обычно больше.
+    best: Optional[Path] = None
+    best_count = -1
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        if child.name in _NON_SRC_DIRS or child.name in _IGNORED_DIRS:
+            continue
+        count = sum(1 for _ in child.rglob("*.py"))
+        if count > best_count:
+            best, best_count = child, count
+    return best if best is not None else None
+
+
 def detect_entities(
     project_root: Path,
     src_dir: Optional[Path] = None,
@@ -136,7 +209,10 @@ def detect_entities(
 
     Args:
         project_root: корень проекта (резолвится).
-        src_dir: каталог исходников (default project_root/src).
+        src_dir: каталог исходников; если None — автоматически определяется
+            через resolve_src_root (в порядке: явный src_dir/env MSCODEBASE_
+            BOOTSTRAP_SRC_DIR → известные раскладки src/lib/core → имя проекта
+            → статистический максимум .py).
         ignore_dirs: имена каталогов, пропускаемых при обходе
             (default — стандартный набор .venv/venv/.git/etc).
 
@@ -144,13 +220,17 @@ def detect_entities(
         EntitiesBootstrapStats: счётчики + список EntityShape.
     """
     root = Path(project_root).resolve()
-    src_root = (src_dir or root / SRC_DIR_NAME).resolve()
+    resolved_src = resolve_src_root(root, src_dir)
     ignored = set(ignore_dirs) if ignore_dirs is not None else set(_IGNORED_DIRS)
 
     stats = EntitiesBootstrapStats()
 
-    if not src_root.is_dir():
+    if resolved_src is None or not resolved_src.is_dir():
+        stats.src_root = str(resolved_src) if resolved_src is not None else None
         return stats
+
+    src_root = resolved_src
+    stats.src_root = str(src_root)
 
     for path in sorted(src_root.rglob("*.py")):
         if any(part in ignored for part in path.parts):
