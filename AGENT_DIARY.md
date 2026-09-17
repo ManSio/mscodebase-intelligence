@@ -370,3 +370,13 @@ VERDICT H3: CONFIRMED
 **Find Units (verified по websearch 2026-09-17):** covtracer (R-пакет, cran) — tra-функция covr::record_tests — маппинг тест→трасса (аналог нашей TESTS-идеи в R); CoverUp (LLM-генерация тестов с измерением покрытия); TELPA (LLM+coverage). НИКТО из них не строит граф-ребро TEST→код для LLM-контекста — наша ниша подтверждается.
 **Не изучено:** dev.to-поиск, CoverUp подробно.
 **не забыть:** фишка (не эксперимент) → портфолио-синк не требуется для этого коммита.
+
+## [2026-09-17] Bootstrap Entities: устранён хардкод src/ — автоматическое определение корня исходников
+
+**Status:** Implemented (src/core/bootstrap_entities.py + 6 новых тестов)
+**Problem:** детектор сущностей жёстко завязан на project_root/src (строка SRC_DIR_NAME="src"), а реальные раскладки чужого кода иные (gemma_agent→core/, httpbin→имя-проекта) — требовался ручной src_dir.
+**Fix:** `resolve_src_root(project_root, src_dir=None)` — детерминированный приоритет: (1) явный src_dir, (2) env MSCODEBASE_BOOTSTRAP_SRC_DIR, (3) известные раскладки src/lib/python/packages/app/core/libraries/modules (первый с .py), (4) каталог с именем проекта (httpbin-стиль), (5) статистический fallback — top-level каталог с максимумом .py, ИСКЛЮЧАЯ tests/docs/scripts/venv/etc._NON_SRC_DIRS (иначе tests/ с большим числом .py — ложный выбор). stats.src_root — новый факт, куда реально ходили. RED TEAM 3/3: venv+tests(10+5 .py) не захватываются статистикой; битый env → fallback на автодетект; относительный src_dir резолвится от корня.
+**Валидация (live, реальные проекты):** MSCodeBase→src (49 dc), gemma_agent→core (65 dc, ранее ручной src_dir!), black→src (16 dc), httpbin→httpbin (0 dc). Совпадение 1:1 со старыми ручными прогонами.
+**Guard:** (1) _NON_SRC_DIRS как отдельный список от _IGNORED_DIRS — статистика не выберет tests/; (2) тесты 14/14, включая статистический fallback с docs/tests-ловушкой.
+**verified_from_clean_state:** ⚠️ не прогонялся (логика конфиг-резолва, не runtime-сервис; полный pytest в verify_diary-gate ниже).
+**Связки:** KNOWN_ISSUES [FEATURE] (блок «РЕШЕНО auto-src-root»), tests/test_bootstrap_entities.py (14 тестов), src/core/bootstrap_entities.py.
