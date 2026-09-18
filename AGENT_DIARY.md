@@ -380,3 +380,16 @@ VERDICT H3: CONFIRMED
 **Guard:** (1) _NON_SRC_DIRS как отдельный список от _IGNORED_DIRS — статистика не выберет tests/; (2) тесты 14/14, включая статистический fallback с docs/tests-ловушкой.
 **verified_from_clean_state:** ⚠️ не прогонялся (логика конфиг-резолва, не runtime-сервис; полный pytest в verify_diary-gate ниже).
 **Связки:** KNOWN_ISSUES [FEATURE] (блок «РЕШЕНО auto-src-root»), tests/test_bootstrap_entities.py (14 тестов), src/core/bootstrap_entities.py.
+
+## [2026-09-18] Bootstrap Pipeline Шаг 3: команда bootstrap_pipeline (dynamic trace → TESTS-рёбра) — MCP + CLI
+
+**Status:** Implemented (src/core/bootstrap_pipeline.py + bootstrap_tool.py + bootstrap_trace_plugin.py)
+**Problem:** Шаг 3 фичи «bootstrap» (заноминирован в KNOWN_ISSUES как «команда mscodebase bootstrap») отсутствовал — плагин лежал в experiments/, no единой точки запуска ни для агента (MCP), ни для скрипта.
+**Fix:** `git mv experiments/bootstrap/dynamic_trace_plugin.py src/core/bootstrap_trace_plugin.py`; новый `run_bootstrap_pipeline(...)` (resolve_src_root → detect_entities → pytest subprocess с плагином → index_src_functions → build_tests_edges), `BootstrapPipelineStats()` JSON; MCP-тул `bootstrap_pipeline` (asyncio.to_thread, multi-window резолв project_root) + CLI allowlist.
+**Подводные камни (2 инцидента):**
+1. **Namespace shadowing пакета `src`:** PYTHONPATH=корень репо убивал `src/`-layout трассируемого проекта (test `from src.mathz import add` → ModuleNotFound). Guard: PYTHONPATH добавляем subprocess-у ТОЛЬКО по авто-детекту `_plugin_importable()` с тем же cwd=project_root (не « вычислять из cwd процесса» — первый вариант давал ложно-True и pytest падал с невидимым плагином). Тест-проекты используют `sys.path.insert(parents[1]/'src')` + bare import.
+2. **BOM:** PowerShell/Блокнот пишут BOM (U+FEFF) → SyntaxError в ast.parse. Guard: чтение .py через `utf-8-sig`.
+3. **Чистый граф:** build_tests_edges матчит trace по Function/METHOD-узлам; на пустом графе рёбра не строились. Guard: `index_src_functions()` статически поднимает узлы из AST (Class.method-конвенция, суффиксный матч).
+**RED TEAM:** класс/метод/функция раздельно; методы не дублируются как FUNCTION; BOM-файл читается; идемпотентность через ON CONFLICT UPSERT.
+**verified_from_clean_state:** ⚠️ не прогонялся (полный pytest 1753 passed — verify_diary-gate ниже; live-check CLI на мини-проекте: entities=1, tests=1 (100% linked), TESTS-edges=1, 672ms).
+**Связки:** KNOWN_ISSUES [FEATURE] (блок «Шаг 3 РЕАЛИЗОВАН 2026-09-18»), tests/test_bootstrap_pipeline.py (5 интеграционных), tests/test_bootstrap_tests.py (+3 на index_src_functions), src/core/bootstrap_pipeline.py, src/mcp/tools/bootstrap_tool.py.

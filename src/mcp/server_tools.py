@@ -52,6 +52,7 @@ def register_all_tools(mcp, services):
         ScanChangesTool,
         StructuralSearchTool,
     )
+    from src.mcp.tools.bootstrap_tool import BootstrapPipelineTool
     from src.mcp.tools.codebase_tool import CodebaseTool
 
     if _exec_script_enabled:
@@ -137,6 +138,8 @@ def register_all_tools(mcp, services):
         StaleDetectorTool,
         # Prediction (1) — «внести изменение и точно знать, что будет»
         PredictChangeTool,
+        # Bootstrap (1) — Step 3: сущности + dynamic trace + TESTS-рёбра
+        BootstrapPipelineTool,
     ]
 
     # Spoke: execute_cript — только если явно включён

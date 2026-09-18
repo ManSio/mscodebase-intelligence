@@ -190,3 +190,59 @@ def test_method_suffix_matching(graph, tmp_path):
     assert stats.functions_matched == 1
     assert stats.edges_added == 1
     assert graph.count_edges(EdgeType.TESTS) == 1
+
+
+def test_index_src_functions_creates_class_method_function_nodes(graph, tmp_path):
+    """Статический индексатор: ФУНКЦИЯ, МЕТОД Class.method, КЛАСС."""
+    root = tmp_path / "proj"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "mod.py").write_text(
+        "def free(a):\n    return a\n\n"
+        "class Service:\n"
+        "    def handle(self):\n        return 1\n",
+        encoding="utf-8",
+    )
+
+    from src.core.bootstrap_tests import index_src_functions
+
+    created = index_src_functions(root / "src", graph)
+
+    assert created >= 3
+    abs_posix = (root / "src" / "mod.py").as_posix()
+    suff = f"{_project_name(abs_posix)}.{abs_posix}"
+    free = graph.get_node(f"{suff}.free")
+    assert free is not None and free.label == NodeLabel.FUNCTION
+    svc = graph.get_node(f"{suff}.Service")
+    assert svc is not None and svc.label == NodeLabel.CLASS
+    meth = graph.get_node(f"{suff}.Service.handle")
+    assert meth is not None and meth.label == NodeLabel.METHOD
+
+
+def test_index_src_functions_skips_methods_as_functions(graph, tmp_path):
+    """Метод не должен дублироваться как FUNCTION верхнего уровня."""
+    root = tmp_path / "proj"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "mod.py").write_text(
+        "class Service:\n    def handle(self):\n        return 1\n",
+        encoding="utf-8",
+    )
+
+    from src.core.bootstrap_tests import index_src_functions
+
+    index_src_functions(root / "src", graph)
+    abs_posix = (root / "src" / "mod.py").as_posix()
+    suff = f"{_project_name(abs_posix)}.{abs_posix}"
+    assert graph.get_node(f"{suff}.handle") is None
+    assert graph.get_node(f"{suff}.Service.handle") is not None
+
+
+def test_index_src_functions_reads_bom_files(graph, tmp_path):
+    """Файлы с BOM (\ufeff) читаются: utf-8-sig, а не падает ast.parse."""
+    root = tmp_path / "proj"
+    (root / "src").mkdir(parents=True)
+    (root / "src" / "mod.py").write_bytes(b"\xef\xbb\xbfdef bomed():\n    return 1\n")
+
+    from src.core.bootstrap_tests import index_src_functions
+
+    created = index_src_functions(root / "src", graph)
+    assert created == 1

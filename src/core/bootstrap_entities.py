@@ -237,7 +237,7 @@ def detect_entities(
             continue
         stats.files_scanned += 1
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            tree = ast.parse(path.read_text(encoding="utf-8-sig"))
         except (SyntaxError, UnicodeDecodeError, OSError) as exc:
             stats.errors.append(f"{path}: {type(exc).__name__}: {exc}")
             continue
