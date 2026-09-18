@@ -92,6 +92,80 @@ def _parse_entry(entry: str) -> Optional[tuple]:
     return name, _normalize(rel)
 
 
+def index_src_functions(
+    src_root: Path,
+    graph_db: PropertyGraph,
+    ignore_dirs: Optional[set] = None,
+) -> int:
+    """Статически создаёт Function/Class/METHOD узлы для build_tests_edges.
+
+    build_tests_edges матчит trace-entry ("add@mathz.py") по Function-узлам
+    существующего графа; на чистом (новом) проекте граф пуст и рёбра не
+    строятся. Этот шаг поднимает узлы из AST до запуска trace-матчинга:
+
+    - top-level def / async def          -> NodeLabel.FUNCTION, name=имя
+    - метод внутри ClassDef              -> NodeLabel.METHOD,  name="Class.method"
+      (та же конвенция, что у индексатора — trace отдаёт голое co_name)
+    - ClassDef                           -> NodeLabel.CLASS,  name=имя
+      (trace может исполнить и constructor/поле — узел не вредит)
+
+    file_path узлов = posix-абсолют src-файла — тот же ключ, что даёт матчинг
+    (abs_src = src_root/rel_src). Идемпотентно: add_node с тем же qualified_name
+    обновляет свойства, дублей не плодит.
+
+    Returns:
+        число созданных/обновлённых узлов (functions + classes + methods).
+    """
+    import ast as _ast
+
+    src_root = Path(src_root).resolve()
+    ignored = set(ignore_dirs) if ignore_dirs is not None else {"venv", ".venv", ".git", "__pycache__"}
+    created = 0
+
+    for path in sorted(src_root.rglob("*.py")):
+        if any(part in ignored for part in path.parts):
+            continue
+        abs_posix = path.as_posix()
+        projects_prefix = f"{_project_name(abs_posix)}.{abs_posix}"
+        try:
+            tree = _ast.parse(path.read_text(encoding="utf-8-sig"))
+        except (SyntaxError, UnicodeDecodeError, OSError):
+            continue
+
+        def _add(name: str, label: str) -> None:
+            nonlocal created
+            node = graph_db.add_node(
+                name=name,
+                label=label,
+                qualified_name=f"{projects_prefix}.{name}",
+                file_path=abs_posix,
+                properties={"source": "bootstrap_static"},
+            )
+            if node is not None:
+                created += 1
+
+        class_nodes = [
+            c for c in tree.body if isinstance(c, _ast.ClassDef)
+        ]
+        method_nodes = {
+            stmt
+            for class_def in class_nodes
+            for stmt in class_def.body
+            if isinstance(stmt, (_ast.FunctionDef, _ast.AsyncFunctionDef))
+        }
+        for node in tree.body:
+            if isinstance(node, _ast.ClassDef):
+                _add(node.name, NodeLabel.CLASS)
+                for stmt in node.body:
+                    if isinstance(stmt, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                        _add(f"{node.name}.{stmt.name}", NodeLabel.METHOD)
+            elif isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                if node not in method_nodes:
+                    _add(node.name, NodeLabel.FUNCTION)
+
+    return created
+
+
 def build_tests_edges(
     trace: Dict[str, Iterable[str]],
     project_root: Path,

@@ -1,9 +1,19 @@
-# pytest-plugin: dynamic trace тест(-функция → исполняемые src/* функции).
-# Эксперимент Bootstrap Pipeline step 3: сколько связей тест→функция
-# даёт РЕАЛЬНЫЙ запуск (dynamic), в сравнении со статикой (0% по имени).
-# Использование: python -m pytest tests/ -p experiments.bootstrap.dynamic_trace_plugin
-# Для чужого проекта: TRACE_SRC_ROOT=<корень исходников> TRACE_OUT=<путь к json>
-# (иначе берутся src/ этого репо и trace_result.json рядом с плагином).
+# -*- coding: utf-8 -*-
+"""pytest-plugin: dynamic trace тест(-функция → исполняемые src/* функции).
+
+Bootstrap Pipeline Step 3: сколько связей тест→функция даёт РЕАЛЬНЫЙ запуск
+(dynamic), в сравнении со статикой (0% по имени). Плагин импортируется из
+корня репо как ``-p src.core.bootstrap_trace_plugin`` (пакет `src` в sys.path).
+
+Использование (свой репо):
+    python -m pytest tests/ -p src.core.bootstrap_trace_plugin
+
+Для чужого проекта (корень репо должен лежать в sys.path):
+    TRACE_SRC_ROOT=<корень исходников> TRACE_OUT=<путь к json> \\
+        python -m pytest <project> -p src.core.bootstrap_trace_plugin
+
+Дефолты: SRC_ROOT = <репо>/src, TRACE_OUT = cwd/trace_result.json.
+"""
 
 import json
 import os
@@ -18,7 +28,7 @@ SRC_ROOT = os.environ.get(
 )
 TRACE_OUT = os.environ.get(
     "TRACE_OUT",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "trace_result.json"),
+    os.path.join(os.getcwd(), "trace_result.json"),
 )
 
 per_test: dict[str, set[str]] = {}

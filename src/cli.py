@@ -26,6 +26,7 @@ from src.core.di_container import create_service_collection
 
 def core_tool_allowlist() -> dict:
     """name -> MCPTool class. Curated: детерминированные/админ. Неизвестный -> отказ."""
+    from src.mcp.tools.bootstrap_tool import BootstrapPipelineTool
     from src.mcp.tools.context_tool import GetContextTool
     from src.mcp.tools.doc_tools import StaleDetectorTool
     from src.mcp.tools.graph_tools import GraphQueryTool
@@ -38,6 +39,7 @@ def core_tool_allowlist() -> dict:
         "get_context": GetContextTool,
         "graph_query": GraphQueryTool,
         "find_similar_bugs": FindSimilarBugsTool,
+        "bootstrap_pipeline": BootstrapPipelineTool,
     }
 
 
