@@ -141,7 +141,16 @@ class LanceDBWriter:
                 self.table.add(data_records)
             except Exception as add_err:
                 err_str = str(add_err).lower()
-                if "not found" in err_str or "does not exist" in err_str or "no such table" in err_str:
+                # Recreate ТОЛЬКО при реальном отсутствии таблицы, но НЕ при
+                # schema-mismatch колонки (field 'X' does not exist in table
+                # schema) — иначе политика разрушает БД при недомигрированной
+                # схеме (прод-инцидент 2026-09-19: полный rebuild вместо миграции).
+                is_table_missing = (
+                    "no such table" in err_str
+                    or "table not found" in err_str
+                    or err_str.startswith("table ")
+                ) and "in table schema" not in err_str
+                if is_table_missing:
                     logger.warning(f"Table not found, recreating: {add_err}")
                     if self._safe_recreate_table():
                         self.table.add(data_records)
