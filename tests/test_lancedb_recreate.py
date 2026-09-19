@@ -20,8 +20,10 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import lancedb
+import pyarrow as pa
 import pytest
 
 from src.core.indexing.db_manager import LanceDBManager
@@ -431,3 +433,201 @@ def test_format_results_no_garbage_render():
     # Ни одного битого заголовка результата
     assert "📄" not in out, f"Error-dict не должен рендериться как результат:\n{out}"
     assert "**0** results" in out, f"Ожидался счётчик 0 результатов:\n{out}"
+
+
+# ─── Прод-инцидент 2026-09-19: migration добавляет file_mtime_ns/file_size ──────
+# Корень: db_manager._migrate_* импортировали метод класса IndexerTableMixin как
+# module-level функцию → ImportError → миграция legacy-таблиц молча не выполнялась.
+# Усугубление: db_writer матчил "does not exist" (schema-mismatch колонки) как
+# «таблицы нет» → _safe_recreate_table → полный rebuild с потерей индекса.
+
+_LEGACY_METADATA_SCHEMA_FIELDS = [
+    pa.field("id", pa.string()),
+    pa.field("vector", pa.list_(pa.float32(), 768)),
+    pa.field("text", pa.string()),
+    pa.field("text_full", pa.string()),
+    pa.field("file_path", pa.string()),
+    pa.field("file_hash", pa.string()),
+    pa.field("chunk_index", pa.int32()),
+    pa.field("source", pa.string()),
+    pa.field("indexed_at", pa.string()),
+    pa.field("summary", pa.string()),
+    pa.field("layer", pa.string()),
+    pa.field("module_name", pa.string()),
+    pa.field("hierarchy_level", pa.string()),
+    pa.field("is_public", pa.bool_()),
+    pa.field("symbol_type", pa.string()),
+    pa.field("parent_id", pa.string()),
+    pa.field("callees", pa.string()),
+    pa.field("health_score", pa.float64()),
+    pa.field("health_band", pa.string()),
+    pa.field("chunk_hash", pa.string()),
+    pa.field("start_line", pa.int32()),
+    pa.field("end_line", pa.int32()),
+]
+
+
+def _seed_legacy_table(tmp_db_root: Path) -> None:
+    """Создаёт таблицу со схемой ДО hot-reload (нет file_mtime_ns/file_size)."""
+    db = lancedb.connect(str(tmp_db_root))
+    t = db.create_table("codebase_chunks", schema=pa.schema(_LEGACY_METADATA_SCHEMA_FIELDS))
+    t.add(
+        [
+            {
+                "id": "legacy_1",
+                "vector": [0.1] + [0.0] * 767,
+                "text": "def legacy(): pass",
+                "text_full": "def legacy(): pass",
+                "file_path": "legacy.py",
+                "file_hash": "hash_legacy",
+                "chunk_index": 0,
+                "source": "filesystem",
+                "indexed_at": "2026-01-01T00:00:00",
+                "summary": "",
+                "layer": "core",
+                "module_name": "legacy",
+                "hierarchy_level": "module",
+                "is_public": True,
+                "symbol_type": "function",
+                "parent_id": "",
+                "callees": "",
+                "health_score": 0.0,
+                "health_band": "",
+                "chunk_hash": "ch:legacy",
+                "start_line": 1,
+                "end_line": 2,
+            }
+        ]
+    )
+
+
+def test_legacy_table_migrates_hot_reload_columns(tmp_db_root):
+    """Прод-инцидент: открытие legacy-таблицы ОБЯЗАНО добавить mtime/size.
+
+    До фикса миграция молча пропускалась (ImportError в обёртке), первый же
+    add с новыми полями падал, db_writer разрушал таблицу (полный rebuild).
+    """
+    _seed_legacy_table(tmp_db_root)
+
+    mgr = LanceDBManager(
+        db_path=tmp_db_root,
+        embedder=None,
+        project_path=tmp_db_root,
+        embedding_dim=768,
+    )
+
+    after = {f.name for f in mgr.table.schema}
+    assert "file_mtime_ns" in after, f"Миграция не добавила file_mtime_ns: {sorted(after)}"
+    assert "file_size" in after, f"Миграция не добавила file_size: {sorted(after)}"
+    assert mgr.table.count_rows() == 1, "Миграция add_columns не должна терять записи"
+
+    # Прод-сценарий: реальная запись НОВОГО чанка с mtime/size на мигрированную
+    # таблицу не должна падать и не должна триггерить recreate (до фикса —
+    # schema-mismatch → _safe_recreate_table → полный rebuild).
+    writer = LanceDBWriter(
+        table=mgr.table,
+        table_write_lock=mgr._write_lock,
+        index_lock=None,
+        embedder=SimpleNamespace(embedding_dim=768),
+        db_manager=mgr,
+    )
+
+    def _no_recreate():
+        raise AssertionError("recreate НЕ должен вызываться при мигрированной схеме")
+
+    with patch.object(LanceDBWriter, "_safe_recreate_table", side_effect=_no_recreate):
+        written = writer.write_records(
+            parsed={
+                "rel_path": "new.py",
+                "current_hash": "h2",
+                "existing_hash": None,
+                "escaped_path": "new.py",
+                "chunk_texts": ["def new(): pass"],
+                "chunk_hashes": ["ch:new"],
+                "chunk_texts_full": ["def new(): pass"],
+                "chunk_metadatas": [{"start_line": 1, "end_line": 2}],
+                "health": {},
+                "file_mtime_ns": 123456789,
+                "file_size": 42,
+            },
+            embeddings=[[0.2] + [0.0] * 767],
+        )
+    assert len(written) == 1, "Запись нового чанка в мигрированную таблицу не удалась"
+
+    df = mgr.table.to_lance().to_pandas(columns=["file_path", "file_mtime_ns", "file_size"])
+    new_row = df[df["file_path"] == "new.py"].iloc[0]
+    assert new_row["file_mtime_ns"] == 123456789
+    assert new_row["file_size"] == 42
+    assert mgr.table.count_rows() == 2, "Данных должно стать 2 (legacy + new)"
+
+
+def test_reopen_after_migration_is_idempotent(tmp_db_root):
+    """Повторное открытие мигрированной таблицы не падает и не дублирует колонки."""
+    _seed_legacy_table(tmp_db_root)
+    mgr = LanceDBManager(db_path=tmp_db_root, embedder=None, project_path=tmp_db_root)
+    mgr.close_for_maintenance()
+    if mgr._db_lock is not None:
+        mgr._db_lock.release()  # иначе второй manager станет read-only
+
+    mgr2 = LanceDBManager(db_path=tmp_db_root, embedder=None, project_path=tmp_db_root)
+    cols = [f.name for f in mgr2.table.schema]
+    assert cols.count("file_mtime_ns") == 1
+    assert cols.count("file_size") == 1
+    assert mgr2.table.count_rows() == 1
+
+
+def test_db_writer_does_not_recreate_on_schema_mismatch(tmp_db_root):
+    """db_writer: schema-ошибка колонки НЕ должна триггерить recreate таблицы.
+
+    Регрессия: матчер "does not exist" ловил 'field X does not exist in table
+    schema' и уничтожал БД. Теперь recreate только при реальном отсутствии
+    таблицы ("no such table"/"table not found"). Для чистоты теста миграция
+    не трогает таблицу (эмуляция недомигрированной схемы): подменяем
+    существующие колонки на весь актуальный schema → add падает с
+    schema-mismatch → ошибка пробрасывается, а не рекриейтит БД.
+    """
+    _seed_legacy_table(tmp_db_root)
+    db = lancedb.connect(str(tmp_db_root))
+    # «недомигрированная» схема: в таблице нет file_mtime_ns/file_size,
+    # но LanceDBManager мигрировал бы их. Чтобы эмулировать сбой ДО миграции,
+    # кладём в файл только legacy-колонки и открываем таблицу напрямую.
+    from unittest.mock import patch
+
+    t = db.open_table("codebase_chunks")
+    writer = LanceDBWriter(
+        table=t,
+        table_write_lock=threading.RLock(),
+        index_lock=None,
+        embedder=SimpleNamespace(embedding_dim=768),
+        db_manager=None,
+    )
+
+    recreate_attempted = []
+
+    def _fake_recreate():
+        recreate_attempted.append(True)
+        raise AssertionError("recreate НЕ должен вызываться при schema-mismatch")
+
+    def _raising_add(records):
+        raise RuntimeError("Invalid input, field 'file_mtime_ns' does not exist in table schema")
+
+    with patch.object(LanceDBWriter, "_safe_recreate_table", side_effect=_fake_recreate):
+        with patch.object(t, "add", side_effect=_raising_add):
+            with pytest.raises(RuntimeError):
+                writer.write_records(
+                    parsed={
+                        "rel_path": "legacy.py",
+                        "current_hash": "h2",
+                        "existing_hash": None,
+                        "escaped_path": "legacy.py",
+                        "chunk_texts": ["def legacy(): pass"],
+                        "chunk_hashes": ["ch:legacy"],
+                        "chunk_texts_full": ["def legacy(): pass"],
+                        "chunk_metadatas": [],
+                        "health": {},
+                    },
+                    embeddings=[[0.2] + [0.0] * 767],
+                )
+
+    assert recreate_attempted == [], "recreate таблицы при schema-mismatch = потеря данных (прод-инцидент)"
+    assert db.open_table("codebase_chunks").count_rows() == 1, "Таблица не должна быть разрушена"
