@@ -403,3 +403,16 @@ VERDICT H3: CONFIRMED
 **RED TEAM:** класс/метод/функция раздельно; методы не дублируются как FUNCTION; BOM-файл читается; идемпотентность через ON CONFLICT UPSERT.
 **verified_from_clean_state:** ⚠️ не прогонялся (полный pytest 1753 passed — verify_diary-gate ниже; live-check CLI на мини-проекте: entities=1, tests=1 (100% linked), TESTS-edges=1, 672ms).
 **Связки:** KNOWN_ISSUES [FEATURE] (блок «Шаг 3 РЕАЛИЗОВАН 2026-09-18»), tests/test_bootstrap_pipeline.py (5 интеграционных), tests/test_bootstrap_tests.py (+3 на index_src_functions), src/core/bootstrap_pipeline.py, src/mcp/tools/bootstrap_tool.py.
+
+## [2026-09-19] Прод-инцидент миграций lanceDB (silent ImportError + destructive rebuild) + Exp E10 REFUTED
+
+**Status:** Fixed (миграции) + Research closed (E10 REFUTED, откачено)
+**Problem:** во время E10-исследования поиска индексировали свежую БД, когда миграция колонок молча не срабатывала, и вылезли ДВА реальных бага (эмуляция HEAD подтвердила, это не мусор):
+1. `db_manager` импортировал `_migrate_text_full_inplace` / `_migrate_add_metadata_columns` как module-level функции (`from src.core.indexing.indexer_table import _migrate_text_full_inplace`), а они — методы класса `IndexerTableMixin` (DEFINED_IN indexer_table.py:17,66,94) → ImportError → миграция НЕ выполнялась, схема разъезжалась с кодом.
+2. `db_writer.is_table_missing` трактовал `"in table schema"` (schema-mismatch) как «таблица отсутствует» → ПОЛНЫЙ rebuild (drop + re-embed ~13 мин) вместо soft-миграции при каждой смене схемы.
+**Fix:** локальные `_migrate_text_full_inplace(table)` / `_migrate_add_metadata_columns(existing_fields, table)` с `pa.field(name, field.type)` из `self.schema`; `is_table_missing` исключает `"in table schema"` — recreate только при реальном отсутствии таблицы. +200 строк регрессионных тестов (`tests/test_lancedb_recreate.py`): миграция legacy→file_mtime_ns/file_size, идемпотентность, «НЕ пересоздавать при schema-mismatch». test_lancedb_recreate 12 passed; фокус-группа 43 passed.
+**Exp E10 (затрачено ~2ч, результат отрицательный):** E10a full-text-эмбеддинг + e5-префиксы (llama.cpp-ветке их не хватало — ONNX/OpenVINO имели _ensure_prefix) + пул 50. Чистый прогон 599 файлов / 9514 чанков за 799.9s: fast hit@1=0% hit@5=50%; quality hit@1=20% hit@5=40%; baseline автора 0/50% и 30/30% → **REFUTED (N=10, шум)**. Изменённый код откален к HEAD; выжил только нейтральный env-тумблер `MAX_RERANKER_INPUT` (default 30).
+**RED TEAM (атака на решение «оставить E10 под флагом»):** переключение требует полного реиндекса (~13 мин) ради нуля → впустую; флаг «50» может незаметно поднять latency хитов; откат = безопасный «поведение клиента = HEAD» (единственный diff settings — env-гейт default 30, тумблер нейтрален).
+**verified_from_clean_state:** ⚠️ не прогонялся (ветка → PR; полный pytest 1753 passed — verify_diary-gate при коммите).
+**Next:** AST/Graph-hybrid re-ranking (graph_query scope_id + text-match) вместо эмбеддинговых твиков; live-check полного реиндекса на прод-БД после миграции (запрос владельцу).
+**Связки:** KNOWN_ISSUES 2026-09-19 (2 записи), EXPERIMENTS_LOG Exp E10, tests/test_lancedb_recreate.py, scripts/e2e_quality_search.py, experiments/search_quality/E10_full_text_embed.py, exp-43 portfolio lab.
