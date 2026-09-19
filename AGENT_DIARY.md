@@ -31,6 +31,16 @@
 
 ---
 
+## [2026-09-18] — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
+
+**Status:** Fixed (7 тестов свежести включая concurrency-стресс N=16 + 1748 полный pytest green; ветка вне PR — локально)
+**Root Cause:** FreshnessChecker (freshness.py) был мёртв (0 вызовов) и СЛОМАН: `table.to_pandas(columns=)` падает на lancedb 0.34 (решение — `to_lance().to_pandas`), пропускал НОВЫЕ файлы (`if rel not in indexed_hashes: continue` → KI-109), передавал `project_path` вместо rel в `_index_single_file`. Хот-релоад уже существовал (`_index_single_file`), но оставлял дыры: FTS5 (incremental_update_fts5 только добавляет), PropertyGraph (remove_file не вызывался).
+**Fix:** (1) schema + `file_mtime_ns`/`file_size` (db_manager/indexer_table/db_writer/process_file/_parse_file_only); (2) FreshnessChecker.verify переписан: stat-first (mtime+size совпали → skip без hash), hash-подтверждение, НОВЫЕ файлы индексируются, debounce + Lock + is_reindexing-гейт; (3) `_index_single_file`: +remove_file +remove_from_fts5 перед переиндексацией; (4) search-хук `_maybe_hot_reload` в search_tools (await to_thread).
+**Guard:** Новые служебные колонки схемы — через int_columns миграцию (add_columns + recreate fallback); тест-файл обязан использовать real FileGuard (MagicMock не скипает .lance/_versions — verify падал на manifest) и явный embedding_dim (MagicMock truthy ломает `_target_dim = embedding_dim or 768`).
+**verified_from_clean_state:** ⚠️ не проверено — ветка локальная, не запушена (видели только локальный pytest); 7/7 нов (+concurrency-стресс N=16) + 1748 полный pytest green; lsp_vfs_indexing pre-existing broken (тот же mock-баг, CI не ловит — slow).
+
+---
+
 ## [2026-09-11] — Burst-rename: fail-closed VOR отзывает 100% при ONE rename-sweep (ответ Statewave на dev.to)
 
 **Status:** Closed (эксперименты, ответ опубликован)

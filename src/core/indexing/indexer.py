@@ -170,12 +170,15 @@ class Indexer(IndexerTableMixin):
         self.db_manager.set_on_recreate_callback(self._sync_table_ref)
 
         # ─── FreshnessChecker
+        from src.config.settings import get_config
         from src.core.indexing.freshness import FreshnessChecker
         self._freshness_checker = FreshnessChecker(
             table=self.table,
             file_guard=self.file_guard,
             index_single_file=self._index_single_file,
             calculate_file_hash=self._calculate_file_hash,
+            interval_sec=get_config().performance.freshness_interval_sec,
+            is_reindexing=self.db_manager.is_reindexing,
         )
 
         # ─── Chunk Summarizer ───────────────────────────────
@@ -404,6 +407,15 @@ class Indexer(IndexerTableMixin):
             if parsed is None:
                 return None
 
+            # Incremental Hot-Reload: stat-метаданные для stat-first сверки.
+            try:
+                _st = full_path.stat()
+                parsed["file_mtime_ns"] = int(_st.st_mtime_ns)
+                parsed["file_size"] = int(_st.st_size)
+            except OSError:
+                parsed["file_mtime_ns"] = 0
+                parsed["file_size"] = 0
+
             # 3. LanceDB-специфичное экранирование пути
             parsed["escaped_path"] = self._escape_file_path_for_lance(rel_path_str)
 
@@ -490,6 +502,15 @@ class Indexer(IndexerTableMixin):
             if existing_hash == current_hash:
                 return False  # Файл не изменился, пропускаем
 
+            # Incremental Hot-Reload (Фаза 1): перед записью нового содержимого
+            # убираем СТАРОЕ содержимое файла из SymbolIndex/PropertyGraph,
+            # чтобы hot-reload не накапливал устаревшие узлы/рёбра.
+            try:
+                if hasattr(self._symbol_index, "remove_file"):
+                    self._symbol_index.remove_file(str(full_path))
+            except Exception as _sym_err:
+                logger.debug(f"SymbolIndex remove_file failed for {rel_path_str}: {_sym_err}")
+
             # ─── IndexPipeline: парсинг -> эмбеддинг ────────
             parsed = self._pipeline.process_file(
                 rel_path_str=rel_path_str,
@@ -518,6 +539,14 @@ class Indexer(IndexerTableMixin):
             # Только если FTS5 уже построен (иначе lazy-rebuild при поиске).
             if self.searcher is not None and hasattr(self.searcher, "incremental_update_fts5"):
                 try:
+                    # Hot-Reload: старые FTS5-чанки файла удаляем до добавления,
+                    # иначе incremental_update_fts5 только добавляет и файл
+                    # останется в FTS5 с устаревшим текстом (FTS5-дыра).
+                    if hasattr(self.searcher, "remove_from_fts5"):
+                        try:
+                            self.searcher.remove_from_fts5(rel_path_str)
+                        except Exception as _fts5_rm_err:
+                            logger.debug(f"FTS5 remove skipped for {rel_path_str}: {_fts5_rm_err}")
                     fts5_chunks = self._build_fts5_chunks_from_parsed(
                         rel_path_str, parsed
                     )

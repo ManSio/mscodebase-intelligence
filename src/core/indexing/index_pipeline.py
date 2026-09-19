@@ -86,7 +86,15 @@ class IndexPipeline:
         if parsed is None:
             return None
 
-        # SymbolIndex из AST-кэша (без повторного парсинга)
+        # Incremental Hot-Reload: stat-метаданные для stat-first сверки
+        # (без чтения/хэширования содержимого на каждом поиске).
+        try:
+            _st = full_path.stat()
+            parsed["file_mtime_ns"] = int(_st.st_mtime_ns)
+            parsed["file_size"] = int(_st.st_size)
+        except OSError:
+            parsed["file_mtime_ns"] = 0
+            parsed["file_size"] = 0
         _ast_chunks, symbols = parsed.get("_ast_symbols", (None, None))
         if symbols and self.parser is not None:
             try:
@@ -195,6 +203,8 @@ class IndexPipeline:
             "health": parsed.get("health", {"score": 0.0, "band": ""}),
             "source": source,
             "embeddings": embeddings,
+            "file_mtime_ns": parsed.get("file_mtime_ns", 0),
+            "file_size": parsed.get("file_size", 0),
         }
 
     def parse_file_only(

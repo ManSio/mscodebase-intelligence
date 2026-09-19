@@ -119,7 +119,12 @@ class IndexerTableMixin:
         ]
         bool_columns = ["is_public"]
         float_columns = ["health_score"]
-        int_columns = ["start_line", "end_line"]
+        int_columns = [
+            "start_line",
+            "end_line",
+            "file_mtime_ns",
+            "file_size",
+        ]
         missing = [
             c
             for c in string_columns + bool_columns + float_columns + int_columns

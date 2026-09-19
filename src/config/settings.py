@@ -216,6 +216,12 @@ class PerformanceConfig:
     reranker_timeout: float = float(os.getenv("RERANKER_TIMEOUT", "180.0"))
     provider_ping_timeout: float = float(os.getenv("PROVIDER_PING_TIMEOUT", "0.5"))
 
+    # Incremental Hot-Reload (Фаза 1, 2026-09-18): интервал stat-сверки
+    # актуальности индекса перед поиском. 0 = отключить hot-reload проверку.
+    freshness_interval_sec: float = float(
+        os.getenv("FRESHNESS_INTERVAL_SEC", "30")
+    )
+
     # Async settings
     max_async_workers: int = int(os.getenv("MAX_ASYNC_WORKERS", "10"))
 
