@@ -204,7 +204,9 @@ DOCS_EXTENSIONS: Set[str] = _parse_extensions(
 )
 
 # Safety cap: максимальное число чанков, которые мы отправляем в reranker
-MAX_RERANKER_INPUT: int = 30
+# (тумблер: эксперимент E10 2026-09-19 не подтвердил улучшение при пуле 50,
+# поэтому default остался 30; перепроверка пула — через env).
+MAX_RERANKER_INPUT: int = int(os.getenv("MAX_RERANKER_INPUT", "30"))
 
 
 @dataclass

@@ -187,9 +187,9 @@ class LanceDBManager:
 
             if "text_full" not in existing_fields:
                 logger.warning("Migration: adding text_full")
-                self._migrate_text_full_inplace()
+                self._migrate_text_full_inplace(table)
 
-            self._migrate_add_metadata_columns(existing_fields)
+            self._migrate_add_metadata_columns(existing_fields, table)
 
             logger.info(f"Opened table: {self.table_name}")
 
@@ -637,12 +637,48 @@ class LanceDBManager:
     # Migration helpers (from IndexerTableMixin)
     # ══════════════════════════════════════════════════════════
 
-    def _migrate_text_full_inplace(self):
-        """Добавляет колонку text_full через alti_method."""
-        from src.core.indexing.indexer_table import _migrate_text_full_inplace as _do
-        _do(self.db, self.table_name, self.table)
+    def _migrate_text_full_inplace(self, table=None):
+        """Добавляет колонку text_full (INC-53EC / REFC-07).
 
-    def _migrate_add_metadata_columns(self, existing_fields):
-        """Добавляет колонки метаданных (v2.4.3+)."""
-        from src.core.indexing.indexer_table import _migrate_add_metadata_columns as _do
-        _do(self.db, self.table_name, existing_fields)
+        Реализована локально: прежняя версия импортировала метод класса
+        IndexerTableMixin как module-level функцию, что давало ImportError
+        и молча отключало миграцию legacy-таблиц (прод-инцидент 2026-09-19).
+
+        table: открытая таблица (в _open_or_create_table self.table ещё не
+        назначен — таблица живёт в локальной переменной).
+        """
+        table = table or self.table
+        if "text_full" in [f.name for f in table.schema]:
+            return
+        try:
+            table.add_columns(pa.field("text_full", pa.string()))
+            logger.info("📦 add_columns(text_full) выполнен")
+        except Exception as e:
+            logger.warning(f"_migrate_text_full_inplace: {e}")
+
+    def _migrate_add_metadata_columns(self, existing_fields, table=None):
+        """Добавляет недостающие колонки до актуальной self.schema (v2.4.3+).
+
+        Строит целевой набор полей из self.schema (источник правды), сравнивает
+        с существующими колонками таблицы и добавляет недостающие через
+        add_columns(pa.field). В LanceDB 0.34 add_columns принимает pa.field,
+        а не строковые SQL-выражения (CAST(...) падает с 'Unsupported data type').
+
+        table: открытая таблица (см. _migrate_text_full_inplace).
+        """
+        table = table or self.table
+        target = {f.name: f for f in self.schema}
+        missing = [name for name in target if name not in existing_fields]
+        if not missing:
+            return
+        logger.info(f"📦 Миграция metadata: не хватает {len(missing)} колонок: {missing}")
+        for name in missing:
+            field = target[name]
+            try:
+                table.add_columns(pa.field(name, field.type))
+                logger.info(f"📦 Миграция: добавлена колонка {name}")
+            except Exception as e:
+                logger.warning(
+                    f"add_columns({name}) не сработал: {e}. "
+                    f"Таблица останется без этой колонки до пересоздания."
+                )
