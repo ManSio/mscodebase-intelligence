@@ -44,7 +44,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 │  │  · Call graph & impact analysis              │  │
 │  │  · Project memory (ADR, tech debt)           │  │
 │  │  · Self-diagnostics and self-healing         │  │
-│  │  · 64 tools for AI assistant                 │  │
+│  │  · 65 tools for AI assistant                 │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 64 tools (31 core + 16 intel + 13 inline + 4 dev), ~1773 tests |
+| 🧪 **Clean Architecture** | DI Container (18 services), 65 tools (32 core + 16 intel + 13 inline + 4 dev), ~1773 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -215,9 +215,9 @@ Deep-dives into specific technical findings from building this project:
 
 ---
 
-## 🔧 MCP Tools (64 total)
+## 🔧 MCP Tools (65 total)
 
-> 64 = 63 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 63 (30 core + 16 intel + 13 inline + 4 dev).
+> 65 = 64 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 64 (32 core + 16 intel + 13 inline + 4 dev).
 
 ### Core Search
 
