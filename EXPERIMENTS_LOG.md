@@ -2160,3 +2160,34 @@ unique src funcs in trace: 1212
 **Implication:** Шаг B уточняется без делегирования цифр на волю: **(1)** статический L1-call — ценный статический якорь для ранжирования (TCTracer-style ensemble может использовать его как tier-1); **(2)** Шаг 2 (DECORATES для @mcp_app.tool) — УЖЕ реализован (живой граф: mcp.tool→14, mcp_app.tool→20 рёбер; источник `19378296` vendor tree-sitter tags.scm) — KNOWN_ISSUES:245 устарел; **(3)** dynamic trace остаётся драйвером TESTS-edge: он даёт recall 100% на linked (1551/1727) и не требует early-decision по единственной «target»-функции; статика — fallback для динамически-пустых (88/176 мок-тестов имеют стат. кандидатов) и pre-filter ранжирования. **moc: не путать hit (любой из G) с recall (доля G) — hit 90% ≠ покрытие 90%.**
 
 **Artifacts:** experiments/bootstrap/static_vs_dynamic.py; EXP_LOG Exp 9; exp-41 portfolio lab.
+
+## [2026-09-19] Exp E10 (Search Quality): full-text chunk embedding + e5-prefix + reranker pool 50 — REFUTED
+
+**Контекст:** плато векторного тира на 10-задачной панели качества (baseline автора: fast hit@1=0%, hit@5=50%; quality hit@1=30%, hit@5=30%), при уже-реализованной E8-composite (поле full-текста в BB-снимке). Гипотеза: три одновременных «выключателя» поднимают hit каждого режима: (1) E10a — индексировать полный текст чанка (`chunk_texts_full`) вместо компактного сниппета; (2) e5-префиксы `query:`/`passage:` (в llama.cpp-ветке отсутствовали — ONNX/OpenVINO уже имели `_ensure_prefix`); (3) E10c — пул кандидатов в reranker 30→50 (`MAX_RERANKER_INPUT`), т.к. RRF per-site при limit=5 давал только 10 кандидатов на источник.
+
+**Команда:** `python experiments/search_quality/E10_full_text_embed.py` (артефакт в репо; embed/rerank live через llama.cpp 8080/8081; E5-style панель из 10 задач, 2 режима, majority-оценка).
+
+**Сырой результат (прогон 1 — «грязный», существующий индекс):**
+```
+run1 (existing index): fast: hit@1=0/10 (0%)  hit@5=6/10 (60%)  | quality: hit@1=3/10 (30%)  hit@5=5/10 (50%)
+```
+
+**Сырой результат (прогон 2 — ЧИСТЫЙ индекс, полный реиндекс):**
+```
+[embed] indexed 599 files / 9514 chunks in 799.9s (llama.cpp 8080)
+run2 (clean index):    fast: hit@1=0/10 (0%)  hit@5=5/10 (50%)  | quality: hit@1=2/10 (20%)  hit@5=4/10 (40%)
+KMeans warning: duplicate vectors (LLL-фолбек идемпотентный) — не фейл
+```
+
+**Вердикт: ❌ REFUTED (N=10, дельты в пределах шума).**
+- fast: hit@1=0 (базово 0) — БЕЗ ИЗМЕНЕНИЯ; hit@5=50% (базово 50%, грязный прогон 60%) — БЕЗ ИЗМЕНЕНИЯ/шум.
+- quality: hit@1=20% (базово 30%, грязный 30%) — ХУЖЕ/шум; hit@5=40% (базово 30%, грязный 50%) — шум.
+None из трёх «выключателей» (full-text-эмбеддинг / e5-префиксы / пул 50) не дал подтверждаемого сдвига.
+
+**Implication:**
+1. E10-код ОТКАЛЕН к HEAD (клиент идентичен продакшену). Остаток — env-тумблер `MAX_RERANKER_INPUT` (default 30, нейтрален): перепроверка пула остаётся одним env-флагом без правки кода.
+2. **BREAKING-CHANGE-урок:** применение этих «выключателей» требует ПОЛНОГО реиндекса прода (~13 мин на 599 файлов / 9514 чанков) ради нулевого прироста — инженерная впустую тот простое я, и любой будущий твик эмбеддинга обязан мерить ЧИСТЫЙ индекс, а не грязный (первый прогон дал завышающие 60%/50%).
+3. Отрицательный результат фиксирует плато «pure-vector»: поиск не находит то, что не текстуально в индексе (ср. Exp-29 ceiling search-only ~0.23) — следующий ход AST/Graph-hybrid re-ranking (graph_query scope_id + поверхностный text-match), не эмбеддинговые твики.
+4. Диагностический harness `scripts/e2e_quality_search.py` (E5-style, 10 задач, 2 режима) оставлен в репо как reusable instrument.
+
+**Artifacts:** experiments/search_quality/E10_full_text_embed.py, scripts/e2e_quality_search.py; EXP_LOG Exp E10; exp-43 portfolio lab.
