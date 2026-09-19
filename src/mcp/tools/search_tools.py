@@ -225,6 +225,11 @@ class SearchCodeTool(MCPTool):
         # P3: Staleness check
         stale_banner = _get_stale_warning(searcher)
 
+        # KI-109: Incremental Hot-Reload — перед поиском сверяем актуальность
+        # индекса (stat-first + hot-reload изменённых/новых файлов в фоне).
+        # Дебаунс внутри FreshnessChecker (FRESHNESS_INTERVAL_SEC), skip при полном reindex.
+        await self._maybe_hot_reload()
+
         # === Project header ===
         project_header = self._project_header(explicit_project_root=_pr or None)
         if filter_layer:
@@ -451,6 +456,33 @@ class SearchCodeTool(MCPTool):
             )
 
         return result_str
+
+    async def _maybe_hot_reload(self) -> None:
+        """KI-109: фоновая инкрементальная сверка актуальности индекса.
+
+        Вызывается перед каждым search_code. Внутри FreshnessChecker —
+        debounce (FRESHNESS_INTERVAL_SEC) + threading.Lock + skip при полном
+        reindex, поэтому для большинства запросов это прозрачно (stat-first).
+        Ошибки не должны ломать поиск.
+        """
+        try:
+            from src.config.settings import get_config
+
+            interval = get_config().performance.freshness_interval_sec
+            if interval <= 0:
+                return
+            indexer = self.resolve_indexer(explicit_project_root=None)
+            if indexer is None or not hasattr(indexer, "verify_index_freshness"):
+                return
+            project_path = getattr(indexer, "project_path", None)
+            if project_path is None:
+                return
+            # stat-first сверка + hot-reload изменённых/новых файлов в фоне.
+            # Внутри FreshnessChecker: debounce + Lock + skip при is_reindexing,
+            # поэтому блокировка поиска редкая и короткая.
+            await asyncio.to_thread(indexer.verify_index_freshness, project_path)
+        except Exception as _hr_err:
+            logger.debug(f"Hot-reload check skipped: {_hr_err}")
 
     async def _agentic_search(self, query: str, project_root: str = "") -> str:
         """Agentic Code Search с декомпозицией и связями.

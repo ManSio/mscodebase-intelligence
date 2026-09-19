@@ -150,6 +150,10 @@ class LanceDBManager:
                 pa.field("chunk_hash", pa.string()),
                 pa.field("start_line", pa.int32()),
                 pa.field("end_line", pa.int32()),
+                # Incremental Hot-Reload: mtime+size для stat-first сверки
+                # без чтения/хэширования содержимого (замеры 2026-09-18).
+                pa.field("file_mtime_ns", pa.int64()),
+                pa.field("file_size", pa.int64()),
             ]
         )
 

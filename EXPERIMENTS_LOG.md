@@ -1,4 +1,34 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-09-18] — E7: lazy stat-sweep vs sha256-sweep (FreshnessChecker) для «всегда актуального» индекса
+
+**Гипотеза:** stat()-сверка (mtime+size) по корпусу проекта на порядки дешевле существующего FreshnessChecker (SHA256 каждого файла), поэтому её можно выполнять при каждом поиске без заметной стоимости и закрыть KI-109 (новый файл невидим индексу без notify_change).
+
+**Команда:**
+`
+python experiments/freshness_lazy/measure_stat_vs_hashes.py
+`
+
+**Сырой вывод:**
+`
+honest corpus: 545 files
+  stat sweep run1: 11.71 ms
+  stat sweep run2: 13.21 ms
+  stat sweep run3: 10.11 ms
+sha256 sweep: 214.8 ms
+ratio sha256/stat: 21.3x
+mean stat per file: 18.55 us
+projected stat for 574 indexed files: 10.6 ms
+
+full INDEX_EXTENSIONS corpus: 1100 files
+  stat sweep full corpus: 17.83 ms
+  mean stat per file: 16.21 us
+`
+
+**Verdict:** HYPOTHESIS CONFIRMED. stat-сверка по ПОЛНОМУ корпусу INDEX_EXTENSIONS (1100 файлов) = 17.8ms — в 12× быстрее sha256 по .py (214.8ms), ~2% от полного reindex (5s), ~6% от quality-поиска (~300ms).
+
+**Implication:** lazy stat-проверка жизнеспособна как дефолтный механизм актуальности: Point A (сравнение mtime+size файла-кандидата перед возвратом в поиске) стоит миллисекунды и не читает содержимое файлов до несовпадения. Требование к схеме: добавить file_mtime/file_size. При старте: статистическая сверка позволяет заменить условие «индекс пуст» на «есть ли новые/изменённые файлы».
+
+**Artifacts:** experiments/freshness_lazy/measure_stat_vs_hashes.py; // EXP_LOG Exp 7.
 
 ## [2026-09-11] — 1-B/1-C/RT: burst-rename vs fail-closed VOR (ответ Statewave)
 

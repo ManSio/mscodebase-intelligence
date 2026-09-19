@@ -6,7 +6,21 @@
 ---
 
 
-**14 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08)
+**16 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08)
+
+## 2026-09-18 — Фаза 1: Incremental Hot-Reload — FreshnessChecker оживлён, hot-reload зашит (AST+FTS5+граф)
+
+- **Источник:** AGENT_DIARY.md#2026-09-18
+- **Описание:** FreshnessChecker был мёртв (0 вызовов) и сломан: `to_pandas(columns=)` падает на lancedb 0.34 (рабочее — `to_lance().to_pandas`, 102.2ms/10366 напр.); пропускал НОВЫЕ файлы (KI-109 — файл без notify_change не попадал в индекс); передавал `project_path` вместо `rel` в `_index_single_file`. Хот-reload существовал, но оставлял 3 дыры: FTS5 (incremental_update_fts5 только добавляет), PropertyGraph (remove_file не вызывался), schema (не было mtime/size для stat-first).
+- **Fix:** schema + `file_mtime_ns`/`file_size` (db_manager/indexer_table/db_writer/index_pipeline/indexer); FreshnessChecker.verify переписан: stat-first (mtime+size → skip без hash), hash-подтверждение для несовпадений/legacy, новые файлы индексируются, debounce (`FRESHNESS_INTERVAL_SEC`, 0=выкл) + Lock + `is_reindexing`-гейт, фильтрация через real FileGuard; `_index_single_file`: +remove_file (граф) +remove_from_fts5 (FTS5) перед переиндексацией; search-хук `_maybe_hot_reload` (await `asyncio.to_thread`). Полный reindex остаётся fallback (срабатывает при пустом индексе). 6 новых тестов + 233 регресс-прохода.
+- **Статус:** ✅ Fixed локально (ветка не запушена, verified_from_clean_state не прогонялся). 7 новых тестов (включая concurrency-стресс N=16) + 1748 полный pytest green. Полный reindex-запуск после миграции существующих БД не выполнялся — запрос владельцу на live-check.
+
+## 2026-09-18 — PRE-EXISTING: tests/test_lsp_vfs_indexing.py broken (MagicMock.embedding_dim truthy)
+
+- **Источник:** попутная находка во время Фазы 1
+- **Описание:** `MagicMock().embedding_dim` truthy → `_target_dim = self.embedder.embedding_dim or 768` (db_writer.py:59) = MagicMock → вектор обрезается до zero → `Zero vector ... skipping` → все чанки пропущены → пустая таблица → 8/8 тестов FAIL. В CI не ловится: `pytestmark = slow`, addopts `-m "not slow"` → никогда не гоняется.
+- **Fix:** не внесён (выходит за рамки Фазы 1); мой тест `tests/test_freshness_checker.py` обходит через явный `embedding_dim=1024`. Типовое исправление для lsp_vfs: задать `embedding_dim` в mock.
+- **Статус:** 🔬 открыт (P2, низкий приоритет)
 
 ## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
 

@@ -116,6 +116,8 @@ class LanceDBWriter:
                 "chunk_hash": chunk_hashes[i] if i < len(chunk_hashes) else "",
                 "start_line": meta.get("start_line", 0),
                 "end_line": meta.get("end_line", 0),
+                "file_mtime_ns": parsed.get("file_mtime_ns", 0),
+                "file_size": parsed.get("file_size", 0),
             })
 
         # Atomic write: delete old + add new (rollback на версию при сбое add)
@@ -291,6 +293,8 @@ class LanceDBWriter:
                 "chunk_hash": chunk_hashes[i] if i < len(chunk_hashes) else "",
                 "start_line": meta.get("start_line", 0),
                 "end_line": meta.get("end_line", 0),
+                "file_mtime_ns": parsed.get("file_mtime_ns", 0),
+                "file_size": parsed.get("file_size", 0),
             })
 
         return (data_records, escaped_path, existing_hash)
