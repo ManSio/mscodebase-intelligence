@@ -1,4 +1,22 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+
+## [2026-09-20] — E13 / поискочное качество: 6 исследовательских задач (план)
+
+**Статус:** Plan (код не тронут; задачи в ISSUE.md KI-R1..R6)
+**Контекст:** E13 (doc-chunks vs code-chunks) замерен — hit@1=12.5%, hit@5=12.5% против code baseline 20/50%. Проблема: измерение неполное, выводы преждевременные.
+**Задачи (по порядку):**
+- KI-R1 (P1): перезапуск exp-5 после KI-101 (cache-hit пропускал dense-уровень) + gold_chunk_id Recall@5 + наборы 10→16+.
+- KI-R2 (P1): два прогона E13 — intent_hint="docs" (маршрутизация) + doc-only индекс (перекос корпуса).
+- KI-R3 (P2): «найдено N / использовано M» + eligible_seen в интерфейсе.
+- KI-R4 (P2): регрессионный тест дедупликации (MMR vs sort, SCT Inst).
+- KI-R5 (P2): фильтр лексической ветки вместо RRF (threshold по чанкам/терминам).
+- KI-R6 (P2): housekeeping — 7×exp-29 на Lab, дубли архива дневника, README числа.
+- KI-R7 (P2): авто-замер — gold_chunk_id из индекса → Recall@5 в get_health_report.
+- KI-R8 (P2): дедупликация по хешу (vendored/переводы/CHANGELOG), оба пути в цитате.
+- KI-R9 (P2): не подбирать один режим — vector+BM25 снизил recall у нас, hybrid проиграл vector у автора.
+- KI-R10 (P2): слабый запрос → не молчать, fallback grep (exp-26).
+- KI-R11 (P2, первым): «найдено N / использовано M» + «проиндексировано ли».
+**Вердикт:** без R1+R2 публичные утверждения некорректны. R1+R2 дешёвые — делать первыми.
 ## [2026-09-18] — E7: lazy stat-sweep vs sha256-sweep (FreshnessChecker) для «всегда актуального» индекса
 
 **Гипотеза:** stat()-сверка (mtime+size) по корпусу проекта на порядки дешевле существующего FreshnessChecker (SHA256 каждого файла), поэтому её можно выполнять при каждом поиске без заметной стоимости и закрыть KI-109 (новый файл невидим индексу без notify_change).
@@ -2191,3 +2209,73 @@ None из трёх «выключателей» (full-text-эмбеддинг / 
 4. Диагностический harness `scripts/e2e_quality_search.py` (E5-style, 10 задач, 2 режима) оставлен в репо как reusable instrument.
 
 **Artifacts:** experiments/search_quality/E10_full_text_embed.py, scripts/e2e_quality_search.py; EXP_LOG Exp E10; exp-43 portfolio lab.
+## [2026-09-19] Exp E11 (Search Quality): AST/Graph-hybrid re-ranking — CONFIRMED (сигнал), подъём graph-хитов спасает 2/10 кейсов
+
+**Контекст:** E10 REFUTED зафиксировал плато «pure-vector» (baseline quality hit@5 ≈ 20-30%). Прод-поиск имеет два пути: VectorSearch (embedding/BM25) и SymbolIndex (PropertyGraph search_symbols), но engine._graph_stage триггерится ТОЛЬКО на чистый identifier-токен (`_IDENTIFIER_QUERY_RE`), NL-запросы его не проходят. Гипотеза: извлечь из NL-запроса символьные подстроки → search_symbols → поднять graph-хиты в топ fused с baseline.
+
+**Команда:** `python experiments/search_quality/E11_graph_hybrid_arms.py` (read-only, embed/rerank live 8080/8081, та же сессия/БД/индекс = сравнение «было/стало» корректно при N=10 шуме).
+
+**Результат (2 независимых прогона, стабилен):**
+| arm | hit@1 | hit@5 | MRR |
+|---|---|---|---|
+| baseline (quality) | 2/10 (20%) | 2/10 (20%) | 0.200 |
+| A-prepend (graph в топ) | 2/10 (20%) | **4/10 (40%)** | 0.253 |
+| B-RRF (scoring.reciprocal_rank_fusion) | 2/10 (20%) | 3/10 (30%) | 0.225 |
+| C-graph (только graph-хиты) | 2/10 (20%) | 4/10 (40%) | 0.253 |
+
+Спасены: #7 project_indexer_registry (graph_files содержит target), #8 indexing_tools (target 5-м в graph_files). Остальные 8 кейсов: graph находит, но target не в топ-15 символьного поиска (сниппеты/миграция/идентификаторы недостаточно специфичны) либо target уже в baseline.
+
+**Вердикт: CONFIRMED (сигнал, не production-доказательство).** Цена: +6ms/запрос (graph-lookup) против 1978ms baseline — подъём graph-хитов ВЫГОДЕН: детерминированные символы (file_mtime_ns, notify, bm25) недоступны embedding, но их знает SymbolIndex. N=10 — шум, расширять панель до 30+ задач перед прод-интеграцией.
+
+**Вывод (следующий ход):** A-prepend (или B-RRF с весами graph) — кандидат в прод: в engine.hybrid_search_async добавить стадию «извлечь символы из NL → search_symbols → top-k подъём» (по желанию за флагом, см. подход YellowDuck RAG-codebase где graph rerank условен и требует замера на конкретном коде).
+
+**Artifacts:** experiments/search_quality/E11_graph_hybrid_probe.py (зонд), experiments/search_quality/E11_graph_hybrid_arms.py (руки); EXP_LOG Exp E11; portfolio exp-44 (после замеров).
+
+---
+
+## [2026-09-20] — Exp E12: real-path embed throughput (Stanford 8h: 11-18 ch/s vs «156 ch/s» T3)
+
+**Гипотеза:** «156 ch/s» (T3, batch=32) — артефакт синтетического корпуса (~10-токенные random_code тексты). Реальный чанк ~203 токена → истинный потолок embedder существенно ниже, и закрывает его НЕ цикл index_project_runner, а сам llama-server.
+
+**Команда:** `python experiments/embed_real_path_vs_raw/exp_real_path.py` + `exp_feed_queue.py` + `exp_ubatch_threshold.py` + `exp_gc_cost.py` (venv расширения, реальный корпус из LanceDB MSCodeBase, p50=712 chars/max=1009, live llama 8080).
+
+**Результат:**
+| Замер | Значение |
+|---|---|
+| truncation `/tokenize` (635 texts >256 chars) | 0.6s (1ms/текст) — **опровергнута** |
+| ARM A raw POST 640 чу/35.8s = 18 ch/s (p50 1840ms) | реальный путь |
+| ARM B trunc+embed 640 чу/34.6s = 18 ch/s (p50 1755ms) | real; zero_vec=0/640 |
+| tokens: 129839/640, avg=203/чанк, p90=266, max=340 | корпус |
+| tok/s raw 3652; E10 sustained 2414 (11.9 ch/s) | полный цикл -34% |
+| ceiling-пересчёт 2000/3000/4000 tok/s | 10/15/20 ch/s |
+| **gc.collect() per batch** | **1ms/пачку, 10s на весь Stanford — опровергнута** |
+| ubatch=2048 порог (N=1..32) | НЕТ скачка, время линейно ~26ms/текст |
+| подача по ТОКЕНАМ 512→8192, concurrency 1 vs 3 | tok/s плато 3032-3444; **concurrency=3 ВСЕГДА хуже** |
+| 40/100/203 tok/чанк → ch/s | 36-67 / 28-33 / 17-19 (обратно пропорционально длине) |
+
+**Вердикт: CONFIRMED.** Потолок embed на CPU (e5-small Q8, threads=10, 6C/12T Ryzen 5600H) = **~3.4-3.7k tok/s** — физика модели, НЕ зависит от размера пачки, token-budget, параллельности или truncation. «156 ch/s» T3 = синтетика (≈1560 tok/s на 10-токенных текстах — тоже в пределах физики). 335k чанков × 203 tok = 68M токенов → ~5.7ч чистого embed + parse/write = 8ч reindex РЕАЛЕН, это не баг.
+
+**RAM (второй корень):** активный индекс держит ВСЁ в RAM: `_flat_chunks` (335k кортежей с текстами) + `_all_embeddings` (335k×384×float64 = 0.96GB, с PyObject-overhead до 3.35GB) + `_parsed_list`. Синтетика 194MB → реальный индекс +1.4GB → swap-риск на 15.4GB машине (едва 4.7GB свободно) + конкуренция с reranker'ом (1.08GB Bge-M3 8081 + 238MB e5-small 8080).
+
+**Урок:** embedding throughput мерить ТОЛЬКО на реальном корпусе (длина чанков решает), а не на random_code. «100 ch/s sustained» (2026-07-17) и «156 ch/s» (T3) — исторические артефакты коротких синтетик.
+
+**Artifacts:** experiments/embed_real_path_vs_raw/{exp_real_path.py, token_math.py, exp_ubatch_threshold.py, exp_gc_cost.py, exp_feed_queue.py}.
+
+## [2026-09-20] — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
+
+**Гипотеза:** текстовые чанки (README + docs/en/ + docstrings) индексируются и извлекаются через search_with_mode quality не хуже кодовых чанков.
+
+**Команда:** `python scripts/eval_text_chunks.py` — 16 doc-запросов (EN), live-индекс (18665 строк, 1197 файлов), Hit@1/Hit@5/MRR прямым lookup по metadata.file (без LLM-судей).
+
+**Сырой вывод:**
+| Метрика | Текстовый RAG | Кодовый (E10/E11) |
+|---|---|---|
+| hit@1 | 12.5% (2/16) | 0% / 20% |
+| hit@5 (Gold Top-K) | 12.5% (2/16) | 50% / 40% |
+| MRR | 0.125 | 0.200 |
+
+**Вердикт: HYPOTHESIS REFUTED.** Текстовый RAG значительно уступает кодовому: doc-чанки не берутся в топ-5 для 14/16 запросов. Причины: (1) embedder эмбедлит code-чанки плотнее (сигнатуры/имена), doc-чанки размыты; (2) поисковый индекс bias на код (кодовых чанков >> doc); (3) queries без intent_hint="docs" маршрутизируются в code-путь. README.md извлекается только на query о режимах поиска; SEARCH_PIPELINE.md — на query о пайплайне.
+
+**Guard:** перед production RAG по документации — добавить intent_detection для doc-queries + поднять вес doc-bucket в soft-weighting. Без этого текстовый RAG ненадёжен.
+
+**Artifacts:** scripts/eval_text_chunks.py, experiments/text_chunk_eval.json.
