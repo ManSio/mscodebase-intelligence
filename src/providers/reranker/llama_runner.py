@@ -63,7 +63,6 @@ from src.providers.reranker.llama_install import (  # noqa: F401 — explicit co
     LLAMA_CTX_SIZE,
     LLAMA_HOST,
     LLAMA_PORT,
-    LLAMA_UBATCH_SIZE,
     LLAMA_VERSION,
     _get_ext_dir,
     # Функции
@@ -76,9 +75,17 @@ from src.providers.reranker.llama_install import (  # noqa: F401 — explicit co
     download_llama_binary,
     is_installed,
     is_model_downloaded,
+    resolve_ubatch,
 )
 
 logger = logging.getLogger("mscodebase_server.llama_runner")
+
+
+def _ubatch_arg(model_key: str) -> str:
+    """Роль от model_key (зеркалит флаги --embedding/--reranking в start())."""
+    if model_key in GGUF_MODELS and model_key != DEFAULT_RERANKER_MODEL:
+        return str(resolve_ubatch("embed"))
+    return str(resolve_ubatch("rerank"))
 
 
 
@@ -905,7 +912,7 @@ class LlamaRunner:
 
                     "--batch-size", str(LLAMA_BATCH_SIZE),
 
-                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
+                    "--ubatch-size", _ubatch_arg(model_key),
 
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
 
@@ -1040,7 +1047,7 @@ class LlamaRunner:
                     "-m", str(gguf_path),
                     "-c", str(LLAMA_CTX_SIZE),
                     "--batch-size", str(LLAMA_BATCH_SIZE),
-                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
+                    "--ubatch-size", _ubatch_arg(model_key),
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE),
                     "--cache-type-v", str(LLAMA_CACHE_TYPE),
@@ -1138,7 +1145,7 @@ class LlamaRunner:
                     "-m", str(gguf_path),
                     "-c", str(LLAMA_CTX_SIZE),
                     "--batch-size", str(LLAMA_BATCH_SIZE),
-                    "--ubatch-size", str(LLAMA_UBATCH_SIZE),
+                    "--ubatch-size", str(resolve_ubatch("rerank")),
                     "--threads", os.getenv("LLAMA_THREADS", "10"),
                     "--cache-type-k", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша
                     "--cache-type-v", str(LLAMA_CACHE_TYPE), # 🧹 сжатие KV кэша

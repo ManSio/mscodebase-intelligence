@@ -15,6 +15,7 @@ import httpx
 from src.config.settings import get_config
 from src.core.interfaces import IEmbedder
 from src.core.platform_utils import get_extension_dir
+from src.providers.reranker.llama_install import LLAMA_EMBED_MAX_TOKENS
 
 __all__ = [
     "RemoteEmbedder",
@@ -27,7 +28,7 @@ _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
 # llama.cpp жёстко ограничивает вход контекстом обучения модели (n_ctx_train=512
 # для multilingual-e5-small). Усечение через HF-токенизатор НЕ гарантирует лимит
 # (разные BPE: замер 2026-08-01 — 512 HF-токенов -> до 526 llama-токенов на CJK).
-_LLAMA_MAX_TOKENS = 480          # безопасный запас под жёсткий потолок 512
+_LLAMA_MAX_TOKENS = int(LLAMA_EMBED_MAX_TOKENS)  # безопасный запас под жёсткий потолок 512
 _LLAMA_FALLBACK_MAX_TOKENS = 448 # HF-fallback: запас поверх расхождения BPE
 _LLAMA_TOKENIZE_MIN_CHARS = 256  # короче — не проверяем (bounded даже ~2 ток/симв)
 
