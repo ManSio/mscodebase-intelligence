@@ -38,7 +38,14 @@ class IndexProjectRunner:
 
     Использует db_manager.begin_write() для сериализации записи в LanceDB.
     PID-lock (Layer 3) обеспечивается DatabaseLock (db_manager._db_lock).
+
+    Resume (2026-09-20): запись инкрементальная. Файл, все чанки которого
+    эмбеддированы, записывается в LanceDB сразу (порциями по
+    WRITE_FLUSH_FILES), освобождая RAM. Краш переживает уже записанные
+    файлы: при перезапуске known_hashes (таблица) пропускает их.
     """
+
+    WRITE_FLUSH_FILES = 32  # порция завершённых файлов на один bulk_write
 
     def __init__(
         self,
@@ -75,6 +82,8 @@ class IndexProjectRunner:
             self._db_writer.set_on_recreate_callback(self._sync_table_ref)
         self._cached_total_chunks = 0
         self._cached_unique_files: set[str] = set()
+        self._integrity_verified = False
+        self._file_embeddings: dict = {}
 
     # ── Self-healing helpers ───────────────────────────────────────────
 
@@ -129,6 +138,42 @@ class IndexProjectRunner:
                 logger.info("✅ Table recreated after Not Found error")
         except Exception as e:
             logger.error(f"Table recreate failed: {e}")
+
+    def _verify_and_repair_table_integrity(self) -> None:
+        """Гарантирует целостность таблицы ДО индексации (resume-safe).
+
+        Вызывается в начале run(), до загрузки known_hashes и до принятия
+        skip-решений. Если таблица битая (мёртвые фрагменты из drop+create
+        наследования) — физически пересоздаём и синхронизируем ссылки.
+        Чтобы не делать полное чтение на каждом прогоне, повторные проверки
+        в рамках этого прогона пропускаются (один раз достаточно — после
+        первой успешной записи фрагменты живые, их создаём сами).
+        """
+        if getattr(self, "_integrity_verified", False):
+            return
+        self._integrity_verified = True
+        if self.table is None:
+            return
+        if self._verify_index_integrity():
+            return
+        logger.warning(
+            "INC-6C62: таблица не целостна (мёртвые фрагменты). "
+            "Физическое пересоздание ДО индексации."
+        )
+        ok = False
+        if self.db_manager is not None and hasattr(self.db_manager, "recreate_table_physical"):
+            try:
+                ok = self.db_manager.recreate_table_physical()
+            except Exception as e:
+                logger.error(f"Integrity repair: physical recreate failed: {e}")
+        if ok:
+            self._sync_table_ref(self.db_manager.table)
+            logger.info("Таблица физически пересоздана — известные хэши сброшены, полная индексация.")
+        else:
+            logger.error(
+                "Integrity repair FAILED — индексация начнётся, но optimize/IVF "
+                "может упасть с 'Not found'. Инкрементальная запись переживёт это."
+            )
 
     def _verify_index_integrity(self) -> bool:
         """Проверяет целостность таблицы LanceDB (INC-6C62).
@@ -250,6 +295,17 @@ class IndexProjectRunner:
             if progress_callback:
                 progress_callback("", 0, total_files, "scanning")
 
+            # INC-6C62 (resume-friendly): проверка целостности ДО загрузки
+            # known_hashes и ДО любых skip-решений. Если таблица унаследовала
+            # ссылки на мёртвые фрагменты (битая) — физически пересоздаём
+            # заранее: известных хэшей не будет → все файлы переиндексируются
+            # (правильнее, чем потерять skip-файлы после принятых решений).
+            # Инкрементальная запись (ниже) пишет по мере завершения файлов,
+            # поэтому целостность таблицы должна быть гарантирована до первого
+            # bulk_write. Один раз за прогон (на пустой таблице почти бесплатно:
+            # count_rows=0 + нет фрагментов).
+            self._verify_and_repair_table_integrity()
+
             # P0-FIX (регрессия ac6e5ba0e P1-3): загружаем известные хэши ОДИН раз
             # в главном потоке (RLock reentrant — безопасно под begin_write) и
             # передаём воркерам. Без этого каждый воркер Phase 1 ходит в БД
@@ -335,7 +391,13 @@ class IndexProjectRunner:
                     progress_callback("", total_files, total_files, "complete")
                 return 0
 
-            # Phase 2: Sort + Batch Embed
+            # ── Phase 2+3: Sort + Batch Embed + INCREMENTAL WRITE (resume) ──
+            # Раньше ВСЕ эмбеддинги копились в _all_embeddings и записывались
+            # одним bulk_write в Phase 3. Краш на большом проекте (330K чанков)
+            # терял всю работу: таблица пуста → known_hashes пуст → полный
+            # пере-embed. Теперь файлы, все чанки которых эмбеддированы,
+            # записываются сразу (порциями по WRITE_FLUSH_FILES) и освобождают
+            # RAM. Перезапуск = resume: записанные файлы пропускаются по хэшам.
             _flat_chunks: list = [(fp_idx, text) for fp_idx, fp_data in enumerate(_parsed_list)
                                   for text in fp_data["parsed"]["chunk_texts"]]
             total_chunks = len(_flat_chunks)
@@ -347,7 +409,54 @@ class IndexProjectRunner:
                 logger.error("Embedder not ready. Indexing aborted.")
                 return 0
 
+            # Сколько чанков в каждом файле → знаем когда файл «завершён».
+            _chunks_per_file: Dict[int, int] = {}
+            _flat_indices_by_file: Dict[int, list] = {}
+            for _idx, (_fp_idx, _) in enumerate(_flat_chunks):
+                _chunks_per_file[_fp_idx] = _chunks_per_file.get(_fp_idx, 0) + 1
+                _flat_indices_by_file.setdefault(_fp_idx, []).append(_idx)
+            _done_chunks: Dict[int, int] = {}  # fp_idx -> сколько чанков эмбеддировано
+
             _all_embeddings: list = [None] * total_chunks
+            # Инкрементальная запись: флешим порциями завершённые файлы.
+            _pending_prepared: list = []       # накопленные (records, escaped, existing_hash)
+            _pending_map: list = []            # (fp_idx, rec_count) для учёта после write
+            _indexed_count = 0
+
+            def _flush_pending():
+                """Записывает накопленные готовые файлы в БД и освобождает RAM."""
+                nonlocal _pending_prepared, _pending_map, _indexed_count
+                if not _pending_prepared:
+                    return
+                _t_write = time.time()
+                _written = self._db_writer.bulk_write(_pending_prepared) if self._db_writer else 0
+                _write_elapsed = time.time() - _t_write
+                _indexed_count += len(_pending_map)
+                for _fp_idx, _rec_count in _pending_map:
+                    _rel = _parsed_list[_fp_idx]["parsed"]["rel_path"]
+                    with self._index_lock:
+                        self._cached_total_chunks += _rec_count
+                        self._cached_unique_files.add(_rel)
+                    if watchdog_heartbeat:
+                        watchdog_heartbeat(f"write:{Path(_rel).name}")
+                logger.info(
+                    f"Bulk write: {_written} records from {len(_pending_map)} files "
+                    f"in {_write_elapsed:.1f}s (saved {len(_pending_prepared)} prepared)"
+                )
+                # Освобождаем эмбеддинги и parsed-данные записанных файлов.
+                # _all_embeddings зануляем по индексам, чтобы big-проект не
+                # держал ВСЕ вектора в RAM до конца (330K x 1024d x 4B ≈ 1.3GB).
+                for _fp_idx, _ in _pending_map:
+                    for _flat_i in _flat_indices_by_file.get(_fp_idx, ()):
+                        _all_embeddings[_flat_i] = None
+                    _pending_list = self._file_embeddings.pop(_fp_idx, None)
+                    if _pending_list:
+                        _pending_list.clear()
+                    _parsed_list[_fp_idx] = None  # освобождаем тексты чанков
+                _pending_prepared = []
+                _pending_map = []
+                gc.collect()
+
             _embed_t0 = time.time()
 
             for batch_start in range(0, total_chunks, BATCH_SIZE):
@@ -372,6 +481,69 @@ class IndexProjectRunner:
                 for i, flat_idx in enumerate(range(batch_start, batch_end)):
                     _all_embeddings[flat_idx] = embeddings[i]
 
+                # Помечаем завершённые в этом батче файлы.
+                # Файл «завершён» когда эмбеддированы ВСЕ его чанки.
+                _just_completed = []
+                for _fp_idx, _ in batch_data:
+                    _done_chunks[_fp_idx] = _done_chunks.get(_fp_idx, 0) + 1
+                    if _done_chunks[_fp_idx] == _chunks_per_file[_fp_idx]:
+                        _just_completed.append(_fp_idx)
+                if _just_completed:
+                    for _fp_idx in _just_completed:
+                        _file = self._file_embeddings.setdefault(
+                            _fp_idx, {"parsed": _parsed_list[_fp_idx]["parsed"], "vecs": []}
+                        )
+                        # Собираем vecs файла из _all_embeddings в порядке появления
+                        # в отсортированном _flat_chunks (тот же порядок, что и раньше
+                        # в Phase 3 — состав записи идентичен, индексы старых данных
+                        # остаются совместимыми).
+                        _file["vecs"] = [
+                            _all_embeddings[_flat_i]
+                            for _flat_i in _flat_indices_by_file.get(_fp_idx, ())
+                        ]
+                        if self._db_writer is None:
+                            # Fallback: per-file write (оригинальный путь для
+                            # внешних вызовов без db_writer). Resume-инвариант
+                            # не затрагивается: одноразовость записи сохраняется.
+                            for attempt in range(2):
+                                try:
+                                    if self._write_file_records(
+                                        _parsed_list[_fp_idx]["parsed"], _file["vecs"]
+                                    ):
+                                        _indexed_count += 1
+                                    break
+                                except Exception as e:
+                                    if attempt == 0 and self._reset_table_if_not_found(
+                                        e, "write_file_records", attempt
+                                    ):
+                                        continue
+                                    logger.warning(
+                                        f"Write error {_file['parsed']['rel_path']} "
+                                        f"(attempt {attempt+1}/2): {e}"
+                                    )
+                                    break
+                            if watchdog_heartbeat:
+                                watchdog_heartbeat(f"write:{Path(_file['parsed']['rel_path']).name}")
+                            continue
+                        _prepared = None
+                        try:
+                            _prepared = self._db_writer.prepare_records(
+                                _parsed_list[_fp_idx]["parsed"], _file["vecs"],
+                                summarizer=self.summarizer, enable_summaries=False,
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Prepare error {_file['parsed']['rel_path']}: {e} — file skipped"
+                            )
+                        if _prepared and _prepared[0]:
+                            _pending_prepared.append(_prepared)
+                            _pending_map.append((_fp_idx, len(_prepared[0])))
+
+                # Флеш порций завершённых файлов (не ждём конца прогона —
+                # это и есть resume-чекпойнт для краша).
+                if len(_pending_map) >= self.WRITE_FLUSH_FILES or batch_end >= total_chunks:
+                    _flush_pending()
+
                 # sleep removed — benchmarked: batch=32 sustained 100ch/s without pauses (2026-07-26)
 
                 if batch_start % (BATCH_SIZE * 5) == 0 or batch_end >= total_chunks:
@@ -395,83 +567,16 @@ class IndexProjectRunner:
                         f"({total_chunks/max(_embed_total,0.001):.0f} ch/s)")
             _notify_progress(total_chunks, total_chunks, "writing", "", 90, 10)
 
-            # Phase 3: Write Results (с self-healing от Not Found)
-            _file_embeddings: dict = {}
-            for flat_idx, (fp_idx, _) in enumerate(_flat_chunks):
-                if fp_idx not in _file_embeddings:
-                    _file_embeddings[fp_idx] = {"parsed": _parsed_list[fp_idx]["parsed"], "vecs": []}
-                _file_embeddings[fp_idx]["vecs"].append(_all_embeddings[flat_idx])
+            # Файлы, у которых все чанки уже эмбеддированы, но не попали во
+            # флеш (хвост < WRITE_FLUSH_FILES) — добиваем безусловным флешем.
+            _flush_pending()
 
-            indexed_count = 0
-            if self._db_writer:
-                # Bulk write: prepare all records, then one lock cycle
-                _all_prepared = []
-                _prepared_map = []  # (fp_idx, record_count)
-                for fp_idx, fdata in _file_embeddings.items():
-                    try:
-                        prepared = self._db_writer.prepare_records(
-                            fdata["parsed"], fdata["vecs"],
-                            summarizer=self.summarizer, enable_summaries=False,
-                        )
-                        if prepared[0]:  # has records
-                            _all_prepared.append(prepared)
-                            _prepared_map.append((fp_idx, len(prepared[0])))
-                    except Exception as e:
-                        logger.warning(f"Prepare error {fdata['parsed']['rel_path']}: {e}")
-
-                if _all_prepared:
-                    t_write = time.time()
-                    written = self._db_writer.bulk_write(_all_prepared)
-                    write_elapsed = time.time() - t_write
-                    indexed_count = len(_prepared_map)
-                    logger.info(f"Bulk write: {written} records from {indexed_count} files in {write_elapsed:.1f}s")
-
-                # INC-6C62: проверка целостности ДО optimize/IVF. Если таблица
-                # унаследовала ссылки на мёртвые фрагменты (drop+create не
-                # удаляет файлы) — физически пересоздаём и повторяем запись
-                # из уже готовых эмбеддингов (без повторного эмбеддинга).
-                if _all_prepared and not self._verify_index_integrity():
-                    logger.warning(
-                        "INC-6C62: index corrupted (dead fragment refs), "
-                        "recreating table physically + rewrite"
-                    )
-                    if (
-                        self.db_manager is not None
-                        and hasattr(self.db_manager, "recreate_table_physical")
-                        and self.db_manager.recreate_table_physical()
-                    ):
-                        self.table = self.db_manager.table
-                        rewritten = self._db_writer.bulk_write(_all_prepared)
-                        indexed_count = len(_prepared_map)
-                        logger.info(f"Rewrite after physical recreate: {rewritten} records")
-                    else:
-                        logger.error(
-                            "INC-6C62: physical recreate failed — optimize will likely fail"
-                        )
-
-                # Accounting (after bulk write)
-                for fp_idx, rec_count in _prepared_map:
-                    rel = _parsed_list[fp_idx]["parsed"]["rel_path"]
-                    with self._index_lock:
-                        self._cached_total_chunks += rec_count
-                        self._cached_unique_files.add(rel)
-                    if watchdog_heartbeat:
-                        watchdog_heartbeat(f"write:{Path(rel).name}")
-            else:
-                # Fallback: per-file write (original path)
-                for fp_idx, fdata in _file_embeddings.items():
-                    for attempt in range(2):
-                        try:
-                            if self._write_file_records(fdata["parsed"], fdata["vecs"]):
-                                indexed_count += 1
-                            break
-                        except Exception as e:
-                            if attempt == 0 and self._reset_table_if_not_found(e, "write_file_records", attempt):
-                                continue
-                            logger.warning(f"Write error {fdata['parsed']['rel_path']} (attempt {attempt+1}/2): {e}")
-                            break
-                    if watchdog_heartbeat:
-                        watchdog_heartbeat(f"write:{Path(fdata['parsed']['rel_path']).name}")
+            indexed_count = _indexed_count
+            # INC-6C62: verify-проверку больше не делаем здесь — она
+            # перенесена в _verify_and_repair_table_integrity() в начале
+            # run(). После инкрементальных bulk_write таблица всегда цела
+            # (фрагменты созданы нами), а повторное полное чтение на 330K
+            # чанков дорого и теперь не нужно.
 
             logger.info(f"Write complete: {indexed_count} files")
             if progress_callback:

@@ -30,6 +30,7 @@ import httpx
 
 from src.config.settings import get_config
 from src.core.interfaces.reranker import IReranker
+from src.providers.reranker.llama_install import LLAMA_RERANK_MAX_TOKENS
 from src.providers.reranker.reranker_scoring import (
     apply_scores,
     cosine_similarity,
@@ -61,6 +62,25 @@ def _get_ping_timeout() -> float:
 
 def _get_max_chunk_preview_len() -> int:
     return get_config().search.max_chunk_preview_len
+
+
+def _truncate_rerank_pair(
+    query: str, passages: List[str], max_tokens: int = LLAMA_RERANK_MAX_TOKENS
+) -> str:
+    """Обрезает query так, чтобы query+максимальный passage не превысил ubatch.
+
+    Реальный токенайзер bge-m3 недоступен на клиенте, поэтому используем
+    консервативную эвристику: 1 токен ≈ 2 символа (покрывает кириллицу,
+    латиницу и код; CJK наоборот 1 симв ≈ 1-2 токена — запас сохранён, т.к.
+    режем по символам строже).
+
+    Возвращает обрезанный query (исходный, если пара в пределах лимита).
+    """
+    max_passage = max((len(p) for p in passages), default=0)
+    q_limit = max(16, max_tokens * 2 - max_passage)
+    if len(query) + max_passage <= max_tokens * 2:
+        return query
+    return query[:q_limit]
 
 
 # Минимальный скор реранкера для фильтрации низкокачественных чанков
@@ -465,7 +485,7 @@ class MultiProviderReranker(IReranker):
             resp = await self._client.post(
                 f"{self.llama_cpp_url}/v1/rerank",
                 json={
-                    "query": query,
+                    "query": _truncate_rerank_pair(query, passages),
                     "documents": passages,
                     "top_n": len(passages),
                 },
