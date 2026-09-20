@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **Умный ubatch по ролям (2026-09-20):** вместо одного `LLAMA_UBATCH_SIZE=2048` для обеих ролей — `resolve_ubatch(role)`: embed → ceil(480/128)*128=**512**, rerank → ceil(1000/128)*128=**1024**. Основание: A/B на реальных 2227 чанках — ubatch=512 → 596 MB / 18.9 ch/s vs 2048 → 1686 MB / 16.1 ch/s. Раньше llama.cpp требовал «entire input ≤ ubatch» (#25293), для b9940 целый батч делится по слотам, лимит остался на ОДИН текст/пару → клиентский трим: embed обрезает до `LLAMA_EMBED_MAX_TOKENS=480` (единый источник с remote_embedder), rerank — `_truncate_rerank_pair` до `LLAMA_RERANK_MAX_TOKENS=1000`. `LLAMA_UBATCH_SIZE` env — жёсткий override. Файлы: `llama_install.py` (resolve_ubatch), `llama_runner.py` (_ubatch_arg, 3 места запуска), `multi_provider.py` (трим пары), `remote_embedder.py` (импорт лимита), тест `test_ubatch_roles.py`. Live-check: реальный llama-server принял ubatch=512, embeddings 200 dim=384.
+
 - **PyPI-packaging + user-data isolation (2026-08-28):** wheel теперь содержит `tools.stale_detector`, `adapters`, `locales` (норм. данные в site-packages); бинарники/модели в pip-режиме — `get_data_root()` (`%LOCALAPPDATA%\mscodebase`), гейт-маркер `__mscodebase_ext__.marker` отличает расширение от установленного пакета; CLI `--project-path/--project-dir` → env `MSCODEBASE_PROJECT_PATH` (приоритет НАД CWD, trust_self_index); `PROJECT_PATH` остался после CWD (multi-window сохранён). Live-Smoke из чистого venv: tools-ok, `en (78 ключей)`, корень резолвится. Файлы: `pyproject.toml`, `project_resolution.py`, `main.py`, `llama_install.py`. INC-C4CD.
 
 - **Server freeze during full reindex (2026-08-25):** root cause — `begin_write()` держит `_write_lock` (RLock) весь reindex (~7.5 мин embedding), а `IndexStatusReporter.get_status()` синхронно на event-loop-потоке ждал тот же lock (intel_get_runtime_status/require_ready_project/ProjectContext) → заморозка ВСЕХ MCP-вызовов. Фикс: reindex fast-fail в get_status (кэш + status="reindexing") + asyncio.to_thread в 3 loop-точках + guard в _get_stale_warning.
@@ -23,6 +25,19 @@
 - **LIVE-SMOKE (2026-08-13):** scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp / rerank BGE-M3 / векторный поиск по реальному LanceDB); §7 п.10b: для runtime-изменений ✅ = live-check, не только pytest (инцидент: 7 тестов зелёные по неверной причине)
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
+
+## [2026-09-20] — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
+
+**Status:** Measured (refuted hypothesis)
+**Hypothesis:** doc-chunks (README + docs/en/ + docstrings) retrieve as well as code-chunks via search_with_mode quality.
+**Method:** 16 EN doc-queries, live index (18665 rows/1197 files), Hit@1/Hit@5/MRR via direct lookup (no LLM judges).
+**Result:** hit@1=12.5% (2/16), hit@5=12.5% (2/16), MRR=0.125. Кодовый baseline: hit@1=0%/20%, hit@5=50%/40%, MRR=0.200.
+**Root Cause:** (1) embedder плотнее эмбедлит code-сигнатуры, doc-чанки размыты; (2) индекс bias на код (чанков >> doc); (3) queries без intent_hint="docs" маршрутизируются в code-путь.
+**Fix (не код):** добавить intent_detection для doc-queries + поднять weight doc-bucket в soft-weighting.
+**Guard:** перед production doc-RAG — intent routing + doc-bucket boost. Без этого текстовый RAG ненадёжен.
+**verified_from_clean_state:** ⚠️ не проверено — скрипт использует live-индекс MCP (не чистый клон)
+
+## [2026-09-18] — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
 - **Evidence Ladder (2026-08-15, Exp 2-E E1-E3):** форма evidence — переменная; file_content = лучший recall (qwen 0.92), graph = закрытие present-trap ТОЛЬКО у evidence-честных моделей (qwen3.7 FA trap 1→0 ценой recall 0.92→0.76); fail-open (glm-4.7: FA trap 6/6) не лечится ни одной формой — свойство модели. VOR-конвейер: фрагмент файла для recall + графовая проверка субъекта отдельным сигналом; glm-семейство исключить
 - **VOR MATCHED/DELIVERED (2026-08-16):** per-node накопительные счётчики matched/delivered в verify_cache.json (ключ node_id — переживают HEAD); starved = виден ≥2 циклов, ни разу не проверен — отличает голодание по бюджету от бага якорей (раунд 2 Тома; «пол Тома» = раунд 1)
 - **CONTRADICTION RESOLVED [2026-08-28]:** Агент перезаписал `.agent_task_state.md` чужой задачи (`Port env-access extractor`) при запуске Red Team — нарушение §0.1 (Task State Persistence) + §4.9 (Contradiction Hunting). Исправлено: восстановлен оригинальный `.agent_task_state.md`, Red Team-задача перенесена в `.red_team_state.md`. Root cause: отсутствие проверки содержимого файла перед `write_file`. Guard: перед любым `write_file` на `.agent_task_state.md` — читать первую строку и сверять с ожидаемым заголовком задачи.
@@ -416,3 +431,44 @@ VERDICT H3: CONFIRMED
 **verified_from_clean_state:** ⚠️ не прогонялся (ветка → PR; полный pytest 1753 passed — verify_diary-gate при коммите).
 **Next:** AST/Graph-hybrid re-ranking (graph_query scope_id + text-match) вместо эмбеддинговых твиков; live-check полного реиндекса на прод-БД после миграции (запрос владельцу).
 **Связки:** KNOWN_ISSUES 2026-09-19 (2 записи), EXPERIMENTS_LOG Exp E10, tests/test_lancedb_recreate.py, scripts/e2e_quality_search.py, experiments/search_quality/E10_full_text_embed.py, exp-43 portfolio lab.
+## [2026-09-19] Exp E11 (Graph-hybrid re-ranking): CONFIRMED-сигнал — подъём graph-хитов +40% hit@5
+
+**Status:** Research closed (E11 CONFIRMED, прод-интеграция — вопрос владельцу)
+**Exp E11 (read-only зонд + руки, ~40 мин):** baseline quality (live embed/rerank, та же сессия) hit@1=2/10 hit@5=2/10 MRR=0.200. Руки поверх тех же top-k: A-prepend (graph-файлы в топ) hit@5=4/10 MRR=0.253; B-RRF 3/10 MRR=0.225; C-graph 4/10 MRR=0.253 (2 стабильных прогона). Спаслись #7 project_indexer_registry и #8 indexing_tools (оба target подтверждены в graph_files, шум остаётся). graph-lookup 6ms vs baseline 1978ms.
+**Root Cause (почему растёт):** embedding/BM25 теряют детерминированные кодовые идентификаторы (file_mtime_ns, notify, bm25); SymbolIndex знает их точно, но engine._graph_stage триггерится только на чистый identifier-токен — NL-запросы его не проходят.
+**RED TEAM:** (1) шум в graph-файлах (multi_rag_ablation и т.п.) — MRR растёт слабо, hit@1 ровно, потому нужна фильтрация (def-first / min use-count) перед продом; (2) N=10 — уровень шума: сигнал, не доказательство — расширенная панель 30+ обязательна; (3) переключение ниши: прод-стадия за флагом, поведение клиента = HEAD при off.
+**Паттерн:** P-recurring «симметричный поисковый путь» — search_symbols уже есть, но недоиспользуется: одна точка инжекции (engine.hybrid_search_async post-fusion) может дать +2 хита за 6ms.
+**verified_from_clean_state:** не требуется (эксперимент read-only, src/ не тронут; portfolio 26/26 passed).
+**Next:** кандидат в прод — стадия «извлечь символы из NL → search_symbols → top-k подъём (A-prepend)» за флагом; решение владельца + расширенная панель перед фиксацией кода.
+**Связки:** EXPERIMENTS_LOG Exp E11, experiments/search_quality/E11_graph_hybrid_probe.py + E11_graph_hybrid_arms.py, exp-44 portfolio lab; E10 REFUTED (2026-09-19) — точка отсчёта.
+
+---
+
+## [2026-09-20] Resume-��������������� ������ � IndexProjectRunner.run (330K-�������� ������)
+
+**Status:** Fixed (6 ����� resume-������ + ������ pytest 1774 passed; �� ����������� � ��� �������)
+**Root Cause:** run() ����� ��� ���������� � _all_embeddings (330K x 1024d x 4B ? 1.3GB) � ����� ����� bulk_write � Phase 3. ���� �� ������� ������� ����� ��� ������: ������� ����� > known_hashes ���� > ������ ����-embed ��� �����������. index_guard.py:123: ������ ������� > needs_reindex > ������ �����.
+**Fix:** (1) _verify_and_repair_table_integrity() � ������ run() �� known_hashes (INC-6C62 integrity �� skip-�������; ���� ��� �� ������); (2) Phase 2+3 �����: ���� ���������� (��� ����� �������������) > prepare_records > _pending_prepared > bulk_write �������� �� WRITE_FLUSH_FILES=32; ����� ������ _all_embeddings/_parsed_list ���������� + gc.collect (RAM-����); (3) ������� vecs �������� (������������� _flat_chunks) � ������ ������ ������ ���������; (4) _flat_indices_by_file � O(1) ���� vecs, �� O(N?); (5) fallback per-file write ��� db_writer=None ��������.
+**Guard:** 6 ����� ������ (tests/test_index_resume_incremental.py): ������� �������, ����������������� (bulk_calls>=4), ���� ��������� ���������� (>=32), resume ������� ���������� (<=68), no double-write, RAM-������������ ����� spy �� ������. Red Team: 5 ���� ��������� (concurrency/idempotent, ������� ���� / BATCH_SIZE, TOCTOU crash ����� bulk_write, ��������� run, integrity-recreate ����� skip � ������� ������ check).
+**verified_from_clean_state:** ?? �� ���������� (uncommitted; ������ pytest 1774 passed/5 skipped). Live-smoke �� ���������� (embedder fallback � CI-���������) � resume-��������� ��������� �� �������� ��������, �������� ������ ?1000 ������ �� ����-�� � ��������� ���.
+**Next:** ������ (2 ������ pending: ubatch-resolve + resume) �� ������� ���������; live-���ume �� ������� �������; KNOWN_ISSUES: ��� �� ������ flush (10K ������ = 10K ���-����� �� 330K ������) � rate-limit ��� debug.
+
+
+## [2026-09-20] — Поисковое качество / E13: исследовательские задачи (6 пунктов)
+
+**Status:** Plan (задачи занесены в ISSUE.md KI-R1..R6, код не тронут)
+**Контекст:** исследование поиска/RAG — что именно измерять, прежде чем утверждать результат.
+**Решение (приоритет):** KI-R1 (перезапуск exp-5 + gold_chunk_id) → KI-R2 (два прогона E13) → остальное.
+**Пункты:**
+1. KI-R1 (P1): fix measurement — exp-5 restart после KI-101, gold_chunk_id Recall@5, наборы 10→16+.
+2. KI-R2 (P1): E13 до нормы — intent_hint=docs + doc-only индекс, два дешёвых прогона.
+3. KI-R3 (P2): интерфейс «найдено N / использовано M» + eligible_seen.
+4. KI-R4 (P2): регрессионный тест дедупликации (MMR vs финальный sort, SCT/SCT Inst).
+5. KI-R5 (P2): гибрид — фильтр лексической ветки вместо RRF (threshold по чанкам/терминам).
+6. KI-R6 (P2): housekeeping — 7 копий exp-29 на Lab, дубли в архиве дневника, README числа.
+7. KI-R7 (P2): авто-замер — gold_chunk_id из индекса → Recall@5 в get_health_report.
+8. KI-R8 (P2): дедупликация по хешу, оба пути в цитате.
+9. KI-R9 (P2): не подбирать один режим — vector+BM25 снизил recall у нас, hybrid проиграл vector у автора.
+10. KI-R10 (P2): слабый запрос → не молчать, fallback grep (exp-26).
+11. KI-R11 (P2, первым): «найдено N / использовано M» + «проиндексировано ли».
+**verified_from_clean_state:** ⚠️ не проверено — записи в ISSUE.md/AGENT_DIARY.md, код не менялся.

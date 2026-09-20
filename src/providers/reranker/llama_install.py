@@ -35,13 +35,39 @@ LLAMA_HOST = os.getenv("LLAMA_CPP_HOST", "127.0.0.1")
 # 🏆 Оптимальные параметры для эмбеддингов (Qwen3-Embedding)
 # Основание: бенчмарки 2026-07-09 — ctx 1024 даёт 722 MB RAM (vs 1669 MB с полным)
 # batch-size 512: обрабатывает до 512 токенов за один проход
-# ubatch-size 128: физический батч для CPU
 # device none: CPU-only (работает и на MSVC, и на Clang сборках)
 LLAMA_CTX_SIZE = int(os.getenv("LLAMA_CTX_SIZE", "2048"))     # 2048 = ~1 GB RAM; embeddings mode requires ctx >= total input tokens
 LLAMA_BATCH_SIZE = int(os.getenv("LLAMA_BATCH_SIZE", "2048"))   # must match ctx; embeddings mode uses full batch
-LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "2048"))  # embeddings: entire input must fit in one ubatch (GitHub #25293). Match ctx.
+# ─── Умный ubatch по ролям (A/B 2026-09-20, реальные 2227 чанков, порт 8082) ───
+# llama.cpp требует: ОДИН вход (текст / пара query+passage) ≤ ubatch, иначе
+# HTTP 500. При этом целый батч делится по слотам — комментарий GitHub #25293
+# («entire input must fit») устарел для b9940, лимит остался на ОДИН вход.
+# Раньше ubatch=2048 для ВСЕХ ролей → vol 1686 MB на embed. Измерено:
+#   ubatch 512 → 596 MB / 18.9 ch/s (тексты клиент режет до 480 токенов)
+#   ubatch 2048 → 1686 MB / 16.1 ch/s
+# Роль embed: вход ≤ LLAMA_EMBED_MAX_TOKENS (клиент, remote_embedder) → 512.
+# Роль rerank: вход = query+passage → LLAMA_RERANK_MAX_TOKENS (клиент тримит) → 1024.
+# LLAMA_UBATCH_SIZE остаётся жёстким env-override  (см. resolve_ubatch).
+LLAMA_EMBED_MAX_TOKENS = int(os.getenv("LLAMA_EMBED_MAX_TOKENS", "480"))
+LLAMA_RERANK_MAX_TOKENS = int(os.getenv("LLAMA_RERANK_MAX_TOKENS", "1000"))
+LLAMA_UBATCH_SIZE = int(os.getenv("LLAMA_UBATCH_SIZE", "0")) or None
 LLAMA_DEFRAG_THOLD = float(os.getenv("LLAMA_DEFRAG_THOLD", "0.3"))  # дефрагментация KV при 30%
 LLAMA_CACHE_TYPE = os.getenv("LLAMA_CACHE_TYPE", "q4_0")  # сжатие KV кэша (q4_0 = 4-bit, без потери качества)
+
+
+def resolve_ubatch(role: str = "embed") -> int:
+    """Возвращает ubatch для роли сервера (embed | rerank).
+
+    Роль специфична, потому что лимит входа у них разный:
+    embed  — один текст ≤ LLAMA_EMBED_MAX_TOKENS  (клиент truncate)
+    rerank — пара query+passage ≤ LLAMA_RERANK_MAX_TOKENS (клиент триммит)
+
+    Округляем вверх до 128 (кратность, которой достаточно — не 2048).
+    """
+    if LLAMA_UBATCH_SIZE:
+        return LLAMA_UBATCH_SIZE
+    limit = LLAMA_RERANK_MAX_TOKENS if role == "rerank" else LLAMA_EMBED_MAX_TOKENS
+    return ((limit + 127) // 128) * 128
 
 # ─── Платформенная детекция ────────────────────────────────────
 def _detect_platform() -> tuple:
@@ -776,7 +802,7 @@ def get_system_summary() -> dict:
             "avx2": True,
             "avx512": False,
             "provider": "llama.cpp",
-            "provider_ram_mb": 523,
+            "provider_ram_mb": 596,
         }
     """
     os_name = sys.platform
@@ -810,7 +836,6 @@ def get_system_summary() -> dict:
             os_name = "Linux"
 
     provider = "llama.cpp" if is_installed() else "ONNX server"
-    provider_ram = 523 if is_installed() else 1689
 
     return {
         "os": os_name,
@@ -822,16 +847,19 @@ def get_system_summary() -> dict:
         "avx2": _CPU_INFO.get("avx2", False),
         "avx512": _CPU_INFO.get("avx512", False),
         "provider": provider,
-        "provider_ram_mb": provider_ram,
+        "provider_ram_mb": 596 if is_installed() else 1686,  # A/B 2026-09-20: ubatch=512 → 596 MB; ubatch=2048 → 1686 MB
     }
 
 
 __all__ = [
     # constants
     "LLAMA_VERSION", "LLAMA_BASE_URL", "LLAMA_PORT", "LLAMA_HOST",
-    "LLAMA_CTX_SIZE", "LLAMA_BATCH_SIZE", "LLAMA_UBATCH_SIZE",
+    "LLAMA_CTX_SIZE", "LLAMA_BATCH_SIZE",
+    "LLAMA_EMBED_MAX_TOKENS", "LLAMA_RERANK_MAX_TOKENS",
+    "LLAMA_UBATCH_SIZE",
     "LLAMA_DEFRAG_THOLD", "LLAMA_CACHE_TYPE",
     "GGUF_MODELS", "DEFAULT_EMBEDDING_MODEL", "DEFAULT_RERANKER_MODEL",
+    "resolve_ubatch",
     "LLAMA_BIN_SHA256", "LLAMA_BIN_NAME", "LLAMA_BIN_ZIP", "LLAMA_BIN_URL",
     # module-level vars (public)
     "_IS_INSIDER", "_HAVE_VULKAN", "_EXE_SUFFIX", "_ZIP_EXT",
