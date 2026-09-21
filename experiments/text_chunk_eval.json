@@ -1,0 +1,203 @@
+{
+  "metrics": {
+    "n_queries": 16,
+    "hit1_pct": 12.5,
+    "hit5_pct": 12.5,
+    "mrr_mean": 0.125,
+    "avg_latency_ms": 1694.0
+  },
+  "rows": [
+    {
+      "query": "how to install the mscodebase extension in Zed and what it does",
+      "expected": "README.md",
+      "latency_ms": 0.0,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "adapters/zed/zed_config.py",
+      "n_results": 2
+    },
+    {
+      "query": "what MCP tools are available for code search",
+      "expected": "README.md",
+      "latency_ms": 506.6,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "src/mcp/tools/search_tools.py",
+      "n_results": 5
+    },
+    {
+      "query": "search modes fast quality deep auto which to choose",
+      "expected": "README.md",
+      "latency_ms": 1993.5,
+      "hit1": 1.0,
+      "hit5": 1.0,
+      "mrr": 1.0,
+      "rank1": 1,
+      "rank5": 1,
+      "top_file": "README.md",
+      "n_results": 5
+    },
+    {
+      "query": "how does the clean architecture layers DI container work",
+      "expected": "docs/en/ARCHITECTURE.md",
+      "latency_ms": 495.3,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "experiments/misc_probes/e2e_results_v2.json",
+      "n_results": 5
+    },
+    {
+      "query": "how is the search pipeline structured BM25 RRF reranker",
+      "expected": "docs/en/SEARCH_PIPELINE.md",
+      "latency_ms": 2399.3,
+      "hit1": 1.0,
+      "hit5": 1.0,
+      "mrr": 1.0,
+      "rank1": 1,
+      "rank5": 1,
+      "top_file": "docs/en/SEARCH_PIPELINE.md",
+      "n_results": 1
+    },
+    {
+      "query": "graceful degradation levels llama ONNX BM25",
+      "expected": "docs/en/GRACEFUL_DEGRADATION.md",
+      "latency_ms": 589.1,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "scripts/download_model.py",
+      "n_results": 5
+    },
+    {
+      "query": "frequently asked questions installation setup",
+      "expected": "docs/en/FAQ.md",
+      "latency_ms": 2164.5,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "experiments/universal-engine/e-s1-polygon/fixtures/berry/package.json",
+      "n_results": 5
+    },
+    {
+      "query": "how to configure telemetry ETA data collection",
+      "expected": "docs/en/TELEMETRY.md",
+      "latency_ms": 460.2,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "experiments/misc_probes/e2e_results_v2.json",
+      "n_results": 5
+    },
+    {
+      "query": "security policy vulnerability reporting",
+      "expected": "docs/en/SECURITY.md",
+      "latency_ms": 2130.3,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "experiments/universal-engine/e-s1-polygon/fixtures/commons-lang/pom.xml",
+      "n_results": 5
+    },
+    {
+      "query": "Windows Zed restricted mode quirks",
+      "expected": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "latency_ms": 496.8,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "adapters/zed/zed_config.py",
+      "n_results": 5
+    },
+    {
+      "query": "how to contribute development PR code review",
+      "expected": "docs/en/CONTRIBUTING.md",
+      "latency_ms": 2147.0,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "docs/archive/AGENT_DIARY_2026_07.md",
+      "n_results": 5
+    },
+    {
+      "query": "version history changelog",
+      "expected": "docs/en/CHANGELOG.md",
+      "latency_ms": 520.7,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "scripts/bump_version.py",
+      "n_results": 5
+    },
+    {
+      "query": "how to install ONNX llama reranker models",
+      "expected": "docs/en/INSTALL_MODELS.md",
+      "latency_ms": 3099.7,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "src/providers/reranker/llama_install.py",
+      "n_results": 2
+    },
+    {
+      "query": "LM Studio reranker embedder setup",
+      "expected": "docs/en/LM_STUDIO_SETUP.md",
+      "latency_ms": 3062.2,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "src/config/settings.py",
+      "n_results": 5
+    },
+    {
+      "query": "system requirements Windows macOS Linux",
+      "expected": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "latency_ms": 4960.9,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "tools/stale_detector/stale_config.json",
+      "n_results": 5
+    },
+    {
+      "query": "handoff context transfer between sessions",
+      "expected": "docs/en/HANDFOFF.md",
+      "latency_ms": 378.6,
+      "hit1": 0.0,
+      "hit5": 0.0,
+      "mrr": 0.0,
+      "rank1": 0,
+      "rank5": 0,
+      "top_file": "experiments/context_engine/results_v2.json",
+      "n_results": 5
+    }
+  ]
+}
