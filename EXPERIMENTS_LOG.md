@@ -2279,3 +2279,42 @@ None из трёх «выключателей» (full-text-эмбеддинг / 
 **Guard:** перед production RAG по документации — добавить intent_detection для doc-queries + поднять вес doc-bucket в soft-weighting. Без этого текстовый RAG ненадёжен.
 
 **Artifacts:** scripts/eval_text_chunks.py, experiments/text_chunk_eval.json.
+
+## [2026-09-22] — Exp E14: Embedder A/B — EmbeddingGemma 300M vs multilingual-e5-small (production)
+
+**Гипотеза:** EmbeddingGemma 300M (768-dim, MRL 768/512/256/128, ctx 2048, проверенная на MTEB/BEIR — значимо сильнее e5-small 384-dim, ctx 512) даст заметно лучшее качество кодового ретривала на реальном корпусе MSCodeBase при цене ~3-4× медленнее на CPU (10 потоков, Ryzen 5600H).
+
+**Методика:** `python experiments/embeddinggemma/bench.py <key> --port <p> --out results/<key>.json` — повторяемый харнесс:
+- **Прод-конфиг 1:1** (как встроенная модель): llama-server `-c 2048 --batch-size 2048 --ubatch-size 512 --threads 10 --cache-type-k q4_0 --cache-type-v q4_0 --no-webui -ngl 0 --embedding --pooling mean`, **raw text** (нет e5-префиксов — прод llama.cpp-ветка их не использует), L2-нормализация.
+- **Корпус качества:** 27 реальных файлов src/ (16 золотых + 11 дистракторов), 3 чанка/файл → 81 чанк ~400 токенов; 16 русских NL-запросов; метрики file-level и chunk-level hit@1/hit@5/MRR прямым cosine (без LLM-судей).
+- **Свипы:** батч 1..32 (N=32 чанка по 420 ток.); чанк-таргет 128..1900 (N=8); MRL 512/256/128; RAM WSS процесса через psapi.
+- Префикс `--ubatch 2048` для gemma: с прод-ubatch=512 **ни один вход >512 токенов невозможен** (llama-server: `input (737 tokens) is too large... increase the physical batch size (current batch size: 512)`) — ограничение ubatch, не модели. Это отдельный вывод: e5 и так режется клиентом на 480 (LLAMA_EMBED_MAX_TOKENS), gemma в прод-конфиге упрётся в 512.
+
+**Сырой вывод (bench.py, 1 прогон на пресет, значение = агрегат):**
+```
+[prod_e5   ] dim=384 max_tok=480 RAM_wss=91MB  | quality h1f=0.062 mrrc=0.210
+[gemma_q8  ] dim=768 max_tok=2048 RAM_wss=176MB | quality h1f=0.688 mrrc=0.774
+[gemma_q4  ] dim=768 max_tok=2048 RAM_wss=178MB | quality h1f=0.625 mrrc=0.695
+[gemma_qat4] dim=768 max_tok=2048 RAM_wss=177MB | quality h1f=0.562 mrrc=0.653
+```
+
+**Результаты (итог):**
+| Метрика | e5 (prod) | gemma Q8_0 | gemma Q4_0 | gemma QAT-Q4_0 |
+|---|---|---|---|---|
+| dim | 384 | 768 | 768 | 768 |
+| RAM WSS | 91MB | 176MB | 178MB | 177MB |
+| tok/s (batch 32) | 3860 | 953 | 1359 | 1357 |
+| ch/s (batch 32, ~420 tok) | 10.1 | 2.4 | 3.4 | 3.4 |
+| hit@1 file | 0.062 | **0.688** | 0.625 | 0.562 |
+| hit@5 file | 0.250 | **0.812** | 0.812 | 0.812 |
+| MRR file | 0.210 | **0.774** | 0.695 | 0.653 |
+| ch/s резко не растёт от батча | да (плато ~10) | да (плато ~2.4) | да (плато ~3.4) | да |
+| chunk-sweep оптимум (ch/s) | 128 ток (26.7) | 128 ток (9.0) | 128 ток (13.0) | 128 ток (13.1) |
+| MRL 256 (hit@1/MRR) | 0.06/0.19 | 0.69/0.74 | 0.62/0.71 | 0.62/0.72 |
+| MRL 128 (hit@1/MRR) | 0.12/0.23 | 0.62/0.74 | 0.44/0.58 | 0.44/0.59 |
+
+**Вердикт: HYPOTHESIS CONFIRMED.** Gemma Q8_0: hit@1 +62.6 п.п., MRR +56.4 п.п. против e5 на кодовом корпусе при RAM 176MB (×2) и скорости 2.4 ch/s (×4.2 медленнее). Квантизация: Q8 > Q4 > QAT-Q4 (QAT-файл, вопреки обещаниям, хуже обычного Q4_0). MRL: **256-dim сохраняет ~всё качество** (MRR 0.74 vs 0.774 у Q8; 0.71 при Q4) — дешёвый компромисс места (256-384 float32 = 1MB на 1M чанков против 768), 128-dim начинает проседать на Q4.
+
+**Guard (наблюдение, не изменение прода):** e5-клиент режет вход на 480 токенов и n_ctx_train=512 — верх железных 512; gemma без изменения ubatch в проде тоже ограничена 512 токенами/вход (не 2048). Итоговый вердикт по смене прода — ОТДЕЛЬНЫМ замером: E12 показал, что прод-точка работы индексатора близка к потолку токен/сек и перегон ~335k чанков уже ~8ч на e5; замена embedder влечёт полный реиндекс ОБЯЗАТЕЛЬНО на чистом индексе (урок E10), а цена ×4 скорости реиндекса (≈32ч на 68M токенов) — решение владельца.
+
+**Artifacts:** experiments/embeddinggemma/bench.py, experiments/embeddinggemma/results/{prod_e5,gemma_q8,gemma_q4,gemma_qat4}.json, experiments/embeddinggemma/models/*.gguf (в .gitignore); порт RAG-качества см. E10/E11.
