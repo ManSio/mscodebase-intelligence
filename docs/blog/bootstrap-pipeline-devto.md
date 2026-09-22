@@ -1,7 +1,9 @@
 ---
 title: "From a Test-Suite Trace to a Search Signal: the Bootstrap Pipeline Story"
+published: false
 description: "Part 4 of MSCodeBase Intelligence — Field Notes. Full source-material: why bootstrap started, Exp 7 (dynamic link), 7b (Tarantula), 8 (sysmon), 9 (static), 16 (portability), 17/E17 (search consumer). Honest about what is still experimental and can break."
 tags: search, rag, codearchitecture, testing
+canonical_url: https://github.com/ManSio/mscodebase-intelligence/blob/main/docs/blog/bootstrap-pipeline.md
 ---
 
 > **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "What Could Go Wrong" section.
@@ -30,14 +32,14 @@ Measurement killed it instantly: **0 out of 109** tests in the evaluation sample
 
 We executed the entire suite (1,727 tests) using a custom `sys.settrace` plugin:
 
-<pre>
+```
 [dynamic_trace] total tests traced: 1727
 [dynamic_trace] tests executing >=1 src function: 1551 (89.8%)
 [dynamic_trace] unique src functions executed: 1212
 [dynamic_trace] avg src functions per linked test: 10.1 (median 6, range 1-118)
 tests with exact-name target hit in dynamic set: 47 (2.7%)
 A/B same session: 174.8s vs 198.6s -> overhead +13.6%
-</pre>
+```
 
 **Takeaway: Dynamic tracing is the only deterministic linker, at the cost of a +13.6% one-time execution overhead.** And an uncomfortable truth surfaced immediately: a single test executes **10.1 functions** on average. "1 test = 1 function" was a naive myth. Thus, edges required a **ranker**: which of the 10 is the primary target?
 
@@ -65,9 +67,9 @@ Could `coverage run` (Python 3.14, `sys.monitoring`) run faster than our custom 
 *Hypothesis:* Overhead <5%.  
 *Measurement:*
 
-<pre>
+```
 baseline: 184.88s | coverage: 221.78s -> overhead +19.96% (target <5% REFUTED)
-</pre>
+```
 
 `coverage.py` was **~1.5x slower** than our lightweight plugin. `sys.monitoring` remains a validation oracle for spot-checks, while `sys.settrace` stays as the main execution driver.
 
@@ -77,47 +79,12 @@ baseline: 184.88s | coverage: 221.78s -> overhead +19.96% (target <5% REFUTED)
 
 We evaluated a full static score (AST L1 calls / L2 name tokens / L3 imports) against dynamic trace as ground truth.
 
-<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
-<thead>
-<tr>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Signal</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Hit</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Recall</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Precision</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Mean Candidates</th>
-</tr>
-</thead>
-<tbody>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L1 (direct calls from test body)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">88.4%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">30.3%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">68.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2.9</td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L2 (name tokens)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">17.7%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">3.8%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">12.1%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
-</tr>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L3 (file imports)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">91.6%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">72.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">21.8%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">41.4</td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>Union (L1 + L2 + L3)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">90.4%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">70.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">20.6%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
-</tr>
-</tbody>
-</table>
+| Signal | Hit | Recall | Precision | Mean Candidates |
+|:-------|----:|-------:|----------:|----------------:|
+| **L1 (direct calls from test body)** | 88.4% | 30.3% | 68.0% | 2.9 |
+| **L2 (name tokens)** | 17.7% | 3.8% | 12.1% | — |
+| **L3 (file imports)** | 91.6% | 72.0% | 21.8% | 41.4 |
+| **Union (L1 + L2 + L3)** | 90.4% | 70.0% | 20.6% | — |
 
 The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%**. Static signals were stronger than anticipated, but as a precise anchor L1 is narrow (precision 68%, 2.9 candidates), and as a wide net L3 is noisy (41.4 candidates). 
 
@@ -129,40 +96,11 @@ The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%*
 
 Does this generalize beyond our own repo? We ran the tracer against external projects:
 
-<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
-<thead>
-<tr>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Project</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Language</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Tests</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Linked %</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Overhead</th>
-</tr>
-</thead>
-<tbody>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>gemma_agent</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Python</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2882 (2874 pass)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>97.3%</strong> (2805)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>+17.4%</strong> (71.4s vs 60.8s)</td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>commit-</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Python</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">27</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>100%</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">N/A</td>
-</tr>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>codebase-memory-mcp</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Go</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">27 test funcs</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>go test</code>: 51.0% pkg / <strong>22.2% per-test</strong></td>
-</tr>
-</tbody>
-</table>
+| Project | Language | Tests | Linked % | Overhead |
+|:---------|:---------|-------:|---------:|----------|
+| **gemma_agent** | Python | 2882 (2874 pass) | **97.3%** (2805) | **+17.4%** (71.4s vs 60.8s) |
+| **commit-** | Python | 27 | **100%** | N/A |
+| **codebase-memory-mcp** | Go | 27 test funcs | — | `go test`: 51.0% pkg / **22.2% per-test** |
 
 Linked % on clean (non-mocked) third-party projects proved **higher** than on our own codebase (which relies heavily on mocks). The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
 
@@ -178,12 +116,12 @@ Everything prior built `test ──TESTS──> function` edges inside PropertyG
 
 A/B evaluation on a live PropertyGraph (7 target functions, true answers from trace):
 
-<pre>
+```
 hit@1: off=7/7, on=7/7 | hit@3: 7/7 | MRR(function): off=1.000, on=1.000
 TESTS-signal: 6/7 queries received relevant covering tests in the response
 graph_stage avg dt: off=3.43ms, on=3.27ms (within noise floor)
 RETRACTION: 0 broken links (all files verified on disk)
-</pre>
+```
 
 The core invariant holds — **function definitions are never displaced by test results** (`MRR = 1.0` in both arms): tests follow strictly as secondary context.
 
@@ -191,13 +129,13 @@ The core invariant holds — **function definitions are never displaced by test 
 
 To validate beyond the narrow 7-query panel, we ran a wide panel of 35 identifier queries (functions with the most TESTS edges):
 
-<pre>
+```
 hit@1: off=33/35 (94.3%), on=33/35 (94.3%)
 hit@3: off=34/35 (97.1%), on=34/35 (97.1%)
 MRR(function): off=0.957, on=0.957
 TESTS-signal: 34/35 queries received new covering tests (97.1%)
 graph_stage avg dt: off=6.52ms, on=7.53ms (overhead +15.3%)
-</pre>
+```
 
 **Critical finding:** TESTS-signal **does not improve hit@1** (off=on). It only **adds context** (tests) to already-found results: 97.1% of queries received new covering tests. This means TESTS-signal is **context for LLM**, not a search improvement. If LLM doesn't use tests, the signal is useless.
 
