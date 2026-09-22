@@ -30,14 +30,14 @@ Measurement killed it instantly: **0 out of 109** tests in the evaluation sample
 
 We executed the entire suite (1,727 tests) using a custom `sys.settrace` plugin:
 
-<pre>
+```
 [dynamic_trace] total tests traced: 1727
 [dynamic_trace] tests executing >=1 src function: 1551 (89.8%)
 [dynamic_trace] unique src functions executed: 1212
 [dynamic_trace] avg src functions per linked test: 10.1 (median 6, range 1-118)
 tests with exact-name target hit in dynamic set: 47 (2.7%)
 A/B same session: 174.8s vs 198.6s -> overhead +13.6%
-</pre>
+```
 
 **Takeaway: Dynamic tracing is the only deterministic linker, at the cost of a +13.6% one-time execution overhead.** And an uncomfortable truth surfaced immediately: a single test executes **10.1 functions** on average. "1 test = 1 function" was a naive myth. Thus, edges required a **ranker**: which of the 10 is the primary target?
 
@@ -65,9 +65,9 @@ Could `coverage run` (Python 3.14, `sys.monitoring`) run faster than our custom 
 *Hypothesis:* Overhead <5%.  
 *Measurement:*
 
-<pre>
+```
 baseline: 184.88s | coverage: 221.78s -> overhead +19.96% (target <5% REFUTED)
-</pre>
+```
 
 `coverage.py` was **~1.5x slower** than our lightweight plugin. `sys.monitoring` remains a validation oracle for spot-checks, while `sys.settrace` stays as the main execution driver.
 
@@ -178,12 +178,12 @@ Everything prior built `test ──TESTS──> function` edges inside PropertyG
 
 A/B evaluation on a live PropertyGraph (7 target functions, true answers from trace):
 
-<pre>
+```
 hit@1: off=7/7, on=7/7 | hit@3: 7/7 | MRR(function): off=1.000, on=1.000
 TESTS-signal: 6/7 queries received relevant covering tests in the response
 graph_stage avg dt: off=3.43ms, on=3.27ms (within noise floor)
 RETRACTION: 0 broken links (all files verified on disk)
-</pre>
+```
 
 The core invariant holds — **function definitions are never displaced by test results** (`MRR = 1.0` in both arms): tests follow strictly as secondary context.
 
@@ -191,13 +191,13 @@ The core invariant holds — **function definitions are never displaced by test 
 
 To validate beyond the narrow 7-query panel, we ran a wide panel of 35 identifier queries (functions with the most TESTS edges):
 
-<pre>
+```
 hit@1: off=33/35 (94.3%), on=33/35 (94.3%)
 hit@3: off=34/35 (97.1%), on=34/35 (97.1%)
 MRR(function): off=0.957, on=0.957
 TESTS-signal: 34/35 queries received new covering tests (97.1%)
 graph_stage avg dt: off=6.52ms, on=7.53ms (overhead +15.3%)
-</pre>
+```
 
 **Critical finding:** TESTS-signal **does not improve hit@1** (off=on). It only **adds context** (tests) to already-found results: 97.1% of queries received new covering tests. This means TESTS-signal is **context for LLM**, not a search improvement. If LLM doesn't use tests, the signal is useless.
 
