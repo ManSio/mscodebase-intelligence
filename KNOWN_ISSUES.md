@@ -6,7 +6,14 @@
 ---
 
 
-**29 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21)
+**30 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21)
+
+## 2026-09-22 — TESTS-рёбра транзитивны, а не «тесты про функцию»; E17 LLM-pilot сломан на извлечении кода (Fixed / Open)
+
+- **Источник:** AGENT_DIARY.md#2026-09-22 (E17 Post-Mortem), `bootstrap_tests.py:216-244`
+- **Описание:** (1) dynamic-trace линкует тест с *каждой исполненной* функцией → `_ensure_data_root` имеет 234 TESTS-ребра при 0 прямых вызовов в `tests/` (`check_disk_space` — 3). Для LLM-контекста сэмпл из 234 — шум, поэтому B-арм ≈ D-арм. (2) `e17_pilot_{answers,judge}.py` извлекали код наивным `f"def {name}"`, а граф хранит qualifed-имена (`Class.method`, `Class::test`) → `# FUNC NOT FOUND` для всех методов, `C_static` пуст 30/30.
+- **Fix:** AST-извлечение в `experiments/bootstrap/e17_extract.py` + 13 тестов (Fixed). Фильтр TESTS по специфичности (прямой вызов / малый coverage-set) и пересборка pilot_data — не сделаны.
+- **Статус:** Fixed (extraction) / Open (specificity-фильтр блокирует валидный E17 LLM-pilot). v3.5.0 retrieval hit@1 не задет.
 
 ## 2026-09-19 — Прод-инцидент: миграция колонок lanceDB молча не выполнялась + db_writer разрушал БД при schema-mismatch (Fixed)
 

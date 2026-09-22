@@ -1,0 +1,452 @@
+{
+  "T01": {
+    "id": 26,
+    "mode": "D_shuffled",
+    "name": "_match_gitignore_pattern"
+  },
+  "T02": {
+    "id": 1,
+    "mode": "A_baseline",
+    "name": "IndexProjectRunner.run"
+  },
+  "T03": {
+    "id": 15,
+    "mode": "D_shuffled",
+    "name": "_extract_yarn_lock"
+  },
+  "T04": {
+    "id": 3,
+    "mode": "A_baseline",
+    "name": "CypherLexer.tokenize"
+  },
+  "T05": {
+    "id": 11,
+    "mode": "D_shuffled",
+    "name": "decorator"
+  },
+  "T06": {
+    "id": 7,
+    "mode": "B_runtime",
+    "name": "resolve_project_root"
+  },
+  "T07": {
+    "id": 6,
+    "mode": "A_baseline",
+    "name": "extract_anchors"
+  },
+  "T08": {
+    "id": 11,
+    "mode": "B_runtime",
+    "name": "decorator"
+  },
+  "T09": {
+    "id": 8,
+    "mode": "A_baseline",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  "T10": {
+    "id": 27,
+    "mode": "D_shuffled",
+    "name": "_Fingerprint.__init__"
+  },
+  "T11": {
+    "id": 10,
+    "mode": "A_baseline",
+    "name": "modification_guard"
+  },
+  "T12": {
+    "id": 14,
+    "mode": "D_shuffled",
+    "name": "validate_code"
+  },
+  "T13": {
+    "id": 2,
+    "mode": "B_runtime",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  "T14": {
+    "id": 12,
+    "mode": "D_shuffled",
+    "name": "wrapper"
+  },
+  "T15": {
+    "id": 21,
+    "mode": "D_shuffled",
+    "name": "_delayed_auto_index"
+  },
+  "T16": {
+    "id": 5,
+    "mode": "D_shuffled",
+    "name": "IndexPipeline.process_file"
+  },
+  "T17": {
+    "id": 8,
+    "mode": "B_runtime",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  "T18": {
+    "id": 6,
+    "mode": "D_shuffled",
+    "name": "extract_anchors"
+  },
+  "T19": {
+    "id": 4,
+    "mode": "A_baseline",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  "T20": {
+    "id": 28,
+    "mode": "B_runtime",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  "T21": {
+    "id": 10,
+    "mode": "D_shuffled",
+    "name": "modification_guard"
+  },
+  "T22": {
+    "id": 13,
+    "mode": "D_shuffled",
+    "name": "format_project_memory"
+  },
+  "T23": {
+    "id": 27,
+    "mode": "B_runtime",
+    "name": "_Fingerprint.__init__"
+  },
+  "T24": {
+    "id": 9,
+    "mode": "B_runtime",
+    "name": "IndexParser.parse_file"
+  },
+  "T25": {
+    "id": 24,
+    "mode": "B_runtime",
+    "name": "IndexStatusReporter.get_status"
+  },
+  "T26": {
+    "id": 3,
+    "mode": "D_shuffled",
+    "name": "CypherLexer.tokenize"
+  },
+  "T27": {
+    "id": 18,
+    "mode": "A_baseline",
+    "name": "load_manifest"
+  },
+  "T28": {
+    "id": 26,
+    "mode": "B_runtime",
+    "name": "_match_gitignore_pattern"
+  },
+  "T29": {
+    "id": 23,
+    "mode": "A_baseline",
+    "name": "_extract_pyproject"
+  },
+  "T30": {
+    "id": 25,
+    "mode": "B_runtime",
+    "name": "WriteTool._action_insert"
+  },
+  "T31": {
+    "id": 21,
+    "mode": "B_runtime",
+    "name": "_delayed_auto_index"
+  },
+  "T32": {
+    "id": 22,
+    "mode": "B_runtime",
+    "name": "load_metrics"
+  },
+  "T33": {
+    "id": 5,
+    "mode": "A_baseline",
+    "name": "IndexPipeline.process_file"
+  },
+  "T34": {
+    "id": 12,
+    "mode": "A_baseline",
+    "name": "wrapper"
+  },
+  "T35": {
+    "id": 16,
+    "mode": "B_runtime",
+    "name": "WriteTool._action_replace"
+  },
+  "T36": {
+    "id": 27,
+    "mode": "A_baseline",
+    "name": "_Fingerprint.__init__"
+  },
+  "T37": {
+    "id": 14,
+    "mode": "B_runtime",
+    "name": "validate_code"
+  },
+  "T38": {
+    "id": 29,
+    "mode": "A_baseline",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  "T39": {
+    "id": 24,
+    "mode": "D_shuffled",
+    "name": "IndexStatusReporter.get_status"
+  },
+  "T40": {
+    "id": 29,
+    "mode": "D_shuffled",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  "T41": {
+    "id": 21,
+    "mode": "A_baseline",
+    "name": "_delayed_auto_index"
+  },
+  "T42": {
+    "id": 15,
+    "mode": "B_runtime",
+    "name": "_extract_yarn_lock"
+  },
+  "T43": {
+    "id": 20,
+    "mode": "A_baseline",
+    "name": "format_runtime_status"
+  },
+  "T44": {
+    "id": 11,
+    "mode": "A_baseline",
+    "name": "decorator"
+  },
+  "T45": {
+    "id": 2,
+    "mode": "D_shuffled",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  "T46": {
+    "id": 17,
+    "mode": "B_runtime",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  "T47": {
+    "id": 7,
+    "mode": "D_shuffled",
+    "name": "resolve_project_root"
+  },
+  "T48": {
+    "id": 25,
+    "mode": "D_shuffled",
+    "name": "WriteTool._action_insert"
+  },
+  "T49": {
+    "id": 7,
+    "mode": "A_baseline",
+    "name": "resolve_project_root"
+  },
+  "T50": {
+    "id": 18,
+    "mode": "B_runtime",
+    "name": "load_manifest"
+  },
+  "T51": {
+    "id": 24,
+    "mode": "A_baseline",
+    "name": "IndexStatusReporter.get_status"
+  },
+  "T52": {
+    "id": 28,
+    "mode": "D_shuffled",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  "T53": {
+    "id": 13,
+    "mode": "A_baseline",
+    "name": "format_project_memory"
+  },
+  "T54": {
+    "id": 20,
+    "mode": "D_shuffled",
+    "name": "format_runtime_status"
+  },
+  "T55": {
+    "id": 16,
+    "mode": "D_shuffled",
+    "name": "WriteTool._action_replace"
+  },
+  "T56": {
+    "id": 25,
+    "mode": "A_baseline",
+    "name": "WriteTool._action_insert"
+  },
+  "T57": {
+    "id": 29,
+    "mode": "B_runtime",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  "T58": {
+    "id": 4,
+    "mode": "D_shuffled",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  "T59": {
+    "id": 15,
+    "mode": "A_baseline",
+    "name": "_extract_yarn_lock"
+  },
+  "T60": {
+    "id": 8,
+    "mode": "D_shuffled",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  "T61": {
+    "id": 30,
+    "mode": "D_shuffled",
+    "name": "RemoteEmbedder._shadow_compare"
+  },
+  "T62": {
+    "id": 23,
+    "mode": "D_shuffled",
+    "name": "_extract_pyproject"
+  },
+  "T63": {
+    "id": 17,
+    "mode": "D_shuffled",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  "T64": {
+    "id": 9,
+    "mode": "D_shuffled",
+    "name": "IndexParser.parse_file"
+  },
+  "T65": {
+    "id": 3,
+    "mode": "B_runtime",
+    "name": "CypherLexer.tokenize"
+  },
+  "T66": {
+    "id": 28,
+    "mode": "A_baseline",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  "T67": {
+    "id": 19,
+    "mode": "B_runtime",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  "T68": {
+    "id": 22,
+    "mode": "D_shuffled",
+    "name": "load_metrics"
+  },
+  "T69": {
+    "id": 30,
+    "mode": "A_baseline",
+    "name": "RemoteEmbedder._shadow_compare"
+  },
+  "T70": {
+    "id": 18,
+    "mode": "D_shuffled",
+    "name": "load_manifest"
+  },
+  "T71": {
+    "id": 22,
+    "mode": "A_baseline",
+    "name": "load_metrics"
+  },
+  "T72": {
+    "id": 30,
+    "mode": "B_runtime",
+    "name": "RemoteEmbedder._shadow_compare"
+  },
+  "T73": {
+    "id": 5,
+    "mode": "B_runtime",
+    "name": "IndexPipeline.process_file"
+  },
+  "T74": {
+    "id": 2,
+    "mode": "A_baseline",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  "T75": {
+    "id": 20,
+    "mode": "B_runtime",
+    "name": "format_runtime_status"
+  },
+  "T76": {
+    "id": 10,
+    "mode": "B_runtime",
+    "name": "modification_guard"
+  },
+  "T77": {
+    "id": 1,
+    "mode": "B_runtime",
+    "name": "IndexProjectRunner.run"
+  },
+  "T78": {
+    "id": 19,
+    "mode": "D_shuffled",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  "T79": {
+    "id": 12,
+    "mode": "B_runtime",
+    "name": "wrapper"
+  },
+  "T80": {
+    "id": 9,
+    "mode": "A_baseline",
+    "name": "IndexParser.parse_file"
+  },
+  "T81": {
+    "id": 6,
+    "mode": "B_runtime",
+    "name": "extract_anchors"
+  },
+  "T82": {
+    "id": 16,
+    "mode": "A_baseline",
+    "name": "WriteTool._action_replace"
+  },
+  "T83": {
+    "id": 23,
+    "mode": "B_runtime",
+    "name": "_extract_pyproject"
+  },
+  "T84": {
+    "id": 17,
+    "mode": "A_baseline",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  "T85": {
+    "id": 19,
+    "mode": "A_baseline",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  "T86": {
+    "id": 14,
+    "mode": "A_baseline",
+    "name": "validate_code"
+  },
+  "T87": {
+    "id": 26,
+    "mode": "A_baseline",
+    "name": "_match_gitignore_pattern"
+  },
+  "T88": {
+    "id": 1,
+    "mode": "D_shuffled",
+    "name": "IndexProjectRunner.run"
+  },
+  "T89": {
+    "id": 4,
+    "mode": "B_runtime",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  "T90": {
+    "id": 13,
+    "mode": "B_runtime",
+    "name": "format_project_memory"
+  }
+}

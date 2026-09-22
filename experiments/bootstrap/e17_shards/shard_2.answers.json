@@ -1,0 +1,32 @@
+[
+  {
+    "id": 2,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The context supplies only the source of RemoteEmbedder.embed_batch, not the repository test suite, so any list of test function names would be a guess and could mislead the developer. To find the right tests, one should search the repository for callers of embed_batch and for RemoteEmbedder usage. Regarding the function itself: it fetches embedding vectors in batch from whichever provider is currently active and deliberately never changes the mode. Its inputs are a list of texts plus an is_query flag; its output is a list of float vectors. An empty input returns an empty list. The llama.cpp path truncates to 512 tokens, retries with backoff, then retries each item individually, raising RuntimeError if any chunk still fails. The LM Studio, ONNX server, OpenVINO and local ONNX paths raise RuntimeError when unavailable."
+  },
+  {
+    "id": 2,
+    "mode": "B_runtime",
+    "answer": "Based on the tests supplied with this prompt, the tests that exercise embed_batch are: test_rapid_sequential_calls_no_state_leak and test_single_call_results_match_indices. The first drives one hundred rapid sequential embed_batch calls and checks that no state leaks between calls and that vectors change with different texts. The second checks a single batch returns three non-zero vectors of length 384 with correct indices. The function itself returns embedding vectors from the active provider without ever mutating mode; it handles llama.cpp, LM Studio, ONNX server, OpenVINO and local ONNX paths with retries and RuntimeError fallbacks. If other tests exist elsewhere in the repository, they are not shown here, so this list may be incomplete."
+  },
+  {
+    "id": 2,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine this from the information given. The two tests shown, test_sample_disk_io_no_data_row_returns_zero and test_verdict_fail_is_refuted, exercise a ResourceMonitor disk-sampling helper and a verdict_from_results function respectively, not RemoteEmbedder.embed_batch. Nothing in the provided text links them to embedding, so listing them would be wrong. No test function names can be listed with confidence here. The function itself returns a list of embedding vectors from the active provider such as llama.cpp, LM Studio, ONNX server, OpenVINO or local ONNX, never changing mode, returning an empty list for empty input, and raising RuntimeError when every provider fails. To find the real tests one must search the repository for callers of embed_batch."
+  },
+  {
+    "id": 3,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The prompt includes only the source of CypherLexer.tokenize and no test file contents or test names, so listing tests would be pure speculation. The function scans a Cypher query string character by character and returns a list of Token objects. It skips whitespace, strips double-slash comments, parses quoted strings while raising SyntaxError on unterminated ones, parses numbers, identifiers, keywords, uppercase labels, backtick-escaped identifiers, two-character comparison operators, direction arrows, single-character operators, punctuation, and colon-prefixed labels including variable-length :TYPE*min..max forms. An unknown character raises SyntaxError. The token list is cached in self._tokens. To find exercising tests, search the repository for CypherLexer usage and tokenize calls."
+  },
+  {
+    "id": 3,
+    "mode": "B_runtime",
+    "answer": "Based on the tests supplied with this prompt, the tests exercising CypherLexer.tokenize are: test_tokenize_optional_match, test_tokenize_order_limit, and test_tokenize_relationship. They tokenize sample Cypher queries and assert recognition of KEYWORD values such as OPTIONAL, MATCH, ORDER and LIMIT, plus the label CALLS and the arrow punctuation ->. The function itself performs a single-pass lexical analysis of a Cypher query, returning Token objects for keywords, identifiers, labels, strings, numbers, operators, punctuation and relationship types, while skipping comments and whitespace and raising SyntaxError for unterminated strings, unterminated backticks or unexpected characters. The tokens are stored in self._tokens. Other repository tests may exist but are not shown, so this list may be incomplete."
+  },
+  {
+    "id": 3,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine this from the information given. The three tests shown, test_gemfile_lock_skips_path_project_gem, test_blocked_name_getattr and test_load_invalid_engine_req, exercise a Gemfile.lock manifest extractor, a sandbox code validator and a plugin manifest loader respectively. None of them references CypherLexer or calls tokenize, so they cannot catch regressions in that function and should not be listed. Separately, CypherLexer.tokenize scans a Cypher query string and returns Token objects, skipping comments and whitespace while raising SyntaxError on unterminated strings, backticks or unexpected characters, and recognising keywords, labels, numbers, operators, punctuation and variable-length :TYPE*min..max relation types. To identify the true tests, one must search the repository for CypherLexer usage."
+  }
+]

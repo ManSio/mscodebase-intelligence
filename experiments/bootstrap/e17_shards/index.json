@@ -1,0 +1,542 @@
+[
+  {
+    "shard": 1,
+    "id": 1,
+    "mode": "A_baseline",
+    "name": "IndexProjectRunner.run"
+  },
+  {
+    "shard": 1,
+    "id": 1,
+    "mode": "B_runtime",
+    "name": "IndexProjectRunner.run"
+  },
+  {
+    "shard": 1,
+    "id": 1,
+    "mode": "D_shuffled",
+    "name": "IndexProjectRunner.run"
+  },
+  {
+    "shard": 2,
+    "id": 2,
+    "mode": "A_baseline",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  {
+    "shard": 2,
+    "id": 2,
+    "mode": "B_runtime",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  {
+    "shard": 2,
+    "id": 2,
+    "mode": "D_shuffled",
+    "name": "RemoteEmbedder.embed_batch"
+  },
+  {
+    "shard": 2,
+    "id": 3,
+    "mode": "A_baseline",
+    "name": "CypherLexer.tokenize"
+  },
+  {
+    "shard": 2,
+    "id": 3,
+    "mode": "B_runtime",
+    "name": "CypherLexer.tokenize"
+  },
+  {
+    "shard": 2,
+    "id": 3,
+    "mode": "D_shuffled",
+    "name": "CypherLexer.tokenize"
+  },
+  {
+    "shard": 3,
+    "id": 4,
+    "mode": "A_baseline",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  {
+    "shard": 3,
+    "id": 4,
+    "mode": "B_runtime",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  {
+    "shard": 3,
+    "id": 4,
+    "mode": "D_shuffled",
+    "name": "AutoDocUpdater._extract_doc_references"
+  },
+  {
+    "shard": 3,
+    "id": 5,
+    "mode": "A_baseline",
+    "name": "IndexPipeline.process_file"
+  },
+  {
+    "shard": 3,
+    "id": 5,
+    "mode": "B_runtime",
+    "name": "IndexPipeline.process_file"
+  },
+  {
+    "shard": 3,
+    "id": 5,
+    "mode": "D_shuffled",
+    "name": "IndexPipeline.process_file"
+  },
+  {
+    "shard": 3,
+    "id": 6,
+    "mode": "A_baseline",
+    "name": "extract_anchors"
+  },
+  {
+    "shard": 3,
+    "id": 6,
+    "mode": "B_runtime",
+    "name": "extract_anchors"
+  },
+  {
+    "shard": 3,
+    "id": 6,
+    "mode": "D_shuffled",
+    "name": "extract_anchors"
+  },
+  {
+    "shard": 4,
+    "id": 7,
+    "mode": "A_baseline",
+    "name": "resolve_project_root"
+  },
+  {
+    "shard": 4,
+    "id": 7,
+    "mode": "B_runtime",
+    "name": "resolve_project_root"
+  },
+  {
+    "shard": 4,
+    "id": 7,
+    "mode": "D_shuffled",
+    "name": "resolve_project_root"
+  },
+  {
+    "shard": 4,
+    "id": 8,
+    "mode": "A_baseline",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  {
+    "shard": 4,
+    "id": 8,
+    "mode": "B_runtime",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  {
+    "shard": 4,
+    "id": 8,
+    "mode": "D_shuffled",
+    "name": "SymbolIndex.build_call_graph"
+  },
+  {
+    "shard": 5,
+    "id": 9,
+    "mode": "A_baseline",
+    "name": "IndexParser.parse_file"
+  },
+  {
+    "shard": 5,
+    "id": 9,
+    "mode": "B_runtime",
+    "name": "IndexParser.parse_file"
+  },
+  {
+    "shard": 5,
+    "id": 9,
+    "mode": "D_shuffled",
+    "name": "IndexParser.parse_file"
+  },
+  {
+    "shard": 5,
+    "id": 10,
+    "mode": "A_baseline",
+    "name": "modification_guard"
+  },
+  {
+    "shard": 5,
+    "id": 10,
+    "mode": "B_runtime",
+    "name": "modification_guard"
+  },
+  {
+    "shard": 5,
+    "id": 10,
+    "mode": "D_shuffled",
+    "name": "modification_guard"
+  },
+  {
+    "shard": 6,
+    "id": 11,
+    "mode": "A_baseline",
+    "name": "decorator"
+  },
+  {
+    "shard": 6,
+    "id": 11,
+    "mode": "B_runtime",
+    "name": "decorator"
+  },
+  {
+    "shard": 6,
+    "id": 11,
+    "mode": "D_shuffled",
+    "name": "decorator"
+  },
+  {
+    "shard": 6,
+    "id": 12,
+    "mode": "A_baseline",
+    "name": "wrapper"
+  },
+  {
+    "shard": 6,
+    "id": 12,
+    "mode": "B_runtime",
+    "name": "wrapper"
+  },
+  {
+    "shard": 6,
+    "id": 12,
+    "mode": "D_shuffled",
+    "name": "wrapper"
+  },
+  {
+    "shard": 7,
+    "id": 13,
+    "mode": "A_baseline",
+    "name": "format_project_memory"
+  },
+  {
+    "shard": 7,
+    "id": 13,
+    "mode": "B_runtime",
+    "name": "format_project_memory"
+  },
+  {
+    "shard": 7,
+    "id": 13,
+    "mode": "D_shuffled",
+    "name": "format_project_memory"
+  },
+  {
+    "shard": 7,
+    "id": 14,
+    "mode": "A_baseline",
+    "name": "validate_code"
+  },
+  {
+    "shard": 7,
+    "id": 14,
+    "mode": "B_runtime",
+    "name": "validate_code"
+  },
+  {
+    "shard": 7,
+    "id": 14,
+    "mode": "D_shuffled",
+    "name": "validate_code"
+  },
+  {
+    "shard": 7,
+    "id": 15,
+    "mode": "A_baseline",
+    "name": "_extract_yarn_lock"
+  },
+  {
+    "shard": 7,
+    "id": 15,
+    "mode": "B_runtime",
+    "name": "_extract_yarn_lock"
+  },
+  {
+    "shard": 7,
+    "id": 15,
+    "mode": "D_shuffled",
+    "name": "_extract_yarn_lock"
+  },
+  {
+    "shard": 8,
+    "id": 16,
+    "mode": "A_baseline",
+    "name": "WriteTool._action_replace"
+  },
+  {
+    "shard": 8,
+    "id": 16,
+    "mode": "B_runtime",
+    "name": "WriteTool._action_replace"
+  },
+  {
+    "shard": 8,
+    "id": 16,
+    "mode": "D_shuffled",
+    "name": "WriteTool._action_replace"
+  },
+  {
+    "shard": 8,
+    "id": 17,
+    "mode": "A_baseline",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  {
+    "shard": 8,
+    "id": 17,
+    "mode": "B_runtime",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  {
+    "shard": 8,
+    "id": 17,
+    "mode": "D_shuffled",
+    "name": "SymbolIndex.get_call_chain"
+  },
+  {
+    "shard": 8,
+    "id": 18,
+    "mode": "A_baseline",
+    "name": "load_manifest"
+  },
+  {
+    "shard": 8,
+    "id": 18,
+    "mode": "B_runtime",
+    "name": "load_manifest"
+  },
+  {
+    "shard": 8,
+    "id": 18,
+    "mode": "D_shuffled",
+    "name": "load_manifest"
+  },
+  {
+    "shard": 9,
+    "id": 19,
+    "mode": "A_baseline",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  {
+    "shard": 9,
+    "id": 19,
+    "mode": "B_runtime",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  {
+    "shard": 9,
+    "id": 19,
+    "mode": "D_shuffled",
+    "name": "ProjectIntelligenceLayer._enrich_job_response"
+  },
+  {
+    "shard": 9,
+    "id": 20,
+    "mode": "A_baseline",
+    "name": "format_runtime_status"
+  },
+  {
+    "shard": 9,
+    "id": 20,
+    "mode": "B_runtime",
+    "name": "format_runtime_status"
+  },
+  {
+    "shard": 9,
+    "id": 20,
+    "mode": "D_shuffled",
+    "name": "format_runtime_status"
+  },
+  {
+    "shard": 9,
+    "id": 21,
+    "mode": "A_baseline",
+    "name": "_delayed_auto_index"
+  },
+  {
+    "shard": 9,
+    "id": 21,
+    "mode": "B_runtime",
+    "name": "_delayed_auto_index"
+  },
+  {
+    "shard": 9,
+    "id": 21,
+    "mode": "D_shuffled",
+    "name": "_delayed_auto_index"
+  },
+  {
+    "shard": 10,
+    "id": 22,
+    "mode": "A_baseline",
+    "name": "load_metrics"
+  },
+  {
+    "shard": 10,
+    "id": 22,
+    "mode": "B_runtime",
+    "name": "load_metrics"
+  },
+  {
+    "shard": 10,
+    "id": 22,
+    "mode": "D_shuffled",
+    "name": "load_metrics"
+  },
+  {
+    "shard": 10,
+    "id": 23,
+    "mode": "A_baseline",
+    "name": "_extract_pyproject"
+  },
+  {
+    "shard": 10,
+    "id": 23,
+    "mode": "B_runtime",
+    "name": "_extract_pyproject"
+  },
+  {
+    "shard": 10,
+    "id": 23,
+    "mode": "D_shuffled",
+    "name": "_extract_pyproject"
+  },
+  {
+    "shard": 10,
+    "id": 24,
+    "mode": "A_baseline",
+    "name": "IndexStatusReporter.get_status"
+  },
+  {
+    "shard": 10,
+    "id": 24,
+    "mode": "B_runtime",
+    "name": "IndexStatusReporter.get_status"
+  },
+  {
+    "shard": 10,
+    "id": 24,
+    "mode": "D_shuffled",
+    "name": "IndexStatusReporter.get_status"
+  },
+  {
+    "shard": 10,
+    "id": 25,
+    "mode": "A_baseline",
+    "name": "WriteTool._action_insert"
+  },
+  {
+    "shard": 10,
+    "id": 25,
+    "mode": "B_runtime",
+    "name": "WriteTool._action_insert"
+  },
+  {
+    "shard": 10,
+    "id": 25,
+    "mode": "D_shuffled",
+    "name": "WriteTool._action_insert"
+  },
+  {
+    "shard": 11,
+    "id": 26,
+    "mode": "A_baseline",
+    "name": "_match_gitignore_pattern"
+  },
+  {
+    "shard": 11,
+    "id": 26,
+    "mode": "B_runtime",
+    "name": "_match_gitignore_pattern"
+  },
+  {
+    "shard": 11,
+    "id": 26,
+    "mode": "D_shuffled",
+    "name": "_match_gitignore_pattern"
+  },
+  {
+    "shard": 11,
+    "id": 27,
+    "mode": "A_baseline",
+    "name": "_Fingerprint.__init__"
+  },
+  {
+    "shard": 11,
+    "id": 27,
+    "mode": "B_runtime",
+    "name": "_Fingerprint.__init__"
+  },
+  {
+    "shard": 11,
+    "id": 27,
+    "mode": "D_shuffled",
+    "name": "_Fingerprint.__init__"
+  },
+  {
+    "shard": 11,
+    "id": 28,
+    "mode": "A_baseline",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  {
+    "shard": 11,
+    "id": 28,
+    "mode": "B_runtime",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  {
+    "shard": 11,
+    "id": 28,
+    "mode": "D_shuffled",
+    "name": "GraphRAGQueryEngine.query_dependencies"
+  },
+  {
+    "shard": 11,
+    "id": 29,
+    "mode": "A_baseline",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  {
+    "shard": 11,
+    "id": 29,
+    "mode": "B_runtime",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  {
+    "shard": 11,
+    "id": 29,
+    "mode": "D_shuffled",
+    "name": "IndexGuard.save_symbol_index"
+  },
+  {
+    "shard": 12,
+    "id": 30,
+    "mode": "A_baseline",
+    "name": "RemoteEmbedder._shadow_compare"
+  },
+  {
+    "shard": 12,
+    "id": 30,
+    "mode": "B_runtime",
+    "name": "RemoteEmbedder._shadow_compare"
+  },
+  {
+    "shard": 12,
+    "id": 30,
+    "mode": "D_shuffled",
+    "name": "RemoteEmbedder._shadow_compare"
+  }
+]
