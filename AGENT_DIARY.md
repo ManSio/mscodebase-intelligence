@@ -27,6 +27,14 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] E17 v5 — mutation validation: signal drives verification, 40% assertion gap
+
+**Status:** Measured (hypothesis CONFIRMED, with caveat).
+**Method:** strong mutation (negate the first single-line `if`) on 10 panel functions; run the graph-linked tests (B) vs coverage-matched decoy tests (D); restore via `git checkout --` in finally.
+**Result:** B killed the mutant 6/10, D 0/10, Fisher exact p=0.011. But 4/10 linked tests did NOT catch the mutation — e.g. `TestCypherLexer::test_tokenize_*` assert only `len(tokens) > 0` / `"MATCH" in values`.
+**Conclusion:** TESTS edges identify *verifying* tests far better than decoys, so the signal can enrich verification — but its value is bounded by test *assertion strength*, not coverage. Pair it with an assertion-density / mutation-kill proxy, else ~40% of linked tests give false confidence.
+**Files:** experiments/bootstrap/e17_mutation_validate.py, e17_mutation_results.json
+
 ## [2026-09-22] E17 pivot v4 — impact task: signal is the only source of truth
 
 **Status:** Measured (hypothesis CONFIRMED, decisive).

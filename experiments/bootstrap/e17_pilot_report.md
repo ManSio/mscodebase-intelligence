@@ -31,6 +31,27 @@ Manipulation checks held throughout: answers referenced their provided tests 43-
 completeness gain (B>A p=0.0046) was a judge-context artifact and vanished once the judge
 used an identical, test-hidden reference.
 
+### v5 — mutation validation: does the signal identify *verifying* tests?
+
+For each of 10 panel functions the first single-line `if` condition was negated (strong mutation),
+then the exact pytest node ids for arm B (graph tests) and arm D (decoy) were run; the mutated file
+was restored with `git checkout --` in a finally block. Script: `e17_mutation_validate.py`,
+raw results: `e17_mutation_results.json`.
+
+- B (graph tests) killed the mutant: **6/10**
+- D (decoy tests) killed the mutant: **0/10**
+- Fisher exact (2x2 `[[6,4],[0,10]]`): odds=inf, **p=0.011**
+
+So the TESTS edges point at tests that detect behaviour changes far more often than decoys — the
+signal **can drive verification**. But **4/10 linked tests did not catch a strong mutation**. Example:
+`TestCypherLexer::test_tokenize_*` assert only `len(tokens) > 0` / `"MATCH" in values`, so negating
+`if ch in " \t\n\r"` passes. Those tests *exercise* the function without asserting on it.
+
+**Takeaway:** the signal's verification value is bounded by test *assertion strength*, not by coverage.
+Enriching `verify_on_read` with TESTS edges is worthwhile, but must be paired with a signal for
+"does this test actually assert" (assertion density / mutation-kill proxy) — otherwise 40% of linked
+tests give false confidence.
+
 ## Conclusion
 
 1. **Answer generation / reasoning: the signal adds nothing.** For a strong model the code alone
