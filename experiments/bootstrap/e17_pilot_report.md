@@ -72,6 +72,32 @@ So **what an assertion compares against matters more than how many assertions th
 Density and length carry ~no signal. This matches the "TEST_REACHES vs TEST_VERIFIES" split:
 a TESTS edge is a reach claim; kill-rate under mutation is a verification claim.
 
+**CORRECTED (v7):** this did not replicate on a larger panel — see v7 below. Treat the rho values
+above as a small-sample artifact (n=24).
+
+### v7 — scaled replication: AST proxies do NOT predict kill-rate
+
+24 functions (providers/mcp excluded — their tests await servers and hang under mutation),
+55 tests, 4 mutations each; decoys killed **0/55** (control clean). Script: `e17_strength_scaled.py`,
+data: `e17_strength_scaled.json`. Split by function (no leakage).
+
+kill-rate spread is healthy (mean 0.38; 17 zeros, 5 ones, 33 mid-range), so the null is not a variance artefact.
+
+| feature | train rho (p) | held-out rho (p) |
+|---|---|---|
+| exact_compare | +0.13 (0.54) | -0.01 (0.97) |
+| asserts | +0.19 (0.38) | -0.04 (0.82) |
+| density | +0.23 (0.27) | +0.03 (0.88) |
+| loc | +0.01 (0.97) | -0.03 (0.87) |
+
+Held-out rule `exact_compare >= 1 -> strong` (kill_rate >= 0.5): precision 0.59, recall 0.67
+(TP=10 FP=7 FN=5 TN=8) — barely above chance.
+
+**Conclusion (corrected):** cheap AST features do **not** predict whether a test catches a behaviour
+change. `TEST_VERIFIES` cannot be approximated from AST alone — it needs actual mutation runs.
+The `TESTS` *reach* edge and the decoy control (0/139 across v5–v7) remain valid: the signal says
+who *reaches* the code, not who *verifies* it.
+
 ## Conclusion
 
 1. **Answer generation / reasoning: the signal adds nothing.** For a strong model the code alone
