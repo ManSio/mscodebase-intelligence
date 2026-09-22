@@ -37,6 +37,16 @@
 **Fix (не прод-код):** эксперимент; прод не менялся. TESTS-рёбра по-прежнему write-only (consumer не построен) — для статьи это факт-ограничение.
 **verified_from_clean_state:** ⚠️ не применимо — live pytest на чужих репо с плагином из PYTHONPATH (не install), воспроизводимо командами из EXPERIMENTS_LOG Exp 16.
 **Follow-up:** весь линк 97.3% — чистая задачка; связанный% со статикой (L1/L2/L3) на чужом проекте не замерялся — кандидат на продолжение статьи.
+## [2026-09-22] — Exp E14: Embedder A/B — EmbeddingGemma 300M vs e5-small (production)
+
+**Status:** Measured (hypothesis CONFIRMED)
+**Hypothesis:** gemma 300M (768-dim, ctx 2048) значительно сильнее e5-small (384-dim, ctx 512) на кодовом ретривале при цене 3-4× медленнее на CPU.
+**Method:** `experiments/embeddinggemma/bench.py` — прод-конфиг llama-server 1:1 (batch 2048/ubatch 512/threads 10/KV q4_0/pooling mean/raw text/L2), 27 файлов src/ в 81 чанк, 16 русских NL-запросов, cosine hit@1/hit@5/MRR + свипы батча/чанка/MRL + RAM WSS (psapi).
+**Result (1 прогон/пресет):** hit@1/MRR file: e5 0.062/0.210; gemma Q8 0.688/0.774; Q4 0.625/0.695; QAT-Q4 0.562/0.653. Скорость ~420-tok чанков: e5 10.1 ch/s (3860 tok/s), gemma Q8 2.4, Q4/QAT 3.4. RAM: 91 vs 176-178MB. MRL: 256-dim сохраняет MRR (0.74 у Q8, 0.71 у Q4), 128-dim проседает на Q4.
+**Root Cause (почему e5 слаб):** e5-small max ctx = n_ctx_train 512, клиент режет на 480 (LLAMA_EMBED_MAX_TOKENS); gemma 2048 ctx + 768-dim + сильнее заявленный на MTEB. Качество решает not скорость.
+**Fix (не прод-код):** эксперимент, прод не менялся. Смена embedder = полный реиндекс чистого индекса (урок E10) ~32ч на 68M токенов от Q8 при 4× медленности — решение владельца, не авт.
+**Plus:** ubatch=512 (прод) ограничивает ЛЮБОЙ вход эмбеддера 512 токенами — gemma в проде не получит 2048 без правки llama_install.py (resolve_ubatch). QAT-Q4 ggml-org НЕ лучше обычного Q4_0 unsloth (0.653 vs 0.695 MRR) — рекламный клэйм не подтвердился.
+**verified_from_clean_state:** ⚠️ не применимо — live llama-server бенч, воспроизводится командой bench.py (сервер поднимается сам)
 
 ## [2026-09-20] — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
 
