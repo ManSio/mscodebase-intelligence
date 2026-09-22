@@ -2398,3 +2398,47 @@ RETRACTION CHECK: all referenced files exist on disk
 **Ограничения:** запросы — identifier-поиск (graph_stage не обрабатывает NL); A/B на одном
 проекте (MSCodeBase), без embedder (only graph_path). Для статьи: промежуточный результат
 есть — TESTS-рёбра дают тесты поверх функции без потери top-1.
+
+
+## Exp 18 — E6: commit-gate через opencode-хук + MSCodeBase CLI (мост + отказ)
+
+**Гипотеза:** opencode-плагин (`tool.execute.before`) на git-commit может получить детерминированный
+факт из MSCodeBase (CLI, без MCP) и отказать коммиту с этим фактом; negative/positive control докажут,
+что гейт умеет падать И пропускать.
+
+**Метод:** плагин `.opencode/plugin/crystal_gate.ts` ловит `bash` с `git commit` → `python -m src.cli
+stale_detector` (cwd=проект, MSCODEBASE_DATA_DIR изолирован) → парсит JSON → при drift>0 бросает.
+Фикстура: pyproject 2.0.0 vs docs 1.9.0. Negative = дрейф есть; Positive = docs синхронизированы.
+Модель deepseek-v4.1-flash, изолированный data-root (реальный индекс не тронут).
+
+**Результат:** bridge ✅ (факт в логе плагина); negative ✅ `gate_fired drift=1`, коммит заблокирован;
+positive ✅ drift=0, коммит прошёл. Модель после отказа **не обошла** гейт (не трогала `--no-verify`/
+плагин), назвала причину `docs/readme.md:3` vs `pyproject.toml:3`, предложила фикс. Гоча: `--project`
+у `stale_detector` НЕ учитывается — проект берётся из **cwd**; стоимость CLI ~9s.
+
+**Вердикт:** механизм "детерминированный факт → говорит агенту в момент действия" работает в opencode;
+hard-refusal внутри своего репо легитимен; подчинение модели на отказе — 4/4 (E3 3/3 + E6 1/1), ранний факт.
+
+
+## Exp 19 — E7: находит ли индекс симптомов то, с чем пришёл (blind eval каталога crystal-memory)
+
+**Гипотеза:** каталог verification-failures, индексированный по симптому (Tom Jones / Spanda Works,
+Apache-2.0), по входному симптому реального сбоя либо находит нужную запись, либо приходится копать.
+
+**Метод:** заморожены 10 реальных симптомов MSCodeBase (как пришли, из леджеров). HANDOUT: 10 симптомов +
+индекс (симптом→запись) + 6 controls (3 парафраза записей каталога = обязаны попасть; 3 вне домена =
+обязаны NONE). Слепой маппер — другой чат (все MCP off, пустая папка), модель longcat-2.0, 5 прогонов
+(r5 с reasoning=low) + 2 прогона deepseek на RU-варианте. Key (правильные ответы) — субъективен, помечен.
+
+**Результат:** controls **30/30** (инструмент валиден). Идентичные прогоны r1–r4: **4/10 совпали, 6/10
+варьировались**; надёжный hit — 1/10 (drift_gate, 5/5). Кросс-модель: deepseek ~8/10 матчей vs
+longcat ~3/10. Ключевой входной симптом («агент не пользуется высокоуровневыми тулами») → **NONE 7/7
+(2 модели, 2 настройки)**: семья A существует, но из входного симптома недостижима (index-wrong, не hole).
+Дыра каталога: 1 (OS-level process leak → NONE всегда).
+
+**Вердикт:** покрытие семейств — реально (A/B/C/D/E срабатывают); **lookup из входного симптома —
+невоспроизводим** (зависит от модели и прогона); для нашего случая не находит → копаешь сам.
+Ирония: нестабильный symptom→entry lookup — это же Family C каталога (`single-run-ranking-is-noise`).
+
+**Атрибуция:** concept + catalogue — Tom Jones, dev.to series + `github.com/tjonesit/crystal-memory` /
+`crystals` (Apache-2.0, Spanda Works LLC; NOTICE при вендоринге). Код не вендорился — только eval.
