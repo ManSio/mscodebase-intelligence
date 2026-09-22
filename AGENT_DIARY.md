@@ -27,6 +27,17 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] — Exp E14: Embedder A/B — EmbeddingGemma 300M vs e5-small (production)
+
+**Status:** Measured (hypothesis CONFIRMED)
+**Hypothesis:** gemma 300M (768-dim, ctx 2048) значительно сильнее e5-small (384-dim, ctx 512) на кодовом ретривале при цене 3-4× медленнее на CPU.
+**Method:** `experiments/embeddinggemma/bench.py` — прод-конфиг llama-server 1:1 (batch 2048/ubatch 512/threads 10/KV q4_0/pooling mean/raw text/L2), 27 файлов src/ в 81 чанк, 16 русских NL-запросов, cosine hit@1/hit@5/MRR + свипы батча/чанка/MRL + RAM WSS (psapi).
+**Result (1 прогон/пресет):** hit@1/MRR file: e5 0.062/0.210; gemma Q8 0.688/0.774; Q4 0.625/0.695; QAT-Q4 0.562/0.653. Скорость ~420-tok чанков: e5 10.1 ch/s (3860 tok/s), gemma Q8 2.4, Q4/QAT 3.4. RAM: 91 vs 176-178MB. MRL: 256-dim сохраняет MRR (0.74 у Q8, 0.71 у Q4), 128-dim проседает на Q4.
+**Root Cause (почему e5 слаб):** e5-small max ctx = n_ctx_train 512, клиент режет на 480 (LLAMA_EMBED_MAX_TOKENS); gemma 2048 ctx + 768-dim + сильнее заявленный на MTEB. Качество решает not скорость.
+**Fix (не прод-код):** эксперимент, прод не менялся. Смена embedder = полный реиндекс чистого индекса (урок E10) ~32ч на 68M токенов от Q8 при 4× медленности — решение владельца, не авт.
+**Plus:** ubatch=512 (прод) ограничивает ЛЮБОЙ вход эмбеддера 512 токенами — gemma в проде не получит 2048 без правки llama_install.py (resolve_ubatch). QAT-Q4 ggml-org НЕ лучше обычного Q4_0 unsloth (0.653 vs 0.695 MRR) — рекламный клэйм не подтвердился.
+**verified_from_clean_state:** ⚠️ не применимо — live llama-server бенч, воспроизводится командой bench.py (сервер поднимается сам)
+
 ## [2026-09-20] — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
 
 **Status:** Measured (refuted hypothesis)
