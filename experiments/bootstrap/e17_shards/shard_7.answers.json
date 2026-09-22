@@ -1,0 +1,47 @@
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "format_project_memory renders the intel_get_project_memory output as a markdown string. It takes a memory dict of sections (adrs, known_issues, tech_debt, failed_attempts), a limit defaulting to 3 for token budget (limit <= 0 shows all), and an optional stats dict. It appends a VOR coverage receipt (checked/total, starved, stale_ttl, budget_exceeded), freshness gate lines, status metrics, then iterates sections with icons, truncating items and adding an 'and N more' line. Edge cases: no stats means no receipt (backward compatibility); audit mode is auto-detected by REFUTED/SUPERSEDED statuses, then each node gets a status and retract reason. Regarding tests: the information given contains no test source and no repository listing, so I cannot determine which tests exercise this function. I must say so explicitly."
+  },
+  {
+    "id": 13,
+    "mode": "B_runtime",
+    "answer": "format_project_memory converts a project-memory dict into a markdown summary. Inputs: memory (sections to items), limit (default 3; <=0 means all), optional stats for the VOR receipt. Output: a string with header, VOR coverage, freshness gate, status metrics, then per-section icons, titles (max 80 chars), verification markers (no_anchors, budget_exceeded, stale_ttl) and audit statuses (REFUTED with reason, SUPERSEDED, VERIFIED, ACTIVE). Edge cases: absent stats disables the receipt; limit truncation emits an 'and N more' line; audit mode is detected from REFUTED/SUPERSEDED presence. Tests that exercise it, from the provided snippets:\ntest_audit_mode_shows_statuses_and_reasons\ntest_budget_exceeded_node_marker\ntest_default_limit_three"
+  },
+  {
+    "id": 13,
+    "mode": "D_shuffled",
+    "answer": "format_project_memory formats the project memory dict into markdown. It builds a header, optionally a VOR receipt from stats (coverage, starved, stale_ttl, budget warning, freshness gate, status metrics), then walks each non-empty section adding icons, entry counts, truncated titles with verification flags, and audit statuses when REFUTED/SUPERSEDED are present. limit defaults to 3; <=0 shows every node; hidden nodes get an 'and N more' line. Edge cases: no stats suppresses the receipt; title truncation at 80 chars; the import of TTL_STALE_DAYS is guarded. On tests: the three snippets shown (test_verdict_env_block_is_inconclusive_not_refuted, test_invalidates_bm25, test_blocked_string_pattern_eval) do not call format_project_memory and appear unrelated, so from the given information I cannot confirm any test that exercises it."
+  },
+  {
+    "id": 14,
+    "mode": "A_baseline",
+    "answer": "validate_code statically validates Python source before sandbox execution in two layers. Layer 1 scans the raw string for blocked patterns using a word-boundary regex to avoid false positives. Layer 2 parses the code with ast.parse (SyntaxError becomes a SandboxViolation) and walks all nodes, blocking non-allowlisted imports and from-imports, calls to eval/exec/compile and __import__, dangerous dunder attribute access, and blocked builtin names. Input: a code string. Output: a list of non-fatal warnings (always empty in this implementation). Raises SandboxViolation on the first hard block. Edge cases: empty code and safe code pass; attribute-vs-name checks distinguish node types. I cannot determine the tests: no test source or repository listing is provided, so I must say so explicitly."
+  },
+  {
+    "id": 14,
+    "mode": "B_runtime",
+    "answer": "validate_code is a two-layer static sandbox validator for Python source. Layer 1 regex-scans raw text for blocked string patterns with word boundaries; Layer 2 parses via ast.parse and walks nodes to reject non-allowlisted imports and from-imports, eval/exec/compile and __import__ calls, dangerous dunder attribute access, and blocked names. It returns a list of non-fatal warnings (currently always empty) and raises SandboxViolation on the first hard block, including SyntaxError. Edge cases: empty code parses fine, safe code with math.sqrt passes, and the node-type branches keep attribute access separate from bare name usage. Tests exercising it, from the provided snippets:\ntest_allowed_modules\ntest_empty_code\ntest_safe_code_passes"
+  },
+  {
+    "id": 14,
+    "mode": "D_shuffled",
+    "answer": "validate_code performs pre-execution sandbox validation in two layers. First a fast regex string scan over BLOCKED_STR_PATTERNS with a negative lookbehind word boundary; then an AST walk that rejects imports not in ALLOWED_MODULES, dangerous calls (eval, exec, compile, __import__), dangerous dunder attributes, and blocked names. It returns a list of warnings (non-fatal) and raises SandboxViolation on any hard block, converting SyntaxError into a violation. Edge cases: empty input, safe code, and distinguishing attribute access from bare names. Regarding tests: the snippets given (test_enrichment_empty_results, test_layer_windows_backslashes, test_build_call_graph_depth_2) concern search enrichment, path layer inference, and call graphs, not validate_code, so I cannot confirm they exercise it from the information given."
+  },
+  {
+    "id": 15,
+    "mode": "A_baseline",
+    "answer": "_extract_yarn_lock parses a yarn.lock file, supporting v1, v2 and berry v10 formats. It reads line by line, treating non-indented lines ending in colon as block keys, then captures the following version line. A nested flush helper emits a ManifestEntry (npm ecosystem, normalized name, version, lockfile source, line number) only when both key and version were seen. Aliased packages are handled: when a resolution line contains npm: and its name differs from the block key, the resolution name becomes the real package name. Inputs: text and source label; output: a list of ManifestEntry. Edge cases: blank lines and __metadata are skipped; quoted keys are unquoted; blocks without a version are dropped. No tests are given here, so I cannot determine which tests exercise it."
+  },
+  {
+    "id": 15,
+    "mode": "B_runtime",
+    "answer": "_extract_yarn_lock parses yarn.lock files across v1, v2 and berry v10. It scans lines, treating non-indented colon-terminated lines as package block keys (stripping surrounding quotes), then records the version from the version line. Emitted entries are npm ManifestEntry objects with normalized names, deferred to flush so alias handling works: if a resolution line contains npm: with a name differing from the key, that resolution name is used instead. Blank lines and __metadata are skipped, and blocks lacking versions produce nothing. Inputs are the lock text and a source label; output is the entry list. Tests from the provided snippets:\ntest_yarn_berry_patch_descriptors\ntest_yarn_berry_v10_scoped\ntest_yarn_synthetic"
+  },
+  {
+    "id": 15,
+    "mode": "D_shuffled",
+    "answer": "_extract_yarn_lock parses yarn.lock files (v1, v2, berry v10) into npm ManifestEntry records. It iterates lines: non-indented lines ending with colon start a new package block (quotes stripped), version lines set the pending version, and resolution lines detect aliases when npm: resolves to a different real name than the block key. A flush closure emits an entry only when both a key and a version exist, attaching the source and line number. Edge cases include skipping blank and __metadata lines, dropping versionless blocks, and handling aliased or patched descriptors. On tests: the three snippets shown (test_returns_project_path, test_worktree_cleaned_after_run, test_metadata_returns_dict) exercise search tool headers and change-preview worktrees, not this extractor, so I cannot confirm any test that exercises it from the information given."
+  }
+]

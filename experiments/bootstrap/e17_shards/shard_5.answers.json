@@ -1,0 +1,32 @@
+[
+  {
+    "id": 9,
+    "mode": "A_baseline",
+    "answer": "The information given is insufficient to determine which tests exercise this function. The prompt supplies only the source of IndexParser.parse_file; no test files, test-module references, or test names are included. I cannot enumerate test functions covering encoding fallback (BOM, cp1251, latin-1), the existing_hash skip, comment-only rejection, AST chunking, or the sliding-window fallback without seeing the repository suite. Honest answer: cannot determine from the supplied text. To find them a developer should grep the tests directory for parse_file, IndexParser, and _has_code_lines, then run the matching functions. Listing specific test names here would be guessing, not evidence."
+  },
+  {
+    "id": 9,
+    "mode": "B_runtime",
+    "answer": "The provided context includes two tests that exercise IndexParser.parse_file:\ntest_bs1_parse_file_skips_comment_only\ntest_property_graph_consistency\n\nBoth call parser.parse_file directly. The first targets the BS-1 guard rejecting comment-only files, asserting None is returned. The second is an integration test that indexes producer and consumer files, consumes the returned _ast_symbols cache, and verifies ghost-node cleanup after renames. These are the only test functions shown as relevant. Other tests may exist in the repository but are not included here, so this list reflects the supplied evidence only. A developer changing parse_file should run these two and grep the suite for additional callers before relying on them alone."
+  },
+  {
+    "id": 9,
+    "mode": "D_shuffled",
+    "answer": "The context labels two tests as relevant to IndexParser.parse_file:\ntest_vor_coverage_starved_warning\ntest_inserts_after_anchor\n\nHowever, on inspection neither appears to call IndexParser.parse_file. The first tests VOR receipt formatting for starved nodes, and the second tests the write tool insert_after behavior. They exercise unrelated modules and never reference index_parser.py or parse_file. I therefore cannot confirm they catch regressions in parse_file, and I would treat the relevance label as unreliable. Honestly, from the given information the genuine tests cannot be determined; the two shown look mismatched. A developer should grep for parse_file and IndexParser instead of trusting this list."
+  },
+  {
+    "id": 10,
+    "mode": "A_baseline",
+    "answer": "The information given is insufficient to identify tests exercising modification_guard. The prompt supplies only the decorator source; no test module, names, or references appear. modification_guard is a decorator applied to async write tools, so regression tests would likely live in files covering write-tool guards, the ack registry, ambiguity handling, and PageRank or blast-radius thresholds, but I cannot name them from this text. I explicitly state: I cannot determine this from the information provided. A developer should grep the tests for modification_guard, ack_impact, _ack_registry, and fresh_guard fixtures, then run the collected tests. Naming specific functions here would be fabrication."
+  },
+  {
+    "id": 10,
+    "mode": "B_runtime",
+    "answer": "The supplied context lists three tests that exercise modification_guard:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_allows_non_hot_file\n\nAll three apply the @modification_guard decorator to a test tool method. The first verifies pass-through when neither file_path nor symbol is given. The second checks the ambiguity guard refuses to silently route a bare symbol with multiple definitions. The third patches the PageRank and blast-radius helpers to zero and asserts a non-hot file passes with no ack required. These are the only tests shown as relevant. Other repository tests may also exercise the decorator but are not included, so this list reflects the supplied evidence only."
+  },
+  {
+    "id": 10,
+    "mode": "D_shuffled",
+    "answer": "The context labels three tests as relevant to modification_guard:\ntest_init_with_registry\ntest_symbol_index_remove_file_clears_env\ntest_parse_rejects_bad_urls\n\nBut none of these appear to touch modification_guard. The first tests CrossProjectDependencyGraph registry injection, the second tests SymbolIndex env-access cleanup, and the third tests GitUrlSource URL validation. They exercise unrelated modules and do not import or apply the decorator. I therefore cannot confirm they catch regressions in modification_guard. From the given information the real tests cannot be determined; the provided ones look shuffled or mismatched. A developer should grep for modification_guard and ack_impact instead of relying on this list."
+  }
+]

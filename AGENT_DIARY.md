@@ -27,6 +27,52 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] E17 pivot v4 — impact task: signal is the only source of truth
+
+**Status:** Measured (hypothesis CONFIRMED, decisive).
+**What changed:** task = "which tests cover function F" (impact/coverage); scoring = objective recall/precision of test names vs the signal's own set (no judge).
+**Result:** recall A=0.000 B=1.000 D=0.000 (B-A and B-D = +1.000, 30/0/0); precision identical. Name-convention leak: A guessed a real test for 0/30.
+**Conclusion:** TESTS-signal is essential for impact/coverage (the info is not in the code, and naming does not leak it), but adds nothing to answer generation / reasoning (v1-v3 ceiling). Value = retrieval / agent workflow, not answer quality.
+**Report:** experiments/bootstrap/e17_pilot_report.md
+
+## [2026-09-22] E17 pivot v3 — complex panel, ceiling persists (B even worse)
+
+**Status:** Measured (hypothesis REFUTED again).
+**What changed:** panel selected by complexity (branches >= 10; up to 332 loc / 80 branches, `IndexProjectRunner.run`); generation/judge shards packed by line budget (subagent read limit ~2000).
+**Result:** accuracy A=4.93 B=4.77 D=4.83 — B-A = -0.167 (p=0.057, d=-0.36, 1 win / 6 losses); completeness/safety flat. Manipulation B 43% vs D 7%.
+**Conclusion:** the ceiling is robust across task type and panel difficulty. For answer generation a strong model needs no tests; TESTS-signal value must lie in the agent workflow (which tests to run / impact), not in answer quality.
+**Iterations:** v1 explain 5.00/4.97/5.00; v2 edge-case simple 4.87/4.87/4.90; v3 edge-case complex 4.93/4.77/4.83.
+**Report:** experiments/bootstrap/e17_pilot_report.md
+
+## [2026-09-22] E17 pivot v2 — edge-case task, blind judge, ceiling persists
+
+**Status:** Measured (hypothesis REFUTED for this task/model).
+**What changed:** task = edge-case outcome prediction (signature-aware input: None/""/missing path/-1); judge = blind AND test-hidden (uniform reference for all arms); metrics accuracy/completeness/safety + separate manipulation check.
+**Result:** accuracy A=4.87 B=4.87 D=4.90 (p=1.00); completeness/safety flat. Manipulation check: B mentions its tests 57% vs D 10% → tests are read but not needed.
+**Key correction:** v1's "completeness B>A p=0.0046" was a judge-context artifact — the judge saw each arm's own tests, inflating B/D. Removing the confound erased the effect. Rule: the judge's reference must be identical across arms.
+**Conclusion:** for a strong model, neither paraphrase nor edge-case prediction benefits from TESTS-signal; need tasks where the code is insufficient, or a weaker model.
+**Report:** experiments/bootstrap/e17_pilot_report.md
+
+## [2026-09-22] E17 pilot RUN — specificity-selected panel, ceiling on accuracy
+
+**Status:** Measured (hypothesis PARTIAL — pipeline valid, endpoint at ceiling).
+**What changed:** panel re-selected by test specificity (min per-test coverage <=5); decoy = unique foreign coverage-matched tests; 90 answers via 10 shard subagents (no repo access); blind judging (opaque tokens). New/rewritten: `e17_pilot_experiment.py`, `e17_extract.py`, `e17_export_prompts.py`, `e17_export_judge.py`, `e17_merge_answers.py`, `e17_stats.py`, `e17_check_decoy.py`, `e17_verify_data.py`.
+**Result:** accuracy A=5.00 B=4.97 D=5.00 (p=0.33, d=-0.18, 29/30 ties) — CEILING; completeness same; safety zero-variance. evidence_usage A=1.67 D=2.80 B=4.97 (B>A and B>D p<0.0001, 30/30) — manipulation check PASSED.
+**Root Cause of null:** task too easy for the model — code alone suffices; NOT a verdict on the signal.
+**Guard:** decoy audit (unique + foreign file + cov match) and verify_data before any run; blind judging with mapping kept out of judge shards.
+**Pitfall:** subagent JSON output contained unescaped double quotes → invalid JSON; instruct no `"` inside answer strings.
+**Open:** record position order; >=3 judge trials; harder endpoint (edge cases / impact) or weaker generator.
+**Report:** experiments/bootstrap/e17_pilot_report.md
+
+## [2026-09-22] E17 pilot — source extraction was broken (Post-Mortem)
+
+**Status:** Fixed (experiments/bootstrap, untracked). Pilot invalidated — not the signal.
+**Symptom:** `e17_pilot_answers.json` = 120/120 `Error 500`; live smoke gave `# FUNC NOT FOUND` for every class method.
+**Root Cause:** naive `f"def {name}"` substring match vs graph *qualified* names — methods are `Class.method`, tests are `Class::test`. No match → `# FUNC NOT FOUND` / `# Test not found`. Compounded by `C_static` empty 30/30 (C≡A) and TESTS edges being transitive coverage (bootstrap_tests.py:216-244; `_ensure_data_root`=234 tests, 0 direct calls) → B≈D noise.
+**Fix:** new `experiments/bootstrap/e17_extract.py` (AST: methods, `Class::test`, recursive `tests/`, offset-drift fallback); `e17_pilot_answers.py` + `e17_pilot_judge.py` refactored onto it; judge fake position-randomization replaced with a real before/after swap. 13 tests (`test_e17_extract.py`, incl. 4 adversarial). Untracked — no hash.
+**Guard:** tests assert no `FUNC NOT FOUND` and correct class-qualified resolution; red-team covers duplicate method names, async, comment-only name, nested, syntax error.
+**Open:** TESTS edges transitive → function selection by test specificity still required for a valid pilot. v3.5.0 retrieval result (hit@1) is unaffected — it used the graph directly.
+
 ## [2026-09-22] v3.5.0 Release — TESTS-signal enabled by default
 
 **Status:** Released (pushed to main, PR #39 merged)

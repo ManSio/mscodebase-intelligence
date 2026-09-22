@@ -1,0 +1,17 @@
+[
+  {
+    "id": 30,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The prompt provides only the source code and docstring of `RemoteEmbedder._shadow_compare`; no test files, test names, imports, or repository layout are included. The function calls `self.embed_batch`, the module-level helper `_vectors_collapsed`, and the constant `_ABS_MIN_QUALITY`, and it is invoked during provider switching, so relevant tests could live anywhere in the repo. Naming specific test functions would be a guess and therefore misleading. Explicit statement: cannot determine which tests exercise this function. To answer reliably one would have to search the repository for `_shadow_compare`, `shadow_compare`, canary fixtures, and `_ABS_MIN_QUALITY`, then inspect each hit. A developer should run those located tests before changing the fail-closed logic described here."
+  },
+  {
+    "id": 30,
+    "mode": "B_runtime",
+    "answer": "The tests shown that exercise `RemoteEmbedder._shadow_compare` are the canary fail-closed tests: `test_baseline_failure_blocks`, `test_empty_canary_blocks`, and `test_baseline_below_absolute_quality_blocks`. Each builds an `embedder = MagicMock(spec=RemoteEmbedder)` with `_canary_pairs` set, then calls `RemoteEmbedder._shadow_compare(embedder, fn, name)` directly. They cover baseline failure via `embed_batch` raising `RuntimeError` (block), an empty canary set (block), and a degenerate baseline of orthogonal vectors producing `old_mean=0` below the anchor (UNKNOWN, block). All assert `result is False`, confirming fail-closed behavior. A developer changing this function must run these three to catch regressions. Note that other branches such as collapsed vectors, empty new-provider response, and the `degraded_ratio > 0.3` path may have additional tests not shown here."
+  },
+  {
+    "id": 30,
+    "mode": "D_shuffled",
+    "answer": "The three tests supplied do not exercise `RemoteEmbedder._shadow_compare`. They are `test_build_call_graph_callers`, which covers call-graph traversal; `test_normalize_diag_uri_win_drive`, which covers LSP diagnostic URI normalization; and `test_cli_dispatch_ok`, which covers CLI tool dispatch. None references `_shadow_compare`, `_canary_pairs`, `embed_batch`, `_vectors_collapsed`, or `_ABS_MIN_QUALITY`, so none would catch a regression in this function. Therefore I cannot determine from the information given which tests actually exercise `_shadow_compare`; the listed tests are unrelated and appear to be misleading distractors. Honest answer: cannot determine. A developer should search the repository for `_shadow_compare` and canary fixtures to locate the genuine tests before modifying the function."
+  }
+]

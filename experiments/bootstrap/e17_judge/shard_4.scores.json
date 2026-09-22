@@ -1,0 +1,13 @@
+[
+  {"token": "T26", "accuracy": 5, "completeness": 4, "safety": 5},
+  {"token": "T27", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T28", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T29", "accuracy": 4, "completeness": 4, "safety": 5},
+  {"token": "T30", "accuracy": 4, "completeness": 4, "safety": 5},
+  {"token": "T31", "accuracy": 4, "completeness": 4, "safety": 5},
+  {"token": "T32", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T33", "accuracy": 4, "completeness": 5, "safety": 5},
+  {"token": "T34", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T35", "accuracy": 4, "completeness": 4, "safety": 5},
+  {"token": "T36", "accuracy": 5, "completeness": 5, "safety": 5}
+]

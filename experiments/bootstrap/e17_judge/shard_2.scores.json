@@ -1,0 +1,10 @@
+[
+  {"token": "T09", "accuracy": 5, "completeness": 4, "safety": 5},
+  {"token": "T10", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T11", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T12", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T13", "accuracy": 5, "completeness": 5, "safety": 5},
+  {"token": "T14", "accuracy": 5, "completeness": 4, "safety": 5},
+  {"token": "T15", "accuracy": 5, "completeness": 4, "safety": 5},
+  {"token": "T16", "accuracy": 5, "completeness": 4, "safety": 5}
+]

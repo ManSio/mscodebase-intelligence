@@ -225,3 +225,7 @@ test_result.txt
 _mcp_reindex_client.py
 _measure_*.py
 .red_team_state.md
+
+# E17 experiment: regenerable prompt shards (rebuild via e17_export_*.py)
+experiments/bootstrap/e17_shards/*.txt
+experiments/bootstrap/e17_judge/*.txt
