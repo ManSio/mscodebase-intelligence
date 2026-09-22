@@ -1,7 +1,7 @@
 ---
 title: "From a Test-Suite Trace to a Search Signal: the Bootstrap Pipeline Story"
 description: "Part 4 of MSCodeBase Intelligence — Field Notes. Full source-material: why bootstrap started, Exp 7 (dynamic link), 7b (Tarantula), 8 (sysmon), 9 (static), 16 (portability), 17/E17 (search consumer). Honest about what is still experimental and can break."
-tags: machinelearning, python, search, rag, codearchitecture, testing
+tags: search, rag, codearchitecture, testing
 ---
 
 > **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "What Could Go Wrong" section.
@@ -127,7 +127,7 @@ The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%*
 
 ## Portability Across External Codebases (Exp 16)
 
-Does this generalize beyond our own repo? We tested the tracer across clean external Python repositories (e.g., `gemma_agent` at 97.3% linked tests) as well as smaller CLI tools, confirming that non-mocked external codebases yield even higher dynamic link ratios than mock-heavy internal codebases.
+Does this generalize beyond our own repo? We ran the tracer against external projects:
 
 <table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
 <thead>
@@ -148,6 +148,13 @@ Does this generalize beyond our own repo? We tested the tracer across clean exte
 <td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>+17.4%</strong> (71.4s vs 60.8s)</td>
 </tr>
 <tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>commit-</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Python</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">27</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>100%</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">N/A</td>
+</tr>
+<tr style="background-color: #f9f9f9;">
 <td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>codebase-memory-mcp</strong></td>
 <td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Go</td>
 <td style="border: 1px solid #ddd; padding: 8px; color: #333333;">27 test funcs</td>
@@ -157,7 +164,7 @@ Does this generalize beyond our own repo? We tested the tracer across clean exte
 </tbody>
 </table>
 
-The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
+Linked % on clean (non-mocked) third-party projects proved **higher** than on our own codebase (which relies heavily on mocks). The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
 
 ---
 
@@ -167,7 +174,7 @@ Everything prior built `test ──TESTS──> function` edges inside PropertyG
 
 - **Data:** 1,727 tests → **16,172 TESTS edges**, 1,595 Test nodes, 1,132 covered functions.
 - **Implementation:** `SymbolIndexAdapter.get_tests_for_symbol()` (incoming `TESTS` edges) + `Searcher._append_tests_signal()`: appends up to 3 tests per function (capped at `min(len, 6)` per query), `graph_score = 0.4` vs 1.0 for definitions, sentinel `chunk_index = -(20_000_000 + line)` avoiding collisions with code chunks in RRF ranking.
-- **Toggle:** `MSCODEBASE_TESTS_SIGNAL`, **on by default** — can be disabled via `MSCODEBASE_TESTS_SIGNAL=false`.
+- **Toggle:** `MSCODEBASE_TESTS_SIGNAL`, **off by default** — production behavior remains bit-for-bit untouched.
 
 A/B evaluation on a live PropertyGraph (7 target functions, true answers from trace):
 
@@ -273,94 +280,9 @@ A transparent list of risks and open validation items:
 
 ---
 
-## How to Reproduce
+## Acknowledgments
 
-```bash
-cd D:\Project\MSCodeBase
-
-# 1. Dynamic trace (full run, +13.6% time)
-$env:PYTHONPATH = 'D:\Project\MSCodeBase'
-$env:TRACE_SRC_ROOT = 'D:\\Project\\MSCodeBase'
-$env:TRACE_OUT = 'D:\\Project\\MSCodeBase\\experiments\\bootstrap\\trace_result.json'
-python -m pytest tests/ -p src.core.bootstrap_trace_plugin -q --no-header -p no:cacheprovider
-
-# 2. Edge linking (TESTS in live PropertyGraph)
-python -c "from pathlib import Path; from src.core.bootstrap_tests import build_from_trace_file; \
-print(build_from_trace_file(Path('experiments/bootstrap/trace_result.json'), Path('.')).to_dict())"
-
-# 3. Language coverage + wide panel (35 queries)
-python -X utf8 experiments/bootstrap/e17_wide_panel.py
-#   expected: hit@1 33/35 (94.3%) · TESTS-signal 34/35 (97.1%) · overhead +15.3%
-#   critical: Python 34.0% covered, Other/TypeScript 0%
-
-# 4. Red team (5 attacks)
-python -X utf8 experiments/bootstrap/e17_redteam.py
-#   expected: 5/5 attacks repelled (concurrency, boundaries, abuse, TOCTOU, dependency failure)
-
-# 5. A/B consumer (control off / treatment on), reproducible
-python -X utf8 experiments/bootstrap/e17_ab_tests_signal.py
-#   expected: hit@1 7/7=7/7 · MRR 1.000/1.000 · 6/7 new tests · 0 broken links
-```
-
----
-
-## Experiment Matrix
-
-<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
-<thead>
-<tr>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Exp</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Date</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Hypothesis</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Verdict</th>
-<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Reference</th>
-</tr>
-</thead>
-<tbody>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>7</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-15</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Dynamic &gt; Static (0% vs 89.8%)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (+13.6% overhead)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>7b</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-15</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Tarantula rank ≤ 3 for ≥60% tests</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (22.6%, high precision)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>8</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-16</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>sys.monitoring</code> overhead &lt; 5%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (+19.96%)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>9</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-16</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Static recall ≤ 30%</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (union 70%, static companion)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-<tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>16</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Portability on external repos</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (gemma 97.3%, commit 100%)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-<tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>17</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-22</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>TESTS</code> edges drive search results</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (35-query panel: 94.3% hit@1, 97.1% test-enriched, +15.3% overhead, 5/5 Red Team passed)</td>
-<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
-</tr>
-</tbody>
-</table>
+A huge thank you to everyone who engages with these posts in the comments. Your feedback, real-world observations, counter-examples, and benchmark numbers directly shape these experiments. This kind of open technical critique is what keeps engineering honest.
 
 ---
 
