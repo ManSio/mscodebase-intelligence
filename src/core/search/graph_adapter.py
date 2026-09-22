@@ -554,7 +554,7 @@ class SymbolIndexAdapter(PureGraphMixin):
                 from src.core.project_resolution import resolve_project_root
                 project_root = resolve_project_root()
                 normalized_path = (project_root / file_path).as_posix()
-            
+
             candidates = self._graph.find_nodes(
                 label=NodeLabel.FUNCTION,
                 name_pattern=f"%{symbol}%",
