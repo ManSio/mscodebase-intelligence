@@ -2546,3 +2546,25 @@ agent went numb to its own alerts»; наш E3/E4 — та же опасност
 блокирующие гейты не затронуты. ⛔ Best-effort, не граница безопасности (при сбое чтения — fail-open).
 
 **Файлы:** src/core/restraint.py, src/mcp/tools/graph_tools.py (kwargs.restraint), tests/test_restraint.py.
+
+
+## Exp 23 — E11: frozen list vs the NEW arrival index (Tom's catalogue, «after»)
+
+**Гипотеза:** arrival layer (25 фраз → записи) делает dispositional-симптом #16 («агент не пользуется
+моими тулами») достижимым для семьи A, чего таблицы симптомов не могли (E7: NONE 10/10 валидных).
+
+**Метод:** тот же замороженный список (10 реальных + 6 контролей), что в E7; индекс заменён на arrival
+index + symptom tables из каталога (`github.com/tjonesit/crystals` @3e30ed2, `catalogue/README.md`,
+generated). Слепой маппер (opencode run, все MCP off, пустая папка), модели deepseek-v4.1-flash ×3,
+longcat-2.0 ×1, qwen3.7-plus ×1.
+
+**Результат:** **#16 → A в 5/5 прогонов**, включая оба ВАЛИДНЫХ. Валидные (контроли 6/6): longcat-2.0,
+qwen3.7-plus. deepseek ×3 — НЕВАЛИДНЫ: NC3 (#11 Safari/CSS) притянулся к E
+`a-generated-document-is-unverified-until-you-render-it` (фраза про вёрстку/spacing) — та же болезнь
+NONE-контроля, что у deepseek-low в E7. Прочие пункты остаются модельно-зависимыми (#10, #13 разные).
+
+**Вердикт:** arrival layer ПОДТВЕРЖДЁН как мост для #16 (NONE → A). Воспроизводимость по-прежнему
+свойство читателя (оговорка Тома держится). ⚠ Новый риск: слой фраз может ВЫДУМАТЬ ложное совпадение
+на соседнем домене (UI-фраза ловит вне-доменный CSS-симптом) — кандидат в запись/дырку.
+
+**Файлы:** лаб %TEMP%/opencode/e11 (handout.md, opencode.json). Источник: tjonesit/crystals @3e30ed2.
