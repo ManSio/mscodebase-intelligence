@@ -4,7 +4,7 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 3.4.0
+> **Version:** 3.5.0
 > **Last updated:** 2026-08-12  
 > **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry + DocSync
 
