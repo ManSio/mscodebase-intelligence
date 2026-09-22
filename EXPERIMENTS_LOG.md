@@ -2502,3 +2502,25 @@ advisory доставляется и понимается, но в этой по
 
 **Файлы:** src/core/quiet_break_gate.py, src/mcp/tools/graph_tools.py (action isolation),
 tests/test_quiet_break_gate.py; лаб %TEMP%/opencode/e_gate2/e2e_control.py.
+
+
+## Exp 21 — E9: redaction на доставке (единая точка CLI)
+
+**Гипотеза:** секрет, вставленный в доставляемую заметку как evidence, утекает в контекст КАЖДОГО
+агента, на котором заметка сработает (канал доставки не проходит commit-gate). Redaction в единой
+точке доставки (`src/cli.py`) вырежет известные формы ключей и НЕ испортит легитимный текст заметки
+(пути, хеши, версии).
+
+**Метод:** in-house prefix-anchored redactor (`src/core/redact.py`; идея — Tom Jones, crystal-memory
+`scripts/redact.py`, Apache-2.0; код НЕ вендорился). Врезан в единственный choke point: сериализованный
+JSON `src/cli.py` (успех И ошибка). Тесты: unit + CLI-интеграция (fake tool возвращает ключ).
+
+**Результат:** unit **8/8** — каждая семья (aws/anthropic/openai/github-token/pat/slack/google/stripe/
+jwt/url-cred/bearer/private-key/assignment) вырезается; хеш коммита, sha256-дайджест, путь, версия,
+слово «key» в прозе — byte-identical; JSON остаётся валидным. CLI E2E: stdout содержит
+`[REDACTED:anthropic]`, путь сохранён, stderr сообщает `{"redacted": {...}}`.
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Redaction на доставке работает и не калечит заметки. ⛔ Не граница
+безопасности: новый формат / секрет разбитый по строкам проходит — задокументировано, не продаём как «safe».
+
+**Файлы:** src/core/redact.py, src/cli.py, tests/test_redact.py. Атрибуция идеи: Tom Jones (crystal-memory).
