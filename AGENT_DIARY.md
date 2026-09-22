@@ -27,6 +27,18 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] v3.5.0 Release — TESTS-signal enabled by default
+
+**Status:** Released (pushed to main, PR #39 merged)
+**Changes:**
+- TESTS-signal enabled by default (MSCODEBASE_TESTS_SIGNAL default=true)
+- PR #39 merged: feat(search): add opt-in TESTS-signal to graph-stage (E17)
+- Article review applied: 35-query panel, Red Team 5/5, updated risks
+- CHANGELOG.md created (v3.0.0 → v3.5.0)
+- Version bump 3.4.0 → 3.5.0
+**CI:** Running for v3.5.0 push
+**verified_from_clean_state:** ✅ (PR #39 clean-state passed 13m15s)
+
 ## [2026-09-22] — Exp E16: переносимость bootstrap trace на чужие проекты (статья CoderLegion)
 
 **Status:** Measured (hypothesis CONFIRMED)
