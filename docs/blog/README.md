@@ -13,6 +13,7 @@
 | 1 | [PageRank Token Savings](pagerank-codebase-myth.md) | Граф → контекст: PageRank vs RAG, Hit@Gold (+14pp/46%) | published |
 | 2 | [Silent Vector Contamination](silent-vector-contamination.md) | Concurrent-эмбеддинги: 0 ошибок, чужие векторы | published |
 | 3 | [Verify-on-Read](verify-on-read.md) | Память агента: честный UNKNOWN vs структурная догадка | published (dev.to) · source-material локально |
+| 4 | [Bootstrap Pipeline](bootstrap-pipeline.md) | Trace test-suite → TESTS-рёбра → потребитель в поиске: полная история Exp 7→16→E17, широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%), языковое покрытие (Python 34%, Go/TS 0%), red team 5/5 | draft · полная история · воспроизводимо |
 
 ## Как читать серию
 

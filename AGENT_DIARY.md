@@ -26,6 +26,17 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] — Exp E16: переносимость bootstrap trace на чужие проекты (статья CoderLegion)
+
+**Status:** Measured (hypothesis CONFIRMED)
+**Hypothesis:** динамический трейс (sys.settrace, `src/core/bootstrap_trace_plugin.py`) воспроизводится на чужих Python-репозиториях без правок плагина; linked% не зависит от «нашего» кода.
+**Method:** тот же плагин, `PYTHONPATH=MSCodeBase`, `TRACE_SRC_ROOT=`<проект>, TRACE_OUT в temp, запуск с venv-python целевого проекта из его workdir; анализ — фильтр src-каталогов (без venv/tests).
+**Result:** gemma_agent — 2882 теста (2874 pass/3 fail/5 skip, 71.4s), **linked 97.3%** (2805/2882), пустых 77, 4020 unique src-funcs, avg 11.6/median 5, **overhead +17.4%** (71.40 vs 60.82s baseline, та же сессия). commit- — 27 теста, **100% linked**, 33 src-funcs, avg 3.1. Go (codebase-memory-mcp pkg) — pytest даёт 0 тестов (CPython-only), аналог переносим нативно: `go test` 51.0% pkg, `go test -run <1 тест>` 22.2% → per-test карта функций.
+**Root Cause (почему linked ВЫШЕ на чужих):** коммит-проекты «чище» (меньше моков/фикстур вне src), наш корпус содержит 176 тестов с fixture/conftest-побочными эффектами; распределение сдвинуто: avg 5-12 против наших 10/fan-out, т.к. горячие хелперы не завязаны на tests/.
+**Fix (не прод-код):** эксперимент; прод не менялся. TESTS-рёбра по-прежнему write-only (consumer не построен) — для статьи это факт-ограничение.
+**verified_from_clean_state:** ⚠️ не применимо — live pytest на чужих репо с плагином из PYTHONPATH (не install), воспроизводимо командами из EXPERIMENTS_LOG Exp 16.
+**Follow-up:** весь линк 97.3% — чистая задачка; связанный% со статикой (L1/L2/L3) на чужом проекте не замерялся — кандидат на продолжение статьи.
+
 ## [2026-09-20] — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
 
 **Status:** Measured (refuted hypothesis)
@@ -472,3 +483,19 @@ VERDICT H3: CONFIRMED
 10. KI-R10 (P2): слабый запрос → не молчать, fallback grep (exp-26).
 11. KI-R11 (P2, первым): «найдено N / использовано M» + «проиндексировано ли».
 **verified_from_clean_state:** ⚠️ не проверено — записи в ISSUE.md/AGENT_DIARY.md, код не менялся.
+
+
+## [2026-09-22] E17 — TESTS-consumer в graph-stage (контроль/лечение A/B)
+
+**Status:** Verified (реальный Searcher на live графе; 102 pytest green + live-smoke)
+**Root Cause:** не было — фича: включённые покрывающие тесты в выдачу symbol-поиска.
+**Fix:** флаг SearchConfig.tests_signal (env MSCODEBASE_TESTS_SIGNAL, off по умолчанию);
+Searcher._append_tests_signal() — incoming TESTS-рёбра (get_tests_for_symbol), sentinel
+chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E17 шаг 1 (consumer).
+**Guard:** +7 юнит-тестов tests/test_graph_stage_e4.py (флаг off/on, def-first, get_tests_*).
+**A/B.** off vs on на 7 golden-функциях: hit@1/MRR = 1.0 оба; новые тесты в 6/7; overhead не
+выделяется (3.37 vs 3.21ms). Re-traкция: 0 битых ссылок.
+**verified_from_clean_state:** нет (uncommitted; pytest 102 green local).
+**Шаг 3 (закрыт):** флаг оставлен off по умолчанию (экспериментальный тумблер, паттерн late_enrichment) — прод не меняется. Воспроизводимый A/B-скрипт перенесён в experiments/bootstrap/e17_ab_tests_signal.py (stable: hit@1=7/7, MRR=1.0, 6/7, 0 битых). Описана статья-draft docs/blog/bootstrap-pipeline.md (+ строка в docs/blog/README.md). Портфолио синхронизировано: exp-46 EN+RU, guard pnpm test 26/26 passed. Ruff clean. 102 pytest green.
+**Статья (draft, полная история, английский):** docs/blog/bootstrap-pipeline.md — полная история на английском (отредактированная версия владельца): Exp 7→7b→8→9→16→E17. **Критические данные добавлены:** широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%, overhead +15.3%), языковое покрытие (Python 34.0%, Other/TypeScript 0%), red team 5/5 атак отражено. **Вывод:** TESTS-сигнал не улучшает hit@1 (off=on), только добавляет контекст для LLM. Раздел «What Could Go Wrong»: 12 рисков. Experiment Matrix обновлена. Воспроизводимо: e17_wide_panel.py, e17_redteam.py, e17_ab_tests_signal.py. Verified: pytest 34 green, ruff clean. Проверка: PR нужен для clean-state и prod-решения.
+**Next:** owner: панель 30+ запросов с embedder → решение прод-включения → PR (для verified_from_clean_state).
