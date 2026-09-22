@@ -55,7 +55,7 @@ We tested the Tarantula heuristic ("a function called infrequently by many tests
 
 **Verdict:** Tarantula is unsuitable for *selecting* the main target, but works well as a *confidence annotation* for ~16% of tests. `TESTS` edges are thus built from the complete trace without truncation — they are correct by construction and do not require lossy ranking.
 
-Cross-verification with DEV.to publications (*A. Dawson "TRUE Coverage"* and *"Empirical Failure Modes in Autonomous Agents"*) confirmed both sides: static approaches fail across external codebases, shared utilities are a universal noise source, and **no one is building real-time TESTS edges for LLM search context** — validating our niche.
+Cross-verification with DEV.to publications (*A. Dawson "TRUE Coverage"* — per-test coverage for CI optimization; *adevbelgium "Empirical Failure Modes in Autonomous Agents"* — runtime reachability tracing) confirmed two of our findings: static approaches fail on external codebases, and shared utilities are a universal noise source. However, neither project builds TESTS-edges for LLM search context — they use per-test coverage only for test selection/rejection. Whether this represents an unmet need or a non-problem remains an open question.
 
 ---
 
