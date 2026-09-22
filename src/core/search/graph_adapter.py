@@ -529,6 +529,61 @@ class SymbolIndexAdapter(PureGraphMixin):
             results.extend(refs)
         return results
 
+    def get_tests_for_symbol(
+        self, symbol: str, file_path: str, limit: int = 6
+    ) -> List[SymbolRef]:
+        """Возвращает покрывающие функцию тесты (incoming TESTS-рёбра).
+
+        E17 (TESTS-сигнал): ищет Function/Class-узел по (file_path, symbol)
+        и возвращает test-узлы, приходящие в него по EdgeType.TESTS.
+
+        Args:
+            symbol: имя символа (без qualified-префикса).
+            file_path: файл символа (POSIX-путь, как в графе).
+            limit: максимум возвращаемых тестов (защита от hub-функций
+                   с сотнями тестов, напр. safe_mkdir → 234).
+
+        Returns:
+            List[SymbolRef] с kind="test", is_definition=True.
+        """
+        try:
+            candidates = self._graph.find_nodes(
+                label=NodeLabel.FUNCTION,
+                name_pattern=f"%{symbol}%",
+                file_path=file_path,
+                limit=5,
+            )
+            if not candidates:
+                return []
+            refs: List[SymbolRef] = []
+            for node in candidates[:2]:  # не больше 2 одноимённых узлов
+                neighbors = self._graph.get_neighbors(
+                    node.qualified_name,
+                    edge_type=EdgeType.TESTS,
+                    direction="incoming",
+                    max_nodes=limit * 2,
+                )
+                for neighbor, _edge, _depth in neighbors:
+                    if len(refs) >= limit:
+                        break
+                    if neighbor.label != NodeLabel.TEST:
+                        continue
+                    refs.append(SymbolRef(
+                        symbol=neighbor.name,
+                        file_path=neighbor.file_path,
+                        line=neighbor.properties.get("line", 0),
+                        kind="test",
+                        is_definition=True,
+                    ))
+                if len(refs) >= limit:
+                    break
+            return refs
+        except Exception as e:  # noqa: BLE001
+            # Graceful degradation: сбой графа не должен ломать graph-stage;
+            # TESTS-сигнал опционален по своей природе (флаг off по умолчанию).
+            logger.debug(f"get_tests_for_symbol error: {e}")
+            return []
+
     # ── Call Graph ────────────────────────────────────────
 
     def build_call_graph(self, symbol: str, depth: int = 2) -> Dict:

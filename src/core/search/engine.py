@@ -240,6 +240,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._late_enrichment = bool(
             getattr(get_config().search, "late_enrichment", False)
         )
+        # TESTS-сигнал (E17, эксперимент): MSCODEBASE_TESTS_SIGNAL=true.
+        # Добавляет покрывающие тесты в graph-stage. Off по умолчанию.
+        self._tests_signal = bool(
+            getattr(get_config().search, "tests_signal", False)
+        )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock: Optional[asyncio.Lock] = None  # lazy: создаётся при первом async-вызове (привязка к event loop)
@@ -1278,10 +1283,68 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                     "graph_score": 1.0 if ref.is_definition else 0.5,
                     "final_score": 1.0 if ref.is_definition else 0.5,
                 })
+            # E17 (TESTS-сигнал): если включён, добавить к найденным определениям
+            # функций покрывающие их тесты. Пониженный graph_score (0.4) — тесты
+            # не вытесняют функции; отдельный sentinel-диапазон (-20_000_000+line),
+            # чтобы не коллайдить с symbol-указателями (-10_000_000) и чанками.
+            if self._tests_signal and out:
+                out = self._append_tests_signal(out, si)
             return out
         except Exception as e:
             logger.debug(f"graph_stage error: {e}")
             return []
+
+    def _append_tests_signal(self, out: List[dict], si) -> List[dict]:
+        """E17: добавляет покрывающие тесты (TESTS-рёбра) к найденным определениям.
+
+        Def-рефы (is_definition=True) обогащаются тестами из PropertyGraph.
+        Безопасно при отсутствии метода/графа/рёбер: возвращает out без изменений.
+        """
+        try:
+            get_tests = getattr(si, "get_tests_for_symbol", None)
+            if get_tests is None:
+                return out
+
+            test_limit = max(1, min(len(out), 6))  # потолок тестов на запрос
+            result: List[dict] = []
+            added = 0
+            for r in out:
+                result.append(r)
+                meta = r.get("metadata", {})
+                if not meta.get("is_definition") or added >= test_limit:
+                    continue
+                refs = get_tests(meta["symbol"], meta["file"], limit=3)
+                for t in refs:
+                    if added >= test_limit:
+                        break
+                    t_layer = self._layer_from_path(t.file_path)
+                    result.append({
+                        "text": f"test {t.symbol}\n📍 {t.file_path}:{t.line}",
+                        "metadata": {
+                            "file": t.file_path,
+                            "chunk_index": -(20_000_000 + t.line),
+                            "layer": t_layer,
+                            "symbol": t.symbol,
+                            "symbol_name": t.symbol,
+                            "line": t.line,
+                            "kind": t.kind,
+                            "graph_stage": True,
+                            "is_symbol_ref": True,
+                            "is_definition": False,
+                            "tests_signal": True,
+                            "covers": meta["symbol"],
+                        },
+                        "bm25_score": 0.0,
+                        "dense_score": 0.0,
+                        "fts5_score": 0.0,
+                        "graph_score": 0.4,
+                        "final_score": 0.4,
+                    })
+                    added += 1
+            return result
+        except Exception as e:
+            logger.debug(f"tests_signal error: {e}")
+            return out
 
     def _expand_graph_context(
         self, results: List[dict], original_query: str

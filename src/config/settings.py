@@ -163,6 +163,17 @@ class SearchConfig:
         == "true"
     )
 
+    # TESTS-сигнал (E17, эксперимент): в graph-stage добавлять к найденным
+    # определениям функций покрывающие их тесты (TESTS-рёбра PropertyGraph)
+    # как отдельный сорт результатов с пониженным graph_score.
+    # Off по умолчанию — поведение поиска неизменно без флага.
+    tests_signal: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_TESTS_SIGNAL", "false"
+        ).lower()
+        == "true"
+    )
+
 
 @dataclass
 class IndexConfig:
