@@ -562,7 +562,16 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         except Exception as exc:  # noqa: BLE001 — граф недоступен: гейт fail-open
             logger.warning("graph_query.isolation: PropertyGraph resolve failed: %s", exc)
             pg = None
-        return run_quiet_break_gate(root, pg)
+        result = run_quiet_break_gate(root, pg)
+        # Сдержанность (anti-numbing) — только opt-in и только для advisory-доставки.
+        # Блокирующие гейты сюда не заходят (см. src/core/restraint.py).
+        if (kwargs or {}).get("restraint") and result.get("status") == "ok" and result.get("findings"):
+            from src.core.restraint import should_deliver, signature
+
+            deliver, reason = should_deliver(root, signature(result["findings"]))
+            result["deliver"] = deliver
+            result["suppressed_reason"] = "" if deliver else reason
+        return result
 
     async def _execute_arch_drift(self, file_path: str = "", project_root: str = "") -> dict:
         """Architecture Drift Detector: ищет структурные аномалии импортов.
