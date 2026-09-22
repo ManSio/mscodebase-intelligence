@@ -161,12 +161,14 @@ class Server:
 
 
 class Bench:
-    def __init__(self, key, port, skip_server, ubatch=512):
+    def __init__(self, key, port, skip_server, ubatch=512, chunk_tokens=420, qual_tokens=400):
         self.key = key
         self.gguf, self.max_tokens, self.dim, self.note = PRESETS[key]
         self.port = port
         self.skip_server = skip_server
         self.ubatch = ubatch
+        self.chunk_tokens = chunk_tokens
+        self.qual_tokens = qual_tokens
         self.url = f"http://127.0.0.1:{port}"
         self.client = httpx.Client(timeout=240.0)
         self.server = None
@@ -217,7 +219,7 @@ class Bench:
     # ── фазы ─────────────────────────────────────────────────────
     def phase_throughput(self):
         srcs = self.read_files({f for _, f in GOLD} | set(DISTRACTORS))
-        texts = [self.prep(t, CHUNK_TOKENS) for t in srcs][: THROUGHPUT_N]
+        texts = [self.prep(t, self.chunk_tokens) for t in srcs][: THROUGHPUT_N]
         toks = [self.token_count(t) for t in texts]
         self.embed(texts[:4])  # warmup
         rows = []
@@ -246,6 +248,8 @@ class Bench:
         rows = []
         for target in CHUNK_SWEEP_TARGETS:
             if target > self.max_tokens:
+                continue
+            if self.ubatch and target > self.ubatch:
                 continue
             texts = [self.prep(s, target) for s in srcs[: CHUNK_SWEEP_N]]
             toks = [self.token_count(t) for t in texts]
@@ -279,7 +283,7 @@ class Bench:
                 seg = body[i * step: (i + 1) * step]
                 if len(seg) < 30:
                     continue
-                c = self.prep(seg, QUAL_CHUNK_TOKENS)
+                c = self.prep(seg, self.qual_tokens)
                 if len(c) < 20:
                     continue
                 texts.append(c)
@@ -382,7 +386,8 @@ class Bench:
                 "mrr_chunk": qual["score"]["mrrc"][1],
             },
             "mrl": mrl,
-            "env": {"cpu_threads": 10, "ubatch": self.ubatch, "ctx": 2048, "kv": "q4_0", "pooling": "mean"},
+            "env": {"cpu_threads": 10, "ubatch": self.ubatch, "ctx": 2048, "kv": "q4_0", "pooling": "mean",
+                "chunk_tokens": self.chunk_tokens, "qual_tokens": self.qual_tokens},
         }
 
 
@@ -393,9 +398,12 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--skip-server", action="store_true")
     ap.add_argument("--ubatch", type=int, default=512)
+    ap.add_argument("--chunk-tokens", type=int, default=420)
+    ap.add_argument("--qual-tokens", type=int, default=400)
     args = ap.parse_args()
 
-    bench = Bench(args.key, args.port, args.skip_server, args.ubatch)
+    bench = Bench(args.key, args.port, args.skip_server, args.ubatch,
+                  args.chunk_tokens, args.qual_tokens)
     try:
         res = bench.run()
     finally:
