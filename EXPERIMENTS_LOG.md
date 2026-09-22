@@ -2447,3 +2447,58 @@ NONE-controls** (Postgres-lag→rate-knob, CSS→generated-doc) → прогон
 
 **Атрибуция:** concept + catalogue — Tom Jones, dev.to series + `github.com/tjonesit/crystal-memory` /
 `crystals` (Apache-2.0, Spanda Works LLC; NOTICE при вендоринге). Код не вендорился — только eval.
+
+**CORRECTED (2026-09-22, пост-анализ по AGENTS.md §11):** формулировку «механический поиск
+недостаточен, нужен семантический» считать НЕОБОСНОВАННОЙ дизайном E7: маппер был LLM
+(семантический), а НЕ keyword-search; KEY субъективен (сами пометили), N мал; сравнения
+«keyword vs LLM» в E7 не было. Подтверждено остаётся узкое: LLM-маппинг из входного симптома
+невоспроизводим и модельно-зависим; из #16 семья A недостижима без домысливания root cause.
+
+
+## Exp 20 — E8: quiet-break gate (дельта-изоляция узла графа), read-only
+
+**Гипотеза:** на коммите можно детерминированно (git diff + persisted PropertyGraph, БЕЗ мутации
+индекса) поймать «тихий слом»: (A) правка удаляет последних вызывающих символа, который ещё
+определён в дереве; (B) новая функция нигде не вызывается. Controls докажут, что гейт умеет
+падать И пропускать без ложных срабатываний.
+
+**Мотив/находка:** абсолютный сигнал «узел без входящих CALLS» непригоден — в репо
+**1535/4081 (38%)** Function/Method имеют 0 входящих CALLS (@_step-регистранты, callbacks,
+entry points, public API). Нужен ДЕЛЬТА-сигнал. Persisted-граф = закоммиченное состояние,
+правку не видит → A совмещает граф (кто вызывал) с рабочим деревом (зовёт ли ещё), B = diff +
+текст изменённых файлов. Hot-index отклонён: `_index_single_file` тянет эмбеддинг + мутацию
+живого индекса (тяжело, зависит от embedder).
+
+**Метод:** `run_quiet_break_gate(root, pg)` (src/core/quiet_break_gate.py) через
+`graph_query(action="isolation")` / CLI. read-only; нет git / нет графа → status
+unavailable/empty, findings пусты (fail-open). Controls: реальный git (temp repo) + seeded graph.
+
+**Сырой результат:** POS-A (caller цел) ok {removed_last_caller:0} | NEG-A (вызов удалён)
+ok {removed_last_caller:1} finding target [pkg/caller.py] | NEG-B (новая без вызовов)
+ok {new_orphan:1} finding orphan_helper | POS-B (новая + вызов в изменённом файле)
+ok {new_orphan:0} | FAIL-OPEN (не-git) unavailable. unit tests/test_quiet_break_gate.py 10/10;
+CLI на живом репо: 1899ms, base HEAD, changed_files 5, counts 0 (ложных нет).
+
+**Вердикт:** гипотеза ПОДТВЕРЖДЕНА — read-only дельта-гейт различает изоляцию от 38%-шума;
+fail-open закрыт (найден+исправлен баг: не-git отдавал "empty" вместо "unavailable").
+
+**Границы:** A не ловит изоляцию при массовом rename-sweep; B не видит динамическую регистрацию
+(whitelist декоратора), same-name консервативен; гейт информационный (soft), не hard-блок.
+
+**Модельный E8 (opencode-хук, deepseek-v4.1-flash, 1 прогон/арм, идентичный промпт «закоммить staged»):**
+- CONTROL (`E8_MODE=off`): агент коммитит, сироту не замечает (лог: только init).
+- BLOCK (`tool.execute.before` throw): гейт сработал (count=1, CLI 8400ms), коммит **заблокирован**,
+  агент **не обошёл** (`--no-verify`/плагин не трогал), назвал причину и предложил варианты.
+- ADVISORY (не-блокирующий): ПЕРВАЯ реализация (`tool.execute.after` считает diff) **слепа** — after
+  срабатывает после коммита, diff пуст → count=0/"no changes". ИСПРАВЛЕНО: считать в `before`
+  (pre-commit cached diff), кэшировать по `callID`, дописывать заметку в `after`. Повтор: заметка
+  доставлена (`✦ GRAPH-GATE (advisory)`), коммит прошёл, агент её прочитал и назвал, **но не исправил**
+  (сирота остался в коммите).
+**Вердикт:** block меняет исход (плохой коммит предотвращён), модель подчиняется (1/1, без обхода);
+advisory доставляется и понимается, но в этой постановке (промпт = «закоммить и отчитайся») исхода
+не меняет. Ровно наблюдение Тома: знание приходит на нужном вызове и не меняет ничего; speak и block —
+разные инструменты. **Границы:** 1 прогон/арм, один модель/промпт; advisory-эффект зависит от постановки
+(исправление не было целью). Стенд: %TEMP%/opencode/e8.
+
+**Файлы:** src/core/quiet_break_gate.py, src/mcp/tools/graph_tools.py (action isolation),
+tests/test_quiet_break_gate.py; лаб %TEMP%/opencode/e_gate2/e2e_control.py.
