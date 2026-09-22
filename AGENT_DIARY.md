@@ -27,6 +27,14 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] E17 v7 — CORRECTION: AST proxies do not predict kill-rate (v6 not replicated)
+
+**Status:** Measured (v6 REFUTED on replication).
+**Method:** 24 functions (providers/mcp excluded — their tests await servers and hang under mutation), 55 tests, 4 mutations each; split by FUNCTION; decoys 0/55.
+**Result:** v6's rho(exact_compare, kill_rate)=+0.54 p=0.006 did NOT replicate — train rho=+0.13 p=0.54, held-out rho=-0.01 p=0.97; rule `exact_compare>=1` precision 0.59 / recall 0.67. kill_rate spread healthy (mean 0.38; 17 zeros / 5 ones / 33 mid).
+**Conclusion:** cheap AST features (assert count / density / specificity / LOC) do NOT predict whether a test catches a behaviour change. v6 was a small-sample artifact (n=24). `TEST_VERIFIES` needs actual mutation runs, not AST proxies. The TESTS *reach* edge and the decoy control (0/139 across v5–v7) stay valid.
+**Files:** experiments/bootstrap/e17_strength_scaled.py, e17_strength_scaled.json
+
 ## [2026-09-22] E17 v6 — verification-strength profile: specificity beats count
 
 **Status:** Measured (hypothesis CONFIRMED).
