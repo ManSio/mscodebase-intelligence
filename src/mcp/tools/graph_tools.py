@@ -139,6 +139,7 @@ class GraphQueryTool(MCPTool):
     - "flow" — трассировка переменной (data flow)
     - "drift" — Architecture Drift Detector
     - "verify" — Claim Verifier (проверка утверждений против кода)
+    - "isolation" — Quiet-break gate (дельта-изоляция узлов графа на коммите)
     """
 
     def __init__(self, services: ServiceCollection):
@@ -194,6 +195,8 @@ class GraphQueryTool(MCPTool):
             return await self._execute_arch_drift(target, project_root=_project_root)
         elif action == "verify":
             return await self._execute_verify(target, kwargs, project_root=_project_root)
+        elif action == "isolation":
+            return await self._execute_isolation(kwargs, project_root=_project_root)
         else:
             # По умолчанию — GraphRAG (action="query")
             return await self._execute_query(query_type or "impact", target, kwargs, project_root=_project_root)
@@ -538,6 +541,28 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
                 ),
             },
         }
+
+    async def _execute_isolation(
+        self, kwargs: Optional[Dict[str, Any]] = None, project_root: str = ""
+    ) -> dict:
+        """Quiet-break gate: дельта-изоляция узлов графа (read-only, git diff + PropertyGraph).
+
+        Два сигнала: removed_last_caller (правка удалила последних вызывающих символа,
+        который ещё определён в дереве) и new_orphan (новая функция без вызывающих).
+        Индекс НЕ мутируется. При отсутствии git/графа → status unavailable, без отказа.
+        """
+        from src.core.quiet_break_gate import run_quiet_break_gate
+
+        if project_root and project_root.strip():
+            root = Path(project_root).resolve()
+        else:
+            root = Path(self.resolve_indexer().project_path).resolve()
+        try:
+            pg = self._resolve_pg(str(root))
+        except Exception as exc:  # noqa: BLE001 — граф недоступен: гейт fail-open
+            logger.warning("graph_query.isolation: PropertyGraph resolve failed: %s", exc)
+            pg = None
+        return run_quiet_break_gate(root, pg)
 
     async def _execute_arch_drift(self, file_path: str = "", project_root: str = "") -> dict:
         """Architecture Drift Detector: ищет структурные аномалии импортов.
