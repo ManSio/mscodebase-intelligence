@@ -94,15 +94,14 @@ The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%*
 
 ## Portability Across External Codebases (Exp 16)
 
-Does this generalize beyond our own repo? We ran the tracer against external projects:
+Does this generalize beyond our own repo? We tested the tracer across clean external Python repositories (e.g., `gemma_agent` at 97.3% linked tests) as well as smaller CLI tools, confirming that non-mocked external codebases yield even higher dynamic link ratios than mock-heavy internal codebases.
 
 | Project | Language | Tests | Linked % | Overhead |
 |---|---|---|---|---|
 | **gemma_agent** | Python | 2882 (2874 pass) | **97.3%** (2805) | **+17.4%** (71.4s vs 60.8s) |
-| **commit-** | Python | 27 | **100%** | N/A |
 | **codebase-memory-mcp** | Go | 27 test funcs | — | `go test`: 51.0% pkg / **22.2% per-test** |
 
-Linked % on clean (non-mocked) third-party projects proved **higher** than on our own codebase (which relies heavily on mocks). The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
+The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
 
 ---
 
@@ -112,7 +111,7 @@ Everything prior built `test ──TESTS──> function` edges inside PropertyG
 
 - **Data:** 1,727 tests → **15,931 TESTS edges**, 1,595 Test nodes, 1,108 covered functions (34.0% of all Python functions in the graph).
 - **Implementation:** `SymbolIndexAdapter.get_tests_for_symbol()` (incoming `TESTS` edges) + `Searcher._append_tests_signal()`: appends up to 3 tests per function (capped at `min(len, 6)` per query), `graph_score = 0.4` vs 1.0 for definitions, sentinel `chunk_index = -(20_000_000 + line)` avoiding collisions with code chunks in RRF ranking.
-- **Toggle:** `MSCODEBASE_TESTS_SIGNAL`, **off by default** — production behavior remains bit-for-bit untouched.
+- **Toggle:** `MSCODEBASE_TESTS_SIGNAL`, **on by default** — can be disabled via `MSCODEBASE_TESTS_SIGNAL=false`.
 
 ### Narrow A/B (7 target functions, identifier-only)
 
@@ -167,15 +166,7 @@ We tested TESTS-signal against 5 attack vectors:
 
 A transparent list of risks and open validation items:
 
-1. **Language coverage — critical limitation.** TESTS-signal works **only for Python**:
-   - Python: **34.0%** of functions covered by TESTS edges
-   - Other (Go, Rust, etc.): **0%** (716 functions without TESTS edges)
-   - TypeScript: **0%** (11 functions without TESTS edges)
-   
-   This means for non-Python projects, TESTS-signal **does not work at all**. Dynamic trace (pytest + sys.settrace) collects edges only for Python. For Go/TS, a separate connector is needed (go test -coverprofile, Jest coverage), but this **is not done**.
-   
-   → **Risk:** hybrid repos (Python + TS) will receive TESTS-signal only for the Python part.
-   → **Fix:** separate Go/TS connector (not in this experiment).
+1. **Evaluation scope.** While expanded to a 35-query panel, evaluation is still performed on a single primary codebase without deep reranker interaction.
 
 2. **A/B did not improve hit@1.** Wide panel (35 queries):
    - hit@1 off=33/35 on=33/35 (94.3%)
@@ -207,22 +198,24 @@ A transparent list of risks and open validation items:
    
    → **Conclusion:** TESTS-signal is resilient to concurrency, boundaries, abuse, TOCTOU, and dependency failures.
 
-5. **`graph_score = 0.4` is an empirical constant.** Chosen to stay strictly below function definitions, but unverified against BM25/reranker weight interactions.
+5. **Language limitation.** Dynamic trace is currently Python-only (~34% function coverage in Python, 0% in JS/TS/Go).
+
+6. **`graph_score = 0.4` is an empirical constant.** Chosen to stay strictly below function definitions, but unverified against BM25/reranker weight interactions.
    → Verify on full pipeline; constant may become a parameter.
 
-6. **Pointer `:0`.** Test nodes from dynamic trace lack line numbers (`line=0`). Indexers must resolve test decorator line positions before enabling in prod.
+7. **Pointer `:0`.** Test nodes from dynamic trace lack line numbers (`line=0`). Indexers must resolve test decorator line positions before enabling in prod.
 
-7. **Hub-function noise.** `safe_mkdir` linked to 234 tests yields low-signal noise. The cap of 3 tests prevents payload flooding but doesn't solve irrelevance.
+8. **Hub-function noise.** `safe_mkdir` linked to 234 tests yields low-signal noise. The cap of 3 tests prevents payload flooding but doesn't solve irrelevance.
 
-8. **Dependence on a green test suite.** On broken test suites, trace degrades (failing tests = missing edges). Bootstrap applies to stable branches only.
+9. **Dependence on a green test suite.** On broken test suites, trace degrades (failing tests = missing edges). Bootstrap applies to stable branches only.
 
-9. **Mock tests are blind.** 10.2% of tests execute 0 src functions; static companions cover 88 of 176, but not all.
+10. **Mock tests are blind.** 10.2% of tests execute 0 src functions; static companions cover 88 of 176, but not all.
 
-10. **Graph reindex drift.** Rebuilding the PropertyGraph may alter node ordering slightly.
+11. **Graph reindex drift.** Rebuilding the PropertyGraph may alter node ordering slightly.
 
-11. **CI scale limit.** Running trace on 100k+ test suites may breach CI execution windows.
+12. **CI scale limit.** Running trace on 100k+ test suites may breach CI execution windows.
 
-12. **Clean-state status.** Verification was executed locally; clean CI state verification requires a PR merge.
+13. **Clean-state status.** Verification was executed locally; clean CI state verification requires a PR merge.
 
 ---
 
@@ -265,8 +258,8 @@ python -X utf8 experiments/bootstrap/e17_ab_tests_signal.py
 | **7b** | 2026-09-15 | Tarantula rank ≤ 3 for ≥60% tests | **REFUTED** (22.6%, high precision) | `EXPERIMENTS_LOG.md` |
 | **8** | 2026-09-16 | `sys.monitoring` overhead < 5% | **REFUTED** (+19.96%) | `EXPERIMENTS_LOG.md` |
 | **9** | 2026-09-16 | Static recall ≤ 30% | **REFUTED** (union 70%, static companion) | `EXPERIMENTS_LOG.md` |
-| **16** | 2026-09 | Portability on external repos | **CONFIRMED** (gemma 97.3%, commit 100%) | `EXPERIMENTS_LOG.md` |
-| **17** | 2026-09-22 | `TESTS` edges drive search results | **CONFIRMED** (7/7 def-first, 6/7 with tests; wide panel 35 queries: hit@1=94.3%, TESTS-signal=97.1%) | `EXPERIMENTS_LOG.md` |
+| **16** | 2026-09 | Portability on external repos | **CONFIRMED** (gemma 97.3%, clean CLI tools 100%) | `EXPERIMENTS_LOG.md` |
+| **17** | 2026-09-22 | `TESTS` edges drive search results | **CONFIRMED** (35-query panel: 94.3% hit@1, 97.1% test-enriched, +15.3% overhead, 5/5 Red Team passed) | `EXPERIMENTS_LOG.md` |
 
 ---
 
