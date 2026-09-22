@@ -52,6 +52,26 @@ Enriching `verify_on_read` with TESTS edges is worthwhile, but must be paired wi
 "does this test actually assert" (assertion density / mutation-kill proxy) — otherwise 40% of linked
 tests give false confidence.
 
+### v6 — verification-strength profile (multiple mutations per function)
+
+10 functions x 4 mutations (negate-if, flip-compare, bool-flip, int+1, str-append) = 40 mutants;
+every graph-linked test (arm B) and decoy (arm D) was run under every mutant.
+Script: `e17_strength_profile.py`, data: `e17_strength_profile.json`.
+
+- 24 tests profiled. **Decoy tests killed 0/104 mutants** (control clean).
+- kill-rate spread: 2/24 tests killed every mutant, 6/24 killed none — a per-test profile, not one snapshot.
+- Predictors of kill-rate (Spearman, n=24):
+  - assertion specificity (`assert x == v`): **rho=+0.54, p=0.006**
+  - assert count: rho=+0.47, p=0.019
+  - assertion density: rho=+0.25, p=0.24 (n.s.)
+  - test LOC: rho=+0.14, p=0.53 (n.s.)
+
+So **what an assertion compares against matters more than how many assertions there are**.
+`TestCypherLexer::test_tokenize_*` have 2 asserts but kill only 0.5 (`assert len(tokens) > 0`,
+`assert "MATCH" in values`), while `assert result == expected` is far more discriminating.
+Density and length carry ~no signal. This matches the "TEST_REACHES vs TEST_VERIFIES" split:
+a TESTS edge is a reach claim; kill-rate under mutation is a verification claim.
+
 ## Conclusion
 
 1. **Answer generation / reasoning: the signal adds nothing.** For a strong model the code alone
