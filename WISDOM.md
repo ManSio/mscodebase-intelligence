@@ -232,3 +232,10 @@
 - Паттерн: **hook блокирует → чини среду, не пропуск** (`--no-verify` оставляет контроль
   мёртвым и коммитит поверх; PATH-фикс делает контроль работающим и коммитит под ним —
   контроль остановил самого автора и сам же был восстановлен).
+
+## Clean-state verification (2026-09-22)
+- erify_clean_state.sh --no-clone на локальном clone закоммиченного состояния (ревизия 44d451f6):
+  1800 passed / 0 failed / 13 skipped (822s); lock-drift negative-control PASSED; guard inventory ALL PROVEN (3);
+  revision gate VALID. Новый core (quiet_break_gate/redact/restraint) прошёл clean-state.
+- Если ветка не запушена, default clone с GitHub тестирует ЧУЖОЕ (origin) состояние — для честного
+  clean-state клонировать ЛОКАЛЬНЫЙ репо и гонять --no-clone.
