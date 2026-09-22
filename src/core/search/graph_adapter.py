@@ -547,10 +547,18 @@ class SymbolIndexAdapter(PureGraphMixin):
             List[SymbolRef] с kind="test", is_definition=True.
         """
         try:
+            # Normalize file_path: graph stores absolute POSIX paths
+            normalized_path = Path(file_path).as_posix()
+            if not Path(file_path).is_absolute():
+                # Convert relative to absolute
+                from src.core.project_resolution import resolve_project_root
+                project_root = resolve_project_root()
+                normalized_path = (project_root / file_path).as_posix()
+            
             candidates = self._graph.find_nodes(
                 label=NodeLabel.FUNCTION,
                 name_pattern=f"%{symbol}%",
-                file_path=file_path,
+                file_path=normalized_path,
                 limit=5,
             )
             if not candidates:
