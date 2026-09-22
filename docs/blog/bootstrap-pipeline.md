@@ -4,32 +4,6 @@ description: "Part 4 of MSCodeBase Intelligence — Field Notes. Full source-mat
 tags: machinelearning, python, search, rag, codearchitecture, testing
 ---
 
-<style>
-/* Fix for coderlegion.com: tables with visible borders and background */
-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 1em 0;
-  background-color: #f9f9f9;
-}
-th, td {
-  border: 1px solid #ddd;
-  padding: 8px;
-  text-align: left;
-}
-th {
-  background-color: #4a90e2;
-  color: white;
-  font-weight: bold;
-}
-tr:nth-child(even) {
-  background-color: #f2f2f2;
-}
-tr:hover {
-  background-color: #e8f4f8;
-}
-</style>
-
 > **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "What Could Go Wrong" section.
 
 ---
@@ -103,12 +77,47 @@ baseline: 184.88s | coverage: 221.78s -> overhead +19.96% (target <5% REFUTED)
 
 We evaluated a full static score (AST L1 calls / L2 name tokens / L3 imports) against dynamic trace as ground truth.
 
-| Signal | Hit | Recall | Precision | Mean Candidates |
-|---|---|---|---|---|
-| **L1 (direct calls from test body)** | 88.4% | 30.3% | 68.0% | 2.9 |
-| **L2 (name tokens)** | 17.7% | 3.8% | 12.1% | — |
-| **L3 (file imports)** | 91.6% | 72.0% | 21.8% | 41.4 |
-| **Union (L1 + L2 + L3)** | 90.4% | 70.0% | 20.6% | — |
+<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
+<thead>
+<tr>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Signal</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Hit</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Recall</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Precision</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Mean Candidates</th>
+</tr>
+</thead>
+<tbody>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>L1 (direct calls from test body)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">88.4%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">30.3%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">68.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">2.9</td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>L2 (name tokens)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">17.7%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">3.8%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">12.1%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">—</td>
+</tr>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>L3 (file imports)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">91.6%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">72.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">21.8%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">41.4</td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>Union (L1 + L2 + L3)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">90.4%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">70.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">20.6%</td>
+<td style="border: 1px solid #ddd; padding: 8px;">—</td>
+</tr>
+</tbody>
+</table>
 
 The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%**. Static signals were stronger than anticipated, but as a precise anchor L1 is narrow (precision 68%, 2.9 candidates), and as a wide net L3 is noisy (41.4 candidates). 
 
@@ -120,10 +129,33 @@ The initial assumption (*recall ≤ 30%*) was wrong: **union recall reached 70%*
 
 Does this generalize beyond our own repo? We tested the tracer across clean external Python repositories (e.g., `gemma_agent` at 97.3% linked tests) as well as smaller CLI tools, confirming that non-mocked external codebases yield even higher dynamic link ratios than mock-heavy internal codebases.
 
-| Project | Language | Tests | Linked % | Overhead |
-|---|---|---|---|---|
-| **gemma_agent** | Python | 2882 (2874 pass) | **97.3%** (2805) | **+17.4%** (71.4s vs 60.8s) |
-| **codebase-memory-mcp** | Go | 27 test funcs | — | `go test`: 51.0% pkg / **22.2% per-test** |
+<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
+<thead>
+<tr>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Project</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Language</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Tests</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Linked %</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Overhead</th>
+</tr>
+</thead>
+<tbody>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>gemma_agent</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">Python</td>
+<td style="border: 1px solid #ddd; padding: 8px;">2882 (2874 pass)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>97.3%</strong> (2805)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>+17.4%</strong> (71.4s vs 60.8s)</td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>codebase-memory-mcp</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">Go</td>
+<td style="border: 1px solid #ddd; padding: 8px;">27 test funcs</td>
+<td style="border: 1px solid #ddd; padding: 8px;">—</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>go test</code>: 51.0% pkg / <strong>22.2% per-test</strong></td>
+</tr>
+</tbody>
+</table>
 
 The limitation is honest: dynamic execution is currently **Python-only**; Go and TS require per-test tooling (e.g., `go test -coverprofile` across N executions). PropertyGraph itself is polyglot, but the edge builder remains Python-first.
 
@@ -191,14 +223,61 @@ python -X utf8 experiments/bootstrap/e17_ab_tests_signal.py
 
 ## Experiment Matrix
 
-| Exp | Date | Hypothesis | Verdict | Reference |
-|---|---|---|---|---|
-| **7** | 2026-09-15 | Dynamic > Static (0% vs 89.8%) | **CONFIRMED** (+13.6% overhead) | `EXPERIMENTS_LOG.md` |
-| **7b** | 2026-09-15 | Tarantula rank ≤ 3 for ≥60% tests | **REFUTED** (22.6%, high precision) | `EXPERIMENTS_LOG.md` |
-| **8** | 2026-09-16 | `sys.monitoring` overhead < 5% | **REFUTED** (+19.96%) | `EXPERIMENTS_LOG.md` |
-| **9** | 2026-09-16 | Static recall ≤ 30% | **REFUTED** (union 70%, static companion) | `EXPERIMENTS_LOG.md` |
-| **16** | 2026-09 | Portability on external repos | **CONFIRMED** (gemma 97.3%, commit 100%) | `EXPERIMENTS_LOG.md` |
-| **17** | 2026-09-22 | `TESTS` edges drive search results | **CONFIRMED** (7/7 def-first, 6/7 with tests) | `EXPERIMENTS_LOG.md` |
+<table style="border-collapse: collapse; width: 100%; margin: 1em 0;">
+<thead>
+<tr>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Exp</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Date</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Hypothesis</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Verdict</th>
+<th style="border: 1px solid #ddd; padding: 8px; background-color: #4a90e2; color: white; text-align: left;">Reference</th>
+</tr>
+</thead>
+<tbody>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>7</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09-15</td>
+<td style="border: 1px solid #ddd; padding: 8px;">Dynamic &gt; Static (0% vs 89.8%)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (+13.6% overhead)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>7b</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09-15</td>
+<td style="border: 1px solid #ddd; padding: 8px;">Tarantula rank ≤ 3 for ≥60% tests</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (22.6%, high precision)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>8</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09-16</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>sys.monitoring</code> overhead &lt; 5%</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (+19.96%)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>9</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09-16</td>
+<td style="border: 1px solid #ddd; padding: 8px;">Static recall ≤ 30%</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (union 70%, static companion)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+<tr style="background-color: #f9f9f9;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>16</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09</td>
+<td style="border: 1px solid #ddd; padding: 8px;">Portability on external repos</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (gemma 97.3%, commit 100%)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+<tr style="background-color: #ffffff;">
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>17</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px;">2026-09-22</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>TESTS</code> edges drive search results</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (7/7 def-first, 6/7 with tests)</td>
+<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+</tr>
+</tbody>
+</table>
 
 ---
 
