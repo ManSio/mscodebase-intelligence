@@ -2524,3 +2524,25 @@ jwt/url-cred/bearer/private-key/assignment) вырезается; хеш ком�
 безопасности: новый формат / секрет разбитый по строкам проходит — задокументировано, не продаём как «safe».
 
 **Файлы:** src/core/redact.py, src/cli.py, tests/test_redact.py. Атрибуция идеи: Tom Jones (crystal-memory).
+
+
+## Exp 22 — E10: сдержанность доставки (anti-numbing)
+
+**Гипотеза:** повтор одной и той же advisory-заметки притупляет читателя (Tom Jones: «the evening the
+agent went numb to its own alerts»; наш E3/E4 — та же опасность). Сигнатура findings + cooldown с
+растущим backoff подавит повторы, НЕ скрывая реальных изменений.
+
+**Метод:** `src/core/restraint.py` — `signature(findings)` (kind+symbol+file) + `should_deliver`
+(cooldown 600s, окно = cooldown × 2^min(strikes,3)); состояние — один JSON на проект
+(`delivery_state.json` в data_root, перезапись, atomic replace). Opt-in: `graph_query` action
+`isolation` + `kwargs={"restraint":true}` (блокирующие гейты сюда НЕ заходят — Red Team п.3).
+
+**Результат:** unit **4/4** (вместе с gate/redact — 22/22): первая доставка; немедленный повтор
+подавлен; после cooldown — снова; новая сигнатура — сброс; backoff растёт. CLI E2E (2 одинаковых
+вызова): call1 `deliver: ✓`; call2 `deliver: ✗` `cooldown: same findings, 597s left (strikes=0)`.
+Гоча: доп. аргументы CLI идут через `kwargs` (execute не принимает произвольные именованные).
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Повтор подавляется, изменение findings → новая сигнатура → доставка;
+блокирующие гейты не затронуты. ⛔ Best-effort, не граница безопасности (при сбое чтения — fail-open).
+
+**Файлы:** src/core/restraint.py, src/mcp/tools/graph_tools.py (kwargs.restraint), tests/test_restraint.py.
