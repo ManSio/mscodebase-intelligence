@@ -4,7 +4,7 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本：** 3.4.0
+> **版本：** 3.5.0
 > **最后更新：** 2026-08-12  
 > **架构：** 4 层架构 + 图原生 PropertyGraph 层 + 数据流层（入口点 → MCP 服务器/DI → 工具类 → 核心业务逻辑 → PropertyGraph → 数据流）带多窗口注册表 + DocSync
 
