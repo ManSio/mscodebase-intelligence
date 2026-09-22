@@ -89,32 +89,32 @@ We evaluated a full static score (AST L1 calls / L2 name tokens / L3 imports) ag
 </thead>
 <tbody>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>L1 (direct calls from test body)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">88.4%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">30.3%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">68.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">2.9</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L1 (direct calls from test body)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">88.4%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">30.3%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">68.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2.9</td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>L2 (name tokens)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">17.7%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">3.8%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">12.1%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">—</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L2 (name tokens)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">17.7%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">3.8%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">12.1%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
 </tr>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>L3 (file imports)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">91.6%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">72.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">21.8%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">41.4</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>L3 (file imports)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">91.6%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">72.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">21.8%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">41.4</td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>Union (L1 + L2 + L3)</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">90.4%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">70.0%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">20.6%</td>
-<td style="border: 1px solid #ddd; padding: 8px;">—</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>Union (L1 + L2 + L3)</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">90.4%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">70.0%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">20.6%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
 </tr>
 </tbody>
 </table>
@@ -141,18 +141,18 @@ Does this generalize beyond our own repo? We tested the tracer across clean exte
 </thead>
 <tbody>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>gemma_agent</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">Python</td>
-<td style="border: 1px solid #ddd; padding: 8px;">2882 (2874 pass)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>97.3%</strong> (2805)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>+17.4%</strong> (71.4s vs 60.8s)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>gemma_agent</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Python</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2882 (2874 pass)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>97.3%</strong> (2805)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>+17.4%</strong> (71.4s vs 60.8s)</td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>codebase-memory-mcp</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">Go</td>
-<td style="border: 1px solid #ddd; padding: 8px;">27 test funcs</td>
-<td style="border: 1px solid #ddd; padding: 8px;">—</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>go test</code>: 51.0% pkg / <strong>22.2% per-test</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>codebase-memory-mcp</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Go</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">27 test funcs</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">—</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>go test</code>: 51.0% pkg / <strong>22.2% per-test</strong></td>
 </tr>
 </tbody>
 </table>
@@ -235,46 +235,46 @@ python -X utf8 experiments/bootstrap/e17_ab_tests_signal.py
 </thead>
 <tbody>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>7</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09-15</td>
-<td style="border: 1px solid #ddd; padding: 8px;">Dynamic &gt; Static (0% vs 89.8%)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (+13.6% overhead)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>7</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-15</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Dynamic &gt; Static (0% vs 89.8%)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (+13.6% overhead)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>7b</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09-15</td>
-<td style="border: 1px solid #ddd; padding: 8px;">Tarantula rank ≤ 3 for ≥60% tests</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (22.6%, high precision)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>7b</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-15</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Tarantula rank ≤ 3 for ≥60% tests</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (22.6%, high precision)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>8</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09-16</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>sys.monitoring</code> overhead &lt; 5%</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (+19.96%)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>8</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-16</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>sys.monitoring</code> overhead &lt; 5%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (+19.96%)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>9</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09-16</td>
-<td style="border: 1px solid #ddd; padding: 8px;">Static recall ≤ 30%</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>REFUTED</strong> (union 70%, static companion)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>9</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-16</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Static recall ≤ 30%</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>REFUTED</strong> (union 70%, static companion)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 <tr style="background-color: #f9f9f9;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>16</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09</td>
-<td style="border: 1px solid #ddd; padding: 8px;">Portability on external repos</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (gemma 97.3%, commit 100%)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>16</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">Portability on external repos</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (gemma 97.3%, commit 100%)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 <tr style="background-color: #ffffff;">
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>17</strong></td>
-<td style="border: 1px solid #ddd; padding: 8px;">2026-09-22</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>TESTS</code> edges drive search results</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><strong>CONFIRMED</strong> (7/7 def-first, 6/7 with tests)</td>
-<td style="border: 1px solid #ddd; padding: 8px;"><code>EXPERIMENTS_LOG.md</code></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>17</strong></td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;">2026-09-22</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>TESTS</code> edges drive search results</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><strong>CONFIRMED</strong> (7/7 def-first, 6/7 with tests)</td>
+<td style="border: 1px solid #ddd; padding: 8px; color: #333333;"><code>EXPERIMENTS_LOG.md</code></td>
 </tr>
 </tbody>
 </table>
