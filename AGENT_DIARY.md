@@ -27,6 +27,14 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-22] E17 v6 — verification-strength profile: specificity beats count
+
+**Status:** Measured (hypothesis CONFIRMED).
+**Method:** 10 functions x 4 mutations (negate-if, flip-compare, bool-flip, int+1, str-append) = 40 mutants; every graph-linked test (B) and decoy (D) run under every mutant; AST features extracted from test bodies.
+**Result:** 24 tests profiled; decoys killed **0/104** mutants. Predictors of kill-rate (Spearman, n=24): assertion **specificity** (`assert x == v`) rho=+0.54 p=0.006; assert **count** rho=+0.47 p=0.019; density rho=0.25 n.s.; LOC rho=0.14 n.s.
+**Conclusion:** what an assertion compares against matters more than how many assertions there are. A TESTS edge is a *reach* claim; mutation kill-rate is a *verification* claim. Build a TEST_VERIFIES / TEST_STRENGTH layer on top of TESTS instead of one fat edge.
+**Files:** experiments/bootstrap/e17_strength_profile.py, e17_strength_profile.json
+
 ## [2026-09-22] E17 v5 — mutation validation: signal drives verification, 40% assertion gap
 
 **Status:** Measured (hypothesis CONFIRMED, with caveat).
