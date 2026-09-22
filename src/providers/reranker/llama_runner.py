@@ -1455,7 +1455,35 @@ class LlamaRunner:
 
         return ret is None
 
+    def is_port_up(self) -> bool:
 
+        """Публичная проверка: отвечает ли embedder-порт (без запуска)."""
+
+        try:
+
+            return self._probe_port_sync(self._port)
+
+        except Exception:
+
+            return False
+
+    def ensure_embedder_started(self, model_key: str = DEFAULT_EMBEDDING_MODEL) -> bool:
+
+        """Синхронно гарантирует живой embedder на self._port.
+
+        Watchdog llama_runner сам выгружает embedder по EMBEDDER_IDLE_TIMEOUT
+        (free RAM), но клиент обязан поднять его при следующем использовании.
+        Без этого :8080 мёртв -> WinError 10061 -> search_code таймаутит до
+        рестарта MCP (инцидент 2026-09-22).
+        """
+
+        if self.is_alive() or self._probe_port_sync(self._port):
+
+            return True
+
+        logger.warning("Embedder idle-unloaded/dead - restarting (idle-unload recovery)")
+
+        return self._start_sync(model_key)
 
     async def health(self) -> dict:
 
@@ -1497,11 +1525,12 @@ class LlamaRunner:
 
         """Отправляет запрос на эмбеддинги."""
 
-        if self._model_key != "bge-m3":
+        if not self.is_alive():
 
-            # Автоматический рестарт с embedder
+            # Автоматический рестарт embedder (именно embedder-модель,
+            # не reranker): раньше здесь стартовала "bge-m3" — копипаст-баг.
 
-            if not await self.start("bge-m3"):
+            if not await self.start(DEFAULT_EMBEDDING_MODEL):
 
                 return None
 
