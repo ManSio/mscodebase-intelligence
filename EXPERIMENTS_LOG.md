@@ -2568,3 +2568,30 @@ NONE-контроля, что у deepseek-low в E7. Прочие пункты �
 на соседнем домене (UI-фраза ловит вне-доменный CSS-симптом) — кандидат в запись/дырку.
 
 **Файлы:** лаб %TEMP%/opencode/e11 (handout.md, opencode.json). Источник: tjonesit/crystals @3e30ed2.
+
+
+## Exp 24 — E12: L1 детерминированный doc-reference чекер (near-zero FP)
+
+**Гипотеза:** полный словарь из кода + scope=живые доки + исключения (venv/архив) + whitelist
+(stdlib/внешние/env/модели) превращает непригодные 1366 «битых» в actionable-гейт.
+
+**Мотив:** старый `auto_doc_updater` собирал только ОПРЕДЕЛЕНИЯ (def/class/тулы/константы) и сканировал
+`root.rglob` (включая `venv`: 232 чужих .md) → 1366 «битых», ~3% реальных (параметры/поля/stdlib).
+«Checker that cries wolf gets muted» (evergreen/doc-sync).
+
+**Метод:** `src/core/doc_reference_l1.py` (stdlib): словарь = идентификаторы + строковые литералы из
+src/tests/scripts/tools (+корневые *.py); scope = корневые доки БЕЗ леджеров + docs/** минус
+archive/generated/research/blog/ISSUES/investigations; фильтры dunder/`file:NN`/символы/модели/env/`@`/`self.`;
+whitelist stdlib+builtins+typing, внешние (Zed/Rust), commit-scopes. Подключён к `auto_update_docs("verify")`.
+
+**Результат:** «битых» **1366 → 11 → 2 → 0** (после whitelist 2 легитимных терминов: in-toto `expected_command`,
+концепт `graph_context_first`). Тесты 4/4 (12/12 с auto_doc_updater). Словарь 18820, живых доков 69.
+Найдена и исправлена реальная неточность: WISDOM `_symbol_resolver` → `_build_symbol_resolver`.
+(Побочно: краш на одиноком `` `$` `` — починен ранее в этой сессии.)
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Детерминированный L1 на полном словаре даёт ~0 FP на живых доках → годен как гейт.
+**Ограничение:** L1 проверяет «имя существует ГДЕ-ЛИБО в коде», поэтому устаревшее имя ТУЛА, всё ещё
+встречающееся в тестах, маскируется (старые `replace_symbol`/`predict_eta` в BENCHMARK.md не пойманы) —
+для тулов нужна проверка по реестру, а не по словарю.
+
+**Файлы:** src/core/doc_reference_l1.py, src/core/auto_doc_updater.py (delegate), tests/test_doc_reference_l1.py, WISDOM.md.

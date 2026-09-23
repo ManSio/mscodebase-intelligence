@@ -1,4 +1,4 @@
-# WISDOM.md — дистиллят фактов (≤50 строк)
+﻿# WISDOM.md — дистиллят фактов (≤50 строк)
 
 > Не архив, не дневник. Каждая строка — проверенный факт, сжатый до одной мысли.
 > Полная история — в `AGENT_DIARY.md` / `EXPERIMENTS_LOG.md`.
@@ -198,7 +198,7 @@
 - **COMMIT A СДЕЛАН (08281f37, ветка feat/two-pass-symbol-resolver, 7 файлов, 328+/16-):**
   A = поведение отказов: write-path guard на неоднозначность (#21: modification_guard +
   write_tools `_resolve_single_source_def` отказ при >1 definition) + VOR symbol-якорь
-  fail-closed (#22: `_symbol_resolver` только True→VERIFIED / None→INCONCLUSIVE, НИКОГДА
+  fail-closed (#22: `_build_symbol_resolver` только True→VERIFIED / None→INCONCLUSIVE, НИКОГДА
   False→REFUTED; `_classify` non-True symbol → INCONCLUSIVE). Тесты 126 passed.
 - **COMMIT B (head-freshness) — РЕАЛИЗОВАН, 8 тестов, полный pytest 1602 green, ruff чист:**
   - `src/core/graph.py`: `meta`-таблица (set_meta/get_meta) — build-метка.
@@ -208,7 +208,7 @@
     (git rev-parse HEAD + git status --porcelain, оба Popen+communicate, CREATE_NO_WINDOW,
     timeout 5s, fail→None); `_classify` снял fail-closed symbol-ветку (False теперь REFUTED —
     свежесть гарантирует резолвер).
-  - `src/core/intelligence/layer.py`: `_symbol_resolver` freshness-gated — False (REFUTED)
+  - `src/core/intelligence/layer.py`: `_build_symbol_resolver` freshness-gated — False (REFUTED)
     ТОЛЬКО если `si.build_head()` == live HEAD (resolve_head_dirty) на чистом дереве;
     иначе (легаси-индекс без build_head / HEAD-мисматч / не-git / dirty / сбой) → None
     (INCONCLUSIVE). Свежесть решает РЕЗОЛВЕР, не `_classify`.
