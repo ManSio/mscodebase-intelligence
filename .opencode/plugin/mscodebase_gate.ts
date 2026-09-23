@@ -11,9 +11,13 @@
 // Переключатели (env): MSCODEBASE_PY, MSCODEBASE_STALE_GATE=block|off,
 //                      MSCODEBASE_ISOLATION_GATE=advisory|block|off, MSCODEBASE_GATE_LOG.
 // Хук никогда не роняет хост: любые сбои → лог, без throw (кроме намеренного блока).
+//
+// ВАЖНО: вызов python — через node:child_process, НЕ через `$` из контекста плагина: в opencode
+// 1.18.23 контекст фабрики не содержит `$` (API дрейфанул) → `TypeError: $ is not a function`.
 
 import type { Plugin } from "@opencode-ai/plugin"
 import { appendFileSync, mkdirSync } from "node:fs"
+import { execFile } from "node:child_process"
 import { dirname } from "node:path"
 
 const PY = process.env.MSCODEBASE_PY ?? "D:/Project/MSCodeBase/venv/Scripts/python.exe"
@@ -33,9 +37,20 @@ function log(rec: Record<string, unknown>) {
   }
 }
 
-async function cli($: any, directory: string, tool: string, argsJson: string): Promise<string> {
-  const res = await $`"${PY}" -m src.cli ${tool} ${argsJson}`.cwd(directory).nothrow().quiet()
-  return res.text()
+function cli(directory: string, tool: string, argsJson: string): Promise<string> {
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        PY,
+        ["-m", "src.cli", tool, argsJson],
+        { cwd: directory, timeout: 90000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+        (_err, stdout) => resolve(stdout ?? ""),
+      )
+    } catch (e) {
+      log({ kind: "cli_spawn_error", err: String(e).slice(0, 200) })
+      resolve("")
+    }
+  })
 }
 
 function staleDrift(out: string): number {
@@ -55,7 +70,7 @@ function isolationSuppressed(out: string): boolean {
 
 const stash = new Map<string, string>()
 
-export default (async ({ directory, $ }) => {
+export default (async ({ directory }) => {
   log({ kind: "init", directory, stale: STALE_MODE, isolation: ISO_MODE })
   return {
     "tool.execute.before": async (input: any, output: any) => {
@@ -66,7 +81,7 @@ export default (async ({ directory, $ }) => {
       // ── Gate 1: stale_detector (block) ──
       if (STALE_MODE !== "off") {
         try {
-          const out = await cli($, directory, "stale_detector", STALE_ARGS)
+          const out = await cli(directory, "stale_detector", STALE_ARGS)
           const drift = staleDrift(out)
           log({ kind: "stale", drift, out: out.slice(0, 400) })
           if (STALE_MODE === "block" && drift > 0) {
@@ -84,7 +99,7 @@ export default (async ({ directory, $ }) => {
       // ── Gate 2: graph isolation (advisory/block) ──
       if (ISO_MODE !== "off") {
         try {
-          const out = await cli($, directory, "graph_query", ISO_ARGS)
+          const out = await cli(directory, "graph_query", ISO_ARGS)
           const count = isolationCount(out)
           log({ kind: "isolation", count, out: out.slice(0, 400) })
           if (count > 0) {
