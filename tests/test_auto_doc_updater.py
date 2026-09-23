@@ -81,6 +81,21 @@ def test_extract_doc_references_handles_empty_call_syntax(tmp_path):
     assert isinstance(broken, list)
 
 
+def test_extract_doc_references_handles_lone_dollar(tmp_path):
+    """Регрессия: одинокий `` `$` `` в доке не роняет verify_references.
+
+    Guard пустой строки стоял ДО снятия `$`, а одинокий `$` делал content пустым
+    → IndexError на content[0] (инцидент 2026-09-23)."""
+    root = _make_tree(tmp_path)
+    (tmp_path / "docs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "y.md").write_text(
+        "Команды: `$` и `$ ` и нормальный `fastmcp`.\n", encoding="utf-8"
+    )
+    updater = AutoDocUpdater()
+    broken = updater._verify_doc_references(root)  # не должен бросить IndexError
+    assert isinstance(broken, list)
+
+
 def test_count_tools_counts_execute_script_when_enabled(tmp_path, monkeypatch):
     """ExecuteScriptTool учитывается только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true."""
     root = _make_tree(tmp_path)
