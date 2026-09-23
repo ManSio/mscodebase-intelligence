@@ -618,6 +618,10 @@ class AutoDocUpdater:
                 # Убираем $ префикс для env vars: `$VAR_NAME` → `VAR_NAME`
                 if content.startswith("$"):
                     content = content[1:]
+                    # Guard: одинокий `$` → пустой content → IndexError на content[0]
+                    # ниже (инцидент 2026-09-23: verify_references падал на доке с `$`).
+                    if not content:
+                        continue
                     # Пропускаем shell-style env vars: `$ZED_WORKTREE_ROOT`
                     if content.isupper() and len(content) > 2:
                         continue
