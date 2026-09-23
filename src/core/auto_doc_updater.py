@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Set, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -65,51 +65,12 @@ class AutoDocUpdater:
         if not root.exists():
             return f"❌ Project root not found: {root}"
 
-        start = datetime.now()
-        broken = self._verify_doc_references(root)
-        elapsed = (datetime.now() - start).total_seconds()
+        # L1-чекер (детерминированный, near-zero FP): полный словарь из кода,
+        # scope = живые доки, исключения venv/архива, whitelist stdlib/внешних API.
+        # Старая реализация (только defs + rglob с venv) давала 1366 «битых», ~3% реальных.
+        from src.core.doc_reference_l1 import check, format_report
 
-        # Статистика
-        md_files = list(root.rglob("*.md"))
-        doc_files = [f for f in md_files if "generated" not in f.parts]
-        total_refs = self._count_references(doc_files)
-
-        if not broken:
-            return (
-                f"✅ Doc reference check — {datetime.now().strftime('%H:%M:%S')}\n"
-                f"📁 Checked {len(doc_files)} .md files, "
-                f"{total_refs} code references, 0 broken.\n"
-                f"⚡ {elapsed:.1f}s"
-            )
-
-        lines = [
-            f"⚠️ Doc reference check — {datetime.now().strftime('%H:%M:%S')}",
-            f"📁 Checked {len(doc_files)} .md files, "
-            f"{total_refs} code references, {len(broken)} broken.",
-            "",
-            "📛 Broken references:",
-        ]
-        for b in broken[:20]:
-            lines.append(f"  • `{b.reference}` in {b.file}:L{b.line}")
-            if b.suggestion:
-                lines.append(f"    💡 {b.suggestion}")
-        if len(broken) > 20:
-            lines.append(f"  ... +{len(broken) - 20} more")
-
-        lines.extend([
-            "",
-            "📋 Fix suggestions:",
-        ])
-        # Группируем по файлам для удобных исправлений
-        by_file: Dict[str, List[BrokenRef]] = {}
-        for b in broken:
-            by_file.setdefault(b.file, []).append(b)
-        for file_path, refs in sorted(by_file.items()):
-            refs_list = ", ".join(f"`{r.reference}`" for r in refs)
-            lines.append(f"  • {file_path}: fix {refs_list}")
-
-        lines.append(f"\n⚡ {elapsed:.1f}s")
-        return "\n".join(lines)
+        return format_report(check(root))
 
     def update_all(self, project_root: str) -> str:
         """Запускает полное обновление документации.
