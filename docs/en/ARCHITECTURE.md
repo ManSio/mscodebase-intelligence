@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (31 core + 16 intel + 13 inline + 4 dev = 64 total)](#4-tool-layer)
+4. [Tool Layer (32 core + 16 intel + 13 inline + 4 dev = 65 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py               (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (28 core + 13 inline + 4 dev)│
+│  Layer 3: mcp/tools/*.py         (32 core + 13 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -91,14 +91,14 @@ Both use the same `create_service_collection()` factory.
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 31 core + 16 intel + 13 inline + 4 dev = 64 total
+3. Register 32 core + 16 intel + 13 inline + 4 dev = 65 total
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **15 files: 28 core (21 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
+`src/mcp/tools/*.py` — **32 core (25 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -275,10 +275,10 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool, GetActionReceiptTool,
     ]
     # +16 intel_* tools + 13 inline diagnostic + 4 dev
-    # Total: 61 registered (28 core + 16 intel + 13 inline + 4 dev)
+    # Total: 65 registered (32 core + 16 intel + 13 inline + 4 dev)
 ```
 
-**Tool visibility filter:** By default 46 tools visible (13 of 28 core via allowlist + 16 intel + 13 inline + 4 dev; +1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 58.
+**Tool visibility filter:** the default visible set is the `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 65 (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`).
 
 ### 4.2 All Tools by Group
 
@@ -297,9 +297,9 @@ def register_all_tools(mcp, services):
 | **Docs** (1) | `doc_tools.py` | stale_detector |
 | **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
 | **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
-| **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
+| **Diagnostic inline** (13) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact |
 
-> **Total:** 61 registered (28 core + 16 intel + 13 inline + 4 dev). Default visible: 46 (13 из 28 core по default-allowlist + 16 + 13 + 4). Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 65 registered (32 core + 16 intel + 13 inline + 4 dev). Default visible: `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

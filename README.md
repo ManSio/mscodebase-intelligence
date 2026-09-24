@@ -13,9 +13,9 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1835%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1856%20passed-brightgreen)](tests/)
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-66-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
+[Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-65-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
 *Last updated: 2026-08-16*
 
@@ -67,7 +67,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ### LSP: Hybrid Rename Only
 
-MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **61 MCP tools**.
+MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **65 MCP tools**.
 
 The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
@@ -215,7 +215,7 @@ Deep-dives into specific technical findings from building this project:
 
 ---
 
-## 🔧 MCP Tools (66 total)
+## 🔧 MCP Tools (65 total)
 
 > 65 = 64 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 64 (32 core + 16 intel + 13 inline + 4 dev).
 
@@ -369,7 +369,7 @@ Deep-dives into specific technical findings from building this project:
 │              ┌────────────┴────────────┐                         │
 │              ▼                          ▼                         │
 │  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  28 Tool Classes   │  │  16 intel_* + 13 inline tools    │  │
+│  │  32 Tool Classes   │  │  16 intel_* + 13 inline tools    │  │
 │  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
 │  │  + codebase hub     │  │  server_tools.py (inline)          │  │
 │  │  Constructor Inj.   │  │  error_boundary decorator          │
