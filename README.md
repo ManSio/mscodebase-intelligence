@@ -13,11 +13,11 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1856%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1889%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-65-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
-*Last updated: 2026-08-16*
+*Last updated: 2026-09-23*
 
 </div>
 
@@ -118,7 +118,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 | 💾 **LanceDB v2** | Vector DB with per-project isolation (incremental BM25 reindex) |
 | 🛡 **Rate Limiting** | DebounceBatch + CircuitBreaker — protection against VFS loops |
 | 🏥 **Self-Diagnosis** | `get_health_report` + `index_health` — full check and recovery |
-| 🧪 **Clean Architecture** | DI Container (18 services), 65 tools (32 core + 16 intel + 13 inline + 4 dev), ~1773 tests |
+| 🧪 **Clean Architecture** | DI Container (14 services), 65 tools (32 core + 16 intel + 13 inline + 4 dev), ~1889 tests |
 | 🪟 **Multi-Window** | `ProjectIndexerRegistry` — isolated Indexer per project, LRU 5, ResourceMonitor throttle |
 | ✏️ **Write Tools** | `codebase(action=...)` — unified hub: rename, move, delete, replace, insert, ack |
 | ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — file_path rename without re-embedding (50ms vs 5s) |
@@ -217,7 +217,7 @@ Deep-dives into specific technical findings from building this project:
 
 ## 🔧 MCP Tools (65 total)
 
-> 65 = 64 base + `execute_script` (регистрируется при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Без флага — 64 (32 core + 16 intel + 13 inline + 4 dev).
+> 65 registered = 32 core + 16 intel + 13 inline + 4 dev. With `execute_script` (registered when `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`) — 66.
 
 ### Core Search
 
