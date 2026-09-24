@@ -71,7 +71,7 @@ Raw Input: {}
 | 3 | `intel_get_project_memory` | `{}` |
 | 4 | `intel_explain_project_state` | `{}` |
 
-5. **Источник правды:** `src/mcp/server.py` + `src/core/intelligence_layer.py`.
+5. **Источник правды:** `src/mcp/server.py` + `src/core/intelligence/layer.py`.
 6. **После ошибки** — не retry с теми же JSON. Сначала `debug_runtime_passport` `{}`, потом альтернатива.
 
 **Reindex (Raw Input):**
@@ -449,7 +449,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 7. Did I check `diagnostics`?
 8. Did I run `python -m pytest tests/ -k write_tools -v` before committing?
 9. **CI проверен через `gh run view --log-failed`** (последний ран — механический guard против «CI green» на словах):
-   - Перед push: последний ран не красный. После push: новый ран зелёный на ВСЕХ джобах — ubuntu matrix (3.10-3.12) + windows; локальный Windows-прогон слеп к POSIX-фейлам (WISDOM 2026-08-08).
+   - Перед push: последний ран не красный. После push: новый ран зелёный на ВСЕХ джобах — ubuntu + windows (Python 3.14); локальный Windows-прогон слеп к POSIX-фейлам (WISDOM 2026-08-08).
    - Точные фейлы даёт `gh run view --log-failed` — аннотации GitHub показывают только «exit code 1».
 10. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
     - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`
