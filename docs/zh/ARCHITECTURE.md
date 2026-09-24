@@ -55,7 +55,7 @@
 ```
  Layer 0: Filesystem                  — 磁盘上有哪些文件？
  Layer 1: SystemArtifacts             — 这是系统路径吗？
- Layer 2: Bridge (LSP→MCP)           — LSP 报告了哪个项目？
+ Layer 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
  Layer 3: Registry (IndexerRegistry)  — 哪个 Indexer 拥有此项目？
  Layer 4: StateMachine (ProjectState) — 项目处于什么状态？
  Layer 5: RuntimeCoordinator          — 可以执行此请求吗？
@@ -86,7 +86,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.2 MCP 服务器
 
-| `src/mcp/server.py` | **~220 行**（重构前为 3,100 行）。
+| `src/mcp/server.py` | **~68 行**（重构前为 3,100 行）。
 
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
@@ -129,13 +129,13 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 核心层
 
-`src/core/*.py` — **30 个纯业务逻辑文件。**
+`src/core/*.py` — **54 个顶层文件**（含子包 123 个）纯业务逻辑。
 
 关键模块：
 
 | 模块 | 路径 | 用途 |
 |--------|------|---------|
-| `di_container.py` | `src/core/di_container.py` | DI 容器（15+ 服务） |
+| `di_container.py` | `src/core/di_container.py` | DI 容器（14 服务） |
 | `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
 | `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
 | `engine.py` | `src/core/search/engine.py` | 混合搜索（BM25 + Dense + FTS5 + RRF） |
