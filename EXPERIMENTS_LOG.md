@@ -2595,3 +2595,18 @@ whitelist stdlib+builtins+typing, внешние (Zed/Rust), commit-scopes. По
 для тулов нужна проверка по реестру, а не по словарю.
 
 **Файлы:** src/core/doc_reference_l1.py, src/core/auto_doc_updater.py (delegate), tests/test_doc_reference_l1.py, WISDOM.md.
+
+
+## Exp 25 — E13: сокращение времени тестов (замер xdist)
+
+**Гипотеза:** параллельный прогон (pytest-xdist) заметно сократит время без потери качества.
+
+**Метод:** `pip install pytest-xdist` (3.8.0), полный прогон `pytest tests/ -q -n 4` vs последовательный, на той же машине/сессии.
+
+**Результат:** serial — **1817 passed за 200с** (тёплый); parallel `-n 4` — **1817 passed за 169с** (wall 172с)
+→ **~15% быстрее**, падений нет (наблюдаемая parallel-safety). Топ-тормоз serial: `test_temporal_facts_generator`
+≈42с (5 тестов). CI `clean-state` — **~13м холодный** (доминирует install/холодные кэши, не CPU).
+
+**Вердикт:** xdist даёт лишь ~15% локально → не стоит сложности по умолчанию. Главный рычаг CI — кэш
+deps/install, а не CPU-параллельность. Дальше: кэш pip в `clean-state`; разбор/оптимизация
+`test_temporal_facts_generator`. (Локальный xdist отключён по прежнему решению владельца — конфликт с llama.)
