@@ -302,7 +302,7 @@ intel_get_project_memory      ──>   codebase(action="git", path="log") / cod
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (64)
+## 2. AVAILABLE TOOLS (65)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
@@ -319,7 +319,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Inline/Diagnostic (13): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `dual_arm_health_check`, `ack_impact`.
 
-### B. Core MCP & Search (31 tools)
+### B. Core MCP & Search (32 tools)
 
 <!-- stale-ignore -->
 > **v3.2.0 Data Flow:** PropertyGraph содержит `ASSIGNED_FROM`-рёбра, отслеживающие
