@@ -218,6 +218,8 @@ Deep-dives into specific technical findings from building this project:
 ## 🔧 MCP Tools (65 total)
 
 > 65 registered = 32 core + 16 intel + 13 inline + 4 dev. With `execute_script` (registered when `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`) — 66.
+>
+> **Visibility:** the MCP client only sees tools in the `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Some core tools listed below (`get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`, …) are **hidden by default** until added to the allowlist; `MSCODEBASE_MCP_TOOLS=""` shows all.
 
 ### Core Search
 

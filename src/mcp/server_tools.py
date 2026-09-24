@@ -294,8 +294,8 @@ def register_all_tools(mcp, services):
     register_dev_tools(mcp)
 
     total_core = len(tool_classes)
-    total_intel = 14
-    total_inline = 12
+    total_intel = 16
+    total_inline = 13
     total_dev = 4
     logger.info(
         f"✅ Все инструменты зарегистрированы "

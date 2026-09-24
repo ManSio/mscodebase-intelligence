@@ -339,14 +339,14 @@ Inline/Diagnostic (13): `debug_runtime_passport`, `intel_get_project_context`, `
 `graph_query(action=query|cypher|related|flow)`,
 `submit_background_task`, `stale_detector`.
 
-> **Not registered (consolidated):** the 14 names below are documented in older
-> revisions but are **NOT exposed as MCP tools** in the current build — their
-> functionality is covered by `search_code`, `get_symbol_info`, `impact_analysis`,
-> and the `intel_*` suite. Do not call them; they return `tool not found`.
+> **Hidden core tools (default allowlist):** core tool classes that are not in the
+> default `MSCODEBASE_MCP_TOOLS` allowlist are **not exposed** to the MCP client
+> (calling them returns `tool not found`) until added to the allowlist. Examples:
 > `get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`,
 > `detect_communities`, `cross_repo_search`, `cross_project_deps`,
 > `find_duplicates`, `generate_chunk_summaries`, `scan_changes`,
-> `find_similar_bugs`, `get_context`, `verify_action`, `get_task_status`.
+> `find_similar_bugs`, `get_context`, `bootstrap_pipeline`.
+> (Intel / inline / dev tools are always registered and visible.)
 
 > Hub-маршруты `codebase(action=...)` (не отдельные MCP-тулы):
 > `codebase(action="index", path=status|progress|health|timeline|project_dir)` — индекс;
