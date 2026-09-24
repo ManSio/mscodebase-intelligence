@@ -69,7 +69,7 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 MSCodeBase **uses LSP only for `codebase(action="rename")`** — the LSP client (`src/core/lsp_client.py`) spawns **pyright-langserver** for precise cross-file rename, with graceful fallback to SymbolIndex (Tree-sitter) on timeout. All other functionality is implemented through **65 MCP tools**.
 
-The standalone LSP server (`src/lsp_main.py`) was experimental and **does not work in Zed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
+The standalone LSP server (`src/lsp_main.py`) was **removed** — see [LSP_WONTFIX.md](docs/en/investigations/LSP_WONTFIX.md).
 
 ### Platforms
 

@@ -57,7 +57,7 @@
 ```
  Слой 0: Filesystem                  — какие файлы есть на диске?
  Слой 1: SystemArtifacts             — это системный путь?
- Слой 2: Bridge (LSP→MCP)           — какой проект сообщил LSP?
+ Слой 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
  Слой 3: Registry (IndexerRegistry)  — какой Indexer принадлежит проекту?
  Слой 4: StateMachine (ProjectState) — в каком состоянии проект?
  Слой 5: RuntimeCoordinator          — можно ли выполнять запрос?
@@ -88,7 +88,7 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.2 MCP-сервер
 
-`src/mcp/server.py` — **~220 строк** (было 3 100 до рефакторинга).
+`src/mcp/server.py` — **~68 строк** (было 3 100 до рефакторинга).
 
 Обязанности:
 1. Определить корень проекта (`resolve_project_root()`)
@@ -131,13 +131,13 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Слой ядра
 
-`src/core/*.py` — **30 файлов чистой бизнес-логики.**
+`src/core/*.py` — **54 файла верхнего уровня** (123 с подпакетами) чистой бизнес-логики.
 
 Ключевые модули:
 
 | Модуль | Путь | Назначение |
 |--------|------|------------|
-| `di_container.py` | `src/core/di_container.py` | DI-контейнер (15+ сервисов) |
+| `di_container.py` | `src/core/di_container.py` | DI-контейнер (14 сервисов) |
 | `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
 | `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
 | `engine.py` | `src/core/search/engine.py` | Гибридный поиск (BM25 + Dense + FTS5 + RRF) |

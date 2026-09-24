@@ -55,7 +55,7 @@
 ```
  Layer 0: Filesystem                  — what files exist on disk?
  Layer 1: SystemArtifacts             — is this a system path?
- Layer 2: Bridge (LSP→MCP)           — which project did LSP report?
+ Layer 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
  Layer 3: Registry (IndexerRegistry)  — which Indexer owns this project?
  Layer 4: StateMachine (ProjectState) — what state is the project in?
  Layer 5: RuntimeCoordinator          — can we execute this request?
@@ -86,7 +86,7 @@ Both use the same `create_service_collection()` factory.
 
 ### 2.2 MCP Server
 
-| `src/mcp/server.py` | **~220 lines** (was 3,100 before refactoring).
+| `src/mcp/server.py` | **~68 lines** (was 3,100 before refactoring).
 
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
@@ -129,13 +129,13 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Core Layer
 
-`src/core/*.py` — **30 files of pure business logic.**
+`src/core/*.py` — **54 top-level files** (123 incl. subpackages) of pure business logic.
 
 Key modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
-| `di_container.py` | `src/core/di_container.py` | DI Container (15+ services) |
+| `di_container.py` | `src/core/di_container.py` | DI Container (14 services) |
 | `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
 | `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
 | `engine.py` | `src/core/search/engine.py` | Hybrid search (BM25 + Dense + FTS5 + RRF) |
