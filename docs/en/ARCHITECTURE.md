@@ -153,7 +153,7 @@ Key modules:
 | `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
 | `project_context.py` | `src/core/intelligence/project_context.py` | Project state snapshot |
 | `llama_runner.py` | `src/providers/reranker/llama_runner.py` | Lifecycle for llama-server.exe (reranker) |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | ONNX E5-small INT8 embedder + LM Studio/Ollama fallback |
+| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Embedder client: llama.cpp GGUF (primary) + ONNX INT8 / LM Studio / Ollama fallback |
 | `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | Auto-sync docs with code (rename hook) |
 
 ### 2.5 Search Engine (v3.3)
@@ -172,7 +172,7 @@ Key modules:
 ┌─────────────────────────────────────────────────────────┐
 │   PropertyGraph (graph.py)                               │
 │   SQLite (WAL + mmap), nodes/edges, JSON properties      │
-│   — 15 node labels (File, Function, Class, Variable...)  │
+│   — 16 node labels (File, Function, Class, Variable...)  │
 │   — 29 edge types (CALLS, DEFINES, ASSIGNED_FROM, ...)  │
 │   — Cypher query engine (MATCH→SQL)                     │
 └─────────────────────────────────────────────────────────┘
@@ -228,7 +228,7 @@ services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
 indexer = services.resolve(Indexer)  # same instance every time
 ```
 
-### 3.2 Registered Services (11)
+### 3.2 Registered Services (14)
 
 | # | Service | Type | Created By |
 |---|---------|------|------------|
@@ -243,6 +243,9 @@ indexer = services.resolve(Indexer)  # same instance every time
 | 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
 | 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
 | 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
+| 12 | Path | singleton | `project_root` (resolved path) |
+| 13 | Indexer | singleton | `indexer_instance` |
+| 14 | GitUrlSourceFactoryKey | factory | `_create_git_url_source` |
 
 > Cleanup (Task 2/5): dead registrations removed — DbPathKey, FileGuard,
 > SymbolIndex, ResourceMonitor, ResourceMonitorKey (never resolved).
@@ -293,10 +296,10 @@ def register_all_tools(mcp, services):
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Duplication** (1) | `duplication_tool.py` | find_duplicates |
 | **Context** (1) | `context_tool.py` | get_context |
-| **Lifecycle** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **Lifecycle** (4) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action, get_action_receipt |
 | **Docs** (1) | `doc_tools.py` | stale_detector |
 | **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
+| **Intelligence** (16) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node, intel_restore_memory_node, intel_supersede_memory_node |
 | **Diagnostic inline** (13) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact |
 
 > **Total:** 65 registered (32 core + 16 intel + 13 inline + 4 dev). Default visible: `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Show all: `MSCODEBASE_MCP_TOOLS=""`.
