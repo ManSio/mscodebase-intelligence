@@ -1,0 +1,162 @@
+[
+  {
+    "name": "IndexProjectRunner.run",
+    "mutation": "negate-if @L270",
+    "B": {
+      "failed": 3,
+      "rc": 1,
+      "verdict": "============================== 3 failed in 0.16s ==============================",
+      "err": true
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 0.07s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "RemoteEmbedder.embed_batch",
+    "mutation": "negate-if @L928",
+    "B": {
+      "failed": 2,
+      "rc": 1,
+      "verdict": "============================== 2 failed in 1.45s ==============================",
+      "err": false
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 2 passed in 0.06s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "CypherLexer.tokenize",
+    "mutation": "negate-if @L64",
+    "B": {
+      "failed": 3,
+      "rc": 1,
+      "verdict": "============================== 3 failed in 1.47s ==============================",
+      "err": true
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 0.13s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "AutoDocUpdater._extract_doc_references",
+    "mutation": "negate-if @L572",
+    "B": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 1 passed in 0.07s ==============================",
+      "err": false
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 1 passed in 0.08s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "IndexPipeline.process_file",
+    "mutation": "negate-if @L77",
+    "B": {
+      "failed": 3,
+      "rc": 1,
+      "verdict": "============================== 3 failed in 0.71s ==============================",
+      "err": true
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 1.40s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "extract_anchors",
+    "mutation": "negate-if @L345",
+    "B": {
+      "failed": 1,
+      "rc": 1,
+      "verdict": "============================== 1 failed in 1.49s ==============================",
+      "err": true
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 1.51s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "resolve_project_root",
+    "mutation": "negate-if @L296",
+    "B": {
+      "failed": 2,
+      "rc": 1,
+      "verdict": "========================= 2 failed, 1 passed in 0.14s =========================",
+      "err": true
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 1.36s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "SymbolIndex.build_call_graph",
+    "mutation": "negate-if @L575",
+    "B": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 0.10s ==============================",
+      "err": false
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 1.86s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "IndexParser.parse_file",
+    "mutation": "negate-if @L111",
+    "B": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 2 passed in 1.95s ==============================",
+      "err": false
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 2 passed in 1.42s ==============================",
+      "err": false
+    }
+  },
+  {
+    "name": "modification_guard",
+    "mutation": "negate-if @L227",
+    "B": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 0.09s ==============================",
+      "err": false
+    },
+    "D": {
+      "failed": 0,
+      "rc": 0,
+      "verdict": "============================== 3 passed in 2.82s ==============================",
+      "err": false
+    }
+  }
+]

@@ -71,7 +71,7 @@ Raw Input: {}
 | 3 | `intel_get_project_memory` | `{}` |
 | 4 | `intel_explain_project_state` | `{}` |
 
-5. **Источник правды:** `src/mcp/server.py` + `src/core/intelligence_layer.py`.
+5. **Источник правды:** `src/mcp/server.py` + `src/core/intelligence/layer.py`.
 6. **После ошибки** — не retry с теми же JSON. Сначала `debug_runtime_passport` `{}`, потом альтернатива.
 
 **Reindex (Raw Input):**
@@ -302,7 +302,7 @@ intel_get_project_memory      ──>   codebase(action="git", path="log") / cod
 intel_get_project_context     ──>   (aggregates 5+ calls)
 ```
 
-## 2. AVAILABLE TOOLS (64)
+## 2. AVAILABLE TOOLS (65)
 
 > **Полный справочник** (аргументы, когда вызывать, anti-patterns):
 > источник правды — `src/mcp/server_tools.py` + `src/mcp/tools/` + `src/core/intelligence/tools_reg.py`.
@@ -319,7 +319,7 @@ intel_get_project_context     ──>   (aggregates 5+ calls)
 
 Inline/Diagnostic (13): `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `dual_arm_health_check`, `ack_impact`.
 
-### B. Core MCP & Search (31 tools)
+### B. Core MCP & Search (32 tools)
 
 <!-- stale-ignore -->
 > **v3.2.0 Data Flow:** PropertyGraph содержит `ASSIGNED_FROM`-рёбра, отслеживающие
@@ -339,14 +339,14 @@ Inline/Diagnostic (13): `debug_runtime_passport`, `intel_get_project_context`, `
 `graph_query(action=query|cypher|related|flow)`,
 `submit_background_task`, `stale_detector`.
 
-> **Not registered (consolidated):** the 14 names below are documented in older
-> revisions but are **NOT exposed as MCP tools** in the current build — their
-> functionality is covered by `search_code`, `get_symbol_info`, `impact_analysis`,
-> and the `intel_*` suite. Do not call them; they return `tool not found`.
+> **Hidden core tools (default allowlist):** core tool classes that are not in the
+> default `MSCODEBASE_MCP_TOOLS` allowlist are **not exposed** to the MCP client
+> (calling them returns `tool not found`) until added to the allowlist. Examples:
 > `get_repo_map`, `get_repo_rank`, `get_hotspots`, `get_bug_correlation`,
 > `detect_communities`, `cross_repo_search`, `cross_project_deps`,
 > `find_duplicates`, `generate_chunk_summaries`, `scan_changes`,
-> `find_similar_bugs`, `get_context`, `verify_action`, `get_task_status`.
+> `find_similar_bugs`, `get_context`, `bootstrap_pipeline`.
+> (Intel / inline / dev tools are always registered and visible.)
 
 > Hub-маршруты `codebase(action=...)` (не отдельные MCP-тулы):
 > `codebase(action="index", path=status|progress|health|timeline|project_dir)` — индекс;
@@ -449,7 +449,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 7. Did I check `diagnostics`?
 8. Did I run `python -m pytest tests/ -k write_tools -v` before committing?
 9. **CI проверен через `gh run view --log-failed`** (последний ран — механический guard против «CI green» на словах):
-   - Перед push: последний ран не красный. После push: новый ран зелёный на ВСЕХ джобах — ubuntu matrix (3.10-3.12) + windows; локальный Windows-прогон слеп к POSIX-фейлам (WISDOM 2026-08-08).
+   - Перед push: последний ран не красный. После push: новый ран зелёный на ВСЕХ джобах — ubuntu + windows (Python 3.14); локальный Windows-прогон слеп к POSIX-фейлам (WISDOM 2026-08-08).
    - Точные фейлы даёт `gh run view --log-failed` — аннотации GitHub показывают только «exit code 1».
 10. **`bash scripts/verify_clean_state.sh` — проверка с чистого состояния (clone + venv + install + tests)**
     - Вывод должен содержать: `CLEAN STATE VERIFICATION: PASSED`

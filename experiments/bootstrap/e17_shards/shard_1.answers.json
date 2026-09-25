@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "mode": "A_baseline",
+    "answer": "From the information given I cannot determine which tests exercise IndexProjectRunner.run. Only the function source is provided; no repository layout, test files, or call sites are included, so no test function names can be identified. The function body references no tests. An LLM given only this text must not invent names. To find them one would search the test suite for imports of IndexProjectRunner or calls to .run, and for coverage of os.walk scanning, ThreadPoolExecutor workers, embed_batch, path_manager.is_safe_to_process, incremental resume writes, prune, BM25 reindex, cache invalidation and IVF indexing. Without that search the honest answer is: undetermined. I explicitly cannot list the required test function names."
+  },
+  {
+    "id": 1,
+    "mode": "B_runtime",
+    "answer": "The tests provided that exercise IndexProjectRunner.run are exactly these three:\ntest_run_survives_single_cpu_host\ntest_run_with_existing_known_hashes_skips_unchanged\ntest_workers_receive_known_hashes_not_none\n\nThey cover the 1-CPU worker-count edge case, the skip-unchanged path through known_hashes, and the guarantee that workers receive a dict so they never enter the locked table.search branch. These must be run for regressions when changing run. In summary, run performs a full project index: path-safety check, file scan with a guard, parallel parse, batched embedding, incremental resume-friendly writes, prune, BM25 reindex, cache invalidation and optional IVF indexing, returning the count of indexed files."
+  },
+  {
+    "id": 1,
+    "mode": "D_shuffled",
+    "answer": "The three provided tests do NOT exercise IndexProjectRunner.run. test_pid_reuse_is_stale and test_dead_pid_is_stale check DatabaseLock holder classification, and test_logs_dir_inside_data_root checks get_logs_dir; none call run, its parse workers, embedder, db_writer, searcher or table. Therefore I cannot determine from the information given which tests exercise this function. The listed names are unrelated to indexing and using them would give false confidence. To catch regressions one would search the repository for tests importing IndexProjectRunner or calling .run, covering the safety check, worker pool, known_hashes skip path, incremental writes, prune and reindex. From the supplied text, the honest answer is: undetermined."
+  }
+]

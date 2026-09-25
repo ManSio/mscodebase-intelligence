@@ -1,0 +1,32 @@
+[
+  {
+    "id": 7,
+    "mode": "A_baseline",
+    "answer": "The function resolve_project_root returns the project root directory used by MCP tools, resolving it fresh on each call. Inputs: an optional provided path string. Output: a Path. Priority order: explicit provided argument, then MSCODEBASE_PROJECT_PATH env override, then CWD with a self-indexing guard rejecting ext_root, then PROJECT_PATH env, then SQLite active_workspace_id, then the Zed workspaces table, then ZED_WORKTREE_ROOT env, and finally ext_root. Edge cases: multi-root paths split on newline or comma, non-existent paths skipped, and sqlite/OS errors swallowed. Regarding the question: no test names are given in the information provided, so I cannot determine which tests in the repository exercise this function; I cannot list them."
+  },
+  {
+    "id": 7,
+    "mode": "B_runtime",
+    "answer": "resolve_project_root returns the project root Path for MCP tools, recomputed each call. It accepts an optional provided string and returns a Path. Resolution priority: provided argument, MSCODEBASE_PROJECT_PATH override, CWD with self-indexing guard, PROJECT_PATH env, SQLite active_workspace_id, the Zed workspaces table, ZED_WORKTREE_ROOT, and finally ext_root. It handles multi-root SQLite paths, missing directories, and sqlite/OS errors. Based on the tests shown, the tests that exercise this function are: test_provided_wins_over_cwd; test_cwd_equal_ext_root_is_skipped; test_mscb_path_trusts_ext_root. These three directly assert provided-over-CWD precedence, the self-index guard falling back to an env project, and MSCODEBASE_PROJECT_PATH trusting ext_root."
+  },
+  {
+    "id": 7,
+    "mode": "D_shuffled",
+    "answer": "resolve_project_root returns the project root Path for MCP tools, resolving anew each call. It takes an optional provided string and returns a Path, following a priority chain: provided argument, MSCODEBASE_PROJECT_PATH, CWD with self-indexing guard, PROJECT_PATH env, SQLite active_workspace_id, the Zed workspaces table, ZED_WORKTREE_ROOT env, then ext_root fallback. It tolerates multi-root paths, missing directories, and sqlite/OS errors. However, the tests listed here (test_flag_on_when_env_set, test_blocked_name_globals, test_query_hotspots_no_memory) concern late enrichment config, a sandbox violation check, and graph hotspots respectively; none appear to exercise resolve_project_root. Therefore I cannot determine which tests exercise this function from the information given."
+  },
+  {
+    "id": 8,
+    "mode": "A_baseline",
+    "answer": "SymbolIndex.build_call_graph builds a bidirectional call graph for a symbol using BFS. Inputs: a symbol name and depth (default 2, clamped to 1..5). Output: a dict with definition, callers, callees, call_chain, impact_files, and depth_reached. It looks up definitions, walks callers via self._references, walks callees by scanning references where the symbol is the caller, deduplicates entries, tracks visited sets to avoid cycles, and collects impacted files. Edge cases: depth below 1 is clamped up, above 5 clamped down, empty definitions, cycle prevention, and call_chain limited to five shallowest callers. On the question: no test names are provided, so I cannot determine which tests exercise this function; I cannot list them."
+  },
+  {
+    "id": 8,
+    "mode": "B_runtime",
+    "answer": "build_call_graph returns a bidirectional BFS call graph for a symbol. It takes a symbol name and depth (default 2, clamped 1..5), and returns definition, callers, callees, call_chain, impact_files, and depth_reached. Callers are found through self._references; callees by scanning references where the symbol is the caller; visited sets prevent cycles and impact_files collects touched files. Based on the tests shown, the tests exercising this function are: test_build_call_graph_call_chain; test_build_call_graph_callees; test_build_call_graph_callers. These assert the call_chain is populated, that the callees of authenticate include validate_token and get_user, and that the callers of validate_token include authenticate."
+  },
+  {
+    "id": 8,
+    "mode": "D_shuffled",
+    "answer": "build_call_graph returns a bidirectional BFS call graph for a symbol. It takes a symbol name and depth (default 2, clamped to 1..5), and returns definition, callers, callees, call_chain, impact_files, and depth_reached, using visited sets to avoid cycles and deduplicating entries. However, the tests listed here (test_resolver_auto_approve, test_sha256_file_missing, test_does_not_scan_extension_dir) concern a trust resolver, file hashing, and a grep fallback scanning the extension directory; none appear to exercise build_call_graph. Therefore I cannot determine which tests exercise this function from the information given."
+  }
+]

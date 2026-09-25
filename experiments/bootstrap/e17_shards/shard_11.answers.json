@@ -1,0 +1,62 @@
+[
+  {
+    "id": 26,
+    "mode": "A_baseline",
+    "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path is matched by a single .gitignore pattern. It strips a leading slash and records/dir-strips a trailing slash. It then tries, in order: exact equality; `/**/` matching via prefix/suffix checks; fnmatch wildcards (full path when a slash is present, otherwise the basename); slash-free basename semantics with special any-depth handling for directory patterns; and prefix matching for slash-containing directory patterns. Notable edge cases: directory patterns match at any depth, wildcard scope depends on slash presence, and the trailing-slash branch became unreachable after stripping. No repository or test information is supplied in this prompt, so I cannot name the tests that exercise it; a developer should search the suite for gitignore_parser imports or calls to this helper and run those tests."
+  },
+  {
+    "id": 26,
+    "mode": "B_runtime",
+    "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path matches one .gitignore pattern. It strips a leading slash, detects trailing-slash directory patterns, then tries exact match, `/**/` prefix/suffix matching, fnmatch wildcards (full path when the pattern contains a slash, otherwise basename), slash-free basename and directory semantics, and finally prefix matching for slash-containing directory patterns. Edge cases include any-depth directory matching, wildcard scope depending on slash presence, and now-unreachable trailing-slash code. The context explicitly identifies the tests that exercise this function, so the developer must run:\ntest_dir_pattern_excludes_nested\ntest_dir_pattern_matches_any_depth\ntest_file_pattern_unchanged\nThese cover nested directory exclusion, any-depth directory matching, and unchanged file-pattern behaviour."
+  },
+  {
+    "id": 26,
+    "mode": "D_shuffled",
+    "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path matches a single .gitignore pattern. It strips a leading slash, detects trailing-slash directory patterns, then applies exact match, `/**/` prefix/suffix matching, fnmatch wildcards (full path when a slash is present, otherwise basename), slash-free basename/directory semantics, and prefix matching for slash-containing directory patterns. Edge cases include any-depth directory matching and unreachable trailing-slash code. However, the tests supplied with this prompt do not reference `_match_gitignore_pattern` at all; they belong to other modules (a dependency graph and a path-safety guard) and cannot catch regressions here. Their names are:\ntest_no_shared\ntest_no_path\ntest_non_ascii_path_denied\nFrom the given information I cannot confirm any test that exercises the function; the developer should instead find tests importing gitignore_parser or calling `_excluded`."
+  },
+  {
+    "id": 27,
+    "mode": "A_baseline",
+    "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint. When a `data` dict is supplied it hydrates the `imports`, `files`, `env_keys`, and `packages` sets from it, with an ADR-0005 note that old caches lacking packages are rebuilt elsewhere to avoid false REFUTED results, and it leaves `build_ms` at zero. Otherwise it scans `<root>/src` recursively, skipping `__pycache__`, collecting every relative file path and the top-level import names of each .py file, parses `.env` and `.env.example` for key names, loads manifest packages, and records elapsed build milliseconds. Edge cases: root is None, missing src directory, unreadable files (skipped via OSError). No repository or test context is provided here, so I cannot name which existing tests exercise this constructor."
+  },
+  {
+    "id": 27,
+    "mode": "B_runtime",
+    "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint: from a `data` dict it hydrates imports, files, env_keys, and packages sets (ADR-0005 notes old caches without packages are rebuilt); otherwise it scans `<root>/src`, collects file paths and top-level imports, parses `.env`/`.env.example`, loads manifest packages, and records build milliseconds. Edge cases include a missing root, absent src, and unreadable files. The supplied tests actually exercise `extract_anchors` and its ADR-0005 `pkg:`/anchor classification rather than the constructor directly, but the context presents them as the relevant tests, so the developer should run:\ntest_extract_anchors_explicit_pkg_syntax\ntest_extract_anchors_from_data_anchors\ntest_extract_anchors_read_path_backward_compat\nThey validate anchor extraction and backward-compatible read-path classification; tests constructing `_Fingerprint` directly should also be located."
+  },
+  {
+    "id": 27,
+    "mode": "D_shuffled",
+    "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint. With a `data` dict it hydrates imports, files, env_keys, and packages sets (ADR-0005 notes caches without packages are rebuilt), leaving build_ms at zero; otherwise it walks `<root>/src`, skips `__pycache__`, gathers relative paths and top-level imports, parses `.env`/`.env.example`, loads manifest packages, and records elapsed milliseconds. Edge cases: root None, absent src, unreadable files. The tests supplied with this prompt, however, do not touch `verify_on_read.py`: they cover yarn lock parsing, an interprocess mutex, and ack-impact token rejection, so they cannot catch regressions in this constructor. Their names are:\ntest_yarn_berry_v10_scoped\ntest_interprocess_lock_release_does_not_leak_ownership\ntest_rejects_empty_token\nFrom the given information I cannot confirm any test exercising `_Fingerprint.__init__`; search for tests constructing it directly."
+  },
+  {
+    "id": 28,
+    "mode": "A_baseline",
+    "answer": "`GraphRAGQueryEngine.query_dependencies` returns dependency information for a file: the file name, `depends_on` (files its symbols call), `depended_by` (files that call its symbols), and an empty `cochange_files` list. It calls `_ensure_graph`, returns the empty skeleton when the symbol index is absent, then inspects up to ten symbols, walking call chains down and up and mapping callee/caller symbols to files via `_symbol_files` while skipping self-references. Inner exceptions are logged per symbol; an outer exception logs a query failure. Results are deduplicated and capped at ten entries each. The `direction` argument is accepted but unused. No repository or test information is supplied here, so I cannot name which existing tests exercise this function."
+  },
+  {
+    "id": 28,
+    "mode": "B_runtime",
+    "answer": "`GraphRAGQueryEngine.query_dependencies` builds a dependency report for a file: `depends_on` lists files whose symbols the file calls, `depended_by` lists files calling its symbols, and `cochange_files` is an empty placeholder. It ensures the graph, returns a skeleton when no symbol index exists, then walks up to ten symbols in both call directions, mapping symbols to files through `_symbol_files` and skipping self-references. Inner exceptions are logged per symbol; an outer exception logs a failure. Results are deduplicated and capped at ten each, and `direction` is accepted but unused. The context explicitly identifies the test, so run:\ntest_query_dependencies\nIt only asserts the returned dict contains file, depends_on, and depended_by keys, so stronger assertions for dedup, capping, and direction are advisable."
+  },
+  {
+    "id": 28,
+    "mode": "D_shuffled",
+    "answer": "`GraphRAGQueryEngine.query_dependencies` returns dependency information for a file: the file name, `depends_on`, `depended_by`, and an empty `cochange_files` list. It ensures the graph, returns a skeleton if the symbol index is absent, then inspects up to ten symbols, walking call chains down and up and mapping callee/caller symbols to files while skipping self-references; results are deduplicated and capped at ten. The test supplied with this prompt does not exercise `query_dependencies`; it belongs to the impact/ack-token guard and checks that a token for a non-existent file still verifies. So from the given information I cannot confirm any test that exercises this function. The provided test is:\ntest_token_missing_file_returns_missing_fingerprint\nA developer should search the suite for tests constructing `GraphRAGQueryEngine` or calling `query_dependencies`."
+  },
+  {
+    "id": 29,
+    "mode": "A_baseline",
+    "answer": "`IndexGuard.save_symbol_index` writes a SymbolIndex to `symbol_index.json` and returns True on success or False on failure. It first applies three anti-corruption guards that skip writing when the instance is a MODE_PURE adapter, when `_definitions` is empty but a graph contains nodes, or when the expected `_definitions`/`_references`/`_file_to_symbols` attributes are missing (graph-backed persistence). It then serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with an empty state, deletes the legacy pickle, and logs exceptions. Edge cases: absent attributes, corrupt existing JSON, legacy file cleanup. No repository or test context is provided, so I cannot name the tests that exercise it."
+  },
+  {
+    "id": 29,
+    "mode": "B_runtime",
+    "answer": "`IndexGuard.save_symbol_index` persists a SymbolIndex to `symbol_index.json`, returning True/False. It applies anti-corruption guards that skip writing for MODE_PURE adapters, when `_definitions` is empty but a graph has nodes, or when the expected dict attributes are absent (graph-backed persistence). Otherwise it serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with empty state, removes the legacy pickle, and logs failures. Edge cases: missing attributes, corrupt JSON, legacy cleanup. The context identifies the tests that exercise it, so run:\ntest_symbol_index_persistence\ntest_empty_file_can_be_created_for_fresh_project\ntest_empty_instance_does_not_overwrite_populated_file\nThese cover save/load round-trips, fresh-project creation, and empty-overwrite protection."
+  },
+  {
+    "id": 29,
+    "mode": "D_shuffled",
+    "answer": "`IndexGuard.save_symbol_index` persists a SymbolIndex to `symbol_index.json`, returning True or False. It applies anti-corruption guards that skip writing for MODE_PURE adapters, when `_definitions` is empty but a graph has nodes, or when expected dict attributes are absent; otherwise it serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with empty state, deletes the legacy pickle, and logs exceptions. Edge cases include absent attributes, corrupt existing JSON, and legacy cleanup. The tests supplied with this prompt, however, cover scores-JSON parsing, gitignore directory patterns, and a ToolError, so none of them exercise `save_symbol_index` and none can catch regressions. Their names are:\ntest_parse_scores_json_duplicate_in_wrapper_declined\ntest_dir_pattern_matches_any_depth\ntest_creates_with_message\nFrom the given information I cannot confirm any relevant test."
+  }
+]
