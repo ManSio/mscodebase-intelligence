@@ -237,10 +237,12 @@ def test_run_with_existing_known_hashes_skips_unchanged(tmp_path):
     (project / "src").mkdir(parents=True)
     (project / "src" / "a.py").write_text("A", encoding="utf-8")
     (project / "src" / "b.py").write_text("B", encoding="utf-8")
-    # Windows: str(Path.relative_to) даёт backslash — ключи таблицы должны
-    # совпадать с тем, что реально передаётся воркерам.
-    rel_a = str((project / "src" / "a.py").relative_to(project))
-    rel_b = str((project / "src" / "b.py").relative_to(project))
+    # 2026-09-25: worker rel paths are normalised to POSIX by the relpath
+    # contract, so known_hashes keys/checks must use the normalised form too.
+    from src.core.relpath import normalize_rel_path
+
+    rel_a = normalize_rel_path((project / "src" / "a.py").relative_to(project))
+    rel_b = normalize_rel_path((project / "src" / "b.py").relative_to(project))
 
     seen = {}
 

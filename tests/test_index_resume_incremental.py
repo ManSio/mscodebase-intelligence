@@ -171,6 +171,8 @@ def _make_runner(tmp_path, table: _FakeTable, n_files=40, n_chunks=1,
     def fake_parse_file_only(full_path, rel_path_str, source="filesystem", known_hashes=None):
         # Resume-сценарий: если файл уже в БД (known_hashes) → skip (вернуть None),
         # как реальный IndexParser делает при совпадении хэша.
+        # Canonical POSIX rel path (mirrors indexer._parse_file_only, 2026-09-25).
+        rel_path_str = str(rel_path_str).replace("\\", "/")
         if known_hashes and known_hashes.get(rel_path_str) == f"hash_{rel_path_str}":
             return None
         return _make_parsed(rel_path_str, n_chunks)

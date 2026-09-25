@@ -115,17 +115,48 @@ class _CrossProcessMutex:
         self.release()
 
 
+# In-process (thread) lock per db_path. A Windows named mutex is owned by the
+# acquiring THREAD, so two threads of the SAME process contend and one times out
+# (2026-09-25: reindex finalize failed with "Could not acquire cross-process lock
+# ... within 30000ms" while a concurrent graph op held it). Serialise threads
+# locally first — the named mutex then only arbitrates CROSS-process access.
+_LOCAL_GRAPH_LOCKS: Dict[str, threading.RLock] = {}
+_LOCAL_GRAPH_LOCKS_GUARD = threading.Lock()
+
+
+def _local_graph_lock(db_path: Path) -> threading.RLock:
+    """One RLock per resolved graph.db path (threads in this process)."""
+    key = str(Path(db_path).resolve())
+    with _LOCAL_GRAPH_LOCKS_GUARD:
+        lock = _LOCAL_GRAPH_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _LOCAL_GRAPH_LOCKS[key] = lock
+        return lock
+
+
 @contextmanager
 def _cross_process_lock(db_path: Path, timeout_ms: int = 30000) -> Generator[None, None, None]:
-    """Контекстный менеджер для cross-process блокировки."""
-    mutex = _CrossProcessMutex(db_path)
-    acquired = mutex.acquire(timeout_ms)
-    if not acquired:
-        raise sqlite3.OperationalError(f"Could not acquire cross-process lock for {db_path} within {timeout_ms}ms")
+    """Thread-local + cross-process lock for graph.db.
+
+    Threads in THIS process serialise on a local RLock (no spurious timeout);
+    the named mutex then only arbitrates between PROCESSES.
+    """
+    local = _local_graph_lock(db_path)
+    local.acquire()
     try:
-        yield
+        mutex = _CrossProcessMutex(db_path)
+        acquired = mutex.acquire(timeout_ms)
+        if not acquired:
+            raise sqlite3.OperationalError(
+                f"Could not acquire cross-process lock for {db_path} within {timeout_ms}ms"
+            )
+        try:
+            yield
+        finally:
+            mutex.release()
     finally:
-        mutex.release()
+        local.release()
 
 
 # ─── Retry Decorator для SQLite OperationalError ──────────────────

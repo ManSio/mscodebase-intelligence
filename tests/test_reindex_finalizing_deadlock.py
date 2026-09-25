@@ -124,3 +124,42 @@ def test_safe_ivf_index_create_index_timeout_does_not_hang():
     dt = time.perf_counter() - t0
 
     assert dt < 3.0, f"create_index hung the Finalizing phase for {dt:.1f}s"
+
+
+class _SlowOptimizeTable:
+    """Fake table whose optimize() blocks longer than the timeout.
+
+    The original 2026-08-28 guard only covered a hung create_index() and
+    MISSED this case: _safe_optimize ended in `finally: shutdown(wait=True)`,
+    which JOINED the hung worker, so the timeout could never fire (2026-09-25).
+    """
+
+    def count_rows(self):
+        return 5000
+
+    def optimize(self):
+        time.sleep(10)  # simulate a hung native LanceDB optimize
+
+    def list_indices(self):
+        return []
+
+    def create_index(self, *args, **kwargs):
+        raise AssertionError(
+            "create_index must NOT run after an ABANDONED optimize "
+            "(table state is uncertain)"
+        )
+
+
+def test_safe_ivf_index_optimize_timeout_does_not_hang():
+    """A hung optimize() must not block the job past the timeout.
+
+    Regression for 2026-09-25 (job stuck at 'Finalizing 95%' forever)."""
+    dbm = _FakeDBM()
+    table = _SlowOptimizeTable()
+    runner = _make_runner(table, dbm)
+
+    t0 = time.perf_counter()
+    runner._safe_ivf_index(timeout=1)  # optimize sleeps 10s
+    dt = time.perf_counter() - t0
+
+    assert dt < 3.0, f"optimize hung the Finalizing phase for {dt:.1f}s"

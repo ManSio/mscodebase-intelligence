@@ -546,20 +546,24 @@ class AgenticSearchMixin:
             loop = None
 
         if loop and loop.is_running():
-            import concurrent.futures
+            # Bound without joining: a hung search must not freeze past timeout
+            # (timeout-class audit #2, 2026-09-25).
+            from src.core.run_bounded import run_bounded
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
+            return run_bounded(
+                lambda: asyncio.run(
                     self.agentic_code_search_async(
                         query,
                         symbol_index,
                         max_subqueries,
                         limit_per_subquery,
                         max_total_results,
-                    ),
-                )
-                return future.result(timeout=60)
+                    )
+                ),
+                timeout=60,
+                label="agentic_code_search",
+                default=([], {}),
+            )
         else:
             return asyncio.run(
                 self.agentic_code_search_async(
