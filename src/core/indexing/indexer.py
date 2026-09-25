@@ -350,6 +350,12 @@ class Indexer(IndexerTableMixin):
         Returns:
             Dict с данными чанков или None если файл не изменился.
         """
+        # Normalise to POSIX. Full reindex used to write "\" while hot-reload
+        # wrote "/", so the SAME file produced TWO rows (known_hashes miss ->
+        # re-add on every incremental pass -> ~2x index bloat, 2026-09-25).
+        from src.core.relpath import normalize_rel_path
+
+        rel_path_str = normalize_rel_path(rel_path_str)
         try:
             # 1. Получаем existing_hash (из bulk-кэша или через self.table)
             existing_hash = None
@@ -828,7 +834,9 @@ class Indexer(IndexerTableMixin):
             if self.file_guard.should_skip_file(full_path):
                 return False
 
-            rel_path_str = str(full_path.relative_to(project_path))
+            from src.core.relpath import normalize_rel_path
+
+            rel_path_str = normalize_rel_path(full_path.relative_to(project_path))
             return self._index_single_file(full_path, rel_path_str, content=content)
         except Exception as e:
             logger.error(f"[index_file] Ошибка индексации {full_path}: {e}")

@@ -38,7 +38,10 @@ class LanceDBWriter:
         parser=None,
     ) -> list:
         """Собирает data_records и пишет в LanceDB. Возвращает records."""
-        rel_path_str = parsed["rel_path"]
+        # POSIX path is the single canonical form (see indexer._parse_file_only).
+        from src.core.relpath import normalize_rel_path
+
+        rel_path_str = normalize_rel_path(parsed["rel_path"])
         current_hash = parsed["current_hash"]
         escaped_path = parsed.get("escaped_path", rel_path_str)
         existing_hash = parsed.get("existing_hash")
@@ -234,7 +237,9 @@ class LanceDBWriter:
 
         Used by bulk_write() to collect all records before a single batch insert.
         """
-        rel_path_str = parsed["rel_path"]
+        from src.core.relpath import normalize_rel_path
+
+        rel_path_str = normalize_rel_path(parsed["rel_path"])
         current_hash = parsed["current_hash"]
         escaped_path = parsed.get("escaped_path", rel_path_str)
         existing_hash = parsed.get("existing_hash")
