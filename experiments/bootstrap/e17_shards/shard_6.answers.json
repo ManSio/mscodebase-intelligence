@@ -1,0 +1,32 @@
+[
+  {
+    "id": 11,
+    "mode": "A_baseline",
+    "answer": "Based only on the information provided, I cannot determine which existing tests exercise `decorator`. The prompt shows the function code but no test files, no tests-directory listing, and no call sites. Since `decorator` is a nested factory inside `modification_guard` and its wrapper is applied via `@modification_guard()`, any regression test would import `modification_guard` from `src.core.modification_guard` and decorate a fake tool method. Without the contents of the repository test suite I cannot name specific test functions. Explicitly: this cannot be determined from the information given; one would need to grep the tests directory for `modification_guard` or `decorator` usages."
+  },
+  {
+    "id": 11,
+    "mode": "B_runtime",
+    "answer": "According to the relevant tests supplied, the following test functions exercise this function and should be run to catch regressions:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_cli_unknown_tool\nThe first two directly decorate a fake tool with `@modification_guard()` and assert pass-through and ambiguous-symbol denial behaviour, so they clearly cover the wrapper logic. `test_cli_unknown_tool` looks unrelated on its face, because it only checks CLI argument handling and never touches `modification_guard`; it is probably a false positive in the candidate list. The two guard-specific tests are the ones that must be run."
+  },
+  {
+    "id": 11,
+    "mode": "D_shuffled",
+    "answer": "The list is labelled as relevant, but on inspection none of the three tests exercises `decorator` or the modification guard wrapper. `test_empty_instance_does_not_overwrite_populated_file` covers SymbolIndex persistence, `test_passes_on_real_results` covers search-quality reporting, and `test_build_receipt_generates_id_and_steps` covers action receipts. None imports `modification_guard`, calls `@modification_guard()`, or asserts guard denial or ack behaviour, so none would catch a regression in this function. Therefore, based on the given material, I cannot name any test that genuinely exercises `decorator`; the provided candidates appear to be unrelated or shuffled distractors."
+  },
+  {
+    "id": 12,
+    "mode": "A_baseline",
+    "answer": "Based only on the material given, I cannot determine which tests exercise `wrapper`. Only the function body is provided, with no test files, test names, or import sites. Because `wrapper` is defined inside the `decorator` factory and is applied through `@modification_guard()`, regressions would surface in tests that import `src.core.modification_guard`, decorate a fake tool method, and assert guard behaviour. Without access to the repository test suite I cannot list concrete test function names. Explicitly: this is not determinable from the information given; one would need to search the tests directory for `modification_guard` usages."
+  },
+  {
+    "id": 12,
+    "mode": "B_runtime",
+    "answer": "Per the relevant tests provided, these test functions exercise `wrapper` and must be run to catch regressions:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_allows_non_hot_file\nAll three build a fake tool class and decorate its async method with `@modification_guard()`, so they drive the wrapper directly: pass-through when no target is given, denial when a bare symbol resolves to multiple definitions, and pass-through when the mocked PageRank and blast radius are below thresholds. Together they cover the early-exit, ambiguity-guard, and non-hot paths."
+  },
+  {
+    "id": 12,
+    "mode": "D_shuffled",
+    "answer": "Although the three tests are presented as relevant, none of them exercises `wrapper` or the modification guard. `test_self_lock_adds_no_second_instance_issue` inspects a startup lock report, `test_fileguard_resolves_relative_project_path` checks FileGuard path resolution, and `test_trust_report_warns_on_untrusted_with_instructions` checks a trust report for instruction files. None imports or calls `modification_guard`, and none invokes `@modification_guard()` on an async method, so they cannot catch a regression in `wrapper`. Based on the given information I cannot identify a test that truly exercises it; the supplied candidates look like unrelated distractors."
+  }
+]

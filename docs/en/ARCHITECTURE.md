@@ -4,7 +4,7 @@
 
 # MSCodeBase Intelligence — Architecture Guide
 
-> **Version:** 3.4.0
+> **Version:** 3.5.0
 > **Last updated:** 2026-08-12  
 > **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry + DocSync
 
@@ -15,7 +15,7 @@
 1. [Core Principles](#1-core-principles)
 2. [Layer Architecture](#2-layer-architecture)
 3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (31 core + 16 intel + 13 inline + 4 dev = 64 total)](#4-tool-layer)
+4. [Tool Layer (32 core + 16 intel + 13 inline + 4 dev = 65 total)](#4-tool-layer)
 5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
 6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
 7. [Error Handling](#7-error-handling)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  Layer 1: main.py               (Entry points, minimal)          │
 │  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (28 core + 13 inline + 4 dev)│
+│  Layer 3: mcp/tools/*.py         (32 core + 13 inline + 4 dev)│
 │  Layer 4: core/*.py              (Pure business logic)            │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -55,7 +55,7 @@
 ```
  Layer 0: Filesystem                  — what files exist on disk?
  Layer 1: SystemArtifacts             — is this a system path?
- Layer 2: Bridge (LSP→MCP)           — which project did LSP report?
+ Layer 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
  Layer 3: Registry (IndexerRegistry)  — which Indexer owns this project?
  Layer 4: StateMachine (ProjectState) — what state is the project in?
  Layer 5: RuntimeCoordinator          — can we execute this request?
@@ -86,19 +86,19 @@ Both use the same `create_service_collection()` factory.
 
 ### 2.2 MCP Server
 
-| `src/mcp/server.py` | **~220 lines** (was 3,100 before refactoring).
+| `src/mcp/server.py` | **~68 lines** (was 3,100 before refactoring).
 
 Responsibilities:
 1. Resolve project root (`resolve_project_root()`)
 2. Create DI container (`create_service_collection()`)
-3. Register 31 core + 16 intel + 13 inline + 4 dev = 64 total
+3. Register 32 core + 16 intel + 13 inline + 4 dev = 65 total
 4. Register system prompt (mscodebase-rules)
 
 **No business logic lives here.** Every tool is an import from `mcp/tools/`.
 
 ### 2.3 Tool Layer
 
-`src/mcp/tools/*.py` — **15 files: 28 core (21 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
+`src/mcp/tools/*.py` — **32 core (25 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
 
 Every tool:
 - Inherits from `MCPTool` (ABC)
@@ -129,13 +129,13 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 Core Layer
 
-`src/core/*.py` — **30 files of pure business logic.**
+`src/core/*.py` — **54 top-level files** (123 incl. subpackages) of pure business logic.
 
 Key modules:
 
 | Module | Path | Purpose |
 |--------|------|---------|
-| `di_container.py` | `src/core/di_container.py` | DI Container (15+ services) |
+| `di_container.py` | `src/core/di_container.py` | DI Container (14 services) |
 | `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
 | `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
 | `engine.py` | `src/core/search/engine.py` | Hybrid search (BM25 + Dense + FTS5 + RRF) |
@@ -153,7 +153,7 @@ Key modules:
 | `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
 | `project_context.py` | `src/core/intelligence/project_context.py` | Project state snapshot |
 | `llama_runner.py` | `src/providers/reranker/llama_runner.py` | Lifecycle for llama-server.exe (reranker) |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | ONNX E5-small INT8 embedder + LM Studio/Ollama fallback |
+| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Embedder client: llama.cpp GGUF (primary) + ONNX INT8 / LM Studio / Ollama fallback |
 | `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | Auto-sync docs with code (rename hook) |
 
 ### 2.5 Search Engine (v3.3)
@@ -172,7 +172,7 @@ Key modules:
 ┌─────────────────────────────────────────────────────────┐
 │   PropertyGraph (graph.py)                               │
 │   SQLite (WAL + mmap), nodes/edges, JSON properties      │
-│   — 15 node labels (File, Function, Class, Variable...)  │
+│   — 16 node labels (File, Function, Class, Variable...)  │
 │   — 29 edge types (CALLS, DEFINES, ASSIGNED_FROM, ...)  │
 │   — Cypher query engine (MATCH→SQL)                     │
 └─────────────────────────────────────────────────────────┘
@@ -228,7 +228,7 @@ services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
 indexer = services.resolve(Indexer)  # same instance every time
 ```
 
-### 3.2 Registered Services (11)
+### 3.2 Registered Services (14)
 
 | # | Service | Type | Created By |
 |---|---------|------|------------|
@@ -243,6 +243,9 @@ indexer = services.resolve(Indexer)  # same instance every time
 | 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
 | 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
 | 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
+| 12 | Path | singleton | `project_root` (resolved path) |
+| 13 | Indexer | singleton | `indexer_instance` |
+| 14 | GitUrlSourceFactoryKey | factory | `_create_git_url_source` |
 
 > Cleanup (Task 2/5): dead registrations removed — DbPathKey, FileGuard,
 > SymbolIndex, ResourceMonitor, ResourceMonitorKey (never resolved).
@@ -275,10 +278,10 @@ def register_all_tools(mcp, services):
         SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool, GetActionReceiptTool,
     ]
     # +16 intel_* tools + 13 inline diagnostic + 4 dev
-    # Total: 61 registered (28 core + 16 intel + 13 inline + 4 dev)
+    # Total: 65 registered (32 core + 16 intel + 13 inline + 4 dev)
 ```
 
-**Tool visibility filter:** By default 46 tools visible (13 of 28 core via allowlist + 16 intel + 13 inline + 4 dev; +1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 58.
+**Tool visibility filter:** the default visible set is the `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 65 (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`).
 
 ### 4.2 All Tools by Group
 
@@ -293,13 +296,13 @@ def register_all_tools(mcp, services):
 | **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
 | **Duplication** (1) | `duplication_tool.py` | find_duplicates |
 | **Context** (1) | `context_tool.py` | get_context |
-| **Lifecycle** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
+| **Lifecycle** (4) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action, get_action_receipt |
 | **Docs** (1) | `doc_tools.py` | stale_detector |
 | **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
-| **Diagnostic inline** (12) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
+| **Intelligence** (16) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node, intel_restore_memory_node, intel_supersede_memory_node |
+| **Diagnostic inline** (13) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact |
 
-> **Total:** 61 registered (28 core + 16 intel + 13 inline + 4 dev). Default visible: 46 (13 из 28 core по default-allowlist + 16 + 13 + 4). Show all: `MSCODEBASE_MCP_TOOLS=""`.
+> **Total:** 65 registered (32 core + 16 intel + 13 inline + 4 dev). Default visible: `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Show all: `MSCODEBASE_MCP_TOOLS=""`.
 
 ## 5. Error Handling
 

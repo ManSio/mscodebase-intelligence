@@ -1,0 +1,47 @@
+[
+  {
+    "id": 16,
+    "mode": "A_baseline",
+    "answer": "I cannot determine the specific test names from the information given: only the function source was provided, no test files or repository listing. A reliable answer requires searching the repo for callers of WriteTool._action_replace. Description: this async method implements the replace action. It validates the symbol identifier and optional file_path, resolves definitions through the symbol index, and rejects missing, ambiguous, or out-of-project targets. With apply=False it returns a preview and may attach a type-check preflight. With apply=True it indents new_code, computes before/after hashes, AST-validates Python syntax, runs preflight validation, atomic-writes the file, invalidates the LSP cache, evicts the file from the symbol index, and records a contract entry. It returns user-facing markdown messages on success or error."
+  },
+  {
+    "id": 16,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise this function are:\ntest_unknown_symbol_returns_warning\ntest_filter_mismatch_returns_error\ntest_replace_dry_run_does_not_write\nDescription: this async method implements the replace action of a write tool. It validates the symbol identifier and optional file_path, resolves definitions via the symbol index, and errors on missing, ambiguous, or out-of-project symbols and files. When apply is False it returns a preview (optionally with a type-check preflight). When apply is True it indents new_code, records before/after hashes, AST-validates Python syntax, runs preflight validation, atomic-writes, invalidates the LSP cache, removes the file from the symbol index, and records a contract. Edge cases: empty arguments, bad identifiers, syntax errors, blocking preflight."
+  },
+  {
+    "id": 16,
+    "mode": "D_shuffled",
+    "answer": "The listed tests do not exercise WriteTool._action_replace. test_own_host_v2_is_healthy covers DatabaseLock.classify_holder; test_drop_removes_entry covers LiveBuffer.drop; test_flush_now_clears_and_calls_callback covers DebounceBatch.flush_now. These are unrelated components (locking, buffering, debouncing) and give no coverage of the replace action. Therefore the real regression tests for this function cannot be determined from the information given; a repo-wide search for callers of _action_replace would be required. Description: the async method validates the symbol and file_path, resolves definitions via the symbol index, supports a dry-run preview, and on apply indents new_code, AST-validates Python syntax, runs preflight, atomic-writes, invalidates the LSP cache, and records a contract."
+  },
+  {
+    "id": 17,
+    "mode": "A_baseline",
+    "answer": "I cannot determine the specific test names from the information given: only the function source was provided, with no test files or repository listing. A reliable answer needs a repo-wide search for callers of SymbolIndex.get_call_chain. Description: this method returns call chains for a symbol by traversing the internal reference map under a lock. The direction argument selects callers (up), callees (down), or both. For each depth level it walks references, skipping definitions and the symbol itself, appending records with symbol, file, line, and depth. It returns a dict with symbol, callers_chain, callees_chain, and total_connected. Edge cases: max_depth limits traversal, visited sets prevent cycles and duplicates, and missing symbols yield empty chains."
+  },
+  {
+    "id": 17,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise this function are:\ntest_get_call_chain_both\ntest_get_call_chain_down\ntest_get_call_chain_total_connected\nDescription: this method returns a symbol call chain by traversing the internal references map while holding a lock. direction selects callers (up), callees (down), or both. Each level walks references, skipping definitions and the symbol itself, and records entries with symbol, file, line, and depth. The result dict holds symbol, callers_chain, callees_chain, and total_connected. Edge cases: max_depth caps traversal depth, visited sets prevent infinite loops and duplicate entries, and unknown symbols return empty chains. The three tests cover both-direction traversal, downward traversal, and the total_connected count."
+  },
+  {
+    "id": 17,
+    "mode": "D_shuffled",
+    "answer": "The listed tests do not exercise SymbolIndex.get_call_chain. test_unparseable_lines_skipped covers _count_log_levels; test_old_schema_detected covers _check_sqlite_schema_health; test_wire_plugins_no_env_noop covers wire_plugins. These concern log parsing, SQLite schema checks, and plugin wiring, so they give no coverage of call-chain traversal. The real regression tests cannot be determined from the information given; a repo-wide search for callers of get_call_chain would be required. Description: the method traverses the internal references map under a lock, in the requested direction (up for callers, down for callees, both), recording symbol, file, line, and depth per entry and returning a dict with callers_chain, callees_chain, and total_connected, bounded by max_depth and cycle-guarding visited sets."
+  },
+  {
+    "id": 18,
+    "mode": "A_baseline",
+    "answer": "I cannot determine the specific test names from the information given: only the function source was provided, with no test files or repository listing. A reliable answer would require searching the repo for callers of load_manifest. Description: this function reads and validates a plugin.json manifest without executing plugin code. It parses JSON and raises PluginManifestError with kinds manifest_missing or manifest_invalid on file or parse errors, checks required fields, normalizes id/name/version, enforces schema_version against _SCHEMA_VERSION, validates platform compatibility, defaults and validates requires_engine_version with SpecifierSet, normalizes tools into a non-empty list of strings, and cleans dependencies. It returns a ToolPlugin instance. Edge cases: invalid or empty values, wrong schema, platform mismatch, bad engine spec."
+  },
+  {
+    "id": 18,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise this function are:\ntest_load_invalid_engine_req\ntest_manifest_requires_missing_fields\ntest_manifest_schema_mismatch_real\nDescription: load_manifest reads and validates plugin.json without executing plugin code. It parses JSON, raising PluginManifestError (kinds manifest_missing, manifest_invalid) on file or parse errors, verifies required fields, normalizes id/name/version, enforces schema_version equality with _SCHEMA_VERSION, checks platform compatibility, defaults requires_engine_version to >=0 and validates it with SpecifierSet, normalizes tools into a non-empty string list, and cleans dependencies before returning a ToolPlugin. The three tests cover an invalid engine requirement, a missing manifest file, and a schema_version mismatch."
+  },
+  {
+    "id": 18,
+    "mode": "D_shuffled",
+    "answer": "The listed tests do not exercise load_manifest. test_tokenize_truncates_over_limit_to_guarantee covers an embedder truncation helper; test_user_project_not_self_index covers _is_self_index_path; test_empty_results covers Searcher._extract_key_terms. These concern embedding, self-index detection, and search term extraction, so they give no coverage of manifest loading. The real regression tests cannot be determined from the information given; a repo-wide search for callers of load_manifest would be needed. Description: the function reads and validates plugin.json without executing plugin code, raising PluginManifestError for missing or invalid JSON, incomplete fields, schema mismatch, platform mismatch, and invalid engine requirements, then returns a normalized ToolPlugin instance."
+  }
+]

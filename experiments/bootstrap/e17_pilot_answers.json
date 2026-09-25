@@ -1,0 +1,836 @@
+{
+  "metadata": {
+    "n_functions": 30,
+    "n_total_tests": 1461,
+    "selection": "min_test_coverage<=5, max 3 per file",
+    "modes": [
+      "A_baseline",
+      "B_runtime",
+      "D_shuffled"
+    ]
+  },
+  "answers": [
+    {
+      "id": 1,
+      "name": "IndexProjectRunner.run",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_project_runner.py",
+      "question": "A developer is about to change the behavior of the function `IndexProjectRunner.run` in `index_project_runner.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "From the information given I cannot determine which tests exercise IndexProjectRunner.run. Only the function source is provided; no repository layout, test files, or call sites are included, so no test function names can be identified. The function body references no tests. An LLM given only this text must not invent names. To find them one would search the test suite for imports of IndexProjectRunner or calls to .run, and for coverage of os.walk scanning, ThreadPoolExecutor workers, embed_batch, path_manager.is_safe_to_process, incremental resume writes, prune, BM25 reindex, cache invalidation and IVF indexing. Without that search the honest answer is: undetermined. I explicitly cannot list the required test function names.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests provided that exercise IndexProjectRunner.run are exactly these three:\ntest_run_survives_single_cpu_host\ntest_run_with_existing_known_hashes_skips_unchanged\ntest_workers_receive_known_hashes_not_none\n\nThey cover the 1-CPU worker-count edge case, the skip-unchanged path through known_hashes, and the guarantee that workers receive a dict so they never enter the locked table.search branch. These must be run for regressions when changing run. In summary, run performs a full project index: path-safety check, file scan with a guard, parallel parse, batched embedding, incremental resume-friendly writes, prune, BM25 reindex, cache invalidation and optional IVF indexing, returning the count of indexed files.",
+          "tests": [
+            "test_run_survives_single_cpu_host",
+            "test_run_with_existing_known_hashes_skips_unchanged",
+            "test_workers_receive_known_hashes_not_none"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The three provided tests do NOT exercise IndexProjectRunner.run. test_pid_reuse_is_stale and test_dead_pid_is_stale check DatabaseLock holder classification, and test_logs_dir_inside_data_root checks get_logs_dir; none call run, its parse workers, embedder, db_writer, searcher or table. Therefore I cannot determine from the information given which tests exercise this function. The listed names are unrelated to indexing and using them would give false confidence. To catch regressions one would search the repository for tests importing IndexProjectRunner or calling .run, covering the safety check, worker pool, known_hashes skip path, incremental writes, prune and reindex. From the supplied text, the honest answer is: undetermined.",
+          "tests": [
+            "TestClassifyHolder::test_pid_reuse_is_stale",
+            "TestClassifyHolder::test_dead_pid_is_stale",
+            "test_logs_dir_inside_data_root"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "RemoteEmbedder.embed_batch",
+      "file_path": "D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py",
+      "question": "A developer is about to change the behavior of the function `RemoteEmbedder.embed_batch` in `remote_embedder.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given. The context supplies only the source of RemoteEmbedder.embed_batch, not the repository test suite, so any list of test function names would be a guess and could mislead the developer. To find the right tests, one should search the repository for callers of embed_batch and for RemoteEmbedder usage. Regarding the function itself: it fetches embedding vectors in batch from whichever provider is currently active and deliberately never changes the mode. Its inputs are a list of texts plus an is_query flag; its output is a list of float vectors. An empty input returns an empty list. The llama.cpp path truncates to 512 tokens, retries with backoff, then retries each item individually, raising RuntimeError if any chunk still fails. The LM Studio, ONNX server, OpenVINO and local ONNX paths raise RuntimeError when unavailable.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "Based on the tests supplied with this prompt, the tests that exercise embed_batch are: test_rapid_sequential_calls_no_state_leak and test_single_call_results_match_indices. The first drives one hundred rapid sequential embed_batch calls and checks that no state leaks between calls and that vectors change with different texts. The second checks a single batch returns three non-zero vectors of length 384 with correct indices. The function itself returns embedding vectors from the active provider without ever mutating mode; it handles llama.cpp, LM Studio, ONNX server, OpenVINO and local ONNX paths with retries and RuntimeError fallbacks. If other tests exist elsewhere in the repository, they are not shown here, so this list may be incomplete.",
+          "tests": [
+            "TestConcurrentEmbedIsolation::test_rapid_sequential_calls_no_state_leak",
+            "TestConcurrentEmbedIsolation::test_single_call_results_match_indices"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine this from the information given. The two tests shown, test_sample_disk_io_no_data_row_returns_zero and test_verdict_fail_is_refuted, exercise a ResourceMonitor disk-sampling helper and a verdict_from_results function respectively, not RemoteEmbedder.embed_batch. Nothing in the provided text links them to embedding, so listing them would be wrong. No test function names can be listed with confidence here. The function itself returns a list of embedding vectors from the active provider such as llama.cpp, LM Studio, ONNX server, OpenVINO or local ONNX, never changing mode, returning an empty list for empty input, and raising RuntimeError when every provider fails. To find the real tests one must search the repository for callers of embed_batch.",
+          "tests": [
+            "TestResourceMonitor::test_sample_disk_io_no_data_row_returns_zero",
+            "test_verdict_fail_is_refuted"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "CypherLexer.tokenize",
+      "file_path": "D:/Project/MSCodeBase/src/core/search/cypher_lexer.py",
+      "question": "A developer is about to change the behavior of the function `CypherLexer.tokenize` in `cypher_lexer.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given. The prompt includes only the source of CypherLexer.tokenize and no test file contents or test names, so listing tests would be pure speculation. The function scans a Cypher query string character by character and returns a list of Token objects. It skips whitespace, strips double-slash comments, parses quoted strings while raising SyntaxError on unterminated ones, parses numbers, identifiers, keywords, uppercase labels, backtick-escaped identifiers, two-character comparison operators, direction arrows, single-character operators, punctuation, and colon-prefixed labels including variable-length :TYPE*min..max forms. An unknown character raises SyntaxError. The token list is cached in self._tokens. To find exercising tests, search the repository for CypherLexer usage and tokenize calls.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "Based on the tests supplied with this prompt, the tests exercising CypherLexer.tokenize are: test_tokenize_optional_match, test_tokenize_order_limit, and test_tokenize_relationship. They tokenize sample Cypher queries and assert recognition of KEYWORD values such as OPTIONAL, MATCH, ORDER and LIMIT, plus the label CALLS and the arrow punctuation ->. The function itself performs a single-pass lexical analysis of a Cypher query, returning Token objects for keywords, identifiers, labels, strings, numbers, operators, punctuation and relationship types, while skipping comments and whitespace and raising SyntaxError for unterminated strings, unterminated backticks or unexpected characters. The tokens are stored in self._tokens. Other repository tests may exist but are not shown, so this list may be incomplete.",
+          "tests": [
+            "TestCypherLexer::test_tokenize_optional_match",
+            "TestCypherLexer::test_tokenize_order_limit",
+            "TestCypherLexer::test_tokenize_relationship"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine this from the information given. The three tests shown, test_gemfile_lock_skips_path_project_gem, test_blocked_name_getattr and test_load_invalid_engine_req, exercise a Gemfile.lock manifest extractor, a sandbox code validator and a plugin manifest loader respectively. None of them references CypherLexer or calls tokenize, so they cannot catch regressions in that function and should not be listed. Separately, CypherLexer.tokenize scans a Cypher query string and returns Token objects, skipping comments and whitespace while raising SyntaxError on unterminated strings, backticks or unexpected characters, and recognising keywords, labels, numbers, operators, punctuation and variable-length :TYPE*min..max relation types. To identify the true tests, one must search the repository for CypherLexer usage.",
+          "tests": [
+            "test_gemfile_lock_skips_path_project_gem",
+            "TestValidateCode::test_blocked_name_getattr",
+            "test_load_invalid_engine_req"
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "AutoDocUpdater._extract_doc_references",
+      "file_path": "D:/Project/MSCodeBase/src/core/auto_doc_updater.py",
+      "question": "A developer is about to change the behavior of the function `AutoDocUpdater._extract_doc_references` in `auto_doc_updater.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "From the information given I cannot determine which tests exercise `AutoDocUpdater._extract_doc_references`: no test files, test names or repository structure were provided, only the function source. The function parses Markdown text line by line, skips fenced code blocks, and extracts backtick-wrapped tokens as likely code identifiers. It filters out URLs, file paths, Windows drive paths, IP addresses, file extensions, config assignments, hotkeys, version-like strings and stop words, then strips call arguments and `$` env prefixes. It returns a list of `(content, line_number, full_match)` tuples. To identify regression tests you would need the repository test suite, which is absent here.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "One provided test exercises this function: test_extract_doc_references_handles_empty_call_syntax. It builds a temporary tree, writes a doc containing empty-call references `()` and `(x)` plus a normal `fastmcp`, then calls `_verify_doc_references`, which internally uses `_extract_doc_references`. The test asserts no IndexError is raised and that a list of broken references is returned. The function itself scans Markdown lines, skips fenced code blocks, extracts backtick tokens, filters non-code patterns (URLs, paths, IPs, extensions, assignments, semver) and returns `(content, line, match)` tuples. Any behavior change should re-run that test, though the provided list may be incomplete.",
+          "tests": [
+            "test_extract_doc_references_handles_empty_call_syntax"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The information given lists test_symbol_index_stores_and_retrieves as the relevant test for this function. Taken at face value, that is the test to run: it exercises SymbolIndex round-trip behavior for env accesses. Separately, `_extract_doc_references` scans Markdown text, skipping fenced code blocks, extracts backtick-wrapped tokens and filters out URLs, paths, IPs, file extensions, config assignments, hotkeys and semver strings before returning `(content, line_number, full_match)` tuples. Note the listed test appears unrelated to reference extraction, so on the evidence provided it may not catch regressions; when in doubt, inspect the actual test suite rather than trusting the label.",
+          "tests": [
+            "test_symbol_index_stores_and_retrieves"
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "IndexPipeline.process_file",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_pipeline.py",
+      "question": "A developer is about to change the behavior of the function `IndexPipeline.process_file` in `index_pipeline.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "From the information given I cannot determine which tests exercise `IndexPipeline.process_file`: no test files, names or repository structure were provided, only the function source. The function handles one file through the indexing pipeline. It rejects blank content, parses via `_index_parser.parse_file`, records mtime and size, updates SymbolIndex collections (definitions, references, assignments, imports, decorators, overrides, env accesses) under a lock, computes per-chunk SHA-256 hashes for a content-addressed cache, reuses cached vectors from LanceDB, embeds only new chunks, and returns a result dict. It returns None on empty input, parse failure, no chunks, empty embeddings or cache gaps. Regression tests cannot be identified without the test suite.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "Three provided tests exercise this function. test_chunk_cache_disabled_without_table: with table=None, two process_file calls both invoke embed_batch, asserting call_count == 2. test_chunk_cache_empty_file: whitespace-only content returns None without calling the embedder. test_chunk_cache_all_new: a new file with foreign cached hashes yields one embed_batch call and five embeddings, verifying deterministic per-chunk vectors. The function itself rejects blank content, parses the file, records stat metadata, updates SymbolIndex collections under a lock, computes chunk hashes for a content-addressed cache, reuses cached vectors from LanceDB, embeds only new chunks, and returns a result dict or None on empty input, parse failure, empty embeddings or cache gaps. Re-run all three when changing behavior.",
+          "tests": [
+            "test_chunk_cache_disabled_without_table",
+            "test_chunk_cache_empty_file",
+            "test_chunk_cache_all_new"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The information given lists three relevant tests: test_ensure_server_running_launches_when_dead, test_impact_analysis_basic and test_empty_file. Taken at face value these are the tests to run. Separately, `process_file` rejects blank content, parses via `_index_parser.parse_file`, records mtime and size, updates SymbolIndex collections under a lock, computes per-chunk SHA-256 hashes, reuses cached vectors from LanceDB, embeds only new chunks, and returns a dict or None on empty input, parse failure, no chunks, empty embeddings or cache gaps. Note the listed tests look unrelated to file processing, so on the evidence provided they may not catch regressions; the actual test suite should be inspected before relying on them.",
+          "tests": [
+            "test_ensure_server_running_launches_when_dead",
+            "test_impact_analysis_basic",
+            "TestEdgeCases::test_empty_file"
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "extract_anchors",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/verify_on_read.py",
+      "question": "A developer is about to change the behavior of the function `extract_anchors` in `verify_on_read.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "From the information given I cannot determine which tests exercise `extract_anchors`: no test files or test names were provided, only the function source. The function extracts checkable anchors from a memory node's data/claim text using regex, without an LLM. It honors explicit `data.anchors` first; on the read path it skips prose scanning when explicit anchors exist. Otherwise it parses `file:path`, `import X` / `from X import y`, `env:KEY` / `$KEY`, `pkg:name` and path-like tokens. On the write path it filters file anchors by existence and captures manifest package words fail-closed. It deduplicates via a seen set and returns Anchor objects. Regression tests cannot be identified without the repository test suite.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "Three provided tests exercise this function. test_extract_anchors_no_anchors: a plain statement without anchors returns an empty list. test_extract_anchors_explicit_pkg_syntax: a claim containing `pkg:celery` yields exactly one pkg anchor `('pkg', 'celery')`. test_extract_anchors_from_data_anchors: explicit `data.anchors` with file, import and env entries produce matching (kind, value) anchors. The function itself extracts checkable anchors from a node's data/claim text via regex: it honors explicit data.anchors first, otherwise parses file paths, imports, env keys, pkg names and manifest package words, deduplicating through a seen set. Re-run all three when changing behavior, though the list may not be exhaustive.",
+          "tests": [
+            "test_extract_anchors_no_anchors",
+            "test_extract_anchors_explicit_pkg_syntax",
+            "test_extract_anchors_from_data_anchors"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The information given lists three relevant tests: test_format_diagnostics_empty, test_stale_token_rejected_after_file_change and test_lru_cap_evicts_oldest. Taken at face value these are the tests to run. Separately, `extract_anchors` extracts checkable anchors from a memory node's data/claim text using regex: it honors explicit `data.anchors`, skips prose on the read path when explicit anchors exist, and otherwise parses file paths, imports, env keys, pkg names and manifest package words, deduplicating via a seen set and returning Anchor objects. Note the listed tests appear unrelated to anchor extraction, so on the evidence provided they may not catch regressions; the actual test suite should be inspected.",
+          "tests": [
+            "test_format_diagnostics_empty",
+            "TestAckImpact::test_stale_token_rejected_after_file_change",
+            "test_lru_cap_evicts_oldest"
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "resolve_project_root",
+      "file_path": "D:/Project/MSCodeBase/src/core/project_resolution.py",
+      "question": "A developer is about to change the behavior of the function `resolve_project_root` in `project_resolution.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "The function resolve_project_root returns the project root directory used by MCP tools, resolving it fresh on each call. Inputs: an optional provided path string. Output: a Path. Priority order: explicit provided argument, then MSCODEBASE_PROJECT_PATH env override, then CWD with a self-indexing guard rejecting ext_root, then PROJECT_PATH env, then SQLite active_workspace_id, then the Zed workspaces table, then ZED_WORKTREE_ROOT env, and finally ext_root. Edge cases: multi-root paths split on newline or comma, non-existent paths skipped, and sqlite/OS errors swallowed. Regarding the question: no test names are given in the information provided, so I cannot determine which tests in the repository exercise this function; I cannot list them.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "resolve_project_root returns the project root Path for MCP tools, recomputed each call. It accepts an optional provided string and returns a Path. Resolution priority: provided argument, MSCODEBASE_PROJECT_PATH override, CWD with self-indexing guard, PROJECT_PATH env, SQLite active_workspace_id, the Zed workspaces table, ZED_WORKTREE_ROOT, and finally ext_root. It handles multi-root SQLite paths, missing directories, and sqlite/OS errors. Based on the tests shown, the tests that exercise this function are: test_provided_wins_over_cwd; test_cwd_equal_ext_root_is_skipped; test_mscb_path_trusts_ext_root. These three directly assert provided-over-CWD precedence, the self-index guard falling back to an env project, and MSCODEBASE_PROJECT_PATH trusting ext_root.",
+          "tests": [
+            "TestCwdFirstIsolation::test_provided_wins_over_cwd",
+            "TestCwdSelfIndexGuard::test_cwd_equal_ext_root_is_skipped",
+            "TestPriorityProjectPathOverride::test_mscb_path_trusts_ext_root"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "resolve_project_root returns the project root Path for MCP tools, resolving anew each call. It takes an optional provided string and returns a Path, following a priority chain: provided argument, MSCODEBASE_PROJECT_PATH, CWD with self-indexing guard, PROJECT_PATH env, SQLite active_workspace_id, the Zed workspaces table, ZED_WORKTREE_ROOT env, then ext_root fallback. It tolerates multi-root paths, missing directories, and sqlite/OS errors. However, the tests listed here (test_flag_on_when_env_set, test_blocked_name_globals, test_query_hotspots_no_memory) concern late enrichment config, a sandbox violation check, and graph hotspots respectively; none appear to exercise resolve_project_root. Therefore I cannot determine which tests exercise this function from the information given.",
+          "tests": [
+            "test_flag_on_when_env_set",
+            "TestValidateCode::test_blocked_name_globals",
+            "TestGraphRAGQueryEngine::test_query_hotspots_no_memory"
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "SymbolIndex.build_call_graph",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/symbol_index.py",
+      "question": "A developer is about to change the behavior of the function `SymbolIndex.build_call_graph` in `symbol_index.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "SymbolIndex.build_call_graph builds a bidirectional call graph for a symbol using BFS. Inputs: a symbol name and depth (default 2, clamped to 1..5). Output: a dict with definition, callers, callees, call_chain, impact_files, and depth_reached. It looks up definitions, walks callers via self._references, walks callees by scanning references where the symbol is the caller, deduplicates entries, tracks visited sets to avoid cycles, and collects impacted files. Edge cases: depth below 1 is clamped up, above 5 clamped down, empty definitions, cycle prevention, and call_chain limited to five shallowest callers. On the question: no test names are provided, so I cannot determine which tests exercise this function; I cannot list them.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "build_call_graph returns a bidirectional BFS call graph for a symbol. It takes a symbol name and depth (default 2, clamped 1..5), and returns definition, callers, callees, call_chain, impact_files, and depth_reached. Callers are found through self._references; callees by scanning references where the symbol is the caller; visited sets prevent cycles and impact_files collects touched files. Based on the tests shown, the tests exercising this function are: test_build_call_graph_call_chain; test_build_call_graph_callees; test_build_call_graph_callers. These assert the call_chain is populated, that the callees of authenticate include validate_token and get_user, and that the callers of validate_token include authenticate.",
+          "tests": [
+            "test_build_call_graph_call_chain",
+            "test_build_call_graph_callees",
+            "test_build_call_graph_callers"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "build_call_graph returns a bidirectional BFS call graph for a symbol. It takes a symbol name and depth (default 2, clamped to 1..5), and returns definition, callers, callees, call_chain, impact_files, and depth_reached, using visited sets to avoid cycles and deduplicating entries. However, the tests listed here (test_resolver_auto_approve, test_sha256_file_missing, test_does_not_scan_extension_dir) concern a trust resolver, file hashing, and a grep fallback scanning the extension directory; none appear to exercise build_call_graph. Therefore I cannot determine which tests exercise this function from the information given.",
+          "tests": [
+            "test_resolver_auto_approve",
+            "test_sha256_file_missing",
+            "TestGrepFallbackProjectRoot::test_does_not_scan_extension_dir"
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "IndexParser.parse_file",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_parser.py",
+      "question": "A developer is about to change the behavior of the function `IndexParser.parse_file` in `index_parser.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "The information given is insufficient to determine which tests exercise this function. The prompt supplies only the source of IndexParser.parse_file; no test files, test-module references, or test names are included. I cannot enumerate test functions covering encoding fallback (BOM, cp1251, latin-1), the existing_hash skip, comment-only rejection, AST chunking, or the sliding-window fallback without seeing the repository suite. Honest answer: cannot determine from the supplied text. To find them a developer should grep the tests directory for parse_file, IndexParser, and _has_code_lines, then run the matching functions. Listing specific test names here would be guessing, not evidence.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The provided context includes two tests that exercise IndexParser.parse_file:\ntest_bs1_parse_file_skips_comment_only\ntest_property_graph_consistency\n\nBoth call parser.parse_file directly. The first targets the BS-1 guard rejecting comment-only files, asserting None is returned. The second is an integration test that indexes producer and consumer files, consumes the returned _ast_symbols cache, and verifies ghost-node cleanup after renames. These are the only test functions shown as relevant. Other tests may exist in the repository but are not included here, so this list reflects the supplied evidence only. A developer changing parse_file should run these two and grep the suite for additional callers before relying on them alone.",
+          "tests": [
+            "test_bs1_parse_file_skips_comment_only",
+            "TestASTCacheInvalidation::test_property_graph_consistency"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The context labels two tests as relevant to IndexParser.parse_file:\ntest_vor_coverage_starved_warning\ntest_inserts_after_anchor\n\nHowever, on inspection neither appears to call IndexParser.parse_file. The first tests VOR receipt formatting for starved nodes, and the second tests the write tool insert_after behavior. They exercise unrelated modules and never reference index_parser.py or parse_file. I therefore cannot confirm they catch regressions in parse_file, and I would treat the relevance label as unreliable. Honestly, from the given information the genuine tests cannot be determined; the two shown look mismatched. A developer should grep for parse_file and IndexParser instead of trusting this list.",
+          "tests": [
+            "test_vor_coverage_starved_warning",
+            "TestWriteToolInsertAfter::test_inserts_after_anchor"
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "modification_guard",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "question": "A developer is about to change the behavior of the function `modification_guard` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "The information given is insufficient to identify tests exercising modification_guard. The prompt supplies only the decorator source; no test module, names, or references appear. modification_guard is a decorator applied to async write tools, so regression tests would likely live in files covering write-tool guards, the ack registry, ambiguity handling, and PageRank or blast-radius thresholds, but I cannot name them from this text. I explicitly state: I cannot determine this from the information provided. A developer should grep the tests for modification_guard, ack_impact, _ack_registry, and fresh_guard fixtures, then run the collected tests. Naming specific functions here would be fabrication.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The supplied context lists three tests that exercise modification_guard:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_allows_non_hot_file\n\nAll three apply the @modification_guard decorator to a test tool method. The first verifies pass-through when neither file_path nor symbol is given. The second checks the ambiguity guard refuses to silently route a bare symbol with multiple definitions. The third patches the PageRank and blast-radius helpers to zero and asserts a non-hot file passes with no ack required. These are the only tests shown as relevant. Other repository tests may also exercise the decorator but are not included, so this list reflects the supplied evidence only.",
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0",
+            "TestModificationGuard::test_allows_non_hot_file"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The context labels three tests as relevant to modification_guard:\ntest_init_with_registry\ntest_symbol_index_remove_file_clears_env\ntest_parse_rejects_bad_urls\n\nBut none of these appear to touch modification_guard. The first tests CrossProjectDependencyGraph registry injection, the second tests SymbolIndex env-access cleanup, and the third tests GitUrlSource URL validation. They exercise unrelated modules and do not import or apply the decorator. I therefore cannot confirm they catch regressions in modification_guard. From the given information the real tests cannot be determined; the provided ones look shuffled or mismatched. A developer should grep for modification_guard and ack_impact instead of relying on this list.",
+          "tests": [
+            "TestCrossProjectDependencyGraphInit::test_init_with_registry",
+            "test_symbol_index_remove_file_clears_env",
+            "test_parse_rejects_bad_urls"
+          ]
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "decorator",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "question": "A developer is about to change the behavior of the function `decorator` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "Based only on the information provided, I cannot determine which existing tests exercise `decorator`. The prompt shows the function code but no test files, no tests-directory listing, and no call sites. Since `decorator` is a nested factory inside `modification_guard` and its wrapper is applied via `@modification_guard()`, any regression test would import `modification_guard` from `src.core.modification_guard` and decorate a fake tool method. Without the contents of the repository test suite I cannot name specific test functions. Explicitly: this cannot be determined from the information given; one would need to grep the tests directory for `modification_guard` or `decorator` usages.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "According to the relevant tests supplied, the following test functions exercise this function and should be run to catch regressions:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_cli_unknown_tool\nThe first two directly decorate a fake tool with `@modification_guard()` and assert pass-through and ambiguous-symbol denial behaviour, so they clearly cover the wrapper logic. `test_cli_unknown_tool` looks unrelated on its face, because it only checks CLI argument handling and never touches `modification_guard`; it is probably a false positive in the candidate list. The two guard-specific tests are the ones that must be run.",
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "test_cli_unknown_tool",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The list is labelled as relevant, but on inspection none of the three tests exercises `decorator` or the modification guard wrapper. `test_empty_instance_does_not_overwrite_populated_file` covers SymbolIndex persistence, `test_passes_on_real_results` covers search-quality reporting, and `test_build_receipt_generates_id_and_steps` covers action receipts. None imports `modification_guard`, calls `@modification_guard()`, or asserts guard denial or ack behaviour, so none would catch a regression in this function. Therefore, based on the given material, I cannot name any test that genuinely exercises `decorator`; the provided candidates appear to be unrelated or shuffled distractors.",
+          "tests": [
+            "test_empty_instance_does_not_overwrite_populated_file",
+            "TestCheckSearchQuality::test_passes_on_real_results",
+            "test_build_receipt_generates_id_and_steps"
+          ]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "wrapper",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "question": "A developer is about to change the behavior of the function `wrapper` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "Based only on the material given, I cannot determine which tests exercise `wrapper`. Only the function body is provided, with no test files, test names, or import sites. Because `wrapper` is defined inside the `decorator` factory and is applied through `@modification_guard()`, regressions would surface in tests that import `src.core.modification_guard`, decorate a fake tool method, and assert guard behaviour. Without access to the repository test suite I cannot list concrete test function names. Explicitly: this is not determinable from the information given; one would need to search the tests directory for `modification_guard` usages.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "Per the relevant tests provided, these test functions exercise `wrapper` and must be run to catch regressions:\ntest_no_file_path_no_symbol_passes\ntest_ambiguous_symbol_not_silently_routed_to_defs0\ntest_allows_non_hot_file\nAll three build a fake tool class and decorate its async method with `@modification_guard()`, so they drive the wrapper directly: pass-through when no target is given, denial when a bare symbol resolves to multiple definitions, and pass-through when the mocked PageRank and blast radius are below thresholds. Together they cover the early-exit, ambiguity-guard, and non-hot paths.",
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0",
+            "TestModificationGuard::test_allows_non_hot_file"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "Although the three tests are presented as relevant, none of them exercises `wrapper` or the modification guard. `test_self_lock_adds_no_second_instance_issue` inspects a startup lock report, `test_fileguard_resolves_relative_project_path` checks FileGuard path resolution, and `test_trust_report_warns_on_untrusted_with_instructions` checks a trust report for instruction files. None imports or calls `modification_guard`, and none invokes `@modification_guard()` on an async method, so they cannot catch a regression in `wrapper`. Based on the given information I cannot identify a test that truly exercises it; the supplied candidates look like unrelated distractors.",
+          "tests": [
+            "TestBuildStartupReport::test_self_lock_adds_no_second_instance_issue",
+            "test_fileguard_resolves_relative_project_path",
+            "test_trust_report_warns_on_untrusted_with_instructions"
+          ]
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "format_project_memory",
+      "file_path": "D:/Project/MSCodeBase/src/utils/ui_formatter.py",
+      "question": "A developer is about to change the behavior of the function `format_project_memory` in `ui_formatter.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "format_project_memory renders the intel_get_project_memory output as a markdown string. It takes a memory dict of sections (adrs, known_issues, tech_debt, failed_attempts), a limit defaulting to 3 for token budget (limit <= 0 shows all), and an optional stats dict. It appends a VOR coverage receipt (checked/total, starved, stale_ttl, budget_exceeded), freshness gate lines, status metrics, then iterates sections with icons, truncating items and adding an 'and N more' line. Edge cases: no stats means no receipt (backward compatibility); audit mode is auto-detected by REFUTED/SUPERSEDED statuses, then each node gets a status and retract reason. Regarding tests: the information given contains no test source and no repository listing, so I cannot determine which tests exercise this function. I must say so explicitly.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "format_project_memory converts a project-memory dict into a markdown summary. Inputs: memory (sections to items), limit (default 3; <=0 means all), optional stats for the VOR receipt. Output: a string with header, VOR coverage, freshness gate, status metrics, then per-section icons, titles (max 80 chars), verification markers (no_anchors, budget_exceeded, stale_ttl) and audit statuses (REFUTED with reason, SUPERSEDED, VERIFIED, ACTIVE). Edge cases: absent stats disables the receipt; limit truncation emits an 'and N more' line; audit mode is detected from REFUTED/SUPERSEDED presence. Tests that exercise it, from the provided snippets:\ntest_audit_mode_shows_statuses_and_reasons\ntest_budget_exceeded_node_marker\ntest_default_limit_three",
+          "tests": [
+            "test_audit_mode_shows_statuses_and_reasons",
+            "test_budget_exceeded_node_marker",
+            "test_default_limit_three"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "format_project_memory formats the project memory dict into markdown. It builds a header, optionally a VOR receipt from stats (coverage, starved, stale_ttl, budget warning, freshness gate, status metrics), then walks each non-empty section adding icons, entry counts, truncated titles with verification flags, and audit statuses when REFUTED/SUPERSEDED are present. limit defaults to 3; <=0 shows every node; hidden nodes get an 'and N more' line. Edge cases: no stats suppresses the receipt; title truncation at 80 chars; the import of TTL_STALE_DAYS is guarded. On tests: the three snippets shown (test_verdict_env_block_is_inconclusive_not_refuted, test_invalidates_bm25, test_blocked_string_pattern_eval) do not call format_project_memory and appear unrelated, so from the given information I cannot confirm any test that exercises it.",
+          "tests": [
+            "test_verdict_env_block_is_inconclusive_not_refuted",
+            "TestApplyFileMove::test_invalidates_bm25",
+            "TestValidateCode::test_blocked_string_pattern_eval"
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "name": "validate_code",
+      "file_path": "D:/Project/MSCodeBase/src/core/sandbox/executor.py",
+      "question": "A developer is about to change the behavior of the function `validate_code` in `executor.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "validate_code statically validates Python source before sandbox execution in two layers. Layer 1 scans the raw string for blocked patterns using a word-boundary regex to avoid false positives. Layer 2 parses the code with ast.parse (SyntaxError becomes a SandboxViolation) and walks all nodes, blocking non-allowlisted imports and from-imports, calls to eval/exec/compile and __import__, dangerous dunder attribute access, and blocked builtin names. Input: a code string. Output: a list of non-fatal warnings (always empty in this implementation). Raises SandboxViolation on the first hard block. Edge cases: empty code and safe code pass; attribute-vs-name checks distinguish node types. I cannot determine the tests: no test source or repository listing is provided, so I must say so explicitly.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "validate_code is a two-layer static sandbox validator for Python source. Layer 1 regex-scans raw text for blocked string patterns with word boundaries; Layer 2 parses via ast.parse and walks nodes to reject non-allowlisted imports and from-imports, eval/exec/compile and __import__ calls, dangerous dunder attribute access, and blocked names. It returns a list of non-fatal warnings (currently always empty) and raises SandboxViolation on the first hard block, including SyntaxError. Edge cases: empty code parses fine, safe code with math.sqrt passes, and the node-type branches keep attribute access separate from bare name usage. Tests exercising it, from the provided snippets:\ntest_allowed_modules\ntest_empty_code\ntest_safe_code_passes",
+          "tests": [
+            "TestValidateCode::test_allowed_modules",
+            "TestValidateCode::test_empty_code",
+            "TestValidateCode::test_safe_code_passes"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "validate_code performs pre-execution sandbox validation in two layers. First a fast regex string scan over BLOCKED_STR_PATTERNS with a negative lookbehind word boundary; then an AST walk that rejects imports not in ALLOWED_MODULES, dangerous calls (eval, exec, compile, __import__), dangerous dunder attributes, and blocked names. It returns a list of warnings (non-fatal) and raises SandboxViolation on any hard block, converting SyntaxError into a violation. Edge cases: empty input, safe code, and distinguishing attribute access from bare names. Regarding tests: the snippets given (test_enrichment_empty_results, test_layer_windows_backslashes, test_build_call_graph_depth_2) concern search enrichment, path layer inference, and call graphs, not validate_code, so I cannot confirm they exercise it from the information given.",
+          "tests": [
+            "test_enrichment_empty_results",
+            "TestInferMetadata::test_layer_windows_backslashes",
+            "test_build_call_graph_depth_2"
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "name": "_extract_yarn_lock",
+      "file_path": "D:/Project/MSCodeBase/src/sources/manifest/extract.py",
+      "question": "A developer is about to change the behavior of the function `_extract_yarn_lock` in `extract.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "_extract_yarn_lock parses a yarn.lock file, supporting v1, v2 and berry v10 formats. It reads line by line, treating non-indented lines ending in colon as block keys, then captures the following version line. A nested flush helper emits a ManifestEntry (npm ecosystem, normalized name, version, lockfile source, line number) only when both key and version were seen. Aliased packages are handled: when a resolution line contains npm: and its name differs from the block key, the resolution name becomes the real package name. Inputs: text and source label; output: a list of ManifestEntry. Edge cases: blank lines and __metadata are skipped; quoted keys are unquoted; blocks without a version are dropped. No tests are given here, so I cannot determine which tests exercise it.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "_extract_yarn_lock parses yarn.lock files across v1, v2 and berry v10. It scans lines, treating non-indented colon-terminated lines as package block keys (stripping surrounding quotes), then records the version from the version line. Emitted entries are npm ManifestEntry objects with normalized names, deferred to flush so alias handling works: if a resolution line contains npm: with a name differing from the key, that resolution name is used instead. Blank lines and __metadata are skipped, and blocks lacking versions produce nothing. Inputs are the lock text and a source label; output is the entry list. Tests from the provided snippets:\ntest_yarn_berry_patch_descriptors\ntest_yarn_berry_v10_scoped\ntest_yarn_synthetic",
+          "tests": [
+            "test_yarn_berry_patch_descriptors",
+            "test_yarn_berry_v10_scoped",
+            "test_yarn_synthetic"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "_extract_yarn_lock parses yarn.lock files (v1, v2, berry v10) into npm ManifestEntry records. It iterates lines: non-indented lines ending with colon start a new package block (quotes stripped), version lines set the pending version, and resolution lines detect aliases when npm: resolves to a different real name than the block key. A flush closure emits an entry only when both a key and a version exist, attaching the source and line number. Edge cases include skipping blank and __metadata lines, dropping versionless blocks, and handling aliased or patched descriptors. On tests: the three snippets shown (test_returns_project_path, test_worktree_cleaned_after_run, test_metadata_returns_dict) exercise search tool headers and change-preview worktrees, not this extractor, so I cannot confirm any test that exercises it from the information given.",
+          "tests": [
+            "TestProjectHeader::test_returns_project_path",
+            "TestChangePreview::test_worktree_cleaned_after_run",
+            "TestProjectHeader::test_metadata_returns_dict"
+          ]
+        }
+      }
+    },
+    {
+      "id": 16,
+      "name": "WriteTool._action_replace",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/tools/write_tools.py",
+      "question": "A developer is about to change the behavior of the function `WriteTool._action_replace` in `write_tools.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine the specific test names from the information given: only the function source was provided, no test files or repository listing. A reliable answer requires searching the repo for callers of WriteTool._action_replace. Description: this async method implements the replace action. It validates the symbol identifier and optional file_path, resolves definitions through the symbol index, and rejects missing, ambiguous, or out-of-project targets. With apply=False it returns a preview and may attach a type-check preflight. With apply=True it indents new_code, computes before/after hashes, AST-validates Python syntax, runs preflight validation, atomic-writes the file, invalidates the LSP cache, evicts the file from the symbol index, and records a contract entry. It returns user-facing markdown messages on success or error.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise this function are:\ntest_unknown_symbol_returns_warning\ntest_filter_mismatch_returns_error\ntest_replace_dry_run_does_not_write\nDescription: this async method implements the replace action of a write tool. It validates the symbol identifier and optional file_path, resolves definitions via the symbol index, and errors on missing, ambiguous, or out-of-project symbols and files. When apply is False it returns a preview (optionally with a type-check preflight). When apply is True it indents new_code, records before/after hashes, AST-validates Python syntax, runs preflight validation, atomic-writes, invalidates the LSP cache, removes the file from the symbol index, and records a contract. Edge cases: empty arguments, bad identifiers, syntax errors, blocking preflight.",
+          "tests": [
+            "TestWriteToolReplace::test_unknown_symbol_returns_warning",
+            "TestWriteToolReplace::test_filter_mismatch_returns_error",
+            "TestDryRunNoWrite::test_replace_dry_run_does_not_write"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The listed tests do not exercise WriteTool._action_replace. test_own_host_v2_is_healthy covers DatabaseLock.classify_holder; test_drop_removes_entry covers LiveBuffer.drop; test_flush_now_clears_and_calls_callback covers DebounceBatch.flush_now. These are unrelated components (locking, buffering, debouncing) and give no coverage of the replace action. Therefore the real regression tests for this function cannot be determined from the information given; a repo-wide search for callers of _action_replace would be required. Description: the async method validates the symbol and file_path, resolves definitions via the symbol index, supports a dry-run preview, and on apply indents new_code, AST-validates Python syntax, runs preflight, atomic-writes, invalidates the LSP cache, and records a contract.",
+          "tests": [
+            "TestClassifyHolder::test_own_host_v2_is_healthy",
+            "test_drop_removes_entry",
+            "TestDebounceBatch::test_flush_now_clears_and_calls_callback"
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "name": "SymbolIndex.get_call_chain",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/symbol_index.py",
+      "question": "A developer is about to change the behavior of the function `SymbolIndex.get_call_chain` in `symbol_index.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine the specific test names from the information given: only the function source was provided, with no test files or repository listing. A reliable answer needs a repo-wide search for callers of SymbolIndex.get_call_chain. Description: this method returns call chains for a symbol by traversing the internal reference map under a lock. The direction argument selects callers (up), callees (down), or both. For each depth level it walks references, skipping definitions and the symbol itself, appending records with symbol, file, line, and depth. It returns a dict with symbol, callers_chain, callees_chain, and total_connected. Edge cases: max_depth limits traversal, visited sets prevent cycles and duplicates, and missing symbols yield empty chains.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise this function are:\ntest_get_call_chain_both\ntest_get_call_chain_down\ntest_get_call_chain_total_connected\nDescription: this method returns a symbol call chain by traversing the internal references map while holding a lock. direction selects callers (up), callees (down), or both. Each level walks references, skipping definitions and the symbol itself, and records entries with symbol, file, line, and depth. The result dict holds symbol, callers_chain, callees_chain, and total_connected. Edge cases: max_depth caps traversal depth, visited sets prevent infinite loops and duplicate entries, and unknown symbols return empty chains. The three tests cover both-direction traversal, downward traversal, and the total_connected count.",
+          "tests": [
+            "test_get_call_chain_both",
+            "test_get_call_chain_down",
+            "test_get_call_chain_total_connected"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The listed tests do not exercise SymbolIndex.get_call_chain. test_unparseable_lines_skipped covers _count_log_levels; test_old_schema_detected covers _check_sqlite_schema_health; test_wire_plugins_no_env_noop covers wire_plugins. These concern log parsing, SQLite schema checks, and plugin wiring, so they give no coverage of call-chain traversal. The real regression tests cannot be determined from the information given; a repo-wide search for callers of get_call_chain would be required. Description: the method traverses the internal references map under a lock, in the requested direction (up for callers, down for callees, both), recording symbol, file, line, and depth per entry and returning a dict with callers_chain, callees_chain, and total_connected, bounded by max_depth and cycle-guarding visited sets.",
+          "tests": [
+            "test_unparseable_lines_skipped",
+            "TestSqliteSchemaHealth::test_old_schema_detected",
+            "test_wire_plugins_no_env_noop"
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "name": "load_manifest",
+      "file_path": "D:/Project/MSCodeBase/src/plugins/manifest.py",
+      "question": "A developer is about to change the behavior of the function `load_manifest` in `manifest.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine the specific test names from the information given: only the function source was provided, with no test files or repository listing. A reliable answer would require searching the repo for callers of load_manifest. Description: this function reads and validates a plugin.json manifest without executing plugin code. It parses JSON and raises PluginManifestError with kinds manifest_missing or manifest_invalid on file or parse errors, checks required fields, normalizes id/name/version, enforces schema_version against _SCHEMA_VERSION, validates platform compatibility, defaults and validates requires_engine_version with SpecifierSet, normalizes tools into a non-empty list of strings, and cleans dependencies. It returns a ToolPlugin instance. Edge cases: invalid or empty values, wrong schema, platform mismatch, bad engine spec.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise this function are:\ntest_load_invalid_engine_req\ntest_manifest_requires_missing_fields\ntest_manifest_schema_mismatch_real\nDescription: load_manifest reads and validates plugin.json without executing plugin code. It parses JSON, raising PluginManifestError (kinds manifest_missing, manifest_invalid) on file or parse errors, verifies required fields, normalizes id/name/version, enforces schema_version equality with _SCHEMA_VERSION, checks platform compatibility, defaults requires_engine_version to >=0 and validates it with SpecifierSet, normalizes tools into a non-empty string list, and cleans dependencies before returning a ToolPlugin. The three tests cover an invalid engine requirement, a missing manifest file, and a schema_version mismatch.",
+          "tests": [
+            "test_load_invalid_engine_req",
+            "test_manifest_requires_missing_fields",
+            "test_manifest_schema_mismatch_real"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The listed tests do not exercise load_manifest. test_tokenize_truncates_over_limit_to_guarantee covers an embedder truncation helper; test_user_project_not_self_index covers _is_self_index_path; test_empty_results covers Searcher._extract_key_terms. These concern embedding, self-index detection, and search term extraction, so they give no coverage of manifest loading. The real regression tests cannot be determined from the information given; a repo-wide search for callers of load_manifest would be needed. Description: the function reads and validates plugin.json without executing plugin code, raising PluginManifestError for missing or invalid JSON, incomplete fields, schema mismatch, platform mismatch, and invalid engine requirements, then returns a normalized ToolPlugin instance.",
+          "tests": [
+            "test_tokenize_truncates_over_limit_to_guarantee",
+            "TestIsSelfIndexPath::test_user_project_not_self_index",
+            "TestExtractKeyTerms::test_empty_results"
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "name": "ProjectIntelligenceLayer._enrich_job_response",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/layer.py",
+      "question": "A developer is about to change the behavior of the function `ProjectIntelligenceLayer._enrich_job_response` in `layer.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given: no test files, test names, or repository context accompany the function. Based solely on the code, `_enrich_job_response` enriches a `BackgroundJob` dict. It rounds `progress`; sets `poll_interval_seconds` from status and progress bands (0 for completed/failed, else 30, 30, 15, 5); builds `progress_label` from status and progress; and for running jobs computes an adaptive ETA via `_embed_progress_from_log`, falling back to `job_history` during finalizing, with an honest `None` when no data exists. Edge cases include missing embed progress, done at or beyond total, and non-running statuses. Without the repository test sources I cannot name any test function that must be run.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise `_enrich_job_response` are: test_enrich_eta_none_when_no_embed_progress, test_enrich_eta_uses_real_embed_speed, and test_intel_runtime_status_reports_reindex_progress. The first two call it directly to verify the adaptive ETA contract (None when no embed data, and 21 seconds from 347 remaining chunks at 16 ch per s). The third exercises it indirectly through `intel_get_runtime_status`, asserting reindex telemetry and accepting a None or positive ETA. The function rounds progress, computes poll_interval_seconds and progress_label from status and progress, and derives estimated_seconds for running jobs. Run these three to catch regressions in the ETA logic and the reindex status path.",
+          "tests": [
+            "test_enrich_eta_none_when_no_embed_progress",
+            "test_enrich_eta_uses_real_embed_speed",
+            "test_intel_runtime_status_reports_reindex_progress"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "None of the provided tests exercise `_enrich_job_response`. test_normalize_diag_uri_idempotent tests LspClient URI normalization; test_double_load_is_idempotent tests embedder tokenizer loading; test_apply_deletes_from_file tests WriteTool symbol deletion. They are unrelated to job enrichment and would not catch regressions here. The function is a pure formatter over a BackgroundJob, so a meaningful test must construct a job, call `_enrich_job_response` (or `intel_get_runtime_status`), and assert on poll_interval_seconds, progress_label, eta_phase, or estimated_seconds. From the information given I cannot identify any real test names; I can only state that these three do not cover it.",
+          "tests": [
+            "test_normalize_diag_uri_idempotent",
+            "test_double_load_is_idempotent",
+            "TestWriteToolSafeDelete::test_apply_deletes_from_file"
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "name": "format_runtime_status",
+      "file_path": "D:/Project/MSCodeBase/src/utils/ui_formatter.py",
+      "question": "A developer is about to change the behavior of the function `format_runtime_status` in `ui_formatter.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given: no test files or test names are supplied with the function. `format_runtime_status` converts a status dict into a Markdown dashboard with traffic-light emojis. It reads project path, PID, embedding provider, provider statuses, index telemetry, reranker RAM, reindex flags, and optional startup diagnostics. It derives LEDs for LM Studio, Ollama, the active provider, the index, overall health, and the reranker; renders chunk/file/symbol counts or a Reindex in progress line with percent and ETA; and short-circuits to a warning block when lock or DB state is unhealthy. Without the repository test sources I cannot list the tests that must be run.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The relevant tests are: test_format_runtime_status_fallback_to_768_when_no_model_info, test_format_runtime_status_normal_path_unchanged, and test_format_runtime_status_reindex_without_progress. The first checks the ONNX dimension fallback when model_info is absent. The second confirms the unchanged normal path yields 0 chunks for an empty index. The third verifies the reindex branch shows Reindex in progress and never 0 chunks, even with missing progress and ETA. Together they cover the traffic-light logic, provider and model naming, index telemetry rendering, and the reindex short-circuit. Run all three before changing format_runtime_status to catch regressions in these rendering paths.",
+          "tests": [
+            "test_format_runtime_status_fallback_to_768_when_no_model_info",
+            "test_format_runtime_status_normal_path_unchanged",
+            "test_format_runtime_status_reindex_without_progress"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "None of the provided tests exercise `format_runtime_status`. test_env_gate_off checks the language-pack environment gate; test_blocked_import_subprocess checks sandbox validation of imports; test_iteration_1_adds_terms checks the searcher refined-query generation. All are unrelated to runtime status formatting and would not catch regressions here. A real test would build a status dict and assert on the rendered dashboard, provider LEDs, the index chunk line, or the startup-diagnostic warning block. Based only on the information given, I cannot identify any actual test names that cover this function; the three shown clearly do not.",
+          "tests": [
+            "TestDisabledByDefault::test_env_gate_off",
+            "TestValidateCode::test_blocked_import_subprocess",
+            "TestGenerateRefinedQuery::test_iteration_1_adds_terms"
+          ]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "name": "_delayed_auto_index",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/server_factory.py",
+      "question": "A developer is about to change the behavior of the function `_delayed_auto_index` in `server_factory.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given: no tests or repository context accompany the function. `_delayed_auto_index` runs a delayed auto-index after server startup. It resolves an indexer, skips when the project root equals ext_root or the index already has chunks, logs a human-readable startup diagnostic for an empty or corrupt DB, waits 1.5 seconds, sets a reindexing guard, runs `index_project` in a thread, transitions the registry state to READY, and always clears the guard in a finally block. Failures are logged, not raised. Without the repository test sources I cannot name any test function that must be run.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests exercising `_delayed_auto_index` are: test_delayed_auto_index_skips_when_index_not_empty and test_delayed_auto_index_sets_state_ready. The first asserts that a non-empty index of 9000 chunks causes an early return, that `index_project` is not called, and that `set_state` is never invoked. The second asserts that with an empty index `index_project` runs, returning 42, and the registry is set to ProjectState.READY. Both stub `resolve_indexer_for_request` and the DI registry. Run these two to catch regressions in the skip conditions, the reindexing guard, and the READY state transition.",
+          "tests": [
+            "test_delayed_auto_index_skips_when_index_not_empty",
+            "test_delayed_auto_index_sets_state_ready"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "None of the provided tests exercise `_delayed_auto_index`. test_lazy_graph_build checks that CrossProjectDependencyGraph lazily initializes its `_graph`; test_dedup_preserves_order checks that `extract_imports` deduplicates modules while preserving order. Both are unrelated to auto-indexing and would not catch regressions in the function. A meaningful test would stub the indexer and the DI registry, then assert skip behavior, `index_project` invocation, and the READY state transition. From the information given I cannot identify any real test names covering `_delayed_auto_index`; the two shown are clearly unrelated modules.",
+          "tests": [
+            "TestCrossProjectDependencyGraphInit::test_lazy_graph_build",
+            "TestExtractImports::test_dedup_preserves_order"
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "name": "load_metrics",
+      "file_path": "D:/Project/MSCodeBase/src/core/error_handler.py",
+      "question": "A developer is about to change the behavior of the function `load_metrics` in `error_handler.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "No test names can be determined from the information given. The prompt provides only the source of load_metrics plus its module globals (_METRICS_PATH, _TOOL_METRICS, _TOOL_METRICS_LOCK); it contains no test file, no directory listing, and no search results. Nothing in the supplied text names a test function or shows an import of error_handler. So I cannot honestly list tests that exercise it. To find them one would grep the repository for load_metrics, for imports of src.core.error_handler, or for patching of _METRICS_PATH. The function loads saved tool metrics from a JSON file, sanitizes negative latency values (min_ms, max_ms, total_ms and the latencies list), and merges them into _TOOL_METRICS. Candidate regression tests would target that sanitization, but their names are undetermined.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise load_metrics and should be run before changing it are:\ntest_bs14_load_metrics_clamps_negative_total_ms\ntest_bs14_load_metrics_sanitizes_negative\nBoth import src.core.error_handler, point eh._METRICS_PATH at a temporary JSON file, clear eh._TOOL_METRICS, call eh.load_metrics(), and assert the sanitization behavior. The first checks that a negative total_ms is clamped to 0 and min_ms becomes 999999. The second checks that negative min_ms is dropped, that every latency is non-negative, and that total_ms stays non-negative. These are the direct regression tests for the loading and sanitizing logic, so both must be run whenever load_metrics changes.",
+          "tests": [
+            "test_bs14_load_metrics_clamps_negative_total_ms",
+            "test_bs14_load_metrics_sanitizes_negative"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine the tests that exercise load_metrics from the information given. The supplied snippets are test_multiple_mentions (about parse_cross_repo_query) and test_ips_are_global (about IP classification). Neither imports error_handler, references load_metrics, nor touches _METRICS_PATH or _TOOL_METRICS, so neither exercises the function. Although the section is labelled as relevant tests, their contents contradict that label. Therefore no test name can be truthfully listed. The function loads saved tool metrics from a JSON file, sanitizes negative latency fields, and merges them into _TOOL_METRICS; a genuine regression test would call it with a crafted metrics file. Undetermined from the given text.",
+          "tests": [
+            "TestParseCrossRepoQuery::test_multiple_mentions",
+            "test_ips_are_global"
+          ]
+        }
+      }
+    },
+    {
+      "id": 23,
+      "name": "_extract_pyproject",
+      "file_path": "D:/Project/MSCodeBase/src/sources/manifest/extract.py",
+      "question": "A developer is about to change the behavior of the function `_extract_pyproject` in `extract.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "No test names can be determined from the information given. The prompt supplies only the source of _extract_pyproject plus references to helpers (_toml, _req_name, normalize_python, ManifestEntry); there is no test file, no listing, and no grep output. Nothing names a test function or imports extract.py. So I cannot honestly list tests that exercise it. To find them one would search for _extract_pyproject, for imports of the extract module, or for tests using pyproject fixtures. The function parses TOML text of a pyproject.toml, returning ManifestEntry objects for project.dependencies, project.optional-dependencies, and PEP 735 dependency-groups (supporting both list and packages-dict forms), skipping anything _toml cannot parse. Candidate tests would cover those branches, but their names are undetermined.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise _extract_pyproject are:\ntest_pyproject_optional_and_groups\ntest_requests_pyproject_and_requirements_dev\ntest_manifest_packages_wiring_pyproject_plus_lock\nThe first calls _extract_pyproject directly on inline TOML and checks that chardet, pysocks, pytest and pytest-cov are all collected, covering project.dependencies, optional-dependencies and dependency-groups. The second goes through manifest_packages on a requests fixture, exercising the pyproject path indirectly and asserting normalized names. The third uses a uv fixture where dependency-groups is the only source, asserting black and annotated-types appear. Together they cover the list and packages-dict branches, so all three should be run before changing the function.",
+          "tests": [
+            "test_pyproject_optional_and_groups",
+            "test_requests_pyproject_and_requirements_dev",
+            "test_manifest_packages_wiring_pyproject_plus_lock"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine the tests that exercise _extract_pyproject from the information given. The supplied snippets are test_localhost_https_rejected, test_search_with_mode_fast_calls_embed_and_vector, and test_attribute_assignment. None imports the extract module, references _extract_pyproject, or uses pyproject TOML parsing; they cover Git URL SSRF protection, search-mode behavior, and assignment extraction respectively. So none exercises the function, despite the relevant-tests label. No test name can be truthfully listed. The function parses pyproject.toml TOML text into ManifestEntry objects from project.dependencies, optional-dependencies, and PEP 735 dependency-groups. Finding real tests requires a repository search for _extract_pyproject or extract-module imports. Undetermined from the given text.",
+          "tests": [
+            "test_localhost_https_rejected",
+            "test_search_with_mode_fast_calls_embed_and_vector",
+            "TestEdgeCases::test_attribute_assignment"
+          ]
+        }
+      }
+    },
+    {
+      "id": 24,
+      "name": "IndexStatusReporter.get_status",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_status.py",
+      "question": "A developer is about to change the behavior of the function `IndexStatusReporter.get_status` in `index_status.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "No test names can be determined from the information given. The prompt provides only the source of IndexStatusReporter.get_status plus the implicit attributes it uses (_reindex_check, _table_write_lock, _cached_total_chunks, _cached_unique_files, table, _scan_stale, _watchdog_callback). There is no test file, no directory listing, and no search results. Nothing in the supplied text names a test function or constructs an IndexStatusReporter. So I cannot honestly list which tests exercise it. To find them one would grep for get_status, for IndexStatusReporter, or for the reindex fast-fail scenario. The method returns database statistics, short-circuits during reindex, and falls back to count_rows for consistency, but candidate test names are undetermined.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests listed under this function are:\ntest_get_status_fast_fail_during_reindex_does_not_block\ntest_setup\nThe first directly constructs IndexStatusReporter and calls get_status, so it clearly exercises the function, asserting the fast-fail path returns cached values quickly while the write lock is held. The second (test_setup) builds a FileGuard and DI container and resolves an indexer; it does not visibly call get_status, so it likely does not exercise it despite appearing under the relevant-tests heading. Strictly, only test_get_status_fast_fail_during_reindex_does_not_block can be confirmed from the given text; test_setup should be treated as unconfirmed and checked separately.",
+          "tests": [
+            "test_get_status_fast_fail_during_reindex_does_not_block",
+            "test_setup"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine the tests that exercise IndexStatusReporter.get_status from the information given. The supplied snippets are test_handles_same_path (Indexer.move_chunks_metadata no-op) and test_no_dollardefs_or_ref_in_tool_schemas (tool JSON schema validation). Neither constructs an IndexStatusReporter, calls get_status, nor touches the reindex fast-fail or count_rows logic. They belong to different modules, so they do not exercise the function despite the relevant-tests label. No test name can be truthfully listed. The function returns DB statistics and short-circuits to cached values during reindexing to avoid blocking the event loop. Locating real tests requires a repository search for get_status or IndexStatusReporter. Undetermined from the given text.",
+          "tests": [
+            "TestMoveChunksMetadata::test_handles_same_path",
+            "test_no_dollardefs_or_ref_in_tool_schemas"
+          ]
+        }
+      }
+    },
+    {
+      "id": 25,
+      "name": "WriteTool._action_insert",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/tools/write_tools.py",
+      "question": "A developer is about to change the behavior of the function `WriteTool._action_insert` in `write_tools.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "No test names can be determined from the information given. The prompt supplies only the source of WriteTool._action_insert plus the helpers and attributes it calls (require_ready_project, resolve_symbol_index, find_definitions, _resolve_single_source_def, _build_insert_lines, _preflight_validate, _atomic_write, _contract_record). There is no test file, no listing, and no grep output, and nothing names a test function or instantiates WriteTool. So I cannot honestly list tests that exercise it. To find them one would search for _action_insert_after, _action_insert_before, or tests using a write_tool fixture. The method inserts code before or after an anchor symbol, previews when apply is false, and records a contract hash, but candidate test names are undetermined.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests that exercise _action_insert are:\ntest_filter_mismatch_returns_error\ntest_filter_mismatch_returns_error\ntest_unknown_symbol_returns_error\nNote the first name appears twice: one variant calls _action_insert_after and one calls _action_insert_before, both with a mismatching file_path and asserting an error is returned. test_unknown_symbol_returns_error calls _action_insert_after with a nonexistent anchor and expects an error. All three reach the function through its position wrappers (insert_before and insert_after both delegate to _action_insert), so they cover the anchor-not-found and file-filter branches. They should be run before changing _action_insert, though the duplicate name means collection must be scoped per test file.",
+          "tests": [
+            "TestWriteToolInsertAfter::test_filter_mismatch_returns_error",
+            "TestWriteToolInsertBefore::test_filter_mismatch_returns_error",
+            "TestWriteToolInsertAfter::test_unknown_symbol_returns_error"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "I cannot determine the tests that exercise WriteTool._action_insert from the information given. The supplied snippets are test_token_is_32_hex_chars (ack token format), test_unknown_kind_ignored (AlertStore.push), and test_gemfile_skips_gitpath (manifest_packages). None imports write_tools, uses a write_tool fixture, or calls _action_insert, _action_insert_after, or _action_insert_before. They cover unrelated modules, so none exercises the function, despite the relevant-tests label. Therefore no test name can be truthfully listed. The function inserts new code before or after an anchor symbol, supports preview mode, and performs preflight validation plus atomic writes and contract recording. Locating real tests requires searching for _action_insert or the write_tool fixture. Undetermined from the given text.",
+          "tests": [
+            "TestHMACToken::test_token_is_32_hex_chars",
+            "test_unknown_kind_ignored",
+            "test_gemfile_skips_gitpath"
+          ]
+        }
+      }
+    },
+    {
+      "id": 26,
+      "name": "_match_gitignore_pattern",
+      "file_path": "D:/Project/MSCodeBase/src/core/gitignore_parser.py",
+      "question": "A developer is about to change the behavior of the function `_match_gitignore_pattern` in `gitignore_parser.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path is matched by a single .gitignore pattern. It strips a leading slash and records/dir-strips a trailing slash. It then tries, in order: exact equality; `/**/` matching via prefix/suffix checks; fnmatch wildcards (full path when a slash is present, otherwise the basename); slash-free basename semantics with special any-depth handling for directory patterns; and prefix matching for slash-containing directory patterns. Notable edge cases: directory patterns match at any depth, wildcard scope depends on slash presence, and the trailing-slash branch became unreachable after stripping. No repository or test information is supplied in this prompt, so I cannot name the tests that exercise it; a developer should search the suite for gitignore_parser imports or calls to this helper and run those tests.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path matches one .gitignore pattern. It strips a leading slash, detects trailing-slash directory patterns, then tries exact match, `/**/` prefix/suffix matching, fnmatch wildcards (full path when the pattern contains a slash, otherwise basename), slash-free basename and directory semantics, and finally prefix matching for slash-containing directory patterns. Edge cases include any-depth directory matching, wildcard scope depending on slash presence, and now-unreachable trailing-slash code. The context explicitly identifies the tests that exercise this function, so the developer must run:\ntest_dir_pattern_excludes_nested\ntest_dir_pattern_matches_any_depth\ntest_file_pattern_unchanged\nThese cover nested directory exclusion, any-depth directory matching, and unchanged file-pattern behaviour.",
+          "tests": [
+            "test_dir_pattern_excludes_nested",
+            "test_dir_pattern_matches_any_depth",
+            "test_file_pattern_unchanged"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "`_match_gitignore_pattern(path, pattern)` decides whether a relative POSIX path matches a single .gitignore pattern. It strips a leading slash, detects trailing-slash directory patterns, then applies exact match, `/**/` prefix/suffix matching, fnmatch wildcards (full path when a slash is present, otherwise basename), slash-free basename/directory semantics, and prefix matching for slash-containing directory patterns. Edge cases include any-depth directory matching and unreachable trailing-slash code. However, the tests supplied with this prompt do not reference `_match_gitignore_pattern` at all; they belong to other modules (a dependency graph and a path-safety guard) and cannot catch regressions here. Their names are:\ntest_no_shared\ntest_no_path\ntest_non_ascii_path_denied\nFrom the given information I cannot confirm any test that exercises the function; the developer should instead find tests importing gitignore_parser or calling `_excluded`.",
+          "tests": [
+            "TestFindSharedInterfaces::test_no_shared",
+            "TestGetDependencyPath::test_no_path",
+            "TestWriteToolFileGuard::test_non_ascii_path_denied"
+          ]
+        }
+      }
+    },
+    {
+      "id": 27,
+      "name": "_Fingerprint.__init__",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/verify_on_read.py",
+      "question": "A developer is about to change the behavior of the function `_Fingerprint.__init__` in `verify_on_read.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint. When a `data` dict is supplied it hydrates the `imports`, `files`, `env_keys`, and `packages` sets from it, with an ADR-0005 note that old caches lacking packages are rebuilt elsewhere to avoid false REFUTED results, and it leaves `build_ms` at zero. Otherwise it scans `<root>/src` recursively, skipping `__pycache__`, collecting every relative file path and the top-level import names of each .py file, parses `.env` and `.env.example` for key names, loads manifest packages, and records elapsed build milliseconds. Edge cases: root is None, missing src directory, unreadable files (skipped via OSError). No repository or test context is provided here, so I cannot name which existing tests exercise this constructor.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint: from a `data` dict it hydrates imports, files, env_keys, and packages sets (ADR-0005 notes old caches without packages are rebuilt); otherwise it scans `<root>/src`, collects file paths and top-level imports, parses `.env`/`.env.example`, loads manifest packages, and records build milliseconds. Edge cases include a missing root, absent src, and unreadable files. The supplied tests actually exercise `extract_anchors` and its ADR-0005 `pkg:`/anchor classification rather than the constructor directly, but the context presents them as the relevant tests, so the developer should run:\ntest_extract_anchors_explicit_pkg_syntax\ntest_extract_anchors_from_data_anchors\ntest_extract_anchors_read_path_backward_compat\nThey validate anchor extraction and backward-compatible read-path classification; tests constructing `_Fingerprint` directly should also be located.",
+          "tests": [
+            "test_extract_anchors_explicit_pkg_syntax",
+            "test_extract_anchors_from_data_anchors",
+            "test_extract_anchors_read_path_backward_compat"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "`_Fingerprint.__init__` builds or restores a project fingerprint. With a `data` dict it hydrates imports, files, env_keys, and packages sets (ADR-0005 notes caches without packages are rebuilt), leaving build_ms at zero; otherwise it walks `<root>/src`, skips `__pycache__`, gathers relative paths and top-level imports, parses `.env`/`.env.example`, loads manifest packages, and records elapsed milliseconds. Edge cases: root None, absent src, unreadable files. The tests supplied with this prompt, however, do not touch `verify_on_read.py`: they cover yarn lock parsing, an interprocess mutex, and ack-impact token rejection, so they cannot catch regressions in this constructor. Their names are:\ntest_yarn_berry_v10_scoped\ntest_interprocess_lock_release_does_not_leak_ownership\ntest_rejects_empty_token\nFrom the given information I cannot confirm any test exercising `_Fingerprint.__init__`; search for tests constructing it directly.",
+          "tests": [
+            "test_yarn_berry_v10_scoped",
+            "test_interprocess_lock_release_does_not_leak_ownership",
+            "TestAckImpact::test_rejects_empty_token"
+          ]
+        }
+      }
+    },
+    {
+      "id": 28,
+      "name": "GraphRAGQueryEngine.query_dependencies",
+      "file_path": "D:/Project/MSCodeBase/src/core/graph_rag.py",
+      "question": "A developer is about to change the behavior of the function `GraphRAGQueryEngine.query_dependencies` in `graph_rag.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "`GraphRAGQueryEngine.query_dependencies` returns dependency information for a file: the file name, `depends_on` (files its symbols call), `depended_by` (files that call its symbols), and an empty `cochange_files` list. It calls `_ensure_graph`, returns the empty skeleton when the symbol index is absent, then inspects up to ten symbols, walking call chains down and up and mapping callee/caller symbols to files via `_symbol_files` while skipping self-references. Inner exceptions are logged per symbol; an outer exception logs a query failure. Results are deduplicated and capped at ten entries each. The `direction` argument is accepted but unused. No repository or test information is supplied here, so I cannot name which existing tests exercise this function.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "`GraphRAGQueryEngine.query_dependencies` builds a dependency report for a file: `depends_on` lists files whose symbols the file calls, `depended_by` lists files calling its symbols, and `cochange_files` is an empty placeholder. It ensures the graph, returns a skeleton when no symbol index exists, then walks up to ten symbols in both call directions, mapping symbols to files through `_symbol_files` and skipping self-references. Inner exceptions are logged per symbol; an outer exception logs a failure. Results are deduplicated and capped at ten each, and `direction` is accepted but unused. The context explicitly identifies the test, so run:\ntest_query_dependencies\nIt only asserts the returned dict contains file, depends_on, and depended_by keys, so stronger assertions for dedup, capping, and direction are advisable.",
+          "tests": [
+            "TestGraphRAGQueryEngine::test_query_dependencies"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "`GraphRAGQueryEngine.query_dependencies` returns dependency information for a file: the file name, `depends_on`, `depended_by`, and an empty `cochange_files` list. It ensures the graph, returns a skeleton if the symbol index is absent, then inspects up to ten symbols, walking call chains down and up and mapping callee/caller symbols to files while skipping self-references; results are deduplicated and capped at ten. The test supplied with this prompt does not exercise `query_dependencies`; it belongs to the impact/ack-token guard and checks that a token for a non-existent file still verifies. So from the given information I cannot confirm any test that exercises this function. The provided test is:\ntest_token_missing_file_returns_missing_fingerprint\nA developer should search the suite for tests constructing `GraphRAGQueryEngine` or calling `query_dependencies`.",
+          "tests": [
+            "TestHMACToken::test_token_missing_file_returns_missing_fingerprint"
+          ]
+        }
+      }
+    },
+    {
+      "id": 29,
+      "name": "IndexGuard.save_symbol_index",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_guard.py",
+      "question": "A developer is about to change the behavior of the function `IndexGuard.save_symbol_index` in `index_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "`IndexGuard.save_symbol_index` writes a SymbolIndex to `symbol_index.json` and returns True on success or False on failure. It first applies three anti-corruption guards that skip writing when the instance is a MODE_PURE adapter, when `_definitions` is empty but a graph contains nodes, or when the expected `_definitions`/`_references`/`_file_to_symbols` attributes are missing (graph-backed persistence). It then serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with an empty state, deletes the legacy pickle, and logs exceptions. Edge cases: absent attributes, corrupt existing JSON, legacy file cleanup. No repository or test context is provided, so I cannot name the tests that exercise it.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "`IndexGuard.save_symbol_index` persists a SymbolIndex to `symbol_index.json`, returning True/False. It applies anti-corruption guards that skip writing for MODE_PURE adapters, when `_definitions` is empty but a graph has nodes, or when the expected dict attributes are absent (graph-backed persistence). Otherwise it serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with empty state, removes the legacy pickle, and logs failures. Edge cases: missing attributes, corrupt JSON, legacy cleanup. The context identifies the tests that exercise it, so run:\ntest_symbol_index_persistence\ntest_empty_file_can_be_created_for_fresh_project\ntest_empty_instance_does_not_overwrite_populated_file\nThese cover save/load round-trips, fresh-project creation, and empty-overwrite protection.",
+          "tests": [
+            "TestIndexGuard::test_symbol_index_persistence",
+            "test_empty_file_can_be_created_for_fresh_project",
+            "test_empty_instance_does_not_overwrite_populated_file"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "`IndexGuard.save_symbol_index` persists a SymbolIndex to `symbol_index.json`, returning True or False. It applies anti-corruption guards that skip writing for MODE_PURE adapters, when `_definitions` is empty but a graph has nodes, or when expected dict attributes are absent; otherwise it serialises definitions, references, file_to_symbols, optional env accesses, and a timestamp, refuses to overwrite a populated file with empty state, deletes the legacy pickle, and logs exceptions. Edge cases include absent attributes, corrupt existing JSON, and legacy cleanup. The tests supplied with this prompt, however, cover scores-JSON parsing, gitignore directory patterns, and a ToolError, so none of them exercise `save_symbol_index` and none can catch regressions. Their names are:\ntest_parse_scores_json_duplicate_in_wrapper_declined\ntest_dir_pattern_matches_any_depth\ntest_creates_with_message\nFrom the given information I cannot confirm any relevant test.",
+          "tests": [
+            "test_parse_scores_json_duplicate_in_wrapper_declined",
+            "test_dir_pattern_matches_any_depth",
+            "TestToolError::test_creates_with_message"
+          ]
+        }
+      }
+    },
+    {
+      "id": 30,
+      "name": "RemoteEmbedder._shadow_compare",
+      "file_path": "D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py",
+      "question": "A developer is about to change the behavior of the function `RemoteEmbedder._shadow_compare` in `remote_embedder.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "answer": "I cannot determine this from the information given. The prompt provides only the source code and docstring of `RemoteEmbedder._shadow_compare`; no test files, test names, imports, or repository layout are included. The function calls `self.embed_batch`, the module-level helper `_vectors_collapsed`, and the constant `_ABS_MIN_QUALITY`, and it is invoked during provider switching, so relevant tests could live anywhere in the repo. Naming specific test functions would be a guess and therefore misleading. Explicit statement: cannot determine which tests exercise this function. To answer reliably one would have to search the repository for `_shadow_compare`, `shadow_compare`, canary fixtures, and `_ABS_MIN_QUALITY`, then inspect each hit. A developer should run those located tests before changing the fail-closed logic described here.",
+          "tests": []
+        },
+        "B_runtime": {
+          "answer": "The tests shown that exercise `RemoteEmbedder._shadow_compare` are the canary fail-closed tests: `test_baseline_failure_blocks`, `test_empty_canary_blocks`, and `test_baseline_below_absolute_quality_blocks`. Each builds an `embedder = MagicMock(spec=RemoteEmbedder)` with `_canary_pairs` set, then calls `RemoteEmbedder._shadow_compare(embedder, fn, name)` directly. They cover baseline failure via `embed_batch` raising `RuntimeError` (block), an empty canary set (block), and a degenerate baseline of orthogonal vectors producing `old_mean=0` below the anchor (UNKNOWN, block). All assert `result is False`, confirming fail-closed behavior. A developer changing this function must run these three to catch regressions. Note that other branches such as collapsed vectors, empty new-provider response, and the `degraded_ratio > 0.3` path may have additional tests not shown here.",
+          "tests": [
+            "TestShadowCanary::test_baseline_failure_blocks",
+            "TestShadowCanary::test_empty_canary_blocks",
+            "TestShadowCanary::test_baseline_below_absolute_quality_blocks"
+          ]
+        },
+        "D_shuffled": {
+          "answer": "The three tests supplied do not exercise `RemoteEmbedder._shadow_compare`. They are `test_build_call_graph_callers`, which covers call-graph traversal; `test_normalize_diag_uri_win_drive`, which covers LSP diagnostic URI normalization; and `test_cli_dispatch_ok`, which covers CLI tool dispatch. None references `_shadow_compare`, `_canary_pairs`, `embed_batch`, `_vectors_collapsed`, or `_ABS_MIN_QUALITY`, so none would catch a regression in this function. Therefore I cannot determine from the information given which tests actually exercise `_shadow_compare`; the listed tests are unrelated and appear to be misleading distractors. Honest answer: cannot determine. A developer should search the repository for `_shadow_compare` and canary fixtures to locate the genuine tests before modifying the function.",
+          "tests": [
+            "test_build_call_graph_callers",
+            "test_normalize_diag_uri_win_drive",
+            "test_cli_dispatch_ok"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -717,6 +717,24 @@ class RemoteEmbedder(IEmbedder):
         except Exception:
             return False
 
+    def _revive_llama_cpp(self) -> bool:
+        """Поднимает llama.cpp embedder, если он выгружен / умер.
+
+        Watchdog llama_runner выгружает embedder по EMBEDDER_IDLE_TIMEOUT
+        (free RAM), но клиент обязан поднять его обратно при следующем
+        использовании. True — сервер был не готов (повторить запрос).
+        """
+        try:
+            from src.providers.reranker.llama_runner import get_global_runner
+            runner = get_global_runner()
+            if runner.is_alive() or runner.is_port_up():
+                return False
+            logger.warning("🔧 llama.cpp embedder недоступен — перезапускаю (idle-unload recovery)")
+            return bool(runner.ensure_embedder_started())
+        except Exception as e:
+            logger.warning(f"revive llama.cpp failed: {e}")
+            return False
+
     # ── Shadow Canary: API-вызовы для нового провайдера (до смены mode) ──
 
     def _call_lm_studio_api(self, texts):
@@ -966,6 +984,27 @@ class RemoteEmbedder(IEmbedder):
                         _retry_time.sleep(1)
                         continue
                     logger.warning(f"llama.cpp embed error: {_exc}")
+            # ─── Level 1.5: embedder мог быть выгружен по idle-timeout ───
+            # llama_runner сам убивает llama-server через EMBEDDER_IDLE_TIMEOUT
+            # (free RAM), поднимать обратно обязан клиент. Иначе :8080 мёртв →
+            # WinError 10061 → поштучные ретраи → search_code таймаутит
+            # (инцидент 2026-09-22: max 27s, attempts 2/2).
+            if self._revive_llama_cpp():
+                try:
+                    r = self._http_client.post(self.llama_cpp_url, json={"input": texts})
+                    if r.status_code == 200:
+                        data = r.json().get("data", [])
+                        if data:
+                            data = sorted(data, key=lambda x: x.get("index", 0))
+                            self._llama_last_used = time.time()
+                            try:
+                                from src.providers.reranker.llama_runner import get_global_runner
+                                get_global_runner()._last_embedder_use = time.time()
+                            except Exception:
+                                pass
+                            return [item["embedding"] for item in data]
+                except Exception as _revive_exc:
+                    logger.warning(f"llama.cpp retry after revive failed: {_revive_exc}")
             # Level 2: single-item retry for each failed text
             logger.warning(f"Batch failed, retrying {len(texts)} items individually")
             results = [None] * len(texts)

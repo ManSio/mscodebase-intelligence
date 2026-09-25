@@ -1,0 +1,517 @@
+{
+  "tests": [
+    {
+      "function_id": 1,
+      "test": "test_legacy_project_dirs_detected",
+      "kill_rate": 1.0,
+      "asserts": 1,
+      "loc": 6,
+      "density": 0.167,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 2,
+      "test": "TestGetIdleMetrics::test_idle_plus_active",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 13,
+      "density": 0.154,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 3,
+      "test": "TestVerifyGitPush::test_returns_dict",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 6,
+      "density": 0.333,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 4,
+      "test": "test_incremental_fts5_skips_when_not_built",
+      "kill_rate": 0.0,
+      "asserts": 0,
+      "loc": 11,
+      "density": 0.0,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 5,
+      "test": "test_ips_are_global",
+      "kill_rate": 0.75,
+      "asserts": 8,
+      "loc": 9,
+      "density": 0.889,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 6,
+      "test": "test_bs14_load_metrics_clamps_negative_total_ms",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 25,
+      "density": 0.08,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 6,
+      "test": "test_bs14_load_metrics_sanitizes_negative",
+      "kill_rate": 0.5,
+      "asserts": 3,
+      "loc": 30,
+      "density": 0.1,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 7,
+      "test": "test_bs14_summary_shows_zero_for_negative",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 13,
+      "density": 0.077,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 7,
+      "test": "test_bs8_telemetry_uses_active_embedder",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 18,
+      "density": 0.111,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 8,
+      "test": "TestVerifyGitCommit::test_expected_message_mismatch",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 8,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 8,
+      "test": "TestVerifyGitCommit::test_no_git_repo_fails",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 14,
+      "density": 0.143,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 9,
+      "test": "test_bs1_has_code_lines",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 3,
+      "density": 0.333,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 9,
+      "test": "TestASTCacheInvalidation::test_property_graph_consistency",
+      "kill_rate": 0.75,
+      "asserts": 5,
+      "loc": 59,
+      "density": 0.085,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 10,
+      "test": "test_bs5_topology_filters_empty_callees",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 16,
+      "density": 0.125,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 10,
+      "test": "test_bs5_topology_reads_symbol_key",
+      "kill_rate": 0.5,
+      "asserts": 4,
+      "loc": 23,
+      "density": 0.174,
+      "exact_compare": 4
+    },
+    {
+      "function_id": 11,
+      "test": "TestGraphResolverHelper::test_resolve_relative_import",
+      "kill_rate": 1.0,
+      "asserts": 2,
+      "loc": 5,
+      "density": 0.4,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 11,
+      "test": "TestGraphSymbolResolver::test_import_fqn_match",
+      "kill_rate": 0.0,
+      "asserts": 9,
+      "loc": 55,
+      "density": 0.164,
+      "exact_compare": 7
+    },
+    {
+      "function_id": 12,
+      "test": "TestGrepFallbackProjectRoot::test_does_not_scan_extension_dir",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 8,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 12,
+      "test": "TestGrepFallbackProjectRoot::test_searches_resolved_project",
+      "kill_rate": 0.75,
+      "asserts": 1,
+      "loc": 7,
+      "density": 0.143,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 13,
+      "test": "TestFormatVerificationReport::test_all_success",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 9,
+      "density": 0.222,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 13,
+      "test": "TestFormatVerificationReport::test_empty_results",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 4,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 13,
+      "test": "TestFormatVerificationReport::test_with_errors",
+      "kill_rate": 0.75,
+      "asserts": 2,
+      "loc": 8,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 14,
+      "test": "test_normalize_diag_uri_already_canonical",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 3,
+      "density": 0.333,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 14,
+      "test": "test_normalize_diag_uri_idempotent",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 5,
+      "density": 0.2,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 14,
+      "test": "test_normalize_diag_uri_win_drive",
+      "kill_rate": 1.0,
+      "asserts": 1,
+      "loc": 4,
+      "density": 0.25,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 15,
+      "test": "test_counts_level_markers_not_substrings",
+      "kill_rate": 0.75,
+      "asserts": 2,
+      "loc": 10,
+      "density": 0.2,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 15,
+      "test": "test_unparseable_lines_skipped",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 6,
+      "density": 0.333,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 15,
+      "test": "test_window_excludes_old_errors",
+      "kill_rate": 0.5,
+      "asserts": 1,
+      "loc": 8,
+      "density": 0.125,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 16,
+      "test": "test_enrich_eta_none_when_no_embed_progress",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 19,
+      "density": 0.105,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 16,
+      "test": "test_enrich_eta_uses_real_embed_speed",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 23,
+      "density": 0.087,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 16,
+      "test": "test_intel_runtime_status_reports_reindex_progress",
+      "kill_rate": 0.0,
+      "asserts": 4,
+      "loc": 56,
+      "density": 0.071,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 18,
+      "test": "test_wire_plugins_no_env_noop",
+      "kill_rate": 0.667,
+      "asserts": 2,
+      "loc": 5,
+      "density": 0.4,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 18,
+      "test": "test_wire_plugins_untrusted_skipped",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 7,
+      "density": 0.143,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 18,
+      "test": "test_wire_plugins_registers_and_calls",
+      "kill_rate": 1.0,
+      "asserts": 4,
+      "loc": 20,
+      "density": 0.2,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 19,
+      "test": "test_go_mod_synthetic_replace_excluded",
+      "kill_rate": 0.75,
+      "asserts": 2,
+      "loc": 11,
+      "density": 0.182,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 19,
+      "test": "test_go_mod_mux_no_require",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 3,
+      "density": 0.333,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 19,
+      "test": "test_go_mod_migrate_require_and_indirect",
+      "kill_rate": 0.0,
+      "asserts": 3,
+      "loc": 5,
+      "density": 0.6,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 20,
+      "test": "test_alerts_empty_returns_empty",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 3,
+      "density": 0.667,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 20,
+      "test": "test_alerts_limit_caps_payload_breadth",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 9,
+      "density": 0.222,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 20,
+      "test": "test_alerts_renders_kind_message_payload",
+      "kill_rate": 0.25,
+      "asserts": 5,
+      "loc": 20,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 21,
+      "test": "TestUriToPath::test_unc_uri",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 4,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 21,
+      "test": "TestUriToPath::test_windows_drive_uri",
+      "kill_rate": 0.75,
+      "asserts": 1,
+      "loc": 4,
+      "density": 0.25,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 21,
+      "test": "TestUriToPath::test_round_trip_windows",
+      "kill_rate": 1.0,
+      "asserts": 1,
+      "loc": 12,
+      "density": 0.083,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 22,
+      "test": "test_instruction_files_found_at_root",
+      "kill_rate": 0.5,
+      "asserts": 1,
+      "loc": 10,
+      "density": 0.1,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 22,
+      "test": "test_trust_report_warns_on_untrusted_with_instructions",
+      "kill_rate": 0.5,
+      "asserts": 4,
+      "loc": 10,
+      "density": 0.4,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 22,
+      "test": "test_intel_runtime_status_normal_state_unchanged",
+      "kill_rate": 0.0,
+      "asserts": 3,
+      "loc": 27,
+      "density": 0.111,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 23,
+      "test": "TestIndexGuard::test_empty_table",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 7,
+      "density": 0.286,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 23,
+      "test": "TestIndexGuard::test_healthy_index",
+      "kill_rate": 0.25,
+      "asserts": 3,
+      "loc": 26,
+      "density": 0.115,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 23,
+      "test": "TestIndexGuard::test_missing_table",
+      "kill_rate": 0.75,
+      "asserts": 2,
+      "loc": 7,
+      "density": 0.286,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 24,
+      "test": "test_get_call_chain_both",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 9,
+      "density": 0.222,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 24,
+      "test": "test_get_call_chain_down",
+      "kill_rate": 0.25,
+      "asserts": 3,
+      "loc": 8,
+      "density": 0.375,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 24,
+      "test": "test_get_call_chain_total_connected",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 5,
+      "density": 0.2,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 25,
+      "test": "test_cap_truncation_detected",
+      "kill_rate": 0.5,
+      "asserts": 3,
+      "loc": 8,
+      "density": 0.375,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 25,
+      "test": "test_excludes_venv_and_git",
+      "kill_rate": 0.5,
+      "asserts": 4,
+      "loc": 14,
+      "density": 0.286,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 25,
+      "test": "test_nested_git_repo_pruned",
+      "kill_rate": 0.5,
+      "asserts": 3,
+      "loc": 13,
+      "density": 0.231,
+      "exact_compare": 1
+    }
+  ],
+  "decoy": {
+    "killed": 0,
+    "total": 55
+  },
+  "train_rho": {
+    "exact_compare": 0.127970609086532,
+    "asserts": 0.18516685991168072
+  },
+  "test_rho": {
+    "exact_compare": -0.008006104434466121,
+    "asserts": -0.04319073537157674
+  },
+  "confusion": {
+    "tp": 10,
+    "fp": 7,
+    "fn": 5,
+    "tn": 8
+  }
+}

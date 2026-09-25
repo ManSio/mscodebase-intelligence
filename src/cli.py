@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Type
 
 from src.core.di_container import create_service_collection
+from src.core.redact import redacted_count
 
 
 def core_tool_allowlist() -> dict:
@@ -87,12 +88,21 @@ def main(argv=None) -> int:
         result = instance.execute(**call_args)
         if asyncio.iscoroutine(result):
             result = asyncio.run(result)
-        print(json.dumps({"ok": True, "tool": args.tool, "result": result},
-                         default=str, ensure_ascii=False))
+        payload, redacted = redacted_count(
+            json.dumps({"ok": True, "tool": args.tool, "result": result},
+                       default=str, ensure_ascii=False))
+        if redacted:
+            # канал доставки чистит креды ПЕРЕД инъекцией в контекст агента (см. redact.py)
+            print(json.dumps({"redacted": redacted}), file=sys.stderr)
+        print(payload)
         return 0
     except Exception as e:  # noqa: BLE001 — CI-friendly: ошибка тула = exit 1 + json
-        print(json.dumps({"ok": False, "tool": args.tool,
-                          "error": f"{type(e).__name__}: {e}"}), file=sys.stderr)
+        payload, redacted = redacted_count(
+            json.dumps({"ok": False, "tool": args.tool,
+                        "error": f"{type(e).__name__}: {e}"}))
+        if redacted:
+            print(json.dumps({"redacted": redacted}), file=sys.stderr)
+        print(payload, file=sys.stderr)
         return 1
     finally:
         _safe_shutdown(services)

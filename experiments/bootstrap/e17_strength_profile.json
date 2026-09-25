@@ -1,0 +1,224 @@
+{
+  "tests": [
+    {
+      "function_id": 1,
+      "test": "test_run_survives_single_cpu_host",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 15,
+      "density": 0.133,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 1,
+      "test": "test_run_with_existing_known_hashes_skips_unchanged",
+      "kill_rate": 0.75,
+      "asserts": 3,
+      "loc": 40,
+      "density": 0.075,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 1,
+      "test": "test_workers_receive_known_hashes_not_none",
+      "kill_rate": 0.5,
+      "asserts": 4,
+      "loc": 15,
+      "density": 0.267,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 2,
+      "test": "TestConcurrentEmbedIsolation::test_rapid_sequential_calls_no_state_leak",
+      "kill_rate": 1.0,
+      "asserts": 3,
+      "loc": 19,
+      "density": 0.158,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 2,
+      "test": "TestConcurrentEmbedIsolation::test_single_call_results_match_indices",
+      "kill_rate": 1.0,
+      "asserts": 4,
+      "loc": 11,
+      "density": 0.364,
+      "exact_compare": 2
+    },
+    {
+      "function_id": 3,
+      "test": "TestCypherLexer::test_tokenize_optional_match",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 5,
+      "density": 0.4,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 3,
+      "test": "TestCypherLexer::test_tokenize_order_limit",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 5,
+      "density": 0.4,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 3,
+      "test": "TestCypherLexer::test_tokenize_relationship",
+      "kill_rate": 0.5,
+      "asserts": 2,
+      "loc": 5,
+      "density": 0.4,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 4,
+      "test": "test_extract_doc_references_handles_empty_call_syntax",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 13,
+      "density": 0.077,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 5,
+      "test": "test_chunk_cache_disabled_without_table",
+      "kill_rate": 0.75,
+      "asserts": 1,
+      "loc": 7,
+      "density": 0.143,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 5,
+      "test": "test_chunk_cache_empty_file",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 7,
+      "density": 0.286,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 5,
+      "test": "test_chunk_cache_all_new",
+      "kill_rate": 0.75,
+      "asserts": 4,
+      "loc": 13,
+      "density": 0.308,
+      "exact_compare": 4
+    },
+    {
+      "function_id": 6,
+      "test": "test_extract_anchors_explicit_pkg_syntax",
+      "kill_rate": 0.75,
+      "asserts": 1,
+      "loc": 5,
+      "density": 0.2,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 7,
+      "test": "TestCwdFirstIsolation::test_provided_wins_over_cwd",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 6,
+      "density": 0.167,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 7,
+      "test": "TestCwdSelfIndexGuard::test_cwd_equal_ext_root_is_skipped",
+      "kill_rate": 0.75,
+      "asserts": 1,
+      "loc": 9,
+      "density": 0.111,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 7,
+      "test": "TestPriorityProjectPathOverride::test_mscb_path_trusts_ext_root",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 9,
+      "density": 0.111,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 8,
+      "test": "test_build_call_graph_call_chain",
+      "kill_rate": 0.25,
+      "asserts": 1,
+      "loc": 7,
+      "density": 0.143,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 8,
+      "test": "test_build_call_graph_callees",
+      "kill_rate": 0.0,
+      "asserts": 2,
+      "loc": 7,
+      "density": 0.286,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 8,
+      "test": "test_build_call_graph_callers",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 6,
+      "density": 0.167,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 9,
+      "test": "test_bs1_parse_file_skips_comment_only",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 12,
+      "density": 0.083,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 9,
+      "test": "TestASTCacheInvalidation::test_property_graph_consistency",
+      "kill_rate": 0.5,
+      "asserts": 5,
+      "loc": 59,
+      "density": 0.085,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 10,
+      "test": "TestModificationGuard::test_no_file_path_no_symbol_passes",
+      "kill_rate": 0.0,
+      "asserts": 1,
+      "loc": 12,
+      "density": 0.083,
+      "exact_compare": 1
+    },
+    {
+      "function_id": 10,
+      "test": "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0",
+      "kill_rate": 0.5,
+      "asserts": 1,
+      "loc": 30,
+      "density": 0.033,
+      "exact_compare": 0
+    },
+    {
+      "function_id": 10,
+      "test": "TestModificationGuard::test_allows_non_hot_file",
+      "kill_rate": 0.25,
+      "asserts": 2,
+      "loc": 23,
+      "density": 0.087,
+      "exact_compare": 1
+    }
+  ],
+  "decoy": {
+    "killed": 0,
+    "total": 104
+  }
+}
