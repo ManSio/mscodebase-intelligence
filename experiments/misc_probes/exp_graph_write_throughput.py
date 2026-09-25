@@ -86,6 +86,24 @@ def arm_a() -> tuple[float, int, int]:
     return dt, n, e
 
 
+def arm_d() -> tuple[float, int, int]:
+    """The actual fix: PropertyGraph.batch() — one tx for all node/edge writes."""
+    db = _tmpdb("D")
+    pg = PropertyGraph(db)
+    t0 = time.perf_counter()
+    with pg.batch():
+        for i in range(N_NODES):
+            pg.add_node(name=f"n{i}", label="Function", qualified_name=f"p.f{i}",
+                        file_path="f.py", properties={"line": i})
+        for i in range(N_EDGES):
+            s = i % N_NODES
+            t = (i + 1) % N_NODES
+            pg.add_edge(source_qname=f"p.f{s}", target_qname=f"p.f{t}", type="CALLS")
+    dt = time.perf_counter() - t0
+    n, e = _counts(db)
+    return dt, n, e
+
+
 def _raw_arms(one_transaction: bool) -> tuple[float, int, int]:
     tag = "B" if one_transaction else "C"
     db = _tmpdb(tag)
@@ -130,7 +148,8 @@ def main() -> int:
     results = {}
     for label, fn in (("A per-call PropertyGraph (mutex+txn)", arm_a),
                       ("B raw, ONE transaction+reused", lambda: _raw_arms(True)),
-                      ("C raw, per-node transaction", lambda: _raw_arms(False))):
+                      ("C raw, per-node transaction", lambda: _raw_arms(False)),
+                      ("D PropertyGraph.batch() [the fix]", arm_d)):
         dt, n, e = fn()
         ent = n + e
         results[label] = (dt, n, e)
@@ -138,7 +157,9 @@ def main() -> int:
 
     a_dt = results["A per-call PropertyGraph (mutex+txn)"][0]
     b_dt = results["B raw, ONE transaction+reused"][0]
+    d_dt = results["D PropertyGraph.batch() [the fix]"][0]
     print(f"\n  speedup B/A = {a_dt/max(b_dt,1e-9):.1f}x")
+    print(f"  speedup D/A (the fix) = {a_dt/max(d_dt,1e-9):.1f}x")
     print(f"  speedup B/C = {results['C raw, per-node transaction'][0]/max(b_dt,1e-9):.1f}x "
           f"(isolates per-row commit cost)")
 
