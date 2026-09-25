@@ -645,13 +645,21 @@ def error_boundary(
                     except RuntimeError:
                         loop = None
                     if loop is not None:
-                        # Мы внутри async контекста — submit в пул с timeout
-                        future = _SYNC_POOL.submit(func, *args, **kwargs)
-                        try:
-                            result = future.result(timeout=timeout_ms / 1000.0)
-                        except TimeoutError:
-                            future.cancel()
-                            raise
+                        # Bound without joining (timeout-class audit #4, 2026-09-25):
+                        # a hung sync tool must not leak a non-daemon pool worker.
+                        from src.core.run_bounded import run_bounded
+
+                        _sentinel = object()
+                        result = run_bounded(
+                            lambda: func(*args, **kwargs),
+                            timeout_ms / 1000.0,
+                            label=tool_name,
+                            default=_sentinel,
+                        )
+                        if result is _sentinel:
+                            raise TimeoutError(
+                                f"{tool_name} exceeded {timeout_ms}ms"
+                            )
                     else:
                         result = func(*args, **kwargs)
                 else:

@@ -50,6 +50,17 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-25] Reindex deadlock + concurrent indexers + embedder lease — Fixed (live)
+**Status:** ✅ Fixed + live-verified (full reindex completed; index collapse confirmed).
+**Root Cause:** `_bounded_link` (timeout fix 2026-09-25) ran `bulk_write` on a NEW daemon thread, while `run()` held the global write RLock on the caller thread for the whole reindex. `bulk_write` acquires the SAME RLock → permanent deadlock (py-spy: "bounded-bulk_write" idle at `db_writer.py:336`; job stuck 52% "running", 0 CPU). Timeout only fired at 300s → job failed. Same class for prune/verify (recreate_table_physical).
+**Fix:** `_bounded_link` now wraps the bounded call in `_suspend_write_lock()` (same remedy as `_safe_ivf_index`). One place, covers all links. Guard: `tests/test_bounded_link_deadlock.py` (deterministic, negative control fails-fast at bound).
+**Superseded (same day):** the `_suspend_write_lock` remedy *released* the global RLock and exposed a 2nd bug — auto-index + manual trigger ran TWO indexers concurrently (py-spy: two threads in `index_project`). Proper fix: **split the locks** — `run()` holds `begin_run()` (separate non-reentrant Lock) for run exclusion; `_table_write_lock` is acquired per DB op; `_bounded_link` no longer suspends. Guards: `test_run_singleflight.py`, updated `test_bounded_link_deadlock.py`.
+**Live result:** full reindex `c09c2e22` → **completed 858.5s**; index **19653 → 10103**; path-duplication **668 → 0**; dup(file_path,chunk_index) **144 → 0**.
+**Also:** `src/core/reindex_ledger.py` — durable `<data_root>/logs/reindex_ledger.jsonl` recording start/phase/error+traceback/zombie/end; `layer.py` guarantees terminal status + watchdog (`MSCODEBASE_REINDEX_STALL_SEC=900`). First real row captured the deadlock traceback → no more guessing.
+**Second incident (same session):** 22:09 a *devbase* MCP server spawned and started its own llama-server on fixed :8080/:8081; our MSCodeBase server died hard mid-parse (ledger: start, no end; driver got `ClosedResourceError`). Confirms fixed-port / multi-window conflict class (see KNOWN_ISSUES).
+**Files:** `src/core/indexing/index_project_runner.py`, `src/core/reindex_ledger.py`, `src/core/intelligence/layer.py`, tests.
+**verified_from_clean_state:** ⚠️ не проверено (локальный pytest: 8 passed; live reindex прерван крахом сервера).
+
 ## [2026-09-22] E17 v7 — CORRECTION: AST proxies do not predict kill-rate (v6 not replicated)
 
 **Status:** Measured (v6 REFUTED on replication).

@@ -6,7 +6,68 @@
 ---
 
 
-**30 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21)
+**35 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21)
+
+## 2026-09-25 — Reindex deadlock: `_bounded_link` ran `bulk_write` on a new thread while the caller held the write RLock (Fixed)
+
+- **Источник:** live job `090149f1` (stuck 52% "running", 0 CPU); `py-spy dump 6780` → поток `bounded-bulk_write` idle на `db_writer.py:336` (`with self._table_write_lock:`), поток `asyncio_1` ждёт его в `_bounded_link`; `reindex_ledger.jsonl` записал `RuntimeError: bulk_write exceeded 300s`.
+- **Root Cause:** `run()` держит глобальный RLock (`db_manager.begin_write()`) весь reindex на своём потоке; `_bounded_link` (timeout-фикс 2026-09-25) запускал `bulk_write` в НОВОМ daemon-потоке, а `bulk_write` берёт ТОТ ЖЕ RLock → дедлок. Тот же класс для `prune`/`verify` (`recreate_table_physical`).
+- **Fix:** `_bounded_link` оборачивает bounded-вызов в `_suspend_write_lock()` (уже применённый для `_safe_ivf_index`) — единая точка, покрывает все звенья.
+- **Fix (итог):** разделены два мьютекса — `run()` держит отдельный `begin_run()` (non-reentrant, взаимное исключение запусков), а `_table_write_lock` берётся только на операцию. `_bounded_link` больше не освобождает write-lock. Это закрыло и дедлок, и параллельные индексаторы (auto-index + manual trigger) — они теперь сериализуются.
+- **Guard:** `tests/test_bounded_link_deadlock.py` (write-lock на другом потоке не дедлочит + структурный контракт), `tests/test_run_singleflight.py` (begin_run ≠ begin_write; второй run блокируется).
+- **LIVE verified (2026-09-25):** full reindex job `c09c2e22` → **completed за 858.5с** (ledger: parsing→embedding→finalizing→complete→end). Индекс: **19653 → 10103**, path-duplication **668 → 0**, dup(file_path,chunk_index) **144 → 0**.
+- **Статус:** ✅ Fixed + live-verified.
+
+## 2026-09-25 — Падения не фиксировались: zombie-job + глушение исключений + нет ledger (Fixed) / Open (server hard-death)
+
+- **Источник:** job `e4977ded` (running, но py-spy: 0 воркеров), `layer.py:863` `"Exception suppressed at layer.py: ..."` без стека; `job_manager` — in-memory.
+- **Fix:** `src/core/reindex_ledger.py` (durable JSONL start/phase/error+traceback/zombie/end, никогда не бросает); `layer.py` — `finally` гарантирует терминальный статус, `_watchdog_reindex` терминализирует застрявший job (task done / нет прогресса > `MSCODEBASE_REINDEX_STALL_SEC`=900), полный traceback вместо «suppressed». Guard `tests/test_reindex_ledger.py` (6, с negative control).
+- **Open:** 22:09 наш MSCodeBase-сервер **умер жёстко** (ledger: start без end; драйвер `ClosedResourceError`) в момент, когда поднялся MCP-сервер для **devbase** и занял фиксированные :8080/:8081. Класс «фиксированные порты / мультиокно / разделяемый эмбеддер без ref-count» — причина «постоянно падает».
+- **Статус:** ✅ Fixed (recording) / 🔬 Open (server hard-death при мультиокне; нужен supervisor/динамические порты/ref-count).
+
+## 2026-09-25 — Раздувание индекса ~×2: full-reindex писал `\`, incremental — `/` (один файл = две строки) (Fixed)
+
+- **Источник:** снимок индекса (`experiments/misc_probes/exp_index_dedup_probe.py`): `file_path` distinct raw=**1378** vs normalized=**710** (path-duplication **668**); код: `index_project_runner._parse_worker` (`str(relative_to)` → `\`), `freshness.py:96` (`.replace(os.sep,"/")`), `db_writer` id=`md5(rel_path)_i`, `indexer._parse_file_only` (`known_hashes.get(rel_path_str)`).
+- **Root Cause:** полный reindex писал пути с `\`, hot-reload/freshness — с `/`. `known_hashes` и id строки строятся по **буквальному** `file_path` → формы не совпадали → incremental **пере-добавлял** уже проиндексированные файлы каждый прогон → рост ~×2. Измерено: `9991 → 19653` чанков.
+- **Вторая причина:** data-JSON — **5272 чанка (27%)**, крупные `results_*.json` (до 1002 чанков на файл).
+- **Fix:** канонический POSIX через `src/core/relpath.py::normalize_rel_path`, применён в `indexer._parse_file_only` (choke: rel + известные хэши), `db_writer.write_records`/`prepare_records`, `index_project_runner` (known_hashes load), `indexing_tools.notify_change`. **T3-свип (обобщение) нашёл ещё 2 критичных индекс-питающих места:** `indexer.index_file` (`:837`) и `index_project_runner._parse_worker` → `current_files_on_disk` (вход prune) — без нормализации prune-множество (`\`) не совпало бы с БД (`/`) (спасал safety-guard >50%); нормализованы. Прочие `str(relative_to)` — doc/display (не индекс), к ревизии отдельно.
+- **Guard:** `tests/test_relpath.py` (5); resume-тест обновлён под канонический путь; 27 passed; ruff clean.
+- **Статус:** ✅ Fixed + **live-verified collapse**: full reindex → 19653 → **10103** rows, path-duplication **668 → 0**, dup(file_path,chunk_index) **144 → 0**. Исключение data-JSON (5272 чанка) — отдельно.
+
+## 2026-09-25 — graph.db lock заваливал reindex: named mutex владеется ПОТОКОМ, внутрипроцессного lock не было (Fixed)
+
+- **Источник:** reindex `cb8305f7` failed «Could not acquire cross-process lock for graph.db within 30000ms»; `src/core/graph.py:46-128`; `experiments/misc_probes/exp_graph_mutex_cross_thread.py`; `tests/test_graph_lock_threadsafe.py`
+- **Root Cause:** `_cross_process_lock` использовал **только** Windows named mutex. Named mutex принадлежит **потоку-владельцу** и не реентерабелен между потоками → второй поток того же MCP-процесса (реиндекс-finalize vs живая graph-операция) не получает мутекс и падает ровно по таймауту. Эксперимент: при удержании 3с второй поток отказал на **0.80с** (=его таймаут). Значит любая graph-операция >30с заваливала реиндекс.
+- **Fix:** добавлен внутрипроцессный `threading.RLock` на `db_path` (`_local_graph_lock`) **ПЕРЕД** named mutex → потоки сериализуются (ждут, не падают); мутекс теперь арбитрирует только между процессами.
+- **Guard:** `tests/test_graph_lock_threadsafe.py` (второй поток ждёт и acquires после release, `A-out` < `B-in`); 121 graph-related passed; ruff clean.
+- **Статус:** ✅ Fixed (live-проверка требует reload MCP — процесс несёт старый `graph.py`).
+
+## 2026-09-25 — Chain-map: 8 незащищённых нативных звеньев индексатора закрыты `run_bounded` (Fixed)
+
+- **Источник:** `docs/research/indexer_chain_map_2026-09-25.md`, `tests/test_reindex_link_bounds.py`
+- **Описание:** карта цепочки `run()` (триггер→конец) нашла **8 звеньев того же класса**, что `_safe_optimize`: `_verify_and_repair_table_integrity`, known_hashes `to_lance()`, `embed_batch`, `bulk_write`, prune, BM25 `searcher.reindex`, `summarizer.save_cache`, `save_symbol_index`. Любое зависание нативного вызова = вечная фаза (0 CPU, без сигнала).
+- **Fix:** `_bounded_link(fn, label, fatal=)` (обёртка над `run_bounded`, таймаут `MSCODEBASE_LINK_TIMEOUT_SEC`, default 300): non-fatal (verify/known_hashes/prune/BM25/summarizer/symbol) → skip+log; **fatal** (`embed_batch`/`bulk_write`) → `RuntimeError` (resume-safe: инкрементальные чекпойнты). Обёрнуты все 8.
+- **Guard:** `tests/test_reindex_link_bounds.py` (4: value/пропуск/fatal-raise/propagate) + 18 связанных + 78 indexer/search passed; ruff clean.
+- **Статус:** ✅ Fixed.
+
+## 2026-09-25 — IVF finalize hang: timeout-guard не может сработать (shutdown(wait=True) join'ит зависший optimize) (Fixed / Open)
+
+- **Источник:** live job `31f5a9a7` (завис на «Finalizing 95%», 0 CPU у всех процессов, `.write_lock` залочен); эксперименты `experiments/misc_probes/exp_timeout_cancel_mechanism.py` + `exp_ivf_guard_negative_control.py`; `index_project_runner.py:666-755`
+- **Root Cause:** `_safe_optimize` не может ограничить `table.optimize()`: `Future.result(timeout=)` **не отменяет** запущенный поток (в Python поток нельзя убить), а `finally: _opt_ex.shutdown(wait=True)` (`:687`) **join'ит** тот самый зависший вызов; `wait=False` в `except` немедленно перекрыт `wait=True` в `finally` → job висит вечно. Замер (timeout 1с, worker 6с): result сработал на 1.01с, `shutdown(wait=True)` заблокировал ещё 4.99с (итого 6.00с вместо 1.0с). In-code negative control: `_safe_ivf_index(timeout=1)` при `optimize`=5с вернулся за **5.00с** — guard не сработал.
+- **Почему guard не поймал:** существующий `tests/test_reindex_finalizing_deadlock.py::test_safe_ivf_index_create_index_timeout...` покрывал зависший **create_index** (там `finally` = `wait=False`), а `_SlowTable.optimize` возвращался мгновенно → случай optimize не тестировался (слепое пятно guard'а).
+- **Fix:** новый `_call_with_timeout(fn, timeout, label)` — daemon-thread + `Event.wait(timeout)`, БЕЗ join; на таймауте worker abandoned (job не блокируется), `_safe_optimize` → False → create_index не стартует на неопределённом состоянии. +тест `test_safe_ivf_index_optimize_timeout_does_not_hang` (и AssertionError, если create_index пойдёт после abandon). Проверка: negative control **5.00с → 1.01с (PASS)**; 3/3 deadlock-файла, 12/12 смежные с IVF; ruff чист.
+- **Red Team (остаточное):** фикс убирает **зависание job навсегда**, но НЕ чинит корень зависания нативного `optimize()` (LanceDB/Windows) — abandoned daemon-thread висит до рестарта процесса (утечка при повторных зависаниях). Open: решение владельца — process-isolated optimize (killable) либо авто-disable IVF после N abandons.
+- **КЛАСС-АУДИТ (`experiments/misc_probes/exp_timeout_class_audit.py`, in-code controls, 2026-09-25):** тот же дефект подтверждён ещё в 4 местах — **(#2)** `agentic_search.py:551-562` `with ThreadPoolExecutor` + `result(timeout=60)` → `__exit__` джойнит зависший воркер (5.00с вместо 1с); **(#3)** parse-фаза `index_project_runner.py:360-365` `fut.result()` БЕЗ таймаута → неограничен; **(#4)** `error_handler.py:649-654` `future.cancel()` на running-задаче → False (не отменяет, утечка); **(#5)** воркеры `ThreadPoolExecutor` non-daemon → `concurrent.futures` atexit `_python_exit` джойнит → блок завершения процесса/MCP. Все 4 — **FIXED 2026-09-25** системным helper'ом `src/core/run_bounded.py` (daemon-thread + `Event.wait`, без join; abandon→default). Заменены: #2 `agentic_search` (timeout 60), #3 parse-фаза (`MSCODEBASE_PARSE_TIMEOUT_SEC`, default 60), #4 `error_handler` sync-wrapper (пул `_SYNC_POOL` больше не используется на hot-path), engine `hybrid_search` sync-wrapper (timeout 30). Guard-инструменты: `tests/test_run_bounded.py` (5), `exp_in_situ_agentic_timeout.py` и `exp_in_situ_parse_timeout.py` теперь ассертят BOUNDED (1.00с / run() возвращается). Прогон: run_bounded 5 + finalizing 3 + agentic-search 25 (без addopts) + error/searcher/hybrid/deep 70 passed; ruff clean. **Остаточное:** корень зависания самого нативного `optimize()` не устранён (process-isolated вариант — отдельное решение).
+- **LIVE in-situ (A+, 2026-09-25):** (#2) реальный `agentic_code_search` вернулся за **5.01с** при наблюдаемом таймауте 1с — `exp_in_situ_agentic_timeout.py`; (#3) реальный `IndexProjectRunner.run()` **не вернулся за watchdog 6с** при зависшем `_parse_file_only` — `exp_in_situ_parse_timeout.py` (принудительный `os._exit` для обхода atexit-join — косвенно подтверждает и #5). (#4) подтверждён на живом `Future.cancel()` (running→False), но не через реальный декоратор; (#5) daemon=False проверен вживую.
+- **Статус:** ✅ Fixed (job-зависание устранено + regression guard) / 🔬 Open (корневое зависание optimize и утечка потока)
+
+## 2026-09-25 — ETA/прогресс покрывает только фазу эмбеддинга; нарезка маскируется, хвост не считается (Open)
+
+- **Источник:** live-разбор job `31f5a9a7` (full reindex 2026-09-25), `layer.py:1985-2045`, `embed_progress.py:12-58`, `store.py:195-271`, `tools_reg.py:288-359`
+- **Описание:** `job.progress` — взвешенная фазовая шкала с разными знаменателями на фазу: `parsing/scanning 0.1+ratio*0.4` (10–50%), `embedding 0.5+ratio*0.3` (50–80%), `finalizing 0.8+ratio*0.15` (80–95%), `ratio=files_done/files_total` (`layer.py:761-775`). Embed-фаза имеет **собственный** счётчик чанков в %, с другим знаменателем → на экране одновременно два несопоставимых процента (live: job 54% при chunks 7% — это 0.5-пол парсинга + 0.07*0.3, т.е. арифметика, не баг). ETA считается **только** для embed (парсер `[embed] done/total … ch/s`, `embed_progress.py`); `finalizing` (LanceDB optimize+IVF) — грубый rolling-average из `job_history.json` (`store.py:249-271`, fallback 120с); write/граф/SymbolIndex/auto-doc не измеряются вовсе. Итог: total wall-clock превышает ETA (прецедент exp-13: ETA 18s vs 552s actual).
+- **Требование владельца:** ETA должен учиться на данных и показывать общее время, покрывая все фазы (parse → embed → write → finalize → graph/symbols → docs).
+- **Fix (план):** (1) пер-фазные записи в `job_history.json` {phase, size(files/chunks), duration}; (2) модель на фазу (медиана/регрессия по размеру) вместо одного общего среднего; (3) total ETA = сумма фаз с измеримым драйвером, где драйвера нет — честный None / «фаза без ETA», не число; (4) UI: текущая фаза отдельно от embed-бара; (5) negative control: ETA не показывать без данных фазы (guard от фейкового числа).
+- **Статус:** 🔬 Open (P1 — искажает ожидания по времени; инцидент exp-13)
 
 ## 2026-09-22 — TESTS-рёбра транзитивны, а не «тесты про функцию»; E17 LLM-pilot сломан на извлечении кода (Fixed / Open)
 
@@ -231,18 +292,5 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fix (замеры, кода не менялось). **Root Cause (KNOW ISSUES «Lazy-only верификация»):** вопрос, успевает ли VOR проверить ACTIVE-узлы в рамках budget_ms=50 (read-path) / 250 (background id...
-- **Статус:** автоматически синхронизировано
-
-## 2026-09-10 — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient — agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; s...
-- **Статус:** автоматически синхронизировано
-
-## 2026-09-13 — H4: agent-memory lifecycle в масштабе dev.to KB — бутылочное горлышко = сетевой capture, не граф
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** Fixed (эксперимент подтверждён; сопровождение задачи closed)
-**Root Cause:** при росте базы 3,989 → 13,519 статей (3.4x), refresh own занял 10м38с на 13.5k статей/82.5k комментов (134 сете...
 - **Статус:** автоматически синхронизировано
 

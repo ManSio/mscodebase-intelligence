@@ -414,6 +414,15 @@ class LlamaRunner:
 
 
 
+    @staticmethod
+    def _embedder_unload_allowed() -> bool:
+        """True only if no process holds a fresh embedder lease (2026-09-25)."""
+        try:
+            from src.core import embedder_lease
+            return not embedder_lease.is_active()
+        except Exception:
+            return True
+
     def _watchdog_loop(self):
 
         while not self._watchdog_stop.wait(30):
@@ -434,18 +443,29 @@ class LlamaRunner:
             if self._process is not None and self._last_embedder_use > 0:
                 idle_e = time.time() - self._last_embedder_use
                 if idle_e > self.EMBEDDER_IDLE_TIMEOUT:
-                    logger.info(f"🧹 Embedder idle {idle_e:.0f}s > {self.EMBEDDER_IDLE_TIMEOUT}s — stopping (~1.5GB RAM)")
-                    try:
-                        self._process.terminate()
-                        self._process.wait(timeout=5)
-                    except Exception:
+                    # Multi-window guard (2026-09-25): the embedder is shared on
+                    # a fixed port by all workspaces. During a long reindex parse
+                    # phase there are no embed calls, so it looks idle; unloading
+                    # it lets another workspace's server grab the port. Skip the
+                    # unload while any process holds a fresh indexing lease.
+                    if not self._embedder_unload_allowed():
+                        logger.info(
+                            f"⏳ Embedder idle {idle_e:.0f}s, но активен lease "
+                            f"(индексация идёт) — не выгружаю (shared)"
+                        )
+                    else:
+                        logger.info(f"🧹 Embedder idle {idle_e:.0f}s > {self.EMBEDDER_IDLE_TIMEOUT}s — stopping (~1.5GB RAM)")
                         try:
-                            self._process.kill()
+                            self._process.terminate()
+                            self._process.wait(timeout=5)
                         except Exception:
-                            pass
-                    self._process = None
-                    self._last_embedder_use = 0.0
-                    logger.info("✅ llama-server (embedder) stopped, RAM freed")
+                            try:
+                                self._process.kill()
+                            except Exception:
+                                pass
+                        self._process = None
+                        self._last_embedder_use = 0.0
+                        logger.info("✅ llama-server (embedder) stopped, RAM freed")
 
             # Проверка RAM per-process
 
