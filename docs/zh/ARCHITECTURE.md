@@ -4,7 +4,7 @@
 
 # MSCodeBase Intelligence — 架构指南
 
-> **版本：** 3.4.0
+> **版本：** 3.5.0
 > **最后更新：** 2026-08-12  
 > **架构：** 4 层架构 + 图原生 PropertyGraph 层 + 数据流层（入口点 → MCP 服务器/DI → 工具类 → 核心业务逻辑 → PropertyGraph → 数据流）带多窗口注册表 + DocSync
 
@@ -15,7 +15,7 @@
 1. [核心原则](#1-核心原则)
 2. [分层架构](#2-分层架构)
 3. [DI 容器（ServiceCollection）](#3-di-容器)
-4. [工具层（31 核心 + 16 intel + 13 内联 + 4 开发 = 64 个）](#4-工具层)
+4. [工具层（32 核心 + 16 intel + 13 内联 + 4 开发 = 65 个）](#4-工具层)
 5. [PropertyGraph 层（v3.0）](#5-propertygraph-层-v30)
 6. [Cypher 查询引擎（v3.0）](#6-cypher-查询引擎-v30)
 7. [错误处理](#7-错误处理)
@@ -35,7 +35,7 @@
 │                                                                  │
 │  第 1 层: main.py              （入口点，最简）                   │
 │  第 2 层: mcp/server.py          （DI 路由，工具注册）              │
-│  第 3 层: mcp/tools/*.py         （20 核心 + 13 内联 + 4 开发）    │
+│  第 3 层: mcp/tools/*.py         （32 核心 + 13 内联 + 4 开发）    │
 │  第 4 层: core/*.py              （纯业务逻辑）                    │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -55,7 +55,7 @@
 ```
  Layer 0: Filesystem                  — 磁盘上有哪些文件？
  Layer 1: SystemArtifacts             — 这是系统路径吗？
- Layer 2: Bridge (LSP→MCP)           — LSP 报告了哪个项目？
+ Layer 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
  Layer 3: Registry (IndexerRegistry)  — 哪个 Indexer 拥有此项目？
  Layer 4: StateMachine (ProjectState) — 项目处于什么状态？
  Layer 5: RuntimeCoordinator          — 可以执行此请求吗？
@@ -86,19 +86,19 @@ MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
 
 ### 2.2 MCP 服务器
 
-| `src/mcp/server.py` | **~220 行**（重构前为 3,100 行）。
+| `src/mcp/server.py` | **~68 行**（重构前为 3,100 行）。
 
 职责：
 1. 解析项目根目录（`resolve_project_root()`）
 2. 创建 DI 容器（`create_service_collection()`）
-3. 注册 31 核心 + 16 intel + 13 内联 + 4 开发 = 64 个工具
+3. 注册 32 核心 + 16 intel + 13 内联 + 4 开发 = 65 个工具
 4. 注册系统提示（mscodebase-rules）
 
 **此处没有业务逻辑。** 每个工具都是从 `mcp/tools/` 导入的。
 
 ### 2.3 工具层
 
-`src/mcp/tools/*.py` — **14 个文件：20 个核心 (19 + codebase hub) + 12 个内联 + 4 个开发（Hub & Spoke：codebase + execute_script + 17 个原生）。**
+`src/mcp/tools/*.py` — **32 个核心 + 13 个内联 + 4 个开发（含 codebase hub + 6 LSP）。**
 
 每个工具：
 - 继承自 `MCPTool`（ABC）
@@ -129,13 +129,13 @@ class SearchCodeTool(MCPTool):
 
 ### 2.4 核心层
 
-`src/core/*.py` — **30 个纯业务逻辑文件。**
+`src/core/*.py` — **54 个顶层文件**（含子包 123 个）纯业务逻辑。
 
 关键模块：
 
 | 模块 | 路径 | 用途 |
 |--------|------|---------|
-| `di_container.py` | `src/core/di_container.py` | DI 容器（15+ 服务） |
+| `di_container.py` | `src/core/di_container.py` | DI 容器（14 服务） |
 | `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
 | `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
 | `engine.py` | `src/core/search/engine.py` | 混合搜索（BM25 + Dense + FTS5 + RRF） |
@@ -277,7 +277,7 @@ def register_all_tools(mcp, services):
     # 总计：61 个已注册（28 核心 + 16 intel + 13 内联 + 4 开发）
 ```
 
-**工具可见性过滤器：** 默认显示 46 个工具（28 个核心中的 13 个 + 16 intel + 13 内联 + 4 开发；启用 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时 +1 `execute_script`）。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 61 个。
+**工具可见性过滤器：** 默认可见集合为 `MSCODEBASE_MCP_TOOLS` allowlist（见 `src/mcp/server_tools.py`）。设置 `MSCODEBASE_MCP_TOOLS=""` 以显示全部 65 个（启用 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时 +1 `execute_script`）。
 
 ### 4.2 按组分组的全部工具
 
@@ -298,7 +298,7 @@ def register_all_tools(mcp, services):
 | **智能层**（14 个） | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
 | **诊断内联**（12 个） | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, ack_impact |
 
-> **总计：** 61 个已注册（28 核心 + 16 intel + 13 内联 + 4 开发）。默认可见：46 个（28 个核心中的 13 个 + 14 + 12 + 4）。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
+> **总计：** 65 个已注册（32 核心 + 16 intel + 13 内联 + 4 开发）。默认可见：`MSCODEBASE_MCP_TOOLS` allowlist（见 `src/mcp/server_tools.py`）。显示全部：`MSCODEBASE_MCP_TOOLS=""`。
 
 ---
 

@@ -1,0 +1,47 @@
+[
+  {
+    "id": 4,
+    "mode": "A_baseline",
+    "answer": "From the information given I cannot determine which tests exercise `AutoDocUpdater._extract_doc_references`: no test files, test names or repository structure were provided, only the function source. The function parses Markdown text line by line, skips fenced code blocks, and extracts backtick-wrapped tokens as likely code identifiers. It filters out URLs, file paths, Windows drive paths, IP addresses, file extensions, config assignments, hotkeys, version-like strings and stop words, then strips call arguments and `$` env prefixes. It returns a list of `(content, line_number, full_match)` tuples. To identify regression tests you would need the repository test suite, which is absent here."
+  },
+  {
+    "id": 4,
+    "mode": "B_runtime",
+    "answer": "One provided test exercises this function: test_extract_doc_references_handles_empty_call_syntax. It builds a temporary tree, writes a doc containing empty-call references `()` and `(x)` plus a normal `fastmcp`, then calls `_verify_doc_references`, which internally uses `_extract_doc_references`. The test asserts no IndexError is raised and that a list of broken references is returned. The function itself scans Markdown lines, skips fenced code blocks, extracts backtick tokens, filters non-code patterns (URLs, paths, IPs, extensions, assignments, semver) and returns `(content, line, match)` tuples. Any behavior change should re-run that test, though the provided list may be incomplete."
+  },
+  {
+    "id": 4,
+    "mode": "D_shuffled",
+    "answer": "The information given lists test_symbol_index_stores_and_retrieves as the relevant test for this function. Taken at face value, that is the test to run: it exercises SymbolIndex round-trip behavior for env accesses. Separately, `_extract_doc_references` scans Markdown text, skipping fenced code blocks, extracts backtick-wrapped tokens and filters out URLs, paths, IPs, file extensions, config assignments, hotkeys and semver strings before returning `(content, line_number, full_match)` tuples. Note the listed test appears unrelated to reference extraction, so on the evidence provided it may not catch regressions; when in doubt, inspect the actual test suite rather than trusting the label."
+  },
+  {
+    "id": 5,
+    "mode": "A_baseline",
+    "answer": "From the information given I cannot determine which tests exercise `IndexPipeline.process_file`: no test files, names or repository structure were provided, only the function source. The function handles one file through the indexing pipeline. It rejects blank content, parses via `_index_parser.parse_file`, records mtime and size, updates SymbolIndex collections (definitions, references, assignments, imports, decorators, overrides, env accesses) under a lock, computes per-chunk SHA-256 hashes for a content-addressed cache, reuses cached vectors from LanceDB, embeds only new chunks, and returns a result dict. It returns None on empty input, parse failure, no chunks, empty embeddings or cache gaps. Regression tests cannot be identified without the test suite."
+  },
+  {
+    "id": 5,
+    "mode": "B_runtime",
+    "answer": "Three provided tests exercise this function. test_chunk_cache_disabled_without_table: with table=None, two process_file calls both invoke embed_batch, asserting call_count == 2. test_chunk_cache_empty_file: whitespace-only content returns None without calling the embedder. test_chunk_cache_all_new: a new file with foreign cached hashes yields one embed_batch call and five embeddings, verifying deterministic per-chunk vectors. The function itself rejects blank content, parses the file, records stat metadata, updates SymbolIndex collections under a lock, computes chunk hashes for a content-addressed cache, reuses cached vectors from LanceDB, embeds only new chunks, and returns a result dict or None on empty input, parse failure, empty embeddings or cache gaps. Re-run all three when changing behavior."
+  },
+  {
+    "id": 5,
+    "mode": "D_shuffled",
+    "answer": "The information given lists three relevant tests: test_ensure_server_running_launches_when_dead, test_impact_analysis_basic and test_empty_file. Taken at face value these are the tests to run. Separately, `process_file` rejects blank content, parses via `_index_parser.parse_file`, records mtime and size, updates SymbolIndex collections under a lock, computes per-chunk SHA-256 hashes, reuses cached vectors from LanceDB, embeds only new chunks, and returns a dict or None on empty input, parse failure, no chunks, empty embeddings or cache gaps. Note the listed tests look unrelated to file processing, so on the evidence provided they may not catch regressions; the actual test suite should be inspected before relying on them."
+  },
+  {
+    "id": 6,
+    "mode": "A_baseline",
+    "answer": "From the information given I cannot determine which tests exercise `extract_anchors`: no test files or test names were provided, only the function source. The function extracts checkable anchors from a memory node's data/claim text using regex, without an LLM. It honors explicit `data.anchors` first; on the read path it skips prose scanning when explicit anchors exist. Otherwise it parses `file:path`, `import X` / `from X import y`, `env:KEY` / `$KEY`, `pkg:name` and path-like tokens. On the write path it filters file anchors by existence and captures manifest package words fail-closed. It deduplicates via a seen set and returns Anchor objects. Regression tests cannot be identified without the repository test suite."
+  },
+  {
+    "id": 6,
+    "mode": "B_runtime",
+    "answer": "Three provided tests exercise this function. test_extract_anchors_no_anchors: a plain statement without anchors returns an empty list. test_extract_anchors_explicit_pkg_syntax: a claim containing `pkg:celery` yields exactly one pkg anchor `('pkg', 'celery')`. test_extract_anchors_from_data_anchors: explicit `data.anchors` with file, import and env entries produce matching (kind, value) anchors. The function itself extracts checkable anchors from a node's data/claim text via regex: it honors explicit data.anchors first, otherwise parses file paths, imports, env keys, pkg names and manifest package words, deduplicating through a seen set. Re-run all three when changing behavior, though the list may not be exhaustive."
+  },
+  {
+    "id": 6,
+    "mode": "D_shuffled",
+    "answer": "The information given lists three relevant tests: test_format_diagnostics_empty, test_stale_token_rejected_after_file_change and test_lru_cap_evicts_oldest. Taken at face value these are the tests to run. Separately, `extract_anchors` extracts checkable anchors from a memory node's data/claim text using regex: it honors explicit `data.anchors`, skips prose on the read path when explicit anchors exist, and otherwise parses file paths, imports, env keys, pkg names and manifest package words, deduplicating via a seen set and returning Anchor objects. Note the listed tests appear unrelated to anchor extraction, so on the evidence provided they may not catch regressions; the actual test suite should be inspected."
+  }
+]

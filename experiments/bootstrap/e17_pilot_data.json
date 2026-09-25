@@ -1,0 +1,896 @@
+{
+  "functions": [
+    {
+      "id": 1,
+      "name": "IndexProjectRunner.run",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_project_runner.py",
+      "n_tests": 3,
+      "min_cov": 4,
+      "question": "A developer is about to change the behavior of the function `IndexProjectRunner.run` in `index_project_runner.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_run_survives_single_cpu_host",
+            "test_run_with_existing_known_hashes_skips_unchanged",
+            "test_workers_receive_known_hashes_not_none"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestClassifyHolder::test_pid_reuse_is_stale",
+            "TestClassifyHolder::test_dead_pid_is_stale",
+            "test_logs_dir_inside_data_root"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "RemoteEmbedder.embed_batch",
+      "file_path": "D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py",
+      "n_tests": 2,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `RemoteEmbedder.embed_batch` in `remote_embedder.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestConcurrentEmbedIsolation::test_rapid_sequential_calls_no_state_leak",
+            "TestConcurrentEmbedIsolation::test_single_call_results_match_indices"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestResourceMonitor::test_sample_disk_io_no_data_row_returns_zero",
+            "test_verdict_fail_is_refuted"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "CypherLexer.tokenize",
+      "file_path": "D:/Project/MSCodeBase/src/core/search/cypher_lexer.py",
+      "n_tests": 95,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `CypherLexer.tokenize` in `cypher_lexer.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestCypherLexer::test_tokenize_optional_match",
+            "TestCypherLexer::test_tokenize_order_limit",
+            "TestCypherLexer::test_tokenize_relationship"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_gemfile_lock_skips_path_project_gem",
+            "TestValidateCode::test_blocked_name_getattr",
+            "test_load_invalid_engine_req"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "AutoDocUpdater._extract_doc_references",
+      "file_path": "D:/Project/MSCodeBase/src/core/auto_doc_updater.py",
+      "n_tests": 1,
+      "min_cov": 4,
+      "question": "A developer is about to change the behavior of the function `AutoDocUpdater._extract_doc_references` in `auto_doc_updater.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_extract_doc_references_handles_empty_call_syntax"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_symbol_index_stores_and_retrieves"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "IndexPipeline.process_file",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_pipeline.py",
+      "n_tests": 6,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `IndexPipeline.process_file` in `index_pipeline.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_chunk_cache_disabled_without_table",
+            "test_chunk_cache_empty_file",
+            "test_chunk_cache_all_new"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_ensure_server_running_launches_when_dead",
+            "test_impact_analysis_basic",
+            "TestEdgeCases::test_empty_file"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "extract_anchors",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/verify_on_read.py",
+      "n_tests": 79,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `extract_anchors` in `verify_on_read.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_extract_anchors_no_anchors",
+            "test_extract_anchors_explicit_pkg_syntax",
+            "test_extract_anchors_from_data_anchors"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_format_diagnostics_empty",
+            "TestAckImpact::test_stale_token_rejected_after_file_change",
+            "test_lru_cap_evicts_oldest"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "resolve_project_root",
+      "file_path": "D:/Project/MSCodeBase/src/core/project_resolution.py",
+      "n_tests": 35,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `resolve_project_root` in `project_resolution.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestCwdFirstIsolation::test_provided_wins_over_cwd",
+            "TestCwdSelfIndexGuard::test_cwd_equal_ext_root_is_skipped",
+            "TestPriorityProjectPathOverride::test_mscb_path_trusts_ext_root"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_flag_on_when_env_set",
+            "TestValidateCode::test_blocked_name_globals",
+            "TestGraphRAGQueryEngine::test_query_hotspots_no_memory"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "SymbolIndex.build_call_graph",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/symbol_index.py",
+      "n_tests": 17,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `SymbolIndex.build_call_graph` in `symbol_index.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_build_call_graph_call_chain",
+            "test_build_call_graph_callees",
+            "test_build_call_graph_callers"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_resolver_auto_approve",
+            "test_sha256_file_missing",
+            "TestGrepFallbackProjectRoot::test_does_not_scan_extension_dir"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "IndexParser.parse_file",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_parser.py",
+      "n_tests": 2,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `IndexParser.parse_file` in `index_parser.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_bs1_parse_file_skips_comment_only",
+            "TestASTCacheInvalidation::test_property_graph_consistency"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_vor_coverage_starved_warning",
+            "TestWriteToolInsertAfter::test_inserts_after_anchor"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "modification_guard",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "n_tests": 11,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `modification_guard` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0",
+            "TestModificationGuard::test_allows_non_hot_file"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestCrossProjectDependencyGraphInit::test_init_with_registry",
+            "test_symbol_index_remove_file_clears_env",
+            "test_parse_rejects_bad_urls"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "decorator",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "n_tests": 11,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `decorator` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "test_cli_unknown_tool",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_empty_instance_does_not_overwrite_populated_file",
+            "TestCheckSearchQuality::test_passes_on_real_results",
+            "test_build_receipt_generates_id_and_steps"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "wrapper",
+      "file_path": "D:/Project/MSCodeBase/src/core/modification_guard.py",
+      "n_tests": 11,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `wrapper` in `modification_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestModificationGuard::test_no_file_path_no_symbol_passes",
+            "TestAmbiguousSymbolTarget::test_ambiguous_symbol_not_silently_routed_to_defs0",
+            "TestModificationGuard::test_allows_non_hot_file"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestBuildStartupReport::test_self_lock_adds_no_second_instance_issue",
+            "test_fileguard_resolves_relative_project_path",
+            "test_trust_report_warns_on_untrusted_with_instructions"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "format_project_memory",
+      "file_path": "D:/Project/MSCodeBase/src/utils/ui_formatter.py",
+      "n_tests": 14,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `format_project_memory` in `ui_formatter.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_audit_mode_shows_statuses_and_reasons",
+            "test_budget_exceeded_node_marker",
+            "test_default_limit_three"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_verdict_env_block_is_inconclusive_not_refuted",
+            "TestApplyFileMove::test_invalidates_bm25",
+            "TestValidateCode::test_blocked_string_pattern_eval"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "name": "validate_code",
+      "file_path": "D:/Project/MSCodeBase/src/core/sandbox/executor.py",
+      "n_tests": 41,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `validate_code` in `executor.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestValidateCode::test_allowed_modules",
+            "TestValidateCode::test_empty_code",
+            "TestValidateCode::test_safe_code_passes"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_enrichment_empty_results",
+            "TestInferMetadata::test_layer_windows_backslashes",
+            "test_build_call_graph_depth_2"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "name": "_extract_yarn_lock",
+      "file_path": "D:/Project/MSCodeBase/src/sources/manifest/extract.py",
+      "n_tests": 5,
+      "min_cov": 5,
+      "question": "A developer is about to change the behavior of the function `_extract_yarn_lock` in `extract.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_yarn_berry_patch_descriptors",
+            "test_yarn_berry_v10_scoped",
+            "test_yarn_synthetic"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestProjectHeader::test_returns_project_path",
+            "TestChangePreview::test_worktree_cleaned_after_run",
+            "TestProjectHeader::test_metadata_returns_dict"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "name": "WriteTool._action_replace",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/tools/write_tools.py",
+      "n_tests": 9,
+      "min_cov": 4,
+      "question": "A developer is about to change the behavior of the function `WriteTool._action_replace` in `write_tools.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestWriteToolReplace::test_unknown_symbol_returns_warning",
+            "TestWriteToolReplace::test_filter_mismatch_returns_error",
+            "TestDryRunNoWrite::test_replace_dry_run_does_not_write"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestClassifyHolder::test_own_host_v2_is_healthy",
+            "test_drop_removes_entry",
+            "TestDebounceBatch::test_flush_now_clears_and_calls_callback"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "name": "SymbolIndex.get_call_chain",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/symbol_index.py",
+      "n_tests": 4,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `SymbolIndex.get_call_chain` in `symbol_index.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_get_call_chain_both",
+            "test_get_call_chain_down",
+            "test_get_call_chain_total_connected"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_unparseable_lines_skipped",
+            "TestSqliteSchemaHealth::test_old_schema_detected",
+            "test_wire_plugins_no_env_noop"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "name": "load_manifest",
+      "file_path": "D:/Project/MSCodeBase/src/plugins/manifest.py",
+      "n_tests": 27,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `load_manifest` in `manifest.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_load_invalid_engine_req",
+            "test_manifest_requires_missing_fields",
+            "test_manifest_schema_mismatch_real"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_tokenize_truncates_over_limit_to_guarantee",
+            "TestIsSelfIndexPath::test_user_project_not_self_index",
+            "TestExtractKeyTerms::test_empty_results"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "name": "ProjectIntelligenceLayer._enrich_job_response",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/layer.py",
+      "n_tests": 3,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `ProjectIntelligenceLayer._enrich_job_response` in `layer.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_enrich_eta_none_when_no_embed_progress",
+            "test_enrich_eta_uses_real_embed_speed",
+            "test_intel_runtime_status_reports_reindex_progress"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_normalize_diag_uri_idempotent",
+            "test_double_load_is_idempotent",
+            "TestWriteToolSafeDelete::test_apply_deletes_from_file"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "name": "format_runtime_status",
+      "file_path": "D:/Project/MSCodeBase/src/utils/ui_formatter.py",
+      "n_tests": 5,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `format_runtime_status` in `ui_formatter.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_format_runtime_status_fallback_to_768_when_no_model_info",
+            "test_format_runtime_status_normal_path_unchanged",
+            "test_format_runtime_status_reindex_without_progress"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestDisabledByDefault::test_env_gate_off",
+            "TestValidateCode::test_blocked_import_subprocess",
+            "TestGenerateRefinedQuery::test_iteration_1_adds_terms"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "name": "_delayed_auto_index",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/server_factory.py",
+      "n_tests": 2,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `_delayed_auto_index` in `server_factory.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_delayed_auto_index_skips_when_index_not_empty",
+            "test_delayed_auto_index_sets_state_ready"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestCrossProjectDependencyGraphInit::test_lazy_graph_build",
+            "TestExtractImports::test_dedup_preserves_order"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "name": "load_metrics",
+      "file_path": "D:/Project/MSCodeBase/src/core/error_handler.py",
+      "n_tests": 2,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `load_metrics` in `error_handler.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_bs14_load_metrics_clamps_negative_total_ms",
+            "test_bs14_load_metrics_sanitizes_negative"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestParseCrossRepoQuery::test_multiple_mentions",
+            "test_ips_are_global"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "name": "_extract_pyproject",
+      "file_path": "D:/Project/MSCodeBase/src/sources/manifest/extract.py",
+      "n_tests": 10,
+      "min_cov": 5,
+      "question": "A developer is about to change the behavior of the function `_extract_pyproject` in `extract.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_pyproject_optional_and_groups",
+            "test_requests_pyproject_and_requirements_dev",
+            "test_manifest_packages_wiring_pyproject_plus_lock"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_localhost_https_rejected",
+            "test_search_with_mode_fast_calls_embed_and_vector",
+            "TestEdgeCases::test_attribute_assignment"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "name": "IndexStatusReporter.get_status",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_status.py",
+      "n_tests": 2,
+      "min_cov": 2,
+      "question": "A developer is about to change the behavior of the function `IndexStatusReporter.get_status` in `index_status.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_get_status_fast_fail_during_reindex_does_not_block",
+            "test_setup"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestMoveChunksMetadata::test_handles_same_path",
+            "test_no_dollardefs_or_ref_in_tool_schemas"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 25,
+      "name": "WriteTool._action_insert",
+      "file_path": "D:/Project/MSCodeBase/src/mcp/tools/write_tools.py",
+      "n_tests": 13,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `WriteTool._action_insert` in `write_tools.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestWriteToolInsertAfter::test_filter_mismatch_returns_error",
+            "TestWriteToolInsertBefore::test_filter_mismatch_returns_error",
+            "TestWriteToolInsertAfter::test_unknown_symbol_returns_error"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestHMACToken::test_token_is_32_hex_chars",
+            "test_unknown_kind_ignored",
+            "test_gemfile_skips_gitpath"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 26,
+      "name": "_match_gitignore_pattern",
+      "file_path": "D:/Project/MSCodeBase/src/core/gitignore_parser.py",
+      "n_tests": 13,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `_match_gitignore_pattern` in `gitignore_parser.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_dir_pattern_excludes_nested",
+            "test_dir_pattern_matches_any_depth",
+            "test_file_pattern_unchanged"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestFindSharedInterfaces::test_no_shared",
+            "TestGetDependencyPath::test_no_path",
+            "TestWriteToolFileGuard::test_non_ascii_path_denied"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 27,
+      "name": "_Fingerprint.__init__",
+      "file_path": "D:/Project/MSCodeBase/src/core/intelligence/verify_on_read.py",
+      "n_tests": 84,
+      "min_cov": 5,
+      "question": "A developer is about to change the behavior of the function `_Fingerprint.__init__` in `verify_on_read.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "test_extract_anchors_explicit_pkg_syntax",
+            "test_extract_anchors_from_data_anchors",
+            "test_extract_anchors_read_path_backward_compat"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_yarn_berry_v10_scoped",
+            "test_interprocess_lock_release_does_not_leak_ownership",
+            "TestAckImpact::test_rejects_empty_token"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 28,
+      "name": "GraphRAGQueryEngine.query_dependencies",
+      "file_path": "D:/Project/MSCodeBase/src/core/graph_rag.py",
+      "n_tests": 1,
+      "min_cov": 4,
+      "question": "A developer is about to change the behavior of the function `GraphRAGQueryEngine.query_dependencies` in `graph_rag.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestGraphRAGQueryEngine::test_query_dependencies"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "TestHMACToken::test_token_missing_file_returns_missing_fingerprint"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 29,
+      "name": "IndexGuard.save_symbol_index",
+      "file_path": "D:/Project/MSCodeBase/src/core/indexing/index_guard.py",
+      "n_tests": 8,
+      "min_cov": 3,
+      "question": "A developer is about to change the behavior of the function `IndexGuard.save_symbol_index` in `index_guard.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestIndexGuard::test_symbol_index_persistence",
+            "test_empty_file_can_be_created_for_fresh_project",
+            "test_empty_instance_does_not_overwrite_populated_file"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_parse_scores_json_duplicate_in_wrapper_declined",
+            "test_dir_pattern_matches_any_depth",
+            "TestToolError::test_creates_with_message"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "name": "RemoteEmbedder._shadow_compare",
+      "file_path": "D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py",
+      "n_tests": 7,
+      "min_cov": 1,
+      "question": "A developer is about to change the behavior of the function `RemoteEmbedder._shadow_compare` in `remote_embedder.py`. Which existing tests in this repository must be run to catch regressions, i.e. which tests exercise this function? List the test function names explicitly (one per line). If you cannot determine this from the information given, say so explicitly.",
+      "modes": {
+        "A_baseline": {
+          "tests": [],
+          "description": "Code only (no tests)"
+        },
+        "B_runtime": {
+          "tests": [
+            "TestShadowCanary::test_baseline_failure_blocks",
+            "TestShadowCanary::test_empty_canary_blocks",
+            "TestShadowCanary::test_baseline_below_absolute_quality_blocks"
+          ],
+          "description": "Most specific runtime TESTS"
+        },
+        "D_shuffled": {
+          "tests": [
+            "test_build_call_graph_callers",
+            "test_normalize_diag_uri_win_drive",
+            "test_cli_dispatch_ok"
+          ],
+          "description": "Coverage-matched decoy"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "n_functions": 30,
+    "n_total_tests": 1461,
+    "selection": "min_test_coverage<=5, max 3 per file",
+    "modes": [
+      "A_baseline",
+      "B_runtime",
+      "D_shuffled"
+    ]
+  }
+}

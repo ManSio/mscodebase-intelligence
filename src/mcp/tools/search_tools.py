@@ -195,6 +195,7 @@ class SearchCodeTool(MCPTool):
 
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="search_code")
+        self._hot_reload_task: Optional[asyncio.Task] = None
 
     @error_boundary("search_code", timeout_ms=15000, max_retries=1)
     async def execute(
@@ -458,13 +459,16 @@ class SearchCodeTool(MCPTool):
         return result_str
 
     async def _maybe_hot_reload(self) -> None:
-        """KI-109: фоновая инкрементальная сверка актуальности индекса.
+        """KI-109: фоновая сверка актуальности индекса — ВНЕ критического пути.
 
-        Вызывается перед каждым search_code. Внутри FreshnessChecker —
-        debounce (FRESHNESS_INTERVAL_SEC) + threading.Lock + skip при полном
-        reindex, поэтому для большинства запросов это прозрачно (stat-first).
-        Ошибки не должны ломать поиск.
+        Раньше hot-reload ожидался синхронно ВНУТРИ search_code: при пачке
+        новых/изменённых файлов переиндексация (parse+embed) выходила за
+        15s-бюджет → timeout (инцидент 2026-09-22: 22 файла → 14s, при живом
+        эмбеддере). Теперь реиндексация уходит в фон, поиск отвечает по
+        текущему индексу, а свежие файлы подхватятся следующим запросом.
         """
+        if self._hot_reload_task is not None and not self._hot_reload_task.done():
+            return
         try:
             from src.config.settings import get_config
 
@@ -477,12 +481,21 @@ class SearchCodeTool(MCPTool):
             project_path = getattr(indexer, "project_path", None)
             if project_path is None:
                 return
-            # stat-first сверка + hot-reload изменённых/новых файлов в фоне.
-            # Внутри FreshnessChecker: debounce + Lock + skip при is_reindexing,
-            # поэтому блокировка поиска редкая и короткая.
-            await asyncio.to_thread(indexer.verify_index_freshness, project_path)
+            # Дедуп: пока предыдущая bg-сверка не завершилась — не плодим.
+            self._hot_reload_task = asyncio.create_task(
+                self._run_hot_reload_bg(indexer, project_path)
+            )
         except Exception as _hr_err:
             logger.debug(f"Hot-reload check skipped: {_hr_err}")
+
+    async def _run_hot_reload_bg(self, indexer: Any, project_path: Any) -> None:
+        """Фоновый hot-reload (KI-109): не блокирует search_code."""
+        try:
+            n = await asyncio.to_thread(indexer.verify_index_freshness, project_path)
+            if n:
+                logger.info(f"🧲 Hot-reload (bg): переиндексировано {n} файлов")
+        except Exception as _bg_err:
+            logger.debug(f"Hot-reload (bg) failed: {_bg_err}")
 
     async def _agentic_search(self, query: str, project_root: str = "") -> str:
         """Agentic Code Search с декомпозицией и связями.

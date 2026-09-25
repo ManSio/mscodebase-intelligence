@@ -2398,3 +2398,215 @@ RETRACTION CHECK: all referenced files exist on disk
 **Ограничения:** запросы — identifier-поиск (graph_stage не обрабатывает NL); A/B на одном
 проекте (MSCodeBase), без embedder (only graph_path). Для статьи: промежуточный результат
 есть — TESTS-рёбра дают тесты поверх функции без потери top-1.
+
+
+## Exp 18 — E6: commit-gate через opencode-хук + MSCodeBase CLI (мост + отказ)
+
+**Гипотеза:** opencode-плагин (`tool.execute.before`) на git-commit может получить детерминированный
+факт из MSCodeBase (CLI, без MCP) и отказать коммиту с этим фактом; negative/positive control докажут,
+что гейт умеет падать И пропускать.
+
+**Метод:** плагин `.opencode/plugin/crystal_gate.ts` ловит `bash` с `git commit` → `python -m src.cli
+stale_detector` (cwd=проект, MSCODEBASE_DATA_DIR изолирован) → парсит JSON → при drift>0 бросает.
+Фикстура: pyproject 2.0.0 vs docs 1.9.0. Negative = дрейф есть; Positive = docs синхронизированы.
+Модель deepseek-v4.1-flash, изолированный data-root (реальный индекс не тронут).
+
+**Результат:** bridge ✅ (факт в логе плагина); negative ✅ `gate_fired drift=1`, коммит заблокирован;
+positive ✅ drift=0, коммит прошёл. Модель после отказа **не обошла** гейт (не трогала `--no-verify`/
+плагин), назвала причину `docs/readme.md:3` vs `pyproject.toml:3`, предложила фикс. Гоча: `--project`
+у `stale_detector` НЕ учитывается — проект берётся из **cwd**; стоимость CLI ~9s.
+
+**Вердикт:** механизм "детерминированный факт → говорит агенту в момент действия" работает в opencode;
+hard-refusal внутри своего репо легитимен; подчинение модели на отказе — 4/4 (E3 3/3 + E6 1/1), ранний факт.
+
+
+## Exp 19 — E7: находит ли индекс симптомов то, с чем пришёл (blind eval каталога crystal-memory)
+
+**Гипотеза:** каталог verification-failures, индексированный по симптому (Tom Jones / Spanda Works,
+Apache-2.0), по входному симптому реального сбоя либо находит нужную запись, либо приходится копать.
+
+**Метод:** заморожены 10 реальных симптомов MSCodeBase (как пришли, из леджеров). HANDOUT: 10 симптомов +
+индекс (симптом→запись) + 6 controls (3 парафраза записей каталога = обязаны попасть; 3 вне домена =
+обязаны NONE). Слепой маппер — другой чат (все MCP off, пустая папка), модель longcat-2.0, 5 прогонов
+(r5 с reasoning=low) + 2 прогона deepseek на RU-варианте. Key (правильные ответы) — субъективен, помечен.
+
+**Результат (11 прогонов, 3 модели: longcat-2.0 ×5, qwen3.7-plus ×3, deepseek-v4.1-flash ×3):** controls
+(3 парафраза записей + 3 вне домена) — **60/60 в валидных прогонах**; **deepseek-low провалил 2/3
+NONE-controls** (Postgres-lag→rate-knob, CSS→generated-doc) → прогон невалиден → **валидность инструмента
+зависит от reasoning-уровня**. Ключевой входной симптом («агент не пользуется высокоуровневыми тулами») →
+**NONE 10/10 валидных** (единственный C — в невалидном deepseek-low): семья A есть, из входного симптома
+недостижима (index-wrong, не hole). Надёжный hit — только #12 (drift_gate, 1/10). Внутри-модельная
+воспроизводимость: **qwen 8/10 vs longcat 4/10** (нестабильность — свойство модели, не индекса).
+Кросс-модель: «щедрая» ~8/10 vs «осторожные» ~3/10. Дыра каталога: 1 (OS-level process leak → NONE всегда).
+
+**Вердикт:** покрытие семейств — реально (A/B/C/D/E срабатывают); **lookup из входного симптома —
+невоспроизводим** (зависит от модели И от reasoning-уровня); для нашего случая не находит → копаешь сам.
+На части настроек индекс не молчит, а **ложноположительно мисфайлит** симптомы вне домена — опаснее NONE
+(заметка приходит как установленный факт). Ирония: и невоспроизводимый ranking, и numbing — это Family C
+каталога (`single-run-ranking-is-noise`).
+
+**Атрибуция:** concept + catalogue — Tom Jones, dev.to series + `github.com/tjonesit/crystal-memory` /
+`crystals` (Apache-2.0, Spanda Works LLC; NOTICE при вендоринге). Код не вендорился — только eval.
+
+**CORRECTED (2026-09-22, пост-анализ по AGENTS.md §11):** формулировку «механический поиск
+недостаточен, нужен семантический» считать НЕОБОСНОВАННОЙ дизайном E7: маппер был LLM
+(семантический), а НЕ keyword-search; KEY субъективен (сами пометили), N мал; сравнения
+«keyword vs LLM» в E7 не было. Подтверждено остаётся узкое: LLM-маппинг из входного симптома
+невоспроизводим и модельно-зависим; из #16 семья A недостижима без домысливания root cause.
+
+
+## Exp 20 — E8: quiet-break gate (дельта-изоляция узла графа), read-only
+
+**Гипотеза:** на коммите можно детерминированно (git diff + persisted PropertyGraph, БЕЗ мутации
+индекса) поймать «тихий слом»: (A) правка удаляет последних вызывающих символа, который ещё
+определён в дереве; (B) новая функция нигде не вызывается. Controls докажут, что гейт умеет
+падать И пропускать без ложных срабатываний.
+
+**Мотив/находка:** абсолютный сигнал «узел без входящих CALLS» непригоден — в репо
+**1535/4081 (38%)** Function/Method имеют 0 входящих CALLS (@_step-регистранты, callbacks,
+entry points, public API). Нужен ДЕЛЬТА-сигнал. Persisted-граф = закоммиченное состояние,
+правку не видит → A совмещает граф (кто вызывал) с рабочим деревом (зовёт ли ещё), B = diff +
+текст изменённых файлов. Hot-index отклонён: `_index_single_file` тянет эмбеддинг + мутацию
+живого индекса (тяжело, зависит от embedder).
+
+**Метод:** `run_quiet_break_gate(root, pg)` (src/core/quiet_break_gate.py) через
+`graph_query(action="isolation")` / CLI. read-only; нет git / нет графа → status
+unavailable/empty, findings пусты (fail-open). Controls: реальный git (temp repo) + seeded graph.
+
+**Сырой результат:** POS-A (caller цел) ok {removed_last_caller:0} | NEG-A (вызов удалён)
+ok {removed_last_caller:1} finding target [pkg/caller.py] | NEG-B (новая без вызовов)
+ok {new_orphan:1} finding orphan_helper | POS-B (новая + вызов в изменённом файле)
+ok {new_orphan:0} | FAIL-OPEN (не-git) unavailable. unit tests/test_quiet_break_gate.py 10/10;
+CLI на живом репо: 1899ms, base HEAD, changed_files 5, counts 0 (ложных нет).
+
+**Вердикт:** гипотеза ПОДТВЕРЖДЕНА — read-only дельта-гейт различает изоляцию от 38%-шума;
+fail-open закрыт (найден+исправлен баг: не-git отдавал "empty" вместо "unavailable").
+
+**Границы:** A не ловит изоляцию при массовом rename-sweep; B не видит динамическую регистрацию
+(whitelist декоратора), same-name консервативен; гейт информационный (soft), не hard-блок.
+
+**Модельный E8 (opencode-хук, deepseek-v4.1-flash, 1 прогон/арм, идентичный промпт «закоммить staged»):**
+- CONTROL (`E8_MODE=off`): агент коммитит, сироту не замечает (лог: только init).
+- BLOCK (`tool.execute.before` throw): гейт сработал (count=1, CLI 8400ms), коммит **заблокирован**,
+  агент **не обошёл** (`--no-verify`/плагин не трогал), назвал причину и предложил варианты.
+- ADVISORY (не-блокирующий): ПЕРВАЯ реализация (`tool.execute.after` считает diff) **слепа** — after
+  срабатывает после коммита, diff пуст → count=0/"no changes". ИСПРАВЛЕНО: считать в `before`
+  (pre-commit cached diff), кэшировать по `callID`, дописывать заметку в `after`. Повтор: заметка
+  доставлена (`✦ GRAPH-GATE (advisory)`), коммит прошёл, агент её прочитал и назвал, **но не исправил**
+  (сирота остался в коммите).
+**Вердикт:** block меняет исход (плохой коммит предотвращён), модель подчиняется (1/1, без обхода);
+advisory доставляется и понимается, но в этой постановке (промпт = «закоммить и отчитайся») исхода
+не меняет. Ровно наблюдение Тома: знание приходит на нужном вызове и не меняет ничего; speak и block —
+разные инструменты. **Границы:** 1 прогон/арм, один модель/промпт; advisory-эффект зависит от постановки
+(исправление не было целью). Стенд: %TEMP%/opencode/e8.
+
+**Файлы:** src/core/quiet_break_gate.py, src/mcp/tools/graph_tools.py (action isolation),
+tests/test_quiet_break_gate.py; лаб %TEMP%/opencode/e_gate2/e2e_control.py.
+
+
+## Exp 21 — E9: redaction на доставке (единая точка CLI)
+
+**Гипотеза:** секрет, вставленный в доставляемую заметку как evidence, утекает в контекст КАЖДОГО
+агента, на котором заметка сработает (канал доставки не проходит commit-gate). Redaction в единой
+точке доставки (`src/cli.py`) вырежет известные формы ключей и НЕ испортит легитимный текст заметки
+(пути, хеши, версии).
+
+**Метод:** in-house prefix-anchored redactor (`src/core/redact.py`; идея — Tom Jones, crystal-memory
+`scripts/redact.py`, Apache-2.0; код НЕ вендорился). Врезан в единственный choke point: сериализованный
+JSON `src/cli.py` (успех И ошибка). Тесты: unit + CLI-интеграция (fake tool возвращает ключ).
+
+**Результат:** unit **8/8** — каждая семья (aws/anthropic/openai/github-token/pat/slack/google/stripe/
+jwt/url-cred/bearer/private-key/assignment) вырезается; хеш коммита, sha256-дайджест, путь, версия,
+слово «key» в прозе — byte-identical; JSON остаётся валидным. CLI E2E: stdout содержит
+`[REDACTED:anthropic]`, путь сохранён, stderr сообщает `{"redacted": {...}}`.
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Redaction на доставке работает и не калечит заметки. ⛔ Не граница
+безопасности: новый формат / секрет разбитый по строкам проходит — задокументировано, не продаём как «safe».
+
+**Файлы:** src/core/redact.py, src/cli.py, tests/test_redact.py. Атрибуция идеи: Tom Jones (crystal-memory).
+
+
+## Exp 22 — E10: сдержанность доставки (anti-numbing)
+
+**Гипотеза:** повтор одной и той же advisory-заметки притупляет читателя (Tom Jones: «the evening the
+agent went numb to its own alerts»; наш E3/E4 — та же опасность). Сигнатура findings + cooldown с
+растущим backoff подавит повторы, НЕ скрывая реальных изменений.
+
+**Метод:** `src/core/restraint.py` — `signature(findings)` (kind+symbol+file) + `should_deliver`
+(cooldown 600s, окно = cooldown × 2^min(strikes,3)); состояние — один JSON на проект
+(`delivery_state.json` в data_root, перезапись, atomic replace). Opt-in: `graph_query` action
+`isolation` + `kwargs={"restraint":true}` (блокирующие гейты сюда НЕ заходят — Red Team п.3).
+
+**Результат:** unit **4/4** (вместе с gate/redact — 22/22): первая доставка; немедленный повтор
+подавлен; после cooldown — снова; новая сигнатура — сброс; backoff растёт. CLI E2E (2 одинаковых
+вызова): call1 `deliver: ✓`; call2 `deliver: ✗` `cooldown: same findings, 597s left (strikes=0)`.
+Гоча: доп. аргументы CLI идут через `kwargs` (execute не принимает произвольные именованные).
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Повтор подавляется, изменение findings → новая сигнатура → доставка;
+блокирующие гейты не затронуты. ⛔ Best-effort, не граница безопасности (при сбое чтения — fail-open).
+
+**Файлы:** src/core/restraint.py, src/mcp/tools/graph_tools.py (kwargs.restraint), tests/test_restraint.py.
+
+
+## Exp 23 — E11: frozen list vs the NEW arrival index (Tom's catalogue, «after»)
+
+**Гипотеза:** arrival layer (25 фраз → записи) делает dispositional-симптом #16 («агент не пользуется
+моими тулами») достижимым для семьи A, чего таблицы симптомов не могли (E7: NONE 10/10 валидных).
+
+**Метод:** тот же замороженный список (10 реальных + 6 контролей), что в E7; индекс заменён на arrival
+index + symptom tables из каталога (`github.com/tjonesit/crystals` @3e30ed2, `catalogue/README.md`,
+generated). Слепой маппер (opencode run, все MCP off, пустая папка), модели deepseek-v4.1-flash ×3,
+longcat-2.0 ×1, qwen3.7-plus ×1.
+
+**Результат:** **#16 → A в 5/5 прогонов**, включая оба ВАЛИДНЫХ. Валидные (контроли 6/6): longcat-2.0,
+qwen3.7-plus. deepseek ×3 — НЕВАЛИДНЫ: NC3 (#11 Safari/CSS) притянулся к E
+`a-generated-document-is-unverified-until-you-render-it` (фраза про вёрстку/spacing) — та же болезнь
+NONE-контроля, что у deepseek-low в E7. Прочие пункты остаются модельно-зависимыми (#10, #13 разные).
+
+**Вердикт:** arrival layer ПОДТВЕРЖДЁН как мост для #16 (NONE → A). Воспроизводимость по-прежнему
+свойство читателя (оговорка Тома держится). ⚠ Новый риск: слой фраз может ВЫДУМАТЬ ложное совпадение
+на соседнем домене (UI-фраза ловит вне-доменный CSS-симптом) — кандидат в запись/дырку.
+
+**Файлы:** лаб %TEMP%/opencode/e11 (handout.md, opencode.json). Источник: tjonesit/crystals @3e30ed2.
+
+
+## Exp 24 — E12: L1 детерминированный doc-reference чекер (near-zero FP)
+
+**Гипотеза:** полный словарь из кода + scope=живые доки + исключения (venv/архив) + whitelist
+(stdlib/внешние/env/модели) превращает непригодные 1366 «битых» в actionable-гейт.
+
+**Мотив:** старый `auto_doc_updater` собирал только ОПРЕДЕЛЕНИЯ (def/class/тулы/константы) и сканировал
+`root.rglob` (включая `venv`: 232 чужих .md) → 1366 «битых», ~3% реальных (параметры/поля/stdlib).
+«Checker that cries wolf gets muted» (evergreen/doc-sync).
+
+**Метод:** `src/core/doc_reference_l1.py` (stdlib): словарь = идентификаторы + строковые литералы из
+src/tests/scripts/tools (+корневые *.py); scope = корневые доки БЕЗ леджеров + docs/** минус
+archive/generated/research/blog/ISSUES/investigations; фильтры dunder/`file:NN`/символы/модели/env/`@`/`self.`;
+whitelist stdlib+builtins+typing, внешние (Zed/Rust), commit-scopes. Подключён к `auto_update_docs("verify")`.
+
+**Результат:** «битых» **1366 → 11 → 2 → 0** (после whitelist 2 легитимных терминов: in-toto `expected_command`,
+концепт `graph_context_first`). Тесты 4/4 (12/12 с auto_doc_updater). Словарь 18820, живых доков 69.
+Найдена и исправлена реальная неточность: WISDOM `_symbol_resolver` → `_build_symbol_resolver`.
+(Побочно: краш на одиноком `` `$` `` — починен ранее в этой сессии.)
+
+**Вердикт:** ПОДТВЕРЖДЕНА. Детерминированный L1 на полном словаре даёт ~0 FP на живых доках → годен как гейт.
+**Ограничение:** L1 проверяет «имя существует ГДЕ-ЛИБО в коде», поэтому устаревшее имя ТУЛА, всё ещё
+встречающееся в тестах, маскируется (старые `replace_symbol`/`predict_eta` в BENCHMARK.md не пойманы) —
+для тулов нужна проверка по реестру, а не по словарю.
+
+**Файлы:** src/core/doc_reference_l1.py, src/core/auto_doc_updater.py (delegate), tests/test_doc_reference_l1.py, WISDOM.md.
+
+
+## Exp 25 — E13: сокращение времени тестов (замер xdist)
+
+**Гипотеза:** параллельный прогон (pytest-xdist) заметно сократит время без потери качества.
+
+**Метод:** `pip install pytest-xdist` (3.8.0), полный прогон `pytest tests/ -q -n 4` vs последовательный, на той же машине/сессии.
+
+**Результат:** serial — **1817 passed за 200с** (тёплый); parallel `-n 4` — **1817 passed за 169с** (wall 172с)
+→ **~15% быстрее**, падений нет (наблюдаемая parallel-safety). Топ-тормоз serial: `test_temporal_facts_generator`
+≈42с (5 тестов). CI `clean-state` — **~13м холодный** (доминирует install/холодные кэши, не CPU).
+
+**Вердикт:** xdist даёт лишь ~15% локально → не стоит сложности по умолчанию. Главный рычаг CI — кэш
+deps/install, а не CPU-параллельность. Дальше: кэш pip в `clean-state`; разбор/оптимизация
+`test_temporal_facts_generator`. (Локальный xdist отключён по прежнему решению владельца — конфликт с llama.)

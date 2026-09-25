@@ -1,6 +1,6 @@
 # Graceful Degradation — Руководство по отказоустойчивости
 
-> **Часть MSCodeBase Intelligence** | v3.4.0
+> **Часть MSCodeBase Intelligence** | v3.5.0
 
 ## Обзор
 

@@ -1,0 +1,62 @@
+[
+  {
+    "id": 22,
+    "mode": "A_baseline",
+    "answer": "No test names can be determined from the information given. The prompt provides only the source of load_metrics plus its module globals (_METRICS_PATH, _TOOL_METRICS, _TOOL_METRICS_LOCK); it contains no test file, no directory listing, and no search results. Nothing in the supplied text names a test function or shows an import of error_handler. So I cannot honestly list tests that exercise it. To find them one would grep the repository for load_metrics, for imports of src.core.error_handler, or for patching of _METRICS_PATH. The function loads saved tool metrics from a JSON file, sanitizes negative latency values (min_ms, max_ms, total_ms and the latencies list), and merges them into _TOOL_METRICS. Candidate regression tests would target that sanitization, but their names are undetermined."
+  },
+  {
+    "id": 22,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise load_metrics and should be run before changing it are:\ntest_bs14_load_metrics_clamps_negative_total_ms\ntest_bs14_load_metrics_sanitizes_negative\nBoth import src.core.error_handler, point eh._METRICS_PATH at a temporary JSON file, clear eh._TOOL_METRICS, call eh.load_metrics(), and assert the sanitization behavior. The first checks that a negative total_ms is clamped to 0 and min_ms becomes 999999. The second checks that negative min_ms is dropped, that every latency is non-negative, and that total_ms stays non-negative. These are the direct regression tests for the loading and sanitizing logic, so both must be run whenever load_metrics changes."
+  },
+  {
+    "id": 22,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine the tests that exercise load_metrics from the information given. The supplied snippets are test_multiple_mentions (about parse_cross_repo_query) and test_ips_are_global (about IP classification). Neither imports error_handler, references load_metrics, nor touches _METRICS_PATH or _TOOL_METRICS, so neither exercises the function. Although the section is labelled as relevant tests, their contents contradict that label. Therefore no test name can be truthfully listed. The function loads saved tool metrics from a JSON file, sanitizes negative latency fields, and merges them into _TOOL_METRICS; a genuine regression test would call it with a crafted metrics file. Undetermined from the given text."
+  },
+  {
+    "id": 23,
+    "mode": "A_baseline",
+    "answer": "No test names can be determined from the information given. The prompt supplies only the source of _extract_pyproject plus references to helpers (_toml, _req_name, normalize_python, ManifestEntry); there is no test file, no listing, and no grep output. Nothing names a test function or imports extract.py. So I cannot honestly list tests that exercise it. To find them one would search for _extract_pyproject, for imports of the extract module, or for tests using pyproject fixtures. The function parses TOML text of a pyproject.toml, returning ManifestEntry objects for project.dependencies, project.optional-dependencies, and PEP 735 dependency-groups (supporting both list and packages-dict forms), skipping anything _toml cannot parse. Candidate tests would cover those branches, but their names are undetermined."
+  },
+  {
+    "id": 23,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise _extract_pyproject are:\ntest_pyproject_optional_and_groups\ntest_requests_pyproject_and_requirements_dev\ntest_manifest_packages_wiring_pyproject_plus_lock\nThe first calls _extract_pyproject directly on inline TOML and checks that chardet, pysocks, pytest and pytest-cov are all collected, covering project.dependencies, optional-dependencies and dependency-groups. The second goes through manifest_packages on a requests fixture, exercising the pyproject path indirectly and asserting normalized names. The third uses a uv fixture where dependency-groups is the only source, asserting black and annotated-types appear. Together they cover the list and packages-dict branches, so all three should be run before changing the function."
+  },
+  {
+    "id": 23,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine the tests that exercise _extract_pyproject from the information given. The supplied snippets are test_localhost_https_rejected, test_search_with_mode_fast_calls_embed_and_vector, and test_attribute_assignment. None imports the extract module, references _extract_pyproject, or uses pyproject TOML parsing; they cover Git URL SSRF protection, search-mode behavior, and assignment extraction respectively. So none exercises the function, despite the relevant-tests label. No test name can be truthfully listed. The function parses pyproject.toml TOML text into ManifestEntry objects from project.dependencies, optional-dependencies, and PEP 735 dependency-groups. Finding real tests requires a repository search for _extract_pyproject or extract-module imports. Undetermined from the given text."
+  },
+  {
+    "id": 24,
+    "mode": "A_baseline",
+    "answer": "No test names can be determined from the information given. The prompt provides only the source of IndexStatusReporter.get_status plus the implicit attributes it uses (_reindex_check, _table_write_lock, _cached_total_chunks, _cached_unique_files, table, _scan_stale, _watchdog_callback). There is no test file, no directory listing, and no search results. Nothing in the supplied text names a test function or constructs an IndexStatusReporter. So I cannot honestly list which tests exercise it. To find them one would grep for get_status, for IndexStatusReporter, or for the reindex fast-fail scenario. The method returns database statistics, short-circuits during reindex, and falls back to count_rows for consistency, but candidate test names are undetermined."
+  },
+  {
+    "id": 24,
+    "mode": "B_runtime",
+    "answer": "The tests listed under this function are:\ntest_get_status_fast_fail_during_reindex_does_not_block\ntest_setup\nThe first directly constructs IndexStatusReporter and calls get_status, so it clearly exercises the function, asserting the fast-fail path returns cached values quickly while the write lock is held. The second (test_setup) builds a FileGuard and DI container and resolves an indexer; it does not visibly call get_status, so it likely does not exercise it despite appearing under the relevant-tests heading. Strictly, only test_get_status_fast_fail_during_reindex_does_not_block can be confirmed from the given text; test_setup should be treated as unconfirmed and checked separately."
+  },
+  {
+    "id": 24,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine the tests that exercise IndexStatusReporter.get_status from the information given. The supplied snippets are test_handles_same_path (Indexer.move_chunks_metadata no-op) and test_no_dollardefs_or_ref_in_tool_schemas (tool JSON schema validation). Neither constructs an IndexStatusReporter, calls get_status, nor touches the reindex fast-fail or count_rows logic. They belong to different modules, so they do not exercise the function despite the relevant-tests label. No test name can be truthfully listed. The function returns DB statistics and short-circuits to cached values during reindexing to avoid blocking the event loop. Locating real tests requires a repository search for get_status or IndexStatusReporter. Undetermined from the given text."
+  },
+  {
+    "id": 25,
+    "mode": "A_baseline",
+    "answer": "No test names can be determined from the information given. The prompt supplies only the source of WriteTool._action_insert plus the helpers and attributes it calls (require_ready_project, resolve_symbol_index, find_definitions, _resolve_single_source_def, _build_insert_lines, _preflight_validate, _atomic_write, _contract_record). There is no test file, no listing, and no grep output, and nothing names a test function or instantiates WriteTool. So I cannot honestly list tests that exercise it. To find them one would search for _action_insert_after, _action_insert_before, or tests using a write_tool fixture. The method inserts code before or after an anchor symbol, previews when apply is false, and records a contract hash, but candidate test names are undetermined."
+  },
+  {
+    "id": 25,
+    "mode": "B_runtime",
+    "answer": "The tests that exercise _action_insert are:\ntest_filter_mismatch_returns_error\ntest_filter_mismatch_returns_error\ntest_unknown_symbol_returns_error\nNote the first name appears twice: one variant calls _action_insert_after and one calls _action_insert_before, both with a mismatching file_path and asserting an error is returned. test_unknown_symbol_returns_error calls _action_insert_after with a nonexistent anchor and expects an error. All three reach the function through its position wrappers (insert_before and insert_after both delegate to _action_insert), so they cover the anchor-not-found and file-filter branches. They should be run before changing _action_insert, though the duplicate name means collection must be scoped per test file."
+  },
+  {
+    "id": 25,
+    "mode": "D_shuffled",
+    "answer": "I cannot determine the tests that exercise WriteTool._action_insert from the information given. The supplied snippets are test_token_is_32_hex_chars (ack token format), test_unknown_kind_ignored (AlertStore.push), and test_gemfile_skips_gitpath (manifest_packages). None imports write_tools, uses a write_tool fixture, or calls _action_insert, _action_insert_after, or _action_insert_before. They cover unrelated modules, so none exercises the function, despite the relevant-tests label. Therefore no test name can be truthfully listed. The function inserts new code before or after an anchor symbol, supports preview mode, and performs preflight validation plus atomic writes and contract recording. Locating real tests requires searching for _action_insert or the write_tool fixture. Undetermined from the given text."
+  }
+]

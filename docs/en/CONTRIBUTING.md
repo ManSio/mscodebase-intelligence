@@ -4,7 +4,7 @@
 
 # Contributing — MSCodeBase Intelligence
 
-> **Version:** 3.4.0
+> **Version:** 3.5.0
 
 ---
 
@@ -342,7 +342,7 @@ SemVer: MAJOR.MINOR.PATCH
 - **MINOR** — new tools/features (backward compatible)
 - **PATCH** — bug fixes
 
-Current version in `pyproject.toml`: `3.4.0`
+Current version in `pyproject.toml`: `3.5.0`
 
 ---
 
