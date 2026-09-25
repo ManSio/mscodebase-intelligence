@@ -3,18 +3,19 @@
 ## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
 
 **Гипотеза:** `PropertyGraph.add_node/add_edge` открывают ОДНУ SQLite-транзакцию + named-mutex на каждый узел/ребро (`graph.py:526-544, 816-851`) → graph-сборка сериализована и I/O-bound; это root cause «CPU 5% + диск ~3 МБ/с» на фазе parsing.
-**Команда:** `<ext-venv-python> experiments/misc_probes/exp_graph_write_throughput.py` (3 руки, temp-БД, одинаковый INSERT SQL).
-**Сырой вывод:**
+**Команда:** `<ext-venv-python> experiments/misc_probes/exp_graph_write_throughput.py` (4 руки, temp-БД, одинаковый INSERT SQL).
+**Сырой вывод (после фикса, arm D = реальный `PropertyGraph.batch()`):**
 ```
 N_NODES=2000 N_EDGES=4000
-A per-call PropertyGraph (mutex+txn) : 28.17s   142 entities/s
-B raw, ONE transaction+reused       :  0.06s 67288 entities/s
-C raw, per-node transaction         : 20.76s   193 entities/s
-speedup B/A = 473.9x ; speedup B/C = 349.3x
+A per-call PropertyGraph (mutex+txn) : 20.58s    194 entities/s
+B raw, ONE transaction+reused       :  0.03s 140875 entities/s
+C raw, per-node transaction         : 16.89s    237 entities/s
+D PropertyGraph.batch() [the fix]   :  0.15s  26826 entities/s
+speedup D/A (the fix) = 138.0x ; speedup B/A = 724.8x
 negative control counts equal: True -> [(2000, 2000)]
 ```
-**Вердикт:** CONFIRMED. Per-row commit/fsync — доминанта (B/C≈349×), named-mutex добавляет ~35% (A/C≈1.36×). Отрицательный контроль — counts идентичны (нет порчи). Внешний baseline совпадает: SQLite 429 rows/s отдельными транзакциями vs 2.457M rows/s (одна транзакция+reused) — voidstar.tech.
-**Урок:** «медленная нарезка» была неверной гипотезой; узкое место — write amplification в графе. Фикс-кандидат: `PropertyGraph.batch()` (один lock+txn на файл). Риск — load-bearing lock (KNOWN_ISSUES #34).
+**Вердикт:** CONFIRMED. Per-row commit/fsync — доминанта; named-mutex добавляет ~35%. Отрицательный контроль — counts идентичны (нет порчи). Внешний baseline совпадает: SQLite 429 rows/s отдельными транзакциями vs 2.457M rows/s (одна транзакция+reused) — voidstar.tech.
+**Фикс внедрён (2026-09-25):** `PropertyGraph.batch()` (одна tx на файл) + `indexer._parse_file_only` оборачивает graph-update файла; измерено **138× на реальном API**. Guard: `tests/test_graph_batch.py` (counts/атомарность/вложенность/персистентность).
 
 ## [2026-09-20] — E13 / поискочное качество: 6 исследовательских задач (план)
 
