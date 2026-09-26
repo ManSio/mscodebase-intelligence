@@ -62,7 +62,9 @@ def check(new_list: Path, frozen_dir: Path) -> int:
         return 2
     used_files = [
         p for p in frozen_dir.rglob("*.md")
-        if p.resolve() != new_list.resolve() and p.name != "README.md"
+        if p.resolve() != new_list.resolve()
+        and p.name != "README.md"
+        and p.parent.resolve() != new_list.resolve().parent  # sibling conditions are the same set
     ]
     new_items = _items(new_list)
     if not new_items:
