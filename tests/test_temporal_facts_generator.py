@@ -7,6 +7,8 @@ absent-имена обязаны быть grep-0.
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parent.parent
 
 _spec = importlib.util.spec_from_file_location(
@@ -15,8 +17,19 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)  # noqa: E402
 
 
-def test_generate_structure_and_kinds():
-    facts = _mod.generate(seed=7)
+@pytest.fixture(scope="module")
+def facts():
+    """generate(seed=7) — один раз на модуль (было 5 вызовов, стало 3).
+
+    generate() делает десятки git-подпроцессов (~7с на вызов). Три теста
+    используют один и тот же детерминированный набор. test_deterministic_
+    generation намеренно вызывает generate дважды (проверка детерминизма),
+    поэтому его не кэшируем.
+    """
+    return _mod.generate(seed=7)
+
+
+def test_generate_structure_and_kinds(facts):
     assert len(facts) >= 30
     kinds = {f["kind"] for f in facts}
     assert {"removed", "real", "absent"} <= kinds
@@ -27,9 +40,9 @@ def test_generate_structure_and_kinds():
         assert f["id"].startswith("T")
 
 
-def test_removed_ground_truth_validated_via_git():
+def test_removed_ground_truth_validated_via_git(facts):
     """removed-факт: символ реально был на C~1 (родителе коммита удаления), false@HEAD."""
-    removed = [f for f in _mod.generate(seed=7) if f["kind"] == "removed"]
+    removed = [f for f in facts if f["kind"] == "removed"]
     assert removed
     r = removed[0]
     path = r["support_patterns"][0][5:]
@@ -42,8 +55,8 @@ def test_removed_ground_truth_validated_via_git():
     assert r["was_true"] is True and r["truth"] is False
 
 
-def test_absent_names_are_grep_zero():
-    for f in _mod.generate(seed=7):
+def test_absent_names_are_grep_zero(facts):
+    for f in facts:
         if f["kind"] == "absent":
             assert _mod._grep_zero(f["value"]), f"{f['value']} встречается в src/"
 
