@@ -1,0 +1,22 @@
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the closing backtick."
+  },
+  {
+    "id": 13,
+    "mode": "B_runtime",
+    "answer": "`tokenize` turns `self._query` into a `List[Token]`, walking the string with an index `i` and emitting tokens carrying type, text, and start position. Whitespace is skipped; `//` comments are dropped by seeking the next newline; single- and double-quoted strings are captured with backslash escapes, and an unterminated string raises `SyntaxError`. Numeric literals (digits, optionally with a leading dot) are consumed greedily. Identifiers, keywords, and backtick-quoted identifiers are recognized. Because the runtime context includes tests exercising related storage paths, the emphasis is on observed behavior rather than just structure, but the visible logic is the same: edge cases are EOF-terminated comments (`break`), escape sequences skipping a character, multi-dot number runs, and a missing closing backtick. Output is deterministic for a given query, with positions recorded relative to the original string."
+  },
+  {
+    "id": 1,
+    "mode": "A_baseline",
+    "answer": "`_ensure_data_root` guarantees a usable data-root directory. It receives a `Path` named `root` and returns a `Path`. It first calls `safe_mkdir(root, what=\"data root\")`; if that succeeds it returns `root` unchanged. If `safe_mkdir` raises `ArtifactStorageError` — for example a full disk or broken permissions — the function imports `tempfile`, creates a fallback directory with `tempfile.mkdtemp(prefix=\"mscodebase_data_\")`, logs a warning containing the original root and the error, and returns the fallback path. Its purpose is resilience: the server must not crash when storage is unavailable, so it degrades to temporary storage and keeps running. Edge cases: exceptions other than `ArtifactStorageError` are not caught and propagate; the fallback is genuinely temporary and its contents may be lost; callers cannot distinguish the real root from the fallback without comparing paths; `tempfile` is imported lazily only in the failure branch."
+  },
+  {
+    "id": 1,
+    "mode": "B_runtime",
+    "answer": "`_ensure_data_root` ensures the data root exists, taking a `Path` and returning a `Path`. It attempts `safe_mkdir(root, what=\"data root\")` and returns `root` on success. On `ArtifactStorageError` it creates a `tempfile.mkdtemp(prefix=\"mscodebase_data_\")` fallback, logs a warning, and returns that path so the server keeps running despite unavailable storage. The accompanying tests exercise `ActionReceiptStore` over a valid `tmp_path`, checking that `record` succeeds, `path` exists, `get` returns the stored receipt and its verdict, unknown IDs return `None`, `query(limit=...)` returns the latest entries, `count` is correct, and re-verification makes `get` return the superseding receipt. These confirm the store behaves correctly when the root is writable. Edge cases remain: non-`ArtifactStorageError` exceptions propagate, the fallback is temporary, and callers cannot tell fallback from real root without comparison."
+  }
+]

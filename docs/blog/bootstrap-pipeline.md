@@ -4,7 +4,7 @@ description: "Part 4 of MSCodeBase Intelligence — Field Notes. Full source-mat
 tags: search, rag, codearchitecture, testing
 ---
 
-> **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "What Could Go Wrong" section.
+> **Disclaimer & Status:** This is an ongoing research investigation, not a feature announcement. We explore what happens when execution-derived test-to-code traceability becomes repository evidence for AI coding agents. Figures are reproducible, limitations are named, and the central question — whether this evidence helps LLMs — remains open.
 
 ---
 
@@ -168,9 +168,9 @@ Linked % on clean (non-mocked) third-party projects proved **higher** than on ou
 
 ---
 
-## And Now: Edges Met the Consumer (E17)
+## And Now: Runtime Evidence Becomes Repository Evidence (E17)
 
-Everything prior built `test ──TESTS──> function` edges inside PropertyGraph without leveraging them during search. E17 closed the loop:
+Everything prior built `test ──TESTS──> function` edges inside PropertyGraph. The question: what happens when we expose this execution-backed evidence to the retrieval system?
 
 - **Data:** 1,727 tests → **16,172 TESTS edges**, 1,595 Test nodes, 1,132 covered functions.
 - **Implementation:** `SymbolIndexAdapter.get_tests_for_symbol()` (incoming `TESTS` edges) + `Searcher._append_tests_signal()`: appends up to 3 tests per function (capped at `min(len, 6)` per query), `graph_score = 0.4` vs 1.0 for definitions, sentinel `chunk_index = -(20_000_000 + line)` avoiding collisions with code chunks in RRF ranking.
@@ -199,7 +199,11 @@ TESTS-signal: 34/35 queries received new covering tests (97.1%)
 graph_stage avg dt: off=6.52ms, on=7.53ms (overhead +15.3%)
 ```
 
-**Critical finding:** TESTS-signal **does not improve hit@1** (off=on). It only **adds context** (tests) to already-found results: 97.1% of queries received new covering tests. This means TESTS-signal is **context for LLM**, not a search improvement. If LLM doesn't use tests, the signal is useless.
+**Critical finding:** TESTS-signal **does not improve retrieval ranking** (hit@1 off=on at 94.3%, MRR unchanged at 0.957). It adds execution-backed evidence to the context (97.1% of queries received new covering tests), but this evidence does not change which function is found first.
+
+This means the value of TESTS-signal, if any, lies **not in retrieval** but potentially in **LLM understanding**: does seeing the actual tests that exercise a function help the model understand behavior, identify edge cases, or propose safer changes?
+
+This remains an open experiment.
 
 ### Language Coverage (Critical Limitation)
 
@@ -225,20 +229,18 @@ We tested TESTS-signal against 5 attack vectors:
 
 ## What Could Go Wrong
 
-A transparent list of risks and open validation items:
+### Fundamental question
+The central risk is not technical but conceptual: **execution-derived test evidence may not help LLMs at all**. If models already infer behavior from code structure, naming, and docstrings, adding explicit test links may provide no additional signal. This can only be answered by measuring LLM performance with and without TESTS evidence on tasks like behavior understanding, edge case detection, and change planning.
 
+### Technical limitations
 1. **Evaluation scope.** While expanded to a 35-query panel, evaluation is still performed on a single primary codebase without deep reranker interaction.
 
-2. **A/B did not improve hit@1.** Wide panel (35 queries):
+2. **A/B did not improve retrieval.** Wide panel (35 queries):
    - hit@1 off=33/35 on=33/35 (94.3%)
    - hit@3 off=34/35 on=34/35 (97.1%)
    - MRR(function) off=0.957 on=0.957
    
-   TESTS-signal **does not help find the function** (hit@1 did not improve). It only **adds context** (tests) to already-found results: 34/35 queries received new covering tests (97.1%).
-   
-   → **Conclusion:** TESTS-signal is **context for LLM**, not a search improvement.
-   → **Risk:** if LLM doesn't use tests, the signal is useless.
-   → **Fix:** verify on real LLM pipeline (not in this experiment).
+   TESTS-signal adds evidence but does not change retrieval ranking. The next experiment must measure LLM-level outcomes.
 
 3. **Overhead +15.3% for wide panel.** Average graph_stage time:
    - off: 6.52ms
@@ -246,23 +248,17 @@ A transparent list of risks and open validation items:
    - overhead: +15.3%
    
    For bootstrap (one-time run) this is acceptable. For prod search — may be critical with many queries.
-   
-   → **Risk:** at 1000 queries/sec, overhead may be noticeable.
-   → **Fix:** cache TESTS-signal (not done).
 
 4. **Red team: 5/5 attacks repelled.** Tested:
-   - ✅ **Concurrency:** 10 threads × 100 calls = 1,000 calls in 17.2s, 0 errors
-   - ✅ **Boundaries:** function with 234 tests = 16.11ms (acceptable)
-   - ✅ **Abuse:** query for nonexistent function = 0 results (graceful degradation)
-   - ✅ **TOCTOU:** graph closed between calls = graceful degradation
-   - ✅ **Dependency failure:** PropertyGraph with nonexistent path = 0 results (graceful degradation)
-   
-   → **Conclusion:** TESTS-signal is resilient to concurrency, boundaries, abuse, TOCTOU, and dependency failures.
+   - ✅ Concurrency: 10 threads × 100 calls = 1,000 calls in 17.2s, 0 errors
+   - ✅ Boundaries: function with 234 tests = 16.11ms (acceptable)
+   - ✅ Abuse: query for nonexistent function = 0 results (graceful degradation)
+   - ✅ TOCTOU: graph closed between calls = graceful degradation
+   - ✅ Dependency failure: PropertyGraph with nonexistent path = 0 results (graceful degradation)
 
 5. **Language limitation.** Dynamic trace is currently Python-only (~34% function coverage in Python, 0% in JS/TS/Go).
 
 6. **`graph_score = 0.4` is an empirical constant.** Chosen to stay strictly below function definitions, but unverified against BM25/reranker weight interactions.
-   → Verify on full pipeline; constant may become a parameter.
 
 7. **Pointer `:0`.** Test nodes from dynamic trace lack line numbers (`line=0`). Indexers must resolve test decorator line positions before enabling in prod.
 
@@ -277,6 +273,34 @@ A transparent list of risks and open validation items:
 12. **CI scale limit.** Running trace on 100k+ test suites may breach CI execution windows.
 
 13. **Clean-state status.** Verification was executed locally; clean CI state verification requires a PR merge.
+
+---
+
+## Related Work
+
+Test-to-code traceability is not a new problem. TCTracer (White & Krinke, 2022) and PyTCTracer already use dynamic execution traces to establish test→code links. Chen et al. (2025) replicated this on Python projects and found that many classical techniques work worse on Python than on Java.
+
+What differs in our approach is the **downstream application**:
+
+```
+Classical test-to-code traceability:
+  test → code (for maintenance, refactoring, impact analysis)
+
+Our approach:
+  test → runtime execution → persistent graph → repository retrieval → LLM context
+```
+
+Recent work is moving in similar directions:
+- **TDAD** (2026): graph-based impact analysis for coding agents, but uses static AST
+- **RepoGraph**: runtime overlay on static graph, but static-first
+- **TICoder** (2026): tests as behavioral context for LLM, but without runtime trace
+- **Agent Retrieval Bench** (2026): benchmark with code2test/trace2code tasks
+
+We have not found published work that explicitly builds the full chain from runtime execution to persistent graph to LLM context. This does not mean it doesn't exist — only that in our search we did not find it.
+
+Our research question is therefore: **what happens when execution-derived test-to-code traceability becomes repository evidence for an AI coding agent?**
+
+We do not yet know the answer. Current results show that TESTS-signal does not improve retrieval ranking (hit@1 unchanged at 94.3%). The next experiment is whether this evidence helps LLM understand behavior, identify edge cases, or propose safer changes.
 
 ---
 
