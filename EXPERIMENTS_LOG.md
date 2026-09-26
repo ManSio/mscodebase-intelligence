@@ -1,5 +1,19 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — Closure-walk: personal-path guard certifies the wrong set (CONFIRMED)
+
+**Гипотеза:** `tests/test_no_personal_paths.py` зелёный, потому что его scope — только human-facing docs; пути и username остаются в tracked-файлах вне scope (experiments/scripts/tests/data). Guard, сертифицирующий неправильное множество, — «a true statement about the wrong set» (Tom Jones, hooks thread).
+**Команда:** `python experiments/closure_walk/closure_walk.py`
+**Сырой вывод:**
+```
+integrity_clean=True failures=0
+in_scope_files=0 out_scope_files=98
+out_scope_violations=4699
+positive_hit=True none_clean=True
+```
+**Вердикт:** CONFIRMED. 4699 утечек в 98 файлах вне scope; guard зелёный только потому, что не смотрит туда. Контролы: planted leak найден, repo-relative пути не флагнятся.
+**Фикс:** не применён — требуется нормализация 4699 совпадений или расширение scope guard'а (решение владельца).
+
 ## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
 
 **Гипотеза:** `PropertyGraph.add_node/add_edge` открывают ОДНУ SQLite-транзакцию + named-mutex на каждый узел/ребро (`graph.py:526-544, 816-851`) → graph-сборка сериализована и I/O-bound; это root cause «CPU 5% + диск ~3 МБ/с» на фазе parsing.
