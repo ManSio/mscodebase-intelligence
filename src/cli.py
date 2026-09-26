@@ -10,7 +10,7 @@ allowlist (безопасные/детерминированные, миниму
 
 Пример:
     python -m src.cli get_task_status '{}'
-    python -m src.cli stale_detector '{}' --project D:/Project/Foo
+    python -m src.cli stale_detector '{}' --project <project_path>
 """
 from __future__ import annotations
 

@@ -1,6 +1,9 @@
 import re
+from pathlib import Path
 
-with open(r"D:\Project\MSCodeBase\src\core\indexing\parser.py", "r", encoding="utf-8") as f:
+REPO = Path(__file__).resolve().parent.parent
+
+with open(REPO / "src" / "core" / "indexing" / "parser.py", "r", encoding="utf-8") as f:
     content = f.read()
 
 # Find and replace parse_file method
@@ -47,7 +50,7 @@ new = '''    def parse_file(self, file_path: Path) -> tuple:
 
 if old in content:
     content = content.replace(old, new)
-    with open(r"D:\Project\MSCodeBase\src\core\indexing\parser.py", "w", encoding="utf-8") as f:
+    with open(REPO / "src" / "core" / "indexing" / "parser.py", "w", encoding="utf-8") as f:
         f.write(content)
     print("SUCCESS: parse_file replaced")
 else:

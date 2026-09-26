@@ -13,7 +13,7 @@ import shutil
 import sys
 from pathlib import Path
 
-SOURCE = Path(__file__).resolve().parent.parent  # D:\Project\MSCodeBase
+SOURCE = Path(__file__).resolve().parent.parent
 TARGET = Path(r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence")
 
 # Что копировать (относительно SOURCE)

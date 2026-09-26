@@ -24,7 +24,7 @@ from src.core.indexing.db_manager import LanceDBManager  # noqa: F401 (ensures i
 
 
 def main() -> int:
-    project_root = Path("D:/Project/MSCodeBase")
+    project_root = Path(__file__).resolve().parent.parent
     db_base = project_root / ".codebase_indices"
 
     # Find the actual lance db directory (lancedb_v2 / index_*.db)

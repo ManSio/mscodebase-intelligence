@@ -622,7 +622,7 @@ def format_analysis_result(title: str, data: Dict) -> str:
                 ):
                     # BS-5: вложенные list[dict] — компактно одной строкой,
                     # значения НЕ режем посреди (раньше str(list)[:60] давал
-                    # «'file': 'D:/Project/MSCodeBase/src/core/inde»).
+                    # «'file': '<project_path>/src/core/inde»).
                     inner = ", ".join(
                         "{"
                         + ", ".join(

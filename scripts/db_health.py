@@ -2,7 +2,7 @@
 """🧪 Диагностика БД индекса — проверка целостности без запуска MCP.
 
 Запуск: python scripts/db_health.py [путь_к_проекту]
-По умолчанию: D:\Project\MSCodeBase
+По умолчанию: директория репозитория (parent.parent от __file__)
 """
 import sys, os, time
 from pathlib import Path
@@ -70,5 +70,5 @@ def check_db(project_root: Path):
     print("\n✅ Диагностика завершена")
 
 if __name__ == "__main__":
-    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"D:\Project\MSCodeBase")
+    root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent
     check_db(root)
