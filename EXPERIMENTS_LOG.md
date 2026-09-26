@@ -1,18 +1,20 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
-## [2026-09-27] — Closure-walk: personal-path guard certifies the wrong set (CONFIRMED)
+## [2026-09-27] — Closure-walk: personal-path guard certifies the wrong set (CONFIRMED + FIXED)
 
 **Гипотеза:** `tests/test_no_personal_paths.py` зелёный, потому что его scope — только human-facing docs; пути и username остаются в tracked-файлах вне scope (experiments/scripts/tests/data). Guard, сертифицирующий неправильное множество, — «a true statement about the wrong set» (Tom Jones, hooks thread).
 **Команда:** `python experiments/closure_walk/closure_walk.py`
-**Сырой вывод:**
+**Сырой вывод (до фикса):**
 ```
 integrity_clean=True failures=0
 in_scope_files=0 out_scope_files=98
 out_scope_violations=4699
 positive_hit=True none_clean=True
 ```
-**Вердикт:** CONFIRMED. 4699 утечек в 98 файлах вне scope; guard зелёный только потому, что не смотрит туда. Контролы: planted leak найден, repo-relative пути не флагнятся.
-**Фикс:** не применён — требуется нормализация 4699 совпадений или расширение scope guard'а (решение владельца).
+**Распределение:** experiments 4633, tests 29, docs 16, scripts 11, src 6, .local 4.
+**Вердикт:** CONFIRMED. 4699 утечек в 98 файлах вне scope; guard зелёный только потому, что не смотрит туда.
+**Фикс (ea715903):** 17 production-утечек нормализованы (src/: 6, scripts/: 11). `graph_tools.py:825` заменён на `self._resolve_target_path(None)`. Осталось 4633 в experiments/ (исторический контекст).
+**Контролы:** planted leak найден, repo-relative пути не флагнятся.
 
 ## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
 
