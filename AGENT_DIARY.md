@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **NodeRAG vs chunked retrieval on long docs (2026-09-27, REFUTED):** 16 замороженных запросов (10 rules + 3 pos + 3 NONE), 2 arms (TF-IDF top-10 vs PropertyGraph BFS depth=3). A: 80% hit, 302K tokens; B: 70% hit, 170K tokens. Controls 3/3 both. Chunked wins on hit rate; graph wins on tokens but needs a seed symbol in the graph. Tom's claim not confirmed for our corpus. Artifacts: `experiments/noderag/`.
+
 - **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (ea715903). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
 
 - **F5 judged FULL (trials=10) + полнота данных (2026-09-26):** 16 запросов × 4 плеча × 10 trials (160/плечо). **A 16.3% · B 34.4% · C 97.5% · D 0.0%**; code **B 50% ≫ A 6.3%**, prose A 26% > B 19% (слабо). Majority: A 2/16, B 6/16, C 16/16, D 0/16. Судья 9.4% неединогласных. Воспроизводимо (trials=5 ↔ trials=10 согласованы). **Все данные в репо**: `results/f5judged/{judged_raw,judged_aggregate}.json` + `MANIFEST.json` (sha256 всех 809 артефактов 4A). Ключ: единица возврата влияет на читателя, не на ретрив. ⚠️ Крах opencode при parallel=8 → перезапуск на parallel=4.

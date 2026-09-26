@@ -1,5 +1,32 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — NodeRAG deterministic experiment: chunked vs graph traversal (REFUTED)
+
+**Гипотеза:** NodeRAG (graph traversal) outperforms chunked retrieval on long documents with rules buried inside (Tom Jones claim). Our corpus (AGENT_DIARY.md = 669 lines, EXPERIMENTS_LOG.md = 2666 lines) has exactly this shape.
+
+**Эксперимент:** 16 замороженных запросов (10 правил + 3 позитивных контроля + 3 NONE-контроля), 2 плеча: Arm A = TF-IDF chunked retrieval (top-10), Arm B = PropertyGraph BFS traversal (depth=3). Без LLM-вызовов, детерминированно.
+
+**Замороженные правила:** `experiments/noderag/frozen/rules.jsonl`, SHA256: `8657a7e3949b5a3eed8f025b8086dcf539cdafacd0cd335f28e607fcf0e44f9a`
+
+**Результат:**
+```
+Arm A (chunked TF-IDF): 8/10 = 80.0% hit rate, 301,981 tokens
+Arm B (graph BFS):      7/10 = 70.0% hit rate, 170,140 tokens
+Positive controls: 3/3 passed
+NONE controls: 3/3 clean
+Verdict: REFUTED (A >= B)
+```
+
+**Детали:**
+- Arm A промахнулся: R1 (begin_write), R2 (ArtifactGC) — TF-IDF не нашёл целевые файлы в топ-10
+- Arm B промахнулся: R1 (begin_write), R2 (ArtifactGC), R7 (LLAMA_EMBED_MAX_TOKENS) — символы не найдены в графе (не являются функциями/классами в AST-парсинге)
+- Arm B потребил на 43% меньше токенов (170K vs 302K)
+- Arm B при промахах возвращает 0 файлов (нет начального символа = нет обхода)
+
+**Вывод:** Для нашего корпуса chunked retrieval (TF-IDF) превосходит графовую навигацию по hit rate при большем расходе токенов. Графовая навигация эффективнее по токенам, но ограничена наличием начального символа в графе. Гипотеза Tom Jones о превосходстве NodeRAG на длинных документах с правилами внутри **опровергнута** для данного корпуса.
+
+**Артефакты:** `experiments/noderag/results/results.json`, `experiments/noderag/results/graph.db`, `experiments/noderag/frozen/rules.jsonl`
+
 ## [2026-09-27] — Closure-walk: personal-path guard certifies the wrong set (CONFIRMED + FIXED)
 
 **Гипотеза:** `tests/test_no_personal_paths.py` зелёный, потому что его scope — только human-facing docs; пути и username остаются в tracked-файлах вне scope (experiments/scripts/tests/data). Guard, сертифицирующий неправильное множество, — «a true statement about the wrong set» (Tom Jones, hooks thread).
