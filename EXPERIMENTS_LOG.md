@@ -1,5 +1,22 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — Planted-break gate: guards are alive, not decoration (CONFIRMED)
+
+**Гипотеза:** Guards verified only at build time drift into decoration. A planted break (deliberative violation) must be caught by the guard on every run.
+**Команда:** `python -m pytest tests/test_planted_break_gate.py -v`
+**Сырой вывод:**
+```
+6 passed in 0.10s
+- test_core_no_mcp_imports_negative_control PASSED
+- test_core_no_mcp_imports_positive_control PASSED
+- test_tools_no_direct_registry_negative_control PASSED
+- test_tools_no_direct_registry_positive_control PASSED
+- test_stale_references_negative_control PASSED
+- test_stale_references_positive_control PASSED
+```
+**Вердикт:** CONFIRMED. 3 guards × 2 controls (pos/neg) all pass. Guards catch planted violations and stay clean on valid input. Implements "commit gate with planted break on EVERY run" promise.
+**Артефакты:** `tests/test_planted_break_gate.py`, `experiments/planted_break/results.json`.
+
 ## [2026-09-27] — NodeRAG deterministic experiment: chunked vs graph traversal (REFUTED)
 
 **Гипотеза:** NodeRAG (graph traversal) outperforms chunked retrieval on long documents with rules buried inside (Tom Jones claim). Our corpus (AGENT_DIARY.md = 669 lines, EXPERIMENTS_LOG.md = 2666 lines) has exactly this shape.
