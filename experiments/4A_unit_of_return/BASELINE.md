@@ -4,6 +4,11 @@
 > «После» — только **дописывается** (`## Run N`), никогда не перезаписывается (Tom: удаление =
 > тюнинг под уже увиденное). Каждое число в отчёте несёт referent (популяция / corpus / candidate
 > set / n / judge / noise).
+>
+> **Frozen inputs живут ТОЛЬКО в репо:** `experiments/4A_unit_of_return/frozen/` (git-tracked).
+> Хранить замороженный список в `%TEMP%`/`/tmp` **запрещено** — прецедент 2026-09-26: список E7/E11
+> лежал в `%TEMP%/opencode/e11` и был удалён, verbatim-регрессия стала невозможной. Guard:
+> `tests/test_frozen_inputs_tracked.py`.
 
 ## System baseline — 2026-09-26 (MSCodeBase)
 
