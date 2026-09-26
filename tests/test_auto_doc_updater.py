@@ -157,3 +157,27 @@ def test_count_tools_real_project_guard():
     assert tools >= 44, f"_count_tools вернул {tools} — снова баг подсчёта?"
     if os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower() != "true":
         assert tools == 65, f"ожидалось 65 (README-контракт), получено {tools}"
+
+
+def test_update_readme_tools_count_is_env_independent(tmp_path, monkeypatch):
+    """Заголовок README не зависит от MSCODEBASE_EXECUTE_SCRIPT_ENABLED.
+
+    Контракт README (строка «65 registered ... опциональный execute_script → 66»)
+    и AGENTS.md требует ДЕТЕРМИНИРОВАННОГО публичного числа. Иначе на машине с
+    включённым флагом README «грязнеет» после каждого reindex (2026-09-26):
+    заголовок → 66, а примечание остаётся 65.
+    """
+    root = _make_tree(tmp_path)
+    (tmp_path / "src" / "mcp" / "tools" / "codebase_tool.py").write_text(
+        "class CodebaseTool:\n    pass\n\nclass ExecuteScriptTool:\n    pass\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "true")
+
+    updater = AutoDocUpdater()
+    assert updater._count_tools(root) == 5  # runtime-счётчик видит опцию
+    assert updater._update_readme(root) is True
+
+    text = (tmp_path / "README.md").read_text(encoding="utf-8")
+    assert "## 🔧 MCP Tools (4 total)" in text  # базовое число (не 5)
+    assert "#mcp-tools-4-total" in text
