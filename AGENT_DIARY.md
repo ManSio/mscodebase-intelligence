@@ -52,6 +52,19 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-26] Frozen list утерян и восстановлен — guard на местоположение
+**Status:** ✅ Восстановлен из opencode.db + guard добавлен.
+**Root Cause:** замороженный список E7/E11 (`HANDOUT_EN.md`; 16 пунктов = 10 симптомов + 6 контролей)
+хранился в `%TEMP%/opencode/e11/` (scratch) и **не коммитился**; при чистке temp удалён → verbatim-регрессия
+стала невозможной. Дневник/лог сохранили **результат**, но не **вход** (§13 «референт в одном месте»,
+§14.5 «числа подтверждены командой» — пробел).
+**Recovery:** содержимое найдено в базе сессий opencode `opencode.db` (write `rid=75331`, 2026-09-22;
+сверено с read `rid=75864`) → сохранено в репо `experiments/4A_unit_of_return/frozen/e7_HANDOUT_EN.recovered.md`.
+Это восстановление артефакта по timestamp (pre-look), **не** реконструкция по памяти.
+**SHA256:** `a6f719df100ec0e3256a91e1d78469a1dc0ba3a9595aa266046199fe9f68de0a`.
+**Guard:** `tests/test_frozen_inputs_tracked.py` — любой файл под `experiments/**/frozen/**` обязан быть git-tracked.
+**Правило:** frozen-входы живут только в репо; `%TEMP%`/`/tmp` запрещены.
+
 ## [2026-09-26] Конфунды агентной аппаратуры + pre-registered 4-arm (P1 Tom)
 **Status:** 🟡 Дизайн заморожен, прогона нет.
 **Root Cause вопроса:** «повлияет ли запуск чистых opencode-агентов/субагентов на эксперимент» — да, и в репо уже 6 каналов: (1) модель/budget читателя (E7: deepseek-low провалил NONE; qwen 8/10 vs longcat 4/10); (2) судья видит артефакт плеча (E17 v2: p=0.0046 → p=1.00); (3) самооценка генератор=судья (Tom 4727138); (4) аппаратура рапортует успех при мёртвом инструменте (E17 pilot 120/120 Error 500; Tom exit 0); (5) лёгкий контроль (E17 v6→v7 rho +0.54→не воспроизвёлся; Tom 4744919 hard-negative); (6) конкуренция за :8080/:8081 (инцидент 2026-09-25 — devbase-MCP убил наш сервер).
