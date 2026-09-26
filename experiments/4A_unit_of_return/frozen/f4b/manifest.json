@@ -28,8 +28,9 @@
     "deepseek-v4.1-flash": 3
   },
   "sha256": {
-    "handout_symptom.md": "d69bf9ee408c935b97687f877ef85ef60e2385626449d2100f654c91f9da40a2",
-    "handout_arrival.md": "072237b920a60ea4930e7025ac075c640798cb87de1fbda3c8f333db642f8b0c"
+    "handout_symptom.md": "2c0112ff450b7dae9c969d34aa99841752d238c815ea3dc5050537e4e342071c",
+    "handout_arrival.md": "4b3ebb3ec669112e652797c6a4b3d82773279ee4e0cda2cac76b7a4a0d732e54"
   },
-  "catalogue_sha256": "5429c4ff810758b9d811a22ae7b00c21ecf78e27ba1860d66354a784886a954d"
+  "catalogue_sha256": "5429c4ff810758b9d811a22ae7b00c21ecf78e27ba1860d66354a784886a954d",
+  "controls_note": "#14 replaced 2026-09-26: email-spacing was a semantic twin of the catalogue arrival sentence (guaranteed FP); now a genuine out-of-domain Docker item. Neighbour-domain FP is measured separately, not as a hard must-NONE."
 }

@@ -17,7 +17,7 @@ Instruction: For **each** numbered item, pick **one** entry from the index below
 11. A Cypher query asking for paths up to five hops silently returned only the direct neighbours instead of the deeper chain.
 12. Running the Zed settings cleanup erased every JSONC comment the user had written in settings.json.
 13. Two runs of the same benchmark gave opposite rankings.
-14. The email template renders with broken spacing in Outlook.
+14. The Docker image build fails because the base image tag was removed.
 
 ## Arrival index (what you would say -> entry)
 
