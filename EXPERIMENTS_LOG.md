@@ -2628,3 +2628,23 @@ whitelist stdlib+builtins+typing, внешние (Zed/Rust), commit-scopes. По
 **Вердикт:** xdist даёт лишь ~15% локально → не стоит сложности по умолчанию. Главный рычаг CI — кэш
 deps/install, а не CPU-параллельность. Дальше: кэш pip в `clean-state`; разбор/оптимизация
 `test_temporal_facts_generator`. (Локальный xdist отключён по прежнему решению владельца — конфликт с llama.)
+
+**CORRECTED (2026-09-26):** вывод «~15%, не берём» опровергнут: он был снят с `-n 4` на многоядерной
+машине (недогрузка CPU). С `-n auto` на 12 ядрах: serial 1865 тестов **197.1с** → `-n auto` **71.4с**
+(**×2.76**), с CI-shape coverage — **86.4с**; `0 failed`. В CI эффект ещё больше (см. Exp 26). Решение
+владельца 2026-09-23 «не берём» отменено владельцем 2026-09-26. См. AGENT_DIARY 2026-09-26.
+
+## Exp 26 — CI/тест-параллелизация: pytest-xdist `-n auto` (CONFIRMED, внедрено)
+
+**Гипотеза:** `-n auto` (все ядра, не 4) + контекст-независимый CI-coverage дадут кратное ускорение CI без потери качества.
+
+**Метод:** локально (12 ядер) serial vs `-n auto` vs `-n auto --cov`; в CI те же команды на ubuntu/windows (4 ядра), выборка та же (addopts `-m 'not slow and not benchmark'`).
+
+**Сырой результат (локально, 1865 тестов):** serial (no cov) **197.1с** → `-n auto` (no cov) **71.4с** → `-n auto` + CI-cov **86.4с**; **1865 passed / 0 failed**; coverage **54.58%** (gate 38%).
+CI до/после: test ubuntu **13m44s→1m58s**, windows **16m23s→3m11s**, clean-state **13m25s→1m41s**.
+Плюс `test_temporal_facts_generator` **36.6с→20.8с** (module-fixture для `generate(seed=7)`).
+
+**Ключевое препятствие:** `.coveragerc` `dynamic_context=test_function` несовместим с xdist (pytest-cov#604, DistCovError) → CI использует `.coveragerc.ci` (без контекстов) через `COVERAGE_RCFILE`; локальный/bootstrap сохраняют пер-тестовые контексты.
+
+**Вердикт:** CONFIRMED. Внедрено: #45 (test job), #46 (clean-state), #47 (pre-commit `verify_diary` Gate-zero, с fallback на serial, если xdist нет).
+**Остаточный риск:** Exp 25 фиксировал «конфликт с llama» при локальном xdist; полный параллельный прогон локально прошёл `0 failed`, но флейки серверных тестов многократно не проверялись → watch.
