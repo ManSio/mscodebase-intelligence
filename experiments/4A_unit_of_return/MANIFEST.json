@@ -2,7 +2,7 @@
  "experiment": "4A unit-of-return — artifact manifest",
  "date": "2026-09-26",
  "note": "sha256 of every artifact under experiments/4A_unit_of_return. Use to verify no data loss before/after runs.",
- "n_files": 809,
+ "n_files": 808,
  "files": [
   {
    "path": "BASELINE.md",
@@ -95,14 +95,9 @@
    "sha256": "a437e9573d1d18fe96549dc11eb1b5c406722487bb3d0105e9be1ff47b4167c6"
   },
   {
-   "path": "HANDOFF.md",
-   "bytes": 9483,
-   "sha256": "d148524989cc8c2f8143a4302afe1d6a3434561da69fdb7074a5ec44d54550d1"
-  },
-  {
    "path": "MANIFEST.json",
-   "bytes": 20386,
-   "sha256": "b4b97dd7ed593bdb6f4a75d30d201bfa8a2c3fa1736dce17286b23cd1e23bb9f"
+   "bytes": 134640,
+   "sha256": "2b40b9f8cfa9aa355269bcd9c56e555d0ff7475c506cefe920ad15594c2985cf"
   },
   {
    "path": "README.md",
@@ -386,8 +381,8 @@
   },
   {
    "path": "results/f5judged/judged_raw.json",
-   "bytes": 195136,
-   "sha256": "857326ee5aae68e3d1ff6ff1ae1d031b74a137675b5c5c07de80917653b999cc"
+   "bytes": 195111,
+   "sha256": "4be6d79d2012a5c52aeb7000a6de5cc955e9f065ef2c67ef4743b212a21a695e"
   },
   {
    "path": "results/f5judged/judged_raw_t5.json",
@@ -3111,8 +3106,8 @@
   },
   {
    "path": "results/f5judged/work/ans_F5S-14_C_3.txt",
-   "bytes": 404,
-   "sha256": "54f4f5c6ed0797e508fe3a1f7615cf18f3b61369c47b5dad0599388c8521c930"
+   "bytes": 386,
+   "sha256": "f3039ac3c165817fe8121652463f2c1389247d5a4caa4364cd12bda9f4767288"
   },
   {
    "path": "results/f5judged/work/ans_F5S-14_C_4.txt",
@@ -3596,13 +3591,13 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-01_A.txt",
-   "bytes": 6732,
-   "sha256": "95d293d01b740b1aefad8244490c3f1006fc440e773775a0366338c381df98d6"
+   "bytes": 6603,
+   "sha256": "e776c75842b9bccbf0ccd9c9f96fdb8c8874cef7d9d6b3d9cfdd91ed6c7fa140"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-01_B.txt",
-   "bytes": 29998,
-   "sha256": "d13d11326453a6772337c8518b46e04db829914c2b621799ee58aec0ab8cee2f"
+   "bytes": 29957,
+   "sha256": "129c99b0d1b950908939125370622824fc3e75feccb0836dae8ccd16b10e8318"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-01_C.txt",
@@ -3616,8 +3611,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-02_A.txt",
-   "bytes": 5434,
-   "sha256": "d89365254b7cb78e3a8aef75d7bf7dc763cacc0f8cf9ce89d6bf3b317368a48b"
+   "bytes": 5252,
+   "sha256": "bbf198c3da28816f31d0fde6a3583a5d1171dec362bbc1773602db0b3631b23d"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-02_B.txt",
@@ -3636,8 +3631,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-03_A.txt",
-   "bytes": 5101,
-   "sha256": "0c4d86e26d536e49a0402f371ab8487f32664a4be634bce50da5ed57152b560a"
+   "bytes": 4903,
+   "sha256": "7d16feb3e8056322ae8082971dfece597267dc90f132b2c345b2a737e3600d92"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-03_B.txt",
@@ -3656,8 +3651,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-04_A.txt",
-   "bytes": 5537,
-   "sha256": "08029b5deb7786856ce8bfd2958a0b8c26464be80643e74d6dedf338532572fa"
+   "bytes": 5371,
+   "sha256": "df41ffd24bf8b0de37a24864016db73ac01bf96eac642e12831c382f967eb3d9"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-04_B.txt",
@@ -3676,8 +3671,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-05_A.txt",
-   "bytes": 6749,
-   "sha256": "72e965f62cf03b681a61f44347b2db30a7c69b92939a173aa09690d2542405c5"
+   "bytes": 6621,
+   "sha256": "8484e48eac573dddf7dfcce249c1d654f26b9be0e7136d9e7d00b6473ac1e9f5"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-05_B.txt",
@@ -3696,8 +3691,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-06_A.txt",
-   "bytes": 4497,
-   "sha256": "9a3a7d65228de1d3c72cbeffa2ffe2cef91109ce25ac6bec1425e08ce6714a73"
+   "bytes": 4293,
+   "sha256": "3cb926c37ed549a82150d1e289c314e647bfee6320b83ab58da2add3c3d30439"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-06_B.txt",
@@ -3716,13 +3711,13 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-07_A.txt",
-   "bytes": 7638,
-   "sha256": "d47de554c92a6751fc46810b8fe042adfea6e9d8564c8e93459565500f82bf46"
+   "bytes": 7531,
+   "sha256": "c9f69de303be770525c853081f0426fd9059cc6f8e0e5baeed573cac1bd0cf27"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-07_B.txt",
-   "bytes": 11794,
-   "sha256": "dd0ad75d48020f2d7194c2dfe514e28df79546838b532ff4d61b5706168954ff"
+   "bytes": 11716,
+   "sha256": "dea62b0deaf58a510b7c193cbb889f921df67384ea468afa2688cb92a75b0566"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-07_C.txt",
@@ -3736,8 +3731,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-08_A.txt",
-   "bytes": 6687,
-   "sha256": "ed42f2ac8f9378580fb295521fcf5c2662ef03901a1ffb0cff3ebb0fe7a2de9e"
+   "bytes": 6627,
+   "sha256": "454224b147ea1fbb5065f559c8188379a79a19333ba7bd356ed0cd0e1f781c30"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-08_B.txt",
@@ -3756,8 +3751,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-09_A.txt",
-   "bytes": 8425,
-   "sha256": "543e824d24a4d5ab305c0fb1d90e42cbd7d624bd68595865f9232fdea96083e5"
+   "bytes": 8336,
+   "sha256": "f58faf9156f7896510e80c42cdd76c14cceef54c91bf1e11f8cda144419225a5"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-09_B.txt",
@@ -3776,8 +3771,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-10_A.txt",
-   "bytes": 8532,
-   "sha256": "0a571d053e338fbbd44c4dfe5eaac529bcbedb56998a002bcb7d70bd1cf61f9e"
+   "bytes": 8456,
+   "sha256": "6d43d587e6f83db13cfbdc749416c446557457b09d97c99207665cb6716f808b"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-10_B.txt",
@@ -3796,8 +3791,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-11_A.txt",
-   "bytes": 7702,
-   "sha256": "bf8af20c5af87227b74dff089196dd308c489742e406cc45eb00014b51ac7e9e"
+   "bytes": 7520,
+   "sha256": "8fb287d47a5d512ce9d6ef325647963e86e776c485e031b31563a46fc79a44ef"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-11_B.txt",
@@ -3816,8 +3811,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-12_A.txt",
-   "bytes": 8518,
-   "sha256": "9685cde8c5aedbc825b5ef0915c2a3f0d96169b60bb098ce54de575c4c771b2b"
+   "bytes": 8468,
+   "sha256": "9361bbcba78c12ee307df59993a6e5b5dbc2c796f8fd94bfdfa5ce7ffcb47c74"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-12_B.txt",
@@ -3826,8 +3821,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-12_C.txt",
-   "bytes": 11696,
-   "sha256": "0e51c9dd33f3343b47abad17fc2188cb5766c2001c8b0294140bf6318aac9f21"
+   "bytes": 11673,
+   "sha256": "90329cd5d6432e44bc7c4962ea07dc07a8e68b3c063ae78213ff5a22c468a386"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-12_D.txt",
@@ -3836,8 +3831,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-13_A.txt",
-   "bytes": 10185,
-   "sha256": "b51c57797bdffc7fd3b85744297172da4ab8c861f901024bf4855c078b5ae1a3"
+   "bytes": 10266,
+   "sha256": "9ccd97d1cac4ef542c992c874a7869d8fceb4ac97f27adc743d95c37acff8a24"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-13_B.txt",
@@ -3856,8 +3851,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-14_A.txt",
-   "bytes": 5233,
-   "sha256": "20a598ed390423d814cdc493771d1cd0bc36f9d40334463932692e822ff0b471"
+   "bytes": 5057,
+   "sha256": "09d4ccc63f4cb2992f875ec0ada2d7c87a5b16474990a0fafb1eac9ee0fbd887"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-14_B.txt",
@@ -3876,8 +3871,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-15_A.txt",
-   "bytes": 442,
-   "sha256": "5f9169cb20e5167e82d6d1caa08bbe9925b5180652eccd875f231121aab7f153"
+   "bytes": 420,
+   "sha256": "349beff50d1e0f9cafd5e552081a21767baea2e161fe6b252e45d31f2f777cc6"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-15_B.txt",
@@ -3896,8 +3891,8 @@
   },
   {
    "path": "results/f5judged/work/ctx_F5S-16_A.txt",
-   "bytes": 8529,
-   "sha256": "475b84347f80daab8802047ab6d28f7881fbc5bbf136d355469cb6989712cb09"
+   "bytes": 8527,
+   "sha256": "1aedef62e77453a34b848a62a10c0734c0c4494fc7d0a75401c92e008a381654"
   },
   {
    "path": "results/f5judged/work/ctx_F5S-16_B.txt",
