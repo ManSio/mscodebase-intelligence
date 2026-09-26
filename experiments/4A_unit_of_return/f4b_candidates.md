@@ -1,25 +1,42 @@
-# F4b — кандидаты свежего held-out списка (НЕ заморожено)
+# F4b — свежий held-out список (v3, финал кандидата; НЕ заморожено)
 
-Источник: 8 реальных симптомов, извлечённых **контекстно-чистым субагентом** (не читал каталог и
-использованный список) из `AGENT_DIARY.md` / `KNOWN_ISSUES.md` / `ISSUE.md` / `EXPERIMENTS_LOG.md`.
-Формулировки — «как пришло» (симптом, а не диагноз). Перед заморозкой: пройти `frozen_overlap_check.py`
-→ `OVERLAP: PASS`; затем добавить 6 контролей (3 must-hit, 3 must-NONE); sha256 ДО прогона.
+Источник: 8 реальных симптомов от **контекстно-чистого субагента** (не читал каталог/использованный список)
+из `AGENT_DIARY.md`/`KNOWN_ISSUES.md`/`ISSUE.md`/`EXPERIMENTS_LOG.md`. Формулировки — «как пришло».
+Пройдены: G6 token-чекер + **ручной semantic-review** (v1 отклонён: 5/8 reindex-skew + 2 двойника;
+v2: #6 заменён — был двойником used #13).
 
-1. The index snapshot showed the same files counted twice — the row count grew from about 9,991 to 19,653 even though no files had been added.
-2. A full reindex stalled at 52% and sat in "running" forever, with every process showing 0% CPU.
-3. The first `search_code` call after a period of inactivity timed out and never returned results — the server on `:8080` was no longer answering.
-4. While a full reindex was running, every MCP call in the session froze for roughly 7.5 minutes until the reindex finished.
-5. The pilot answers file came back as 120/120 `Error 500`, and a live smoke run printed `# FUNC NOT FOUND` for every class method.
-6. A reindex that had been running for about nine hours crashed and lost all of its work, with progress reset back to zero.
-7. `auto_update_docs(action="verify")` crashed with `IndexError: string index out of range`.
-8. During the parsing phase of a reindex the machine showed only ~5% CPU and ~3 MB/s of disk I/O while graph building crawled.
+1. Repeated identical queries were answered straight from the cache without ever executing the dense retrieval stage.
+2. A sandboxed user script could read the host process's API keys and tokens out of its environment.
+3. When two threads resolved the same service concurrently, two independent instances were created (e.g. two graph objects on one database).
+4. A tool's own docstring warned that sandboxing was absent, contradicting the strict sandbox the code actually ran, so an admin could wrongly disable it.
+5. The clean-state CI job died with exit 127 on the Linux runner because it invoked `.exe` paths that do not exist there.
+6. After a timeout, the project's latency metrics showed negative values, corrupting min_ms, avg_ms, P50/P95.
+7. A Cypher query asking for paths up to five hops silently returned only the direct neighbours instead of the deeper chain.
+8. Running the Zed settings cleanup erased every JSONC comment the user had written in settings.json.
 
 ## SOURCES (verbatim)
-1 -> KNOWN_ISSUES.md: "file_path distinct raw=1378 vs normalized=710 (path-duplication 668)"
-2 -> KNOWN_ISSUES.md: "live job 090149f1 (stuck 52% \"running\", 0 CPU)"
-3 -> AGENT_DIARY.md: "RemoteEmbedder его не поднимал → :8080 мёртв → WinError 10061 → поштучные ретраи → search_code timeout"
-4 -> AGENT_DIARY.md: "заморозка ВСЕХ MCP-вызовов"
-5 -> AGENT_DIARY.md: "e17_pilot_answers.json = 120/120 Error 500; live smoke gave # FUNC NOT FOUND"
-6 -> AGENT_DIARY.md: "run() копил все эмбеддинги и писал одним bulk_write в конце — краш на 330K чанков (~9ч) терял всё"
-7 -> AGENT_DIARY.md: "auto_update_docs(action=\"verify\") падал IndexError: string index out of range"
-8 -> EXPERIMENTS_LOG.md: "root cause «CPU 5% + диск ~3 МБ/с» на фазе parsing"
+1 -> EXPERIMENTS_LOG.md: "KI-101 (cache-hit пропускал dense-уровень)"
+2 -> ISSUE.md: "F-4: env = os.environ.copy() — ВСЕ секреты родителя доступны sandbox-скрипту."
+3 -> ISSUE.md: "Два параллельных resolve создадут два экземпляра (напр., два PropertyGraph на один WAL)."
+4 -> ISSUE.md: "Docstring: ⚠️ ВНИМАНИЕ: Изоляция (sandbox) ОТСУТСТВЕТ."
+5 -> ISSUE.md: "CI job clean-state на ubuntu-latest → venv/Scripts/pip.exe не существует → exit 127"
+6 -> ISSUE.md: "Записывает отрицательную latency в метрики, ломая min_ms, avg_ms, P50/P95."
+7 -> ISSUE.md: "Запрос MATCH (n)-[:CALLS*1..5]->(m) возвращает только прямых соседей, не 5 уровней."
+8 -> ISSUE.md: "ВСЕ комментарии пользователя в settings.json терялись."
+
+## Semantic review (финал)
+| # | Семья | Двойник в used-16? | Вердикт |
+|---|---|---|---|
+| 1 | retrieval/cache | нет | ✅ |
+| 2 | security/secrets | нет | ✅ |
+| 3 | concurrency/DI | нет | ✅ |
+| 4 | docs/contract | нет | ✅ |
+| 5 | CI/portability | used #5/#15 — CI, но иной механизм | ⚠️ помечен |
+| 6 | observability/metrics | нет (utils/metrics, не memory) | ✅ |
+| 7 | API/query semantics | нет | ✅ |
+| 8 | destructive tool | нет | ✅ |
+
+## Следующие шаги (до прогона)
+1. Добавить 6 контролей: 3 must-hit-парафразы записей + 3 must-NONE (вне домена; один — соседний домен, per G1).
+2. G6 token-чекер на ИТОГОВОМ (8+6) → `OVERLAP: PASS`.
+3. Заморозить sha256 ДО прогона; `--variant high` обязателен; прогон сохранить в `results/f4b/`.
