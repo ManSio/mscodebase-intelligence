@@ -1,0 +1,6 @@
+{
+  "frozen_at": "2026-09-27T12:00:00",
+  "rules_sha256": "8657a7e3949b5a3eed8f025b8086dcf539cdafacd0cd335f28e607fcf0e44f9a",
+  "count": 16,
+  "source": "experiments/noderag/frozen/rules.jsonl"
+}
