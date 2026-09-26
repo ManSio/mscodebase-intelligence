@@ -1,0 +1,836 @@
+### src/core/indexing/index_project_runner.py
+"""
+IndexProjectRunner — полная индексация проекта: парсинг → эмбеддинг → запись.
+
+Выделено из Indexer.index_project (Phase 7 — «Сердце»).
+3 фазы: параллельный парсинг (Phase 1), сортированный батч-эмбеддинг (Phase 2),
+  запись + prune + BM25 + IVF (Phase 3).
+
+PID-lock и write guard:
+- PID-lock (Layer 3): DatabaseLock (database_lock.py) — атомарный lock-файл
+  с PID; захватывается в LanceDBManager.__init__ (db_manager._db_lock.acquire()).
+  Второй процесс ждёт или падает.
+- reindex guard (Layer 1): Indexer.set_reindexing() / clear_reindexing()
+  — search fast-fail во время reindex.
+- write lock (Layer 2): threading.Lock сериализует write/reconnect
+  между потоками одного процесса.
+"""
+
+from __future__ import annotations
+
+import gc
+import logging
+import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Callable, Dict, Optional, Set
+
+__all__ = [
+    "IndexProjectRunner",
+]
+logger = logging.getLogger("mscodebase_server.index_project")
+
+
+# Hard bound for non-cancellable native links (LanceDB / llama.cpp) in the
+# indexing chain (2026-09-25 chain map). A stalled native call must not freeze
+# the phase forever. Env-overridable.
+_LINK_TIMEOUT_SEC = float(os.environ.get("MSCODEBASE_LINK_TIMEOUT_SEC", "300"))
+
+
+class IndexProjectRunner:
+    """Оркестрирует полную индексацию проекта.
+
+    Использует db_manager.begin_write() для сериализации записи в LanceDB.
+    PID-lock (Layer 3) обеспечивается DatabaseLock (db_manager._db_lock).
+
+    Resume (2026-09-20): запись инкрементальная. Файл, все чанки которого
+    эмбеддированы, записывается в LanceDB сразу (порциями по
+    WRITE_FLUSH_FILES), освобождая RAM. Краш переживает уже записанные
+    файлы: при перезапуске known_hashes (таблица) пропускает их.
+    """
+
+    WRITE_FLUSH_FILES = 32  # порция завершённых файлов на один bulk_write
+
+    def __init__(
+        self,
+        parse_file_only: Callable,
+        write_file_records: Callable,
+        embedder,
+        file_guard,
+        searcher,
+        table,
+        path_manager,
+        project_path: Path,
+        notification_broker=None,
+        summarizer=None,
+        last_reported_progress: int = -1,
+        db_manager=None,
+        db_writer=None,
+    ):
+        self._parse_file_only = parse_file_only
+        self._write_file_records = write_file_records
+        self.embedder = embedder
+        self.file_guard = file_guard
+        self.searcher = searcher
+        self.table = table
+        self.path_manager = path_manager
+        self.project_path = project_path
+        self._notification_broker = notification_broker
+        self.summarizer = summarizer
+        self._last_reported_progress = last_reported_progress
+        self.db_manager = db_manager
+        self._db_writer = db_writer
+        self._index_lock = threading.Lock()
+        # Sync table references after recreate (via on_recreate callback)
+        if self._db_writer is not None:
+            self._db_writer.set_on_recreate_callback(self._sync_table_ref)
+        self._cached_total_chunks = 0
+        self._cached_unique_files: set[str] = set()
+        self._integrity_verified = False
+        self._file_embeddings: dict = {}
+
+    # ── Self-healing helpers ───────────────────────────────────────────
+
+    def _reset_table_if_not_found(self, error: Exception, context: str, attempt: int) -> bool:
+        """Проверяет, является ли ошибка 'Not found' (LanceDB race),
+        и если да — пытается восстановить таблицу через reset_connection.
+        Возвращает True, если восстановление выполнено и можно retry.
+        """
+        err_str = str(error).lower()
+        if not any(kw in err_str for kw in ("not found", "lanceerror", "does not exist", "no such")):
+            return False
+
+        logger.warning(
+            f"{context}: LanceDB race detected ({error}), "
+            f"reset_connection + retry (attempt {attempt + 1}/2)"
+        )
+        try:
+            if self.db_manager is not None:
+                self.db_manager.reset_connection()
+                self.table = self.db_manager.table
+            else:
+                self._safe_recreate_table()
+        except Exception as rc_err:
+            logger.error(f"{context}: reset_connection failed: {rc_err}")
+            return False
+        return True
+
+    def _safe_recreate_table(self):
+        """Fallback: пересоздать таблицу если она потеряна.
+
+        INC-6C62: drop_table+create_table наследует битые ссылки на мёртвые
+        фрагменты — при наличии db_manager делегируем физическое пересоздание
+        (close → gc → rmtree → reconnect), иначе старое поведение.
+        """
+        if getattr(self, "db_manager", None) is not None:
+            try:
+                if self.db_manager.recreate_table_physical():
+                    self.table = self.db_manager.table
+                    return True
+            except Exception as e:
+                logger.error(f"Physical table recreate failed: {e}")
+            return False
+        try:
+            schema = self.table.schema
+            _db = getattr(self.table, '_db', None)
+            if _db:
+                try:
+                    _db.drop_table("codebase_chunks")
+                except Exception:
+                    pass
+                self.table = _db.create_table("codebase_chunks", schema=schema)
+                logger.info("✅ Table recreated after Not Found error")
+        except Exception as e:
+            logger.error(f"Table recreate failed: {e}")
+
+    def _bounded_link(self, fn, label: str, *, fatal: bool = False, default=None):
+        """Bound a NON-CANCELLABLE native link (LanceDB / llama.cpp).
+
+        Non-fatal links are skipped on timeout (index still usable); fatal links
+        (embed / DB write) raise a clear, resume-safe error — the incremental
+        checkpoint means a retry resumes instead of losing work (2026-09-25).
+
+        Note (2026-09-25): run() now excludes concurrent runs via begin_run()
+        (a lock SEPARATE from the write lock), so `fn` may acquire the write
+        lock (bulk_write/prune) on its own thread without deadlocking the
+        caller. Do NOT wrap this in _suspend_write_lock again.
+        """
+        from src.core.run_bounded import run_bounded
+
+        sentinel = object()
+        result = run_bounded(fn, _LINK_TIMEOUT_SEC, label=label, default=sentinel)
+        if result is sentinel:
+            if fatal:
+                raise RuntimeError(
+                    f"{label} exceeded {_LINK_TIMEOUT_SEC:.0f}s — native stall; "
+                    f"job aborted (resume-safe: re-run resumes from checkpoints)"
+                )
+            logger.warning(f"{label} exceeded {_LINK_TIMEOUT_SEC:.0f}s — skipped (non-fatal)")
+            return default
+        return result
+
+    def _verify_and_repair_table_integrity(self) -> None:
+        """Гарантирует целостность таблицы ДО индексации (resume-safe).
+
+        Вызывается в начале run(), до загрузки known_hashes и до принятия
+        skip-решений. Если таблица битая (мёртвые фрагменты из drop+create
+        наследования) — физически пересоздаём и синхронизируем ссылки.
+        Чтобы не делать полное чтение на каждом прогоне, повторные проверки
+        в рамках этого прогона пропускаются (один раз достаточно — после
+        первой успешной записи фрагменты живые, их создаём сами).
+        """
+        if getattr(self, "_integrity_verified", False):
+            return
+        self._integrity_verified = True
+        if self.table is None:
+            return
+        if self._verify_index_integrity():
+            return
+        logger.warning(
+            "INC-6C62: таблица не целостна (мёртвые фрагменты). "
+            "Физическое пересоздание ДО индексации."
+        )
+        ok = False
+        if self.db_manager is not None and hasattr(self.db_manager, "recreate_table_physical"):
+            try:
+                ok = self.db_manager.recreate_table_physical()
+            except Exception as e:
+                logger.error(f"Integrity repair: physical recreate failed: {e}")
+        if ok:
+            self._sync_table_ref(self.db_manager.table)
+            logger.info("Таблица физически пересоздана — известные хэши сброшены, полная индексация.")
+        else:
+            logger.error(
+                "Integrity repair FAILED — индексация начнётся, но optimize/IVF "
+                "может упасть с 'Not found'. Инкрементальная запись переживёт это."
+            )
+
+    def _verify_index_integrity(self) -> bool:
+        """Проверяет целостность таблицы LanceDB (INC-6C62).
+
+        Таблица, созданная drop+create поверх старой директории, может
+        наследовать ссылки на мёртвые фрагменты (*.lance отсутствуют на
+        диске) — count_rows/чтение фрагментов падают с 'Not found', и
+        финальная фаза optimize тоже. Проверка ДО optimize ловит это.
+
+        Returns:
+            True если таблица читается и все фрагменты на диске существуют.
+        """
+        try:
+            if self.table is None:
+                logger.warning("Index integrity check failed: table is None")
+                return False
+            # 1. count_rows не должен падать на мёртвых фрагментах
+            count = self.table.count_rows()
+            # 2. Полное чтение колонок file_path — реальный доступ к фрагментам
+            #    (count_rows может считать по манифесту, не читая данные)
+            _df = self.table.to_lance().to_pandas(columns=["file_path"])
+            del _df
+            # 3. Все фрагменты на диске существуют
+            table_dir = None
+            _dbm = getattr(self, "db_manager", None)
+            if _dbm is not None and hasattr(_dbm, "db_path"):
+                table_dir = _dbm.db_path / "codebase_chunks.lance" / "data"
+            fragments = list(table_dir.glob("*.lance")) if table_dir and table_dir.exists() else []
+            logger.info(f"Index integrity check passed: {count} rows, {len(fragments)} fragments")
+            return True
+        except Exception as e:
+            logger.error(f"Index integrity check failed: {e}")
+            return False
+
+    def _sync_table_ref(self, new_table):
+        """Sync table reference across all components after recreate."""
+        self.table = new_table
+        if hasattr(self, '_db_writer') and self._db_writer is not None:
+            self._db_writer.table = new_table
+
+    @contextmanager
+    def _suspend_write_lock(self):
+        """Temporarily releases the global write-lock (held by this same thread
+        via ``begin_write()``) for the duration of a ``with`` block.
+
+        KI 2026-08-28: ``_safe_ivf_index()`` (LanceDB ``optimize()`` /
+        ``create_index()``) is invoked from inside the ``begin_write()``
+        context that ``run()`` keeps for the WHOLE reindex. Running those
+        heavy operations under the global lock deadlocks the "Finalizing"
+        phase (both processes at 0% CPU, job never completes). Releasing
+        the lock around them removes the contention.
+
+        Safe because the reindex guard (``is_reindexing()``) — not this lock —
+        is what blocks concurrent search during reindex.
+        """
+        _dbm = getattr(self, "db_manager", None)
+        if _dbm is None:
+            yield
+            return
+        _wl = _dbm.begin_write()  # returns the same lock object as run() holds
+        # The outer `with begin_write()` holds this RLock exactly once in this
+        # thread. Release all nesting levels so optimize/create_index run free.
+        _released = 0
+        while True:
+            try:
+                _wl.release()
+                _released += 1
+            except RuntimeError:
+                break
+        try:
+            yield
+        finally:
+            for _ in range(_released):
+                try:
+                    _wl.acquire()
+                except RuntimeError:
+                    pass
+
+    def run(
+        self,
+        project_path: Path,
+        progress_callback: Optional[Callable] = None,
+        phase_callback: Optional[Callable] = None,
+        watchdog_heartbeat: Optional[Callable] = None,
+        prune_deleted_files: Optional[Callable] = None,
+        get_status: Optional[Callable] = None,
+        save_symbol_index: Optional[Callable] = None,
+    ) -> int:
+        """Запускает полную индексацию проекта.
+
+        Returns: количество проиндексированных файлов.
+        """
+        project_path = Path(project_path).resolve()
+        if not self.path_manager.is_safe_to_process(project_path):
+            logger.warning(f"Path not safe: {project_path}")
+            return 0
+
+        BATCH_SIZE = 32      # benchmarked: batch=32 = 100ch/s sustained, 50/50 ok (2026-07-26)
+        # Per-file hard bound: a hung tree-sitter parse must not freeze the phase
+        # (timeout-class audit #3, 2026-09-25).
+        _PARSE_TIMEOUT_SEC = float(os.environ.get("MSCODEBASE_PARSE_TIMEOUT_SEC", "60"))
+
+        # Runs mutually exclude each other via begin_run() (NOT the write lock:
+        # run() must not hold the write RLock across the whole run, or the DB
+        # ops _bounded_link executes on another thread deadlock — 2026-09-25).
+        # Fall back to begin_write() for partial/legacy db_manager fakes.
+        if self.db_manager is None:
+            _run_ctx = threading_lock_context()
+        else:
+            _begin_run = getattr(self.db_manager, "begin_run", None)
+            if _begin_run is None:
+                _begin_run = getattr(
+                    self.db_manager, "begin_write", threading_lock_context
+                )
+            _run_ctx = _begin_run()
+        with _run_ctx:
+            logger.info("🔑 Write lock acquired for indexing")
+
+            # Сканирование файлов
+            all_files: list = []
+            current_files_on_disk: Set[str] = set()
+
+            for root, dirs, files in os.walk(str(project_path.resolve())):
+                dirs[:] = [d for d in dirs if self.file_guard and not self.file_guard.should_skip_dir(d)]
+                for file_name in files:
+                    full_path = Path(root) / file_name
+                    if self.file_guard and self.file_guard.should_skip_file(full_path):
+                        continue
+                    all_files.append((root, file_name, full_path))
+
+            total_files = len(all_files)
+            logger.info(f"Found {total_files} files for indexing")
+            if progress_callback:
+                progress_callback("", 0, total_files, "scanning")
+
+            # INC-6C62 (resume-friendly): проверка целостности ДО загрузки
+            # known_hashes и ДО любых skip-решений. Если таблица унаследовала
+            # ссылки на мёртвые фрагменты (битая) — физически пересоздаём
+            # заранее: известных хэшей не будет → все файлы переиндексируются
+            # (правильнее, чем потерять skip-файлы после принятых решений).
+            # Инкрементальная запись (ниже) пишет по мере завершения файлов,
+            # поэтому целостность таблицы должна быть гарантирована до первого
+            # bulk_write. Один раз за прогон (на пустой таблице почти бесплатно:
+            # count_rows=0 + нет фрагментов).
+            self._bounded_link(
+                self._verify_and_repair_table_integrity, "verify_integrity"
+            )
+
+            # P0-FIX (регрессия ac6e5ba0e P1-3): загружаем известные хэши ОДИН раз
+            # в главном потоке (RLock reentrant — безопасно под begin_write) и
+            # передаём воркерам. Без этого каждый воркер Phase 1 ходит в БД
+            # (self.table.search) под _table_write_lock — тот же RLock, что держит
+            # главный поток на весь run() → RLock не реентерабелен между потоками
+            # → вечный deadlock (индексация зависала, MCP-инструменты таймаутили).
+            known_hashes: Dict[str, str] = {}
+            if self.table is not None:
+                try:
+                    _kh_df = self._bounded_link(
+                        lambda: self.table.to_lance().to_pandas(
+                            columns=["file_path", "file_hash"]
+                        ),
+                        "known_hashes_load", default=None,
+                    )
+                    if _kh_df is not None and not _kh_df.empty:
+                        from src.core.relpath import normalize_rel_path
+
+                        _kh_paths = _kh_df["file_path"].map(normalize_rel_path)
+                        known_hashes = dict(zip(_kh_paths, _kh_df["file_hash"]))
+                    logger.debug(f"known_hashes bulk load: {len(known_hashes)} files")
+                except Exception as _kh_err:
+                    logger.warning(f"known_hashes bulk load failed, parsing all files: {_kh_err}")
+
+            def _notify_progress(done: int, total: int, phase: str, current: str,
+                                  offset_pct: float = 0.0, span_pct: float = 100.0):
+                if not self._notification_broker:
+                    return
+                raw = (done / total) if total > 0 else 0.0
+                pct = int(offset_pct + raw * span_pct)
+                if pct in (0, 100) or (pct % 5 == 0 and pct != self._last_reported_progress):
+                    self._last_reported_progress = pct
+                    self._notification_broker.publish_sync(
+                        "mscodebase/indexing_status",
+                        {"status": "indexing" if pct < 100 else "idle",
+                         "progress": pct, "total_chunks": total, "current_file": current or ""},
+                    )
+
+            _notify_progress(0, total_files, "scanning", "", 0, 5)
+
+            #Phase 1: Parallel Parse
+            def _parse_worker(args):
+                _idx, _root, _fname, _full_path = args
+                from src.core.relpath import normalize_rel_path
+
+                # POSIX — otherwise `current_files_on_disk` ("\") would not match
+                # the POSIX paths in the DB and prune would delete the whole index.
+                _rel_path = normalize_rel_path(_full_path.relative_to(project_path))
+                current_files_on_disk.add(_rel_path)
+                try:
+                    from src.core.run_bounded import run_bounded
+
+                    parsed = run_bounded(
+                        lambda: self._parse_file_only(
+                            _full_path, _rel_path,
+                            source="filesystem", known_hashes=known_hashes,
+                        ),
+                        timeout=_PARSE_TIMEOUT_SEC,
+                        label=f"parse:{_fname}",
+                        default=None,
+                    )
+                    if parsed is not None:
+                        return {"parsed": parsed, "name": _fname, "rel": _rel_path}
+                except Exception as e:
+                    return {"error": str(e), "rel": _rel_path}
+                return None
+
+            _max_workers = max(1, min(4, (os.cpu_count() or 4) // 2))  # 1-CPU: 1//2=0 → ValueError
+            _parsed_list: list = []
+            _parse_errors = []
+
+            with ThreadPoolExecutor(max_workers=_max_workers) as _exec:
+                _futs = [_exec.submit(_parse_worker, (idx, root, fname, fpath))
+                         for idx, (root, fname, fpath) in enumerate(all_files)]
+                for i, fut in enumerate(_futs):
+                    try:
+                        res = fut.result()
+                        if res:
+                            if "error" in res:
+                                _parse_errors.append((res["rel"], res["error"]))
+                            else:
+                                _parsed_list.append(res)
+                                if watchdog_heartbeat:
+                                    watchdog_heartbeat(f"parse:{res['name']}")
+                    except Exception as e:
+                        logger.warning(f"Worker error: {e}")
+
+                    if i % max(1, total_files // 20) == 0 or i == total_files - 1:
+                        if progress_callback:
+                            progress_callback("", i + 1, total_files, "parsing")
+                        _notify_progress(i + 1, total_files, "parsing", "", 5, 50)
+
+            parsed_count = len(_parsed_list)
+            logger.info(f"Parse complete: {parsed_count}/{total_files} files changed")
+
+            if parsed_count == 0:
+                logger.info("No changes — index is current")
+                if prune_deleted_files:
+                    self._bounded_link(
+                        lambda: self._safe_prune(prune_deleted_files, current_files_on_disk),
+                        "prune", default=0,
+                    )
+                if self.searcher:
+                    self._bounded_link(self.searcher.reindex, "bm25_reindex")
+                if progress_callback:
+                    progress_callback("", total_files, total_files, "complete")
+                return 0
+
+            # ── Phase 2+3: Sort + Batch Embed + INCREMENTAL WRITE (resume) ──
+            # Раньше ВСЕ эмбеддинги копились в _all_embeddings и записывались
+            # одним bulk_write в Phase 3. Краш на большом проекте (330K чанков)
+            # терял всю работу: таблица пуста → known_hashes пуст → полный
+            # пере-embed. Теперь файлы, все чанки которых эмбеддированы,
+            # записываются сразу (порциями по WRITE_FLUSH_FILES) и освобождают
+            # RAM. Перезапуск = resume: записанные файлы пропускаются по хэшам.
+            _flat_chunks: list = [(fp_idx, text) for fp_idx, fp_data in enumerate(_parsed_list)
+                                  for text in fp_data["parsed"]["chunk_texts"]]
+            total_chunks = len(_flat_chunks)
+            logger.info(f"Total chunks: {total_chunks}, batch_size={BATCH_SIZE}")
+
+            _flat_chunks.sort(key=lambda x: len(x[1]))
+
+            if not getattr(self.embedder, 'is_ready', lambda: True)():
+                logger.error("Embedder not ready. Indexing aborted.")
+                return 0
+
+            # Сколько чанков в каждом файле → знаем когда файл «завершён».
+            _chunks_per_file: Dict[int, int] = {}
+            _flat_indices_by_file: Dict[int, list] = {}
+            for _idx, (_fp_idx, _) in enumerate(_flat_chunks):
+                _chunks_per_file[_fp_idx] = _chunks_per_file.get(_fp_idx, 0) + 1
+                _flat_indices_by_file.setdefault(_fp_idx, []).append(_idx)
+            _done_chunks: Dict[int, int] = {}  # fp_idx -> сколько чанков эмбеддировано
+
+            _all_embeddings: list = [None] * total_chunks
+            # Инкрементальная запись: флешим порциями завершённые файлы.
+            _pending_prepared: list = []       # накопленные (records, escaped, existing_hash)
+            _pending_map: list = []            # (fp_idx, rec_count) для учёта после write
+            _indexed_count = 0
+
+            def _flush_pending():
+                """Записывает накопленные готовые файлы в БД и освобождает RAM."""
+                nonlocal _pending_prepared, _pending_map, _indexed_count
+                if not _pending_prepared:
+                    return
+                _t_write = time.time()
+                _written = (
+                    self._bounded_link(
+                        lambda: self._db_writer.bulk_write(_pending_prepared),
+                        "bulk_write", fatal=True,
+                    )
+                    if self._db_writer else 0
+                )
+                _write_elapsed = time.time() - _t_write
+                _indexed_count += len(_pending_map)
+                for _fp_idx, _rec_count in _pending_map:
+                    _rel = _parsed_list[_fp_idx]["parsed"]["rel_path"]
+                    with self._index_lock:
+                        self._cached_total_chunks += _rec_count
+                        self._cached_unique_files.add(_rel)
+                    if watchdog_heartbeat:
+                        watchdog_heartbeat(f"write:{Path(_rel).name}")
+                logger.info(
+                    f"Bulk write: {_written} records from {len(_pending_map)} files "
+                    f"in {_write_elapsed:.1f}s (saved {len(_pending_prepared)} prepared)"
+                )
+                # Освобождаем эмбеддинги и parsed-данные записанных файлов.
+                # _all_embeddings зануляем по индексам, чтобы big-проект не
+                # держал ВСЕ вектора в RAM до конца (330K x 1024d x 4B ≈ 1.3GB).
+                for _fp_idx, _ in _pending_map:
+                    for _flat_i in _flat_indices_by_file.get(_fp_idx, ()):
+                        _all_embeddings[_flat_i] = None
+                    _pending_list = self._file_embeddings.pop(_fp_idx, None)
+                    if _pending_list:
+                        _pending_list.clear()
+                    _parsed_list[_fp_idx] = None  # освобождаем тексты чанков
+                _pending_prepared = []
+                _pending_map = []
+                gc.collect()
+
+            _embed_t0 = time.time()
+
+            for batch_start in range(0, total_chunks, BATCH_SIZE):
+                batch_end = min(batch_start + BATCH_SIZE, total_chunks)
+                batch_data = _flat_chunks[batch_start:batch_end]
+                batch_texts = [text for (_, text) in batch_data]
+
+                t0 = time.time()
+                try:
+                    embeddings = self._bounded_link(
+                        lambda: self.embedder.embed_batch(batch_texts),
+                        "embed_batch", fatal=True,
+                    )
+                except Exception as embed_err:
+                    logger.error(f"Embedder error: {embed_err}. Aborted.")
+                    raise RuntimeError(f"Embedder unavailable: {embed_err}. Aborted.") from embed_err
+
+                embed_time = time.time() - t0
+                if not embeddings or len(embeddings) != len(batch_texts):
+                    raise RuntimeError(
+                        f"Embedder returned {len(embeddings) if embeddings else 0} vectors "
+                        f"instead of {len(batch_texts)} — aborted."
+                    )
+
+                for i, flat_idx in enumerate(range(batch_start, batch_end)):
+                    _all_embeddings[flat_idx] = embeddings[i]
+
+                # Помечаем завершённые в этом батче файлы.
+                # Файл «завершён» когда эмбеддированы ВСЕ его чанки.
+                _just_completed = []
+                for _fp_idx, _ in batch_data:
+                    _done_chunks[_fp_idx] = _done_chunks.get(_fp_idx, 0) + 1
+                    if _done_chunks[_fp_idx] == _chunks_per_file[_fp_idx]:
+                        _just_completed.append(_fp_idx)
+                if _just_completed:
+                    for _fp_idx in _just_completed:
+                        _file = self._file_embeddings.setdefault(
+                            _fp_idx, {"parsed": _parsed_list[_fp_idx]["parsed"], "vecs": []}
+                        )
+                        # Собираем vecs файла из _all_embeddings в порядке появления
+                        # в отсортированном _flat_chunks (тот же порядок, что и раньше
+                        # в Phase 3 — состав записи идентичен, индексы старых данных
+                        # остаются совместимыми).
+                        _file["vecs"] = [
+                            _all_embeddings[_flat_i]
+                            for _flat_i in _flat_indices_by_file.get(_fp_idx, ())
+                        ]
+                        if self._db_writer is None:
+                            # Fallback: per-file write (оригинальный путь для
+                            # внешних вызовов без db_writer). Resume-инвариант
+                            # не затрагивается: одноразовость записи сохраняется.
+                            for attempt in range(2):
+                                try:
+                                    if self._write_file_records(
+                                        _parsed_list[_fp_idx]["parsed"], _file["vecs"]
+                                    ):
+                                        _indexed_count += 1
+                                    break
+                                except Exception as e:
+                                    if attempt == 0 and self._reset_table_if_not_found(
+                                        e, "write_file_records", attempt
+                                    ):
+                                        continue
+                                    logger.warning(
+                                        f"Write error {_file['parsed']['rel_path']} "
+                                        f"(attempt {attempt+1}/2): {e}"
+                                    )
+                                    break
+                            if watchdog_heartbeat:
+                                watchdog_heartbeat(f"write:{Path(_file['parsed']['rel_path']).name}")
+                            continue
+                        _prepared = None
+                        try:
+                            _prepared = self._db_writer.prepare_records(
+                                _parsed_list[_fp_idx]["parsed"], _file["vecs"],
+                                summarizer=self.summarizer, enable_summaries=False,
+                            )
+                        except Exception as e:
+                            logger.warning(
+                                f"Prepare error {_file['parsed']['rel_path']}: {e} — file skipped"
+                            )
+                        if _prepared and _prepared[0]:
+                            _pending_prepared.append(_prepared)
+                            _pending_map.append((_fp_idx, len(_prepared[0])))
+
+                # Флеш порций завершённых файлов (не ждём конца прогона —
+                # это и есть resume-чекпойнт для краша).
+                if len(_pending_map) >= self.WRITE_FLUSH_FILES or batch_end >= total_chunks:
+                    _flush_pending()
+
+                # sleep removed — benchmarked: batch=32 sustained 100ch/s without pauses (2026-07-26)
+
+                if batch_start % (BATCH_SIZE * 5) == 0 or batch_end >= total_chunks:
+                    elapsed = time.time() - _embed_t0
+                    done = min(batch_end, total_chunks)
+                    speed = done / elapsed if elapsed > 0 else 0
+                    logger.info(
+                        f"[embed] {done}/{total_chunks} "
+                        f"batch={len(batch_texts)}ch/{embed_time:.1f}s={len(batch_texts)/max(embed_time,0.001):.0f}ch/s "
+                        f"avg={speed:.0f}ch/s elapsed={elapsed:.0f}s"
+                    )
+                    _notify_progress(done, total_chunks, "embedding", "", 50, 40)
+                    if progress_callback:
+                        progress_callback("", done, total_chunks, "embedding")
+                    if watchdog_heartbeat:
+                        watchdog_heartbeat(f"embed:{done}/{total_chunks}")
+                gc.collect()
+
+            _embed_total = time.time() - _embed_t0
+            logger.info(f"Embed complete: {total_chunks} in {_embed_total:.1f}s "
+                        f"({total_chunks/max(_embed_total,0.001):.0f} ch/s)")
+            _notify_progress(total_chunks, total_chunks, "writing", "", 90, 10)
+
+            # Файлы, у которых все чанки уже эмбеддированы, но не попали во
+            # флеш (хвост < WRITE_FLUSH_FILES) — добиваем безусловным флешем.
+            _flush_pending()
+
+            indexed_count = _indexed_count
+            # INC-6C62: verify-проверку больше не делаем здесь — она
+            # перенесена в _verify_and_repair_table_integrity() в начале
+            # run(). После инкрементальных bulk_write таблица всегда цела
+            # (фрагменты созданы нами), а повторное полное чтение на 330K
+            # чанков дорого и теперь не нужно.
+
+            logger.info(f"Write complete: {indexed_count} files")
+            if progress_callback:
+                progress_callback("", total_files, total_files, "indexing")
+
+            time.sleep(1)  # Windows flush
+
+            # Prune (с self-healing от Not Found)
+            pruned = 0
+            if prune_deleted_files:
+                pruned = self._bounded_link(
+                    lambda: self._safe_prune(prune_deleted_files, current_files_on_disk),
+                    "prune", default=0,
+                )
+
+            # BM25 reindex
+            if indexed_count > 0 and self.searcher:
+                if progress_callback:
+                    progress_callback("", total_files, total_files, "rebuilding_bm25")
+                    self._bounded_link(self.searcher.reindex, "bm25_reindex")
+
+            # P2-5/LOGIC-5: сбрасываем кэш поиска (TTL 30с слишком долго
+            # для свежих данных — после reindex результаты stale до 30с).
+            if self.searcher is not None and hasattr(self.searcher, "invalidate_cache"):
+                self.searcher.invalidate_cache()
+
+            # IVF index
+            if self.table:
+                _row_count = self.table.count_rows()
+                if _row_count > 1000:
+                    # Finalizing-фаза: IVF create_index — тяжёлая операция без единого
+                    # progress-колбэка (прогресс-бар застывал на 0.8/~90% на эту минуту,
+                    # 2026-09-03). Сообщаем о входе в фазу, чтобы job.progress двигался.
+                    if progress_callback:
+                        progress_callback("", 10, 10, "finalizing")
+                    self._safe_ivf_index()
+                    if progress_callback:
+                        progress_callback("", 10, 10, "finalizing")
+
+            final_stats = get_status() if get_status else {}
+            if progress_callback:
+                progress_callback("", total_files, total_files, "complete")
+
+            if self.summarizer:
+                self._bounded_link(self.summarizer.save_cache, "summarizer_save")
+
+            if save_symbol_index:
+                self._bounded_link(save_symbol_index, "save_symbol_index")
+
+            logger.info(
+                f"Indexing complete: {indexed_count} new/changed, "
+                f"{pruned} removed, total {final_stats.get('total_chunks', 0)} chunks"
+            )
+            return indexed_count
+
+    def _safe_prune(self, prune_deleted_files: Callable, current_files_on_disk: Set[str]) -> int:
+        """Prune с self-healing от Not Found (LanceDB race)."""
+        for attempt in range(2):
+            try:
+                pruned = prune_deleted_files(current_files_on_disk)
+                if pruned > 0:
+                    logger.info(f"Pruned {pruned} stale files")
+                return pruned
+            except Exception as e:
+                if attempt == 0 and self._reset_table_if_not_found(e, "prune", attempt):
+                    continue
+                logger.warning(f"Prune failed (attempt {attempt+1}/2): {e}")
+                return 0
+        return 0
+
+    def _safe_ivf_index(self, timeout: float = 300.0) -> None:
+        """IVF index с self-healing от Not Found.
+
+        KI 2026-08-28: этот метод вызывается ИЗ-ПОД begin_write() (который
+        держит глобальный _write_lock весь reindex). Вызывающий ОБЯЗАН
+        отпустить lock вокруг этого вызова (см. _suspend_write_lock в run()),
+        иначе optimize()/create_index() deadlock'уют в фазе Finalizing.
+
+        ``create_index`` жёстко ограничен ``timeout``'ом: даже если LanceDB
+        зависнет, фаза Finalizing гарантированно завершится и job не висит
+        вечно (индекс — non-critical, поиск работает и без него).
+        """
+        # KI 2026-08-28: тяжёлые LanceDB-операции НЕ должны выполняться под
+        # глобальным _write_lock (который держит run() весь reindex) — иначе
+        # deadlock в фазе Finalizing. Отпускаем lock на время optimize/create_index.
+        with self._suspend_write_lock():
+            self._run_ivf_index_body(timeout=timeout)
+
+    def _call_with_timeout(self, fn, timeout: float, label: str) -> bool:
+        """Bound a NON-CANCELLABLE call by abandoning a daemon worker.
+
+        A Python thread cannot be cancelled; ``Future.result(timeout=)`` only
+        stops waiting, and ``ThreadPoolExecutor.shutdown(wait=True)`` would then
+        JOIN the still-running worker (the IVF finalize hang, 2026-09-25: job
+        stuck at 95% forever). The only way a timeout can bound a hung native
+        LanceDB call is to NOT join it: run it on a daemon thread and return on
+        timeout. ``daemon=True`` keeps process exit clean.
+
+        Returns True if ``fn`` finished, False if it was abandoned.
+        """
+        from src.core.run_bounded import run_bounded
+
+        sentinel = object()
+        result = run_bounded(fn, timeout, label=f"ivf-{label}", default=sentinel)
+        return result is not sentinel
+
+    def _run_ivf_index_body(self, timeout: float = 300.0) -> None:
+        # Phase 1: optimize
+        def _safe_optimize():
+            for attempt in range(2):
+                try:
+                    if not self._call_with_timeout(
+                        self.table.optimize, timeout, "optimize"
+                    ):
+                        # Abandoned (hung native call). The table state is
+                        # uncertain — do NOT build create_index on top of it.
+                        return False
+                    return True
+                except Exception as e:
+                    if attempt == 0 and self._reset_table_if_not_found(e, "optimize", attempt):
+                        continue
+                    logger.warning(f"Table optimize failed (non-critical): {e}")
+                    return False
+            return False
+
+        if not _safe_optimize():
+            logger.warning("Optimize failed after retries, skipping index creation")
+            return
+
+        # Drop old indices
+        try:
+            for idx in self.table.list_indices():
+                idx_name = getattr(idx, "name", None)
+                if idx_name:
+                    self.table.drop_index(idx_name)
+        except Exception as _drop_err:
+            logger.debug(f"Drop old index (non-critical): {_drop_err}")
+
+        # Phase 2: create IVF_FLAT index
+        def _create_index_once(self=self) -> None:
+            try:
+                self.table.create_index(
+                    "vector",
+                    index_type="IVF_FLAT",
+                    metric="cosine",
+                    replace=True,
+                )
+                logger.info("IVF_FLAT index created")
+            except TypeError:
+                # Fallback to legacy positional API (< 0.33)
+                self.table.create_index(
+                    metric="cosine", vector_column_name="vector",
+                    index_type="IVF_FLAT", replace=True,
+                )
+                logger.info("IVF_FLAT index created (legacy API)")
+
+        def _safe_create_index():
+            for attempt in range(2):
+                try:
+                    self._call_with_timeout(
+                        _create_index_once, timeout, "create_index"
+                    )
+                    return
+                except Exception as e:
+                    if attempt == 0 and self._reset_table_if_not_found(e, "create_index", attempt):
+                        continue
+                    logger.warning(f"create_index failed (non-critical): {e}")
+                    return
+
+        _safe_create_index()
+
+
+def threading_lock_context():
+    """Fallback: если db_manager нет — используем простой threading.Lock."""
+    import threading
+    return threading.Lock()

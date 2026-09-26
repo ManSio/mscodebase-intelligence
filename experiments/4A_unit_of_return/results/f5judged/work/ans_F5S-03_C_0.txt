@@ -1,0 +1,5 @@
+Потому что `'gitwildmatch'` **deprecated** (устаревший), как указано в комментарии на строке 53 и docstring.
+
+
+> build · longcat-2.0
+

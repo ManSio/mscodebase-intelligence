@@ -1,0 +1,7 @@
+MCP-сервер определяет открытый проект через **SQLite базу данных Zed** (`%LOCALAPPDATA%/Zed`), читая `multi_workspace_state.active_workspace_id` — недокументированная внутренняя БД Zed, где хранится ID активного окна.
+
+Контекст: `src/core/platform_utils.py:61` ("Путь к SQLite базе данных Zed (workspaces, multi_workspace_state)") + фрагмент про `source="ACTIVE_WORKSPACE"` из `results_tasks_v3.json`.
+
+
+> build · longcat-2.0
+

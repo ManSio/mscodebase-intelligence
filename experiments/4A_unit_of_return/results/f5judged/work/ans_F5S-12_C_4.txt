@@ -1,0 +1,5 @@
+Да, метрики сохраняются. Согласно документации (строка 31): «Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup». Метрики пишутся в JSON каждые 10 вызовов и при завершении работы, а при старте — читаются обратно.
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,5 @@
+MCP-сервер определяет открытый проект через внутреннюю SQLite базу данных Zed по пути `%LOCALAPPDATA%/Zed`, читая `multi_workspace_state.active_workspace_id` — идентификатор активного окна.
+
+
+> build · longcat-2.0
+

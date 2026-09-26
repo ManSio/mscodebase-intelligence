@@ -7,21 +7,21 @@ Design (README §1, RESEARCH deltas §9, judge-confound §10):
   - Judge is a DIFFERENT model (no self-grading), sees ONLY: question +
     identical reference (gold evidence_span) + the candidate answer under an
     opaque token. It never sees the arm name.
-  - Majority over --trials; --judge-repeats measures judge stability
-    (flip-rate on the same artifact).
-  - --leak-check: same candidate under two labels -> verdicts must match.
+  - Majority over --trials; --judge-repeats measures judge stability.
 
-Runs via the opencode CLI (established mechanism; no raw API keys). Slow:
-each call ~30-60s. Use --dry-run to validate plumbing without calls, or
---max-calls to bound a pilot.
+Runs via the opencode CLI (same mechanism as F4b), but parallel across
+(query, arm) units like scripts/f4b_run_all.py. A silent opencode fallback to
+another model is REJECTED (channel #1 guard), not graded.
 
 Usage:
-    python scripts/f5_judged_run.py --outdir experiments/4A_unit_of_return/results/f5judged --dry-run
-    python scripts/f5_judged_run.py --outdir ... --n 4 --arms A,B,C,D --trials 1 --timeout 300
+    python scripts/f5_judged_run.py --outdir <dir> --dry-run
+    python scripts/f5_judged_run.py --outdir <dir> --ids F5S-01,F5S-09 \
+        --arms A,B,C,D --trials 3 --parallel 8 --timeout 400
 """
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import json
 import os
 import random
@@ -71,6 +71,9 @@ def _opencode_bin() -> str:
 
 def _run(bin_: str, prompt: str, model: str, workdir: Path, files: list[Path],
          timeout: int) -> str:
+    # Windows: a multi-line argv prompt makes opencode.cmd hang / fall back to a
+    # default model. Keep the CLI prompt single-line (F4b did the same).
+    prompt = " ".join(prompt.split())
     cmd = [bin_, "run", prompt, "--model", model, "--pure", "--dir", str(workdir),
            "--variant", VARIANT]
     for f in files:
@@ -109,11 +112,6 @@ def _load_queries() -> list[dict]:
     return [json.loads(line) for line in lines if line.strip()]
 
 
-def _retrieve(searcher, q: str, limit: int = 10) -> list[dict]:
-    out = searcher.search_with_mode(q, mode="quality", limit=limit)
-    return out.get("results", [])
-
-
 def _arm_context(arm: str, results: list[dict], gold: str) -> str:
     if arm == "D":
         return ""
@@ -148,15 +146,15 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--n", type=int, default=4)
-    ap.add_argument("--ids", default="", help="comma list of query ids to run (overrides --n)")
+    ap.add_argument("--ids", default="", help="comma list of query ids (overrides --n)")
     ap.add_argument("--arms", default="A,B,C,D")
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--judge-repeats", type=int, default=1)
+    ap.add_argument("--parallel", type=int, default=6)
     ap.add_argument("--reader-model", default=READER_MODEL)
     ap.add_argument("--judge-model", default=JUDGE_MODEL)
-    ap.add_argument("--timeout", type=int, default=300)
+    ap.add_argument("--timeout", type=int, default=400)
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--max-calls", type=int, default=0)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -167,8 +165,9 @@ def main() -> int:
         queries = [q for q in queries if q["id"] in want]
     else:
         queries = queries[: args.n]
+
     outdir = Path(args.outdir)
-    workdir = outdir / "work"
+    workdir = (outdir / "work").resolve()
     workdir.mkdir(parents=True, exist_ok=True)
     (workdir / "opencode.json").write_text(json.dumps({
         "mcp": {k: {"enabled": False} for k in
@@ -177,13 +176,12 @@ def main() -> int:
                        "websearch": "deny", "external_directory": "deny"}}, indent=2), encoding="utf-8")
 
     rng = random.Random(args.seed)
-    calls = {"n": 0}
 
-    def budget_ok() -> bool:
-        return args.max_calls == 0 or calls["n"] < args.max_calls
-
-    searcher = None
-    if not args.dry_run:
+    # Sequential pre-retrieval (Searcher holds the index lock read-only).
+    contexts: dict[tuple[str, str], str] = {}
+    if args.dry_run:
+        results_by_q = {q["id"]: [] for q in queries}
+    else:
         from src.core.artifact_paths import get_db_path
         from src.core.di_container import create_service_collection
         from src.core.indexing.file_guard import FileGuard
@@ -197,74 +195,77 @@ def main() -> int:
         indexer = Indexer(db_path=get_db_path(ROOT), embedder=embedder, file_guard=FileGuard(ROOT),
                           project_path=ROOT, parser=CodeParser(), symbol_index=SymbolIndex())
         searcher = Searcher(indexer, embedder)
-
-    bin_ = None if args.dry_run else _opencode_bin()
-    records = []
+        results_by_q = {}
+        for q in queries:
+            out = searcher.search_with_mode(q["question"], mode="quality", limit=10)
+            results_by_q[q["id"]] = out.get("results", [])
     for q in queries:
         gold = _norm(q["gold_file"])
-        results = _retrieve(searcher, q["question"], 10) if searcher else []
-        rec = {"id": q["id"], "population": q.get("population"), "gold_file": gold,
-               "reference": q["evidence_span"], "arms": {}}
-        order = list(arms)
-        rng.shuffle(order)  # randomized arm order (blind)
-        for arm in order:
-            ctx = _arm_context(arm, results, gold)
-            ctx_file = workdir / f"ctx_{q['id']}_{arm}.txt"
-            ctx_file.write_text(ctx, encoding="utf-8")
-            answers, verdicts = [], []
-            for t in range(args.trials):
-                if not budget_ok():
-                    answers.append("[BUDGET]")
-                    continue
-                reader_bad = False
-                if args.dry_run:
-                    answers.append("[DRY]")
-                    calls["n"] += 1
-                else:
-                    prompt = f"{READER_INSTR}\n\nQuestion: {q['question']}"
-                    a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
-                    calls["n"] += 1
-                    answers.append(a)
-                    reader_bad = a.startswith("[")
-                    (workdir / f"ans_{q['id']}_{arm}_{t}.txt").write_text(a, encoding="utf-8")
-                vrep = []
-                for _ in range(args.judge_repeats):
-                    if reader_bad:
-                        vrep.append("invalid")
-                        continue
-                    if not budget_ok():
-                        vrep.append("uncertain")
-                        continue
-                    if args.dry_run:
-                        vrep.append("uncertain")
-                        calls["n"] += 1
-                        continue
-                    ans_file = workdir / f"ans_{q['id']}_{arm}_{t}.txt"
-                    jp = (f"{JUDGE_INSTR}\n\nQuestion: {q['question']}\n"
-                          f"Reference answer: {q['evidence_span']}")
-                    v = _run(bin_, jp, args.judge_model, workdir, [ans_file], args.timeout)
-                    calls["n"] += 1
-                    vrep.append(_parse_verdict(v))
-                verdicts.append(vrep[0] if len(vrep) == 1
-                                else max(set(vrep), key=vrep.count))
-            rec["arms"][arm] = {"answers": answers, "verdicts": verdicts}
-            print(f"  [{q['id']}] arm {arm}: verdict={rec['arms'][arm]['verdicts']}")
-        records.append(rec)
+        for arm in arms:
+            contexts[(q["id"], arm)] = _arm_context(arm, results_by_q[q["id"]], gold)
+
+    bin_ = None if args.dry_run else _opencode_bin()
+
+    def run_unit(q: dict, arm: str) -> dict:
+        gold = _norm(q["gold_file"])
+        ctx_file = (workdir / f"ctx_{q['id']}_{arm}.txt")
+        ctx_file.write_text(contexts[(q["id"], arm)], encoding="utf-8")
+        ctx_file = ctx_file.resolve()
+        answers, verdicts = [], []
+        for t in range(args.trials):
+            if args.dry_run:
+                answers.append("[DRY]")
+                verdicts.append("uncertain")
+                continue
+            prompt = f"{READER_INSTR}\n\nQuestion: {q['question']}"
+            a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
+            answers.append(a)
+            (workdir / f"ans_{q['id']}_{arm}_{t}.txt").write_text(a, encoding="utf-8")
+            if a.startswith("["):
+                verdicts.append("invalid")
+                continue
+            ans_file = (workdir / f"ans_{q['id']}_{arm}_{t}.txt").resolve()
+            vrep = []
+            for _ in range(args.judge_repeats):
+                jp = (f"{JUDGE_INSTR}\n\nQuestion: {q['question']}\n"
+                      f"Reference answer: {q['evidence_span']}")
+                jt = _run(bin_, jp, args.judge_model, workdir, [ans_file], args.timeout)
+                vrep.append(_parse_verdict(jt))
+            verdicts.append(vrep[0] if len(vrep) == 1 else max(set(vrep), key=vrep.count))
+        return {"id": q["id"], "population": q.get("population"), "gold_file": gold,
+                "reference": q["evidence_span"], "arm": arm,
+                "answers": answers, "verdicts": verdicts}
+
+    units = [(q, arm) for q in queries for arm in arms]
+    rng.shuffle(units)  # randomized order (blind)
+    records = []
+    with cf.ThreadPoolExecutor(max_workers=args.parallel) as ex:
+        for res in ex.map(lambda u: run_unit(u[0], u[1]), units):
+            records.append(res)
+            print(f"  [{res['id']}] arm {res['arm']}: {res['verdicts']}", flush=True)
+
+    # reassemble per query
+    by_q: dict[str, dict] = {}
+    for r in records:
+        rec = by_q.setdefault(r["id"], {"id": r["id"], "population": r["population"],
+                                        "gold_file": r["gold_file"], "reference": r["reference"],
+                                        "arms": {}})
+        rec["arms"][r["arm"]] = {"answers": r["answers"], "verdicts": r["verdicts"]}
+    ordered = [by_q[q["id"]] for q in queries]
 
     outdir.mkdir(parents=True, exist_ok=True)
     (outdir / "judged_raw.json").write_text(json.dumps(
-        {"config": vars(args), "records": records}, ensure_ascii=False, indent=2), encoding="utf-8")
+        {"config": vars(args), "records": ordered}, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    # summary: correct-rate per arm (verdict=="correct")
     summary = {}
     for arm in arms:
-        vals = [v for r in records for v in r["arms"][arm]["verdicts"]]
+        vals = [v for r in ordered for v in r["arms"][arm]["verdicts"]]
         k = sum(1 for v in vals if v == "correct")
         inval = sum(1 for v in vals if v == "invalid")
         summary[arm] = {"correct": k, "n": len(vals), "invalid": inval,
                         "rate": round(k / len(vals), 4) if vals else 0}
     print("summary:", json.dumps(summary, ensure_ascii=False))
-    print(f"calls={calls['n']} -> {outdir / 'judged_raw.json'}")
+    print(f"-> {outdir / 'judged_raw.json'}")
     return 0
 
 

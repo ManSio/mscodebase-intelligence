@@ -1,0 +1,258 @@
+### scripts/diag_quality_hang.py
+// Scope: function | function_definition | diag_quality_hang
+// File: scripts\diag_quality_hang.py
+def _run_b():
+
+                async def _rerank_b():
+
+                    scores = await r.rerank("test query", [
+
+                        {"text": "документ а", "metadata": {"file": "a.py", "chunk_index": 0}},
+
+
+
+### src/core/search/trace.py
+// Scope: function_part | giant_function_part | core.search.trace
+// File: src\core\search\trace.py | Context: ChunkTrace
+// [Part 1]
+def score_breakdown_md(self) -> str:
+
+        """Форматирует breakdown в Markdown-строку."""
+
+        lines = []
+
+        pos = self.final_position or "?"
+
+        score = f"{self.final_score:.6f}" if self.final_score is not None else "N/A"
+
+        lines.append(f"  **#{pos}** | `{self.file_path}` | score={score}")
+
+        lines.append(f"  _Preview: {self.text_preview}..._")
+
+
+
+        if self.bm25_rank is not None:
+
+            lines.append(
+
+                f"  ├─ BM25 rank={self.bm25_rank} →
+...
+
+### src/providers/reranker/reranker_scoring.py
+// Scope: function_part | giant_function_part | providers.reranker.reranker_scoring
+// File: src\providers\reranker\reranker_scoring.py
+// [Part 1]
+def parse_scores_json(raw: str) -> List[Dict[str, Any]]:
+
+    """Парсит JSON со скорами из ответа LLM.
+
+
+
+    Поддерживает:
+
+    1. Чистый JSON: {"scores": [{"index": 0, "score": 0.95}, ...]}
+
+    2. JSON в markdown-блоке: ```json\n{...}\n```
+
+    3. JSON с окружающим текстом (поиск через regex)
+
+
+
+    Returns:
+
+        Список dict'ов [{"index": int, "score": float}, ...]
+
+    """
+
+    if not raw:
+
+        return []
+
+
+
+    # Попытка 1: прямой JSON-парсинг
+
+    try:
+
+        data = json.loads(raw
+...
+
+### src/core/intelligence/verify_on_read.py
+// Scope: function_part | giant_function_part | core.intelligence.verify_on_read
+// File: src\core\intelligence\verify_on_read.py | Context: _Fingerprint
+// [Part 2]
+continue
+
+        self.imports = imports
+
+        self.files = files
+
+        self.env_keys = env_keys
+
+        # ADR-0005: закрытый мир зависимостей (pyproject/requirements[-lock]).
+
+        self.packages = _load_manifest_packages(root) if root is not None else set()
+
+        self.build_ms = (time.perf_counter() - t0) * 1000.0
+
+### src/core/search/scoring.py
+// Scope: function_part | giant_function_part | core.search.scoring
+// File: src\core\search\scoring.py
+// [Part 1]
+def auto_detect_intent(query: str) -> str:
+
+    """Авто-определение intent по тексту запроса (v3.2.1 B1).
+
+
+
+    Keyword-based эвристики: анализирует запрос и определяет,
+
+    ищет пользователь код, документацию или архитектуру.
+
+
+
+    Args:
+
+        query: Поисковый запрос
+
+
+
+    Returns:
+
+        "code", "docs" или "auto"
+
+    """
+
+    if not query:
+
+        return "auto"
+
+    q = query.lower()
+
+
+
+    # Сигналы кода: определения, классы, функции, типы
+
+    code_signals = [
+
+        r'\bdef\b',
+...
+
+### experiments/root_cause_eval/incident_dataset_full.json
+// Scope: fallback | incident_dataset_full.json
+, niki_v2) Microsoft удалила виртуальные\nAPI Set DLL (api-ms-win-crt-*). Все MSVC-сборки llama.cpp (включая Vulkan\nClang build, где llama-server-impl.dll всё равно MSVC) падали с\nSTATUS_DLL_NOT_FOUND. Vulkan-сборка не работала на CPU-only (require GPU).",
+
+    "root_cause": "**\n\n- `llama-server-impl.dll` + 5 других DLL импортируют api-ms-win-crt-*.dll\n  (виртуальные API Set, которых нет на Insider)\n- Скопировать .dll файлы бесполезно — загрузчик Windows игнорирует файлы\n  с именами API Set (это виртуальные DLL, обрабатываемые apisetschema.dll)\n- Функции из CRT API Set есть в ucrtbase.dll (загружается нормально)",
+
+    "fix": "Insider CRT API Set — патч PE-импортов api-ms-win-crt → ucrtbase"
+
+  },
+
+  {
+
+    "title": "2026-07-10 23:40",
+
+    "symptom": "**\nДаже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал\nс STATUS_DLL_NOT_FOUND. MSVC-сборка требует CRT API Set, которых нет на Insider.",
+
+    "root_cause": "**\nНа Windows Insider (build >= 26000) Microsoft у
+
+### local/e2e_chain_test.py
+// Scope: function | function_definition | d:.project.mscodebase..local.e2e_chain_test.py
+// File: .local\e2e_chain_test.py
+def main() -> int:
+
+    # 1. Embedder с кириллицей (реальный UTF-8, не артефакт curl/GitBash)
+
+    r = httpx.post(f"{BASE_EMBED}/v1/embeddings",
+
+                   json={"input": ["Тест эмбеддера с кириллицей", "second input"]},
+
+
+
+### experiments/bootstrap/e17_export_judge.py
+// Scope: function_part | giant_function_part | d:.project.mscodebase.experiments.bootstrap.e17_export_judge.py
+// File: experiments\bootstrap\e17_export_judge.py
+// [Part 2]
+def n_lines(item: str) -> int:
+        return item.count("\n") + 1
+
+    shards: list = []
+    current: list = []
+    for block in blocks:
+        if current and sum(n_lines(b) for b in current) + n_lines(block) > budget:
+            shards.append(current)
+            current = []
+        current.append(block)
+    if current:
+        shards.append(current)
+
+    for k, shard in enumerate(shards, 1):
+        (OUT / f"shard_{k}.txt").write_text("\n".join(shard), encoding="utf-8")
+        print(f"sha
+...
+
+### src/core/error_handler.py
+// Scope: function_part | giant_function_part | core.error_handler
+// File: src\core\error_handler.py
+// [Part 3]
+status=e.status,
+
+                        message=e.message,
+
+                        detail=e.detail,
+
+                        recovery_hint=None if e.recoverable else "Contact admin",
+
+                    )
+
+
+
+                except Exception as e:
+
+                    # Неожиданная ошибка — логируем полный traceback и НЕ повторяем
+
+                    logger.error(
+
+                        f"[{tool_name}] Unexpected error: {e}\n{traceback.format_exc()}"
+
+                    )
+
+               
+...
+
+### src/core/intelligence/health.py
+// Scope: function_part | giant_function_part | core.intelligence.health
+// File: src\core\intelligence\health.py | Context: HealthReport
+// [Part 1]
+def _check_filesystem_sync(self):
+
+        """Проверка синхронизации с файловой системой."""
+
+        if not self.indexer:
+
+            self.warnings.append(
+
+                {
+
+                    "component": "filesystem_sync",
+
+                    "message": "Indexer недоступен для проверки синхронизации",
+
+                }
+
+            )
+
+            return
+
+
+
+        try:
+
+            status = self.indexer.get_status()
+
+            if not status:
+
+                self.issues.append(
+
+     
+...

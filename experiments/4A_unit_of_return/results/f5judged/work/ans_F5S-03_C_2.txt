@@ -1,0 +1,5 @@
+Потому что `'gitwildmatch'` **deprecated** (как указано в комментариях и docstring), а `'gitignore'` — актуальный формат в `pathspec`.
+
+
+> build · longcat-2.0
+

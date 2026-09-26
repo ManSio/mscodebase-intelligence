@@ -1,0 +1,5 @@
+Based on the context, `$ZED_WORKTREE_ROOT` is used as the value for the `PROJECT_PATH` environment variable when configuring the MCP context server in Zed's settings. The context does not provide further details about what this variable contains or how it is defined on Windows.
+
+
+> build · longcat-2.0
+

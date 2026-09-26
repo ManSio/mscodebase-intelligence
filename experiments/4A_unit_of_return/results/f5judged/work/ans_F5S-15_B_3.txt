@@ -1,0 +1,7 @@
+В контексте упоминается только строка `env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"` в функции `_make_server_entry` — переменная передаётся как есть, без какой-либо информации о её формате или поведении именно на Windows. Других деталей о `ZEDWORKTREE_ROOT` на Windows в предоставленном контексте нет.
+
+I don't know.
+
+
+> build · longcat-2.0
+

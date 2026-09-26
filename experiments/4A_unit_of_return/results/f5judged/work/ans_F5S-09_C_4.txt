@@ -1,0 +1,5 @@
+Система рассчитана на **6 уровней** деградации (от L1 llama.cpp GGUF до L6 Fallback). Когда внешние провайдеры недоступны, система последовательно переключается на локальные альтернативы: L2 ONNX/OpenVINO INT8 (in-process), L3 LM Studio (remote), L4 BM25 (keyword only), L5 SymbolIndex (AST), пока не дойдёт до L6, где остаётся только ожидание индексации.
+
+
+> build · longcat-2.0
+

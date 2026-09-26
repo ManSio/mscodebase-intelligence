@@ -1,0 +1,208 @@
+### src/core/search/engine.py
+// Scope: function | function_definition | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+async def close(self) -> None:
+
+        """Освобождает ресурсы реранкера и кэш.
+
+
+
+        Безопасно для многократного вызова.
+
+
+
+### src/core/search/engine.py
+// Scope: function | function_definition | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+async def _apply_multi_reranker_async(
+
+        self,
+
+        query: str,
+
+        rrf_results: List[dict],
+
+
+
+### src/main.py
+// Scope: function_part | giant_function_part | main
+// File: src\main.py
+// [Part 1]
+def main():
+
+    """Главная функция запуска MCP-сервера."""
+
+    original_stdout = setup_logging()
+
+    logger = logging.getLogger("MSCodebase")
+
+    logger.info("MSCodebase Intelligence MCP Server запускается...")
+
+    logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
+
+
+
+    # ─── CLI --project-path: явный выбор целевого проекта ───
+
+    # Устанавливаем MSCODEBASE_PROJECT_PATH (приоритет над CWD, см.
+
+    # resolve_project_root). PROJECT_ROOT (корень установки/расширения) НЕ
+
+    # трогаем — он не я
+...
+
+### experiments/1V_memory_contamination/memory_contamination_facts_v4_rep_corrected.json
+// Scope: fallback | memory_contamination_facts_v4_rep_corrected.json
+(был false по дизайну генератора: проверялся только value != real_value)"
+
+    },
+
+    {
+
+      "id": "R47",
+
+      "truth": true,
+
+      "section": "tech_debt",
+
+      "kind": "mutation_present",
+
+      "subject": "hub_models",
+
+      "value": "pathlib",
+
+      "claim": "Загрузка моделей с хаба использует pathlib",
+
+      "support_patterns": [
+
+        "pathlib"
+
+      ],
+
+      "contra_patterns": [
+
+        "huggingface_hub"
+
+      ],
+
+      "label_note": "RED TEAM 2026-08-16: value импортирован и используется в файле субъекта — по факту истинен (был false по дизайну генератора: проверялся только value != real_value)"
+
+    },
+
+    {
+
+      "id": "R48",
+
+      "truth": false,
+
+      "silent": true,
+
+      "section": "known_issues",
+
+      "kind": "silent",
+
+      "subject": null,
+
+      "value": null,
+
+      "claim": "Инфраструктура развёрнута через Terraform",
+
+      "support_patterns": [
+
+        "terraform"
+
+      ],
+
+      "contra_patterns": []
+
+    },
+
+    {
+
+      "id": "R49",
+
+
+
+### src/config/settings.py
+// Scope: function | function_definition | config.settings
+// File: src\config\settings.py
+def get_mcp_port() -> int:
+
+    """Возвращает порт MCP сервера"""
+
+    return config.server.mcp_port
+
+### scripts/console_flash_monitor.py
+// Scope: function | function_definition | console_flash_monitor
+// File: scripts\console_flash_monitor.py
+def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
+
+    chain = []
+
+    cur = pid
+
+    for _ in range(depth):
+
+
+
+### src/core/task_queue.py
+// Scope: function | function_definition | core.task_queue
+// File: src\core\task_queue.py
+def _cpu_available() -> bool:
+
+    """Проверяет, можно ли запустить фоновую задачу по ресурсам."""
+
+    try:
+
+        from src.core.indexing.resource_monitor import get_global_resource_monitor
+
+
+
+### experiments/embed_real_path_vs_raw/exp_real_path.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.embed_real_path_vs_raw.exp_real_path.py
+// File: experiments\embed_real_path_vs_raw\exp_real_path.py
+def run_arm(client, texts, label):
+    """Прокачивает ВСЕ N_CHUNKS пачками по BATCH, возвращает ch/s и метрики."""
+    t0 = time.time()
+    batch_times = []
+
+
+### src/core/intelligence/alert_store.py
+// Scope: function | function_definition | core.intelligence.alert_store
+// File: src\core\intelligence\alert_store.py | Context: AlertStore
+def peek(self) -> List[Dict[str, Any]]:
+
+        """Недеструктивный просмотр (для диагностики/health)."""
+
+        with self._lock:
+
+            return self._load()
+
+### src/providers/reranker/llama_runner.py
+// Scope: function_part | giant_function_part | providers.reranker.llama_runner
+// File: src\providers\reranker\llama_runner.py | Context: LlamaRunner
+// [Part 1]
+async def start_reranker(self) -> bool:
+
+        """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).
+
+
+
+        Сначала проверяет, отвечает ли порт /health — если да, используем
+
+        существующий процесс. Иначе запускаем новый.
+
+
+
+        Использует interprocess lock (Named Mutex + PID-файл) чтобы
+
+        предотвратить гонку между MCP-процессами.
+
+        """
+
+        if self._reranker_process is not None:
+
+            poll = self._reranker_process.poll()
+
+            if 
+...

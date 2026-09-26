@@ -1,0 +1,5 @@
+Вердикт True — по памяти. Согласно функции `decide` (experiments/1V_memory_contamination/memory_contamination.py), при SILENT (код молчит, проверка не дала результата) для случая A вердикт принимается как в памяти: «A → вердикт как память (True)».
+
+
+> build · longcat-2.0
+

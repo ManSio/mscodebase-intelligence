@@ -1,0 +1,123 @@
+### src/core/indexing/index_project_runner.py
+// Scope: function | function_definition | core.indexing.index_project_runner
+// File: src\core\indexing\index_project_runner.py
+def threading_lock_context():
+
+    """Fallback: если db_manager нет — используем простой threading.Lock."""
+
+    import threading
+
+    return threading.Lock()
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+Lock",
+
+      "arms": {
+
+        "A": {
+
+          "round_trips": 5,
+
+          "agent_latency_ms": 1702.0,
+
+          "server_latency_ms": 1702.0,
+
+          "tokens": 348,
+
+          "full": "🔍 _InterProcessLock — 1 defs, 3 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 272. Called from: _acquire_llama_lock (llama_runner.py:272), LlamaRunner._start_sync (llama_runner.py:934), LlamaRunner.start_reranker (llama_runner.py:1034)\nSymbol '_InterProcessLock' not found\nclass _InterProcessLock › def __enter__ (llama_runner.py:184-194): kernel32 = ctypes.windll.kernel32; # bInitialOwner=False: владение только через WaitForSingleObject. True = рекурсивный захват (recursion 2 при WaitForSingleObject), один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок). self._mutex_handle = kernel32.CreateMutexW(None, False, self._name); WAIT_MS = 10_000; result = kernel32.WaitForSingleObject(self._mutex_handle, WAIT_MS); if result not in (0, 128): logger.warning('Не удалось захвати
+
+### experiments/context_engine/results_v2.json
+// Scope: fallback | results_v2.json
+k": "T15",
+
+      "klass": "prepare_change",
+
+      "symbol": "_InterProcessLock",
+
+      "arms": {
+
+        "A": {
+
+          "round_trips": 5,
+
+          "agent_latency_ms": 1702.0,
+
+          "server_latency_ms": 1702.0,
+
+          "tokens": 348,
+
+          "full": "🔍 _InterProcessLock — 1 defs, 3 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 272. Called from: _acquire_llama_lock (llama_runner.py:272), LlamaRunner._start_sync (llama_runner.py:934), LlamaRunner.start_reranker (llama_runner.py:1034)\nSymbol '_InterProcessLock' not found\nclass _InterProcessLock › def __enter__ (llama_runner.py:184-194): kernel32 = ctypes.windll.kernel32; # bInitialOwner=False: владение только через WaitForSingleObject. True = рекурсивный захват (recursion 2 при WaitForSingleObject), один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок). self._mutex_handle = kernel32.CreateMutexW(None, False, self._name); WAIT_MS = 10_000; result = kernel32.WaitForSingleObject(self._mutex_han
+
+### experiments/lock_zombie/benchmark_selfhealing.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.lock_zombie.benchmark_selfhealing.py
+// File: experiments\lock_zombie\benchmark_selfhealing.py
+def _run():
+
+            lock2 = DatabaseLock(path, wait_timeout=1.5, poll_interval=0.05)
+
+            try:
+
+                lock2.acquire()
+
+
+
+### src/core/indexing/database_lock.py
+// Scope: function | function_definition | core.indexing.database_lock
+// File: src\core\indexing\database_lock.py | Context: DatabaseLock
+def is_held(self) -> bool:
+
+        """True если lock захвачен ЭТИМ экземпляром."""
+
+        return self._acquired
+
+### src/core/indexing/database_lock.py
+// Scope: function | function_definition | core.indexing.database_lock
+// File: src\core\indexing\database_lock.py | Context: ProcessInspector
+def is_alive(self, pid: int) -> bool:
+
+        """Жив ли процесс с данным PID (в т.ч. завершённый, не очищенный ОС)."""
+
+        return DatabaseLock._is_pid_alive(pid)
+
+### src/core/indexing/database_lock.py
+// Scope: function | function_definition | core.indexing.database_lock
+// File: src\core\indexing\database_lock.py | Context: DatabaseLock
+def _make_default_inspector() -> ProcessInspector:
+
+        if sys.platform == "win32":
+
+            return WindowsProcessInspector()
+
+        return ProcessInspector()
+
+### src/core/indexing/index_project_runner.py
+// Scope: function | function_definition | core.indexing.index_project_runner
+// File: src\core\indexing\index_project_runner.py | Context: IndexProjectRunner
+def _reset_table_if_not_found(self, error: Exception, context: str, attempt: int) -> bool:
+
+        """Проверяет, является ли ошибка 'Not found' (LanceDB race),
+
+        и если да — пытается восстановить таблицу через reset_connection.
+
+        Возвращает True, если восстановление выполнено и можно retry.
+
+
+
+### scripts/lock_guard.py
+// Scope: function | function_definition | lock_guard
+// File: scripts\lock_guard.py
+def purpose_short(data: Dict) -> str:
+
+    return str(data.get("purpose", ""))[:60] or "done"
+
+### scripts/monitor.py
+// Scope: function | function_definition | monitor
+// File: scripts\monitor.py
+def parse_indexing_complete(line):
+
+    """Indexing complete: 100 new/changed, 0 removed, total 3857 chunks"""
+
+    m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
+
+    return int(m.group(1)) if m else None

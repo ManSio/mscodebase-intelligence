@@ -1,0 +1,5 @@
+MCP-сервер читает активный проект из внутренней SQLite-базы Zed (`multi_workspace_state.active_workspace_id`), путь к которой определяется через `%LOCALAPPDATA%/Zed` — без использования переменных окружения.
+
+
+> build · longcat-2.0
+

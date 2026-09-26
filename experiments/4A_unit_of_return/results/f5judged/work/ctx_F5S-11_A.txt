@@ -1,0 +1,190 @@
+### experiments/bootstrap/a2_test_nodes.py
+// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.bootstrap.a2_test_nodes.py
+// File: experiments\bootstrap\a2_test_nodes.py
+# -*- coding: utf-8 -*-
+"""A2: есть ли тестовые узлы в живой БД, какие рёбра к ним, как назван Test."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import sqlite3
+from src.core.artifact_paths import get_graph_db_path
+
+sys.stdout.reconfigure(encoding="utf-8")
+con = sqlite3.connect(get_graph_db_path(Path(".").resolve()))
+con.row_factory = sqlite3.Row
+
+print("labels count:")
+for r in con.execute("SELECT label, COUNT(*) c FROM nodes GROUP BY labe
+...
+
+### experiments/embeddinggemma/bench.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.embeddinggemma.bench.py
+// File: experiments\embeddinggemma\bench.py | Context: Bench
+def embed(self, texts) -> np.ndarray:
+
+        """POST /v1/embeddings (raw, как прод). Возвращает матрицу [n, dim]."""
+
+        s = time.perf_counter()
+
+        r = self.client.post(self.url + "/v1/embeddings", json={"input": list(texts)})
+
+
+
+### src/core/quiet_break_gate.py
+// Scope: function_part | giant_function_part | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+// [Part 2]
+continue  # уже был без вызывающих — не наш дельта-сигнал
+            alive = False
+            for c in callers:
+                cf = getattr(c, "file_path", "") or ""
+                if not cf:
+                    alive = True
+                    break
+                rel = _rel_posix(cf, root)
+                if rel not in changed:
+                    alive = True
+                    break
+                fp = root / rel
+                try:
+                    content = fp.read_text(encoding
+...
+
+### src/core/search/branch_aware_index.py
+// Scope: function | function_definition | core.search.branch_aware_index
+// File: src\core\search\branch_aware_index.py | Context: BranchAwareIndex
+async def get_branch_info_async(self) -> Dict:
+        """Async версия — через connect_async (не блокирует event loop)."""
+        branch = self.get_current_branch()
+        db_path = self.get_branch_db_path(branch)
+
+
+### src/mcp/server_tools.py
+// Scope: function_part | giant_function_part | mcp.server_tools
+// File: src\mcp\server_tools.py
+// [Part 6]
+from src.core.intelligence.alert_store import get_alert_store
+
+            from src.utils.ui_formatter import format_system_alerts
+
+
+
+            alerts = get_alert_store(target).collect_and_clear()
+
+            alert_text = format_system_alerts(alerts)
+
+            if alert_text:
+
+                lines.append("")
+
+                lines.append(alert_text.rstrip())
+
+        except Exception as e:  # noqa: BLE001 — алерты не роняют диагноз
+
+            logger.warning(f"explain_project_state: alert
+...
+
+### src/core/search/trace.py
+// Scope: function | function_definition | core.search.trace
+// File: src\core\search\trace.py | Context: ChunkTrace
+def to_dict(self) -> Dict[str, Any]:
+
+        """Сериализует в dict (без None значений для краткости)."""
+
+        d = {}
+
+        for k, v in self.__dict__.items():
+
+
+
+### experiments/2E_evidence_ladder/temporal_facts_generator.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.2e_evidence_ladder.temporal_facts_generator.py
+// File: experiments\2E_evidence_ladder\temporal_facts_generator.py
+def _grep_zero(name: str) -> bool:
+
+    """Имя не встречается в src/**/*.py (детерминированная проверка)."""
+
+    pat = re.compile(rf"\b{re.escape(name)}\b")
+
+    for f in SRC.rglob("*.py"):
+
+
+
+### src/mcp/tools/dev_tools.py
+// Scope: function_part | giant_function_part | mcp.tools.dev_tools
+// File: src\mcp\tools\dev_tools.py
+// [Part 1]
+def register_dev_tools(mcp_app) -> None:
+
+    """Регистрирует dev-инструменты в MCP-приложении.
+
+
+
+    Вызывается из server.py или server_factory.py.
+
+    """
+
+
+
+    @mcp_app.tool("generate_docs")
+
+    async def generate_docs(project_root: str) -> str:
+
+        """DEPRECATED — используй auto_update_docs.
+
+
+
+        Генерирует Markdown-документацию из PropertyGraph для любого проекта.
+
+        Сохраняет результат в файл docs/generated/MODULE_INDEX.md.
+
+
+
+        Args:
+
+            project_root: А
+...
+
+### src/mcp/server_tools.py
+// Scope: function_part | giant_function_part | mcp.server_tools
+// File: src\mcp\server_tools.py
+// [Part 4]
+# ─── 3. intel_explain_project_state ───────────
+
+    @mcp.tool("intel_explain_project_state")
+
+    async def intel_explain_project_state(project_root: str = "") -> str:
+
+        """Человекочитаемый диагноз состояния проекта.
+
+
+
+        Args:
+
+            project_root: путь к проекту (по умолчанию — текущий).
+
+
+
+        Returns:
+
+            Текстовый диагноз с состоянием каждого слоя.
+
+        """
+
+        from src.core.intelligence.project_context import ProjectContext
+
+        from src.core.p
+...
+
+### src/core/artifact_paths.py
+// Scope: function | function_definition | core.artifact_paths
+// File: src\core\artifact_paths.py
+def migrate_legacy_artifacts(project_path: Path) -> Dict[str, str]:
+
+    """Явный запуск миграции legacy-артефактов проекта в системную папку.
+
+
+
+    Обычно вызывать не нужно — get_project_dir() мигрирует при первом
+

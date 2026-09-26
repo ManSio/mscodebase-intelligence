@@ -1,0 +1,6 @@
+Узел остаётся ACTIVE с флагом `verification="no_anchors"` (INCONCLUSIVE): резолвер возвращает `None` при любой непроверяемости (resolver failure, legacy index без build_head, non-git, dirty tree), и отсутствие остаётся UNVERIFIABLE — никогда не REFUTED (ctx_F5S-13_B.txt:1037-1044, 1161-1165).
+
+
+> build · longcat-2.0
+
+→ Read ctx_F5S-13_B.txt [offset=1037, limit=200]

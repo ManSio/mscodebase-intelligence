@@ -1,0 +1,157 @@
+{
+  "n_queries": 16,
+  "arms": [
+    "A",
+    "B",
+    "C",
+    "D"
+  ],
+  "populations": [
+    "code",
+    "prose"
+  ],
+  "code": {
+    "A": {
+      "correct": 3,
+      "n": 40,
+      "rate": 0.075,
+      "ci95": [
+        0.0258,
+        0.1986
+      ]
+    },
+    "B": {
+      "correct": 19,
+      "n": 40,
+      "rate": 0.475,
+      "ci95": [
+        0.3294,
+        0.625
+      ]
+    },
+    "C": {
+      "correct": 37,
+      "n": 40,
+      "rate": 0.925,
+      "ci95": [
+        0.8014,
+        0.9742
+      ]
+    },
+    "D": {
+      "correct": 0,
+      "n": 40,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.0876
+      ]
+    }
+  },
+  "prose": {
+    "A": {
+      "correct": 10,
+      "n": 40,
+      "rate": 0.25,
+      "ci95": [
+        0.1419,
+        0.4019
+      ]
+    },
+    "B": {
+      "correct": 5,
+      "n": 40,
+      "rate": 0.125,
+      "ci95": [
+        0.0546,
+        0.2611
+      ]
+    },
+    "C": {
+      "correct": 39,
+      "n": 40,
+      "rate": 0.975,
+      "ci95": [
+        0.8712,
+        0.9956
+      ]
+    },
+    "D": {
+      "correct": 0,
+      "n": 40,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.0876
+      ]
+    }
+  },
+  "majority": {
+    "A:code": {
+      "correct": 1,
+      "n": 8,
+      "rate": 0.125
+    },
+    "A:prose": {
+      "correct": 2,
+      "n": 8,
+      "rate": 0.25
+    },
+    "A:ALL": {
+      "correct": 3,
+      "n": 16,
+      "rate": 0.1875
+    },
+    "B:code": {
+      "correct": 4,
+      "n": 8,
+      "rate": 0.5
+    },
+    "B:prose": {
+      "correct": 1,
+      "n": 8,
+      "rate": 0.125
+    },
+    "B:ALL": {
+      "correct": 5,
+      "n": 16,
+      "rate": 0.3125
+    },
+    "C:code": {
+      "correct": 8,
+      "n": 8,
+      "rate": 1.0
+    },
+    "C:prose": {
+      "correct": 8,
+      "n": 8,
+      "rate": 1.0
+    },
+    "C:ALL": {
+      "correct": 16,
+      "n": 16,
+      "rate": 1.0
+    },
+    "D:code": {
+      "correct": 0,
+      "n": 8,
+      "rate": 0.0
+    },
+    "D:prose": {
+      "correct": 0,
+      "n": 8,
+      "rate": 0.0
+    },
+    "D:ALL": {
+      "correct": 0,
+      "n": 16,
+      "rate": 0.0
+    }
+  },
+  "judge_nonunanimous": {
+    "k": 8,
+    "n": 64,
+    "rate": 0.125
+  },
+  "trials": 5
+}
