@@ -68,6 +68,7 @@ desktop.ini
 .coverage
 .coverage*
 .coveragerc
+!.coveragerc.ci
 htmlcov/
 .tox/
 
