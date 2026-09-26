@@ -439,8 +439,22 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         # писали записи tmp-файлов (a.py) в индекс коммита → «invalid object ... for
         # 'a.py'» при построении дерева partial-коммита. Санируем GIT_* для pytest.
         env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+        # -n auto (pytest-xdist, dev dep): the selection is unchanged (pyproject
+        # addopts keep -m 'not slow and not benchmark'); only spread across
+        # cores — measured 197s -> 71s locally. Falls back to serial when xdist
+        # is not installed (minimal env), so the gate never breaks on a missing
+        # optional tool.
+        pytest_cmd = [
+            sys.executable, "-m", "pytest", "tests/",
+            "-q", "--tb=line", "--no-header",
+        ]
+        try:
+            import xdist  # noqa: F401
+            pytest_cmd += ["-n", "auto"]
+        except ImportError:
+            pass
         proc = subprocess.Popen(
-            [sys.executable, "-m", "pytest", "tests/", "-q", "--tb=line", "--no-header"],
+            pytest_cmd,
             cwd=str(ROOT),
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
