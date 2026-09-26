@@ -23,7 +23,7 @@ import statistics
 import httpx
 import lancedb
 
-DB = r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
+DB = r"<user>AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
 N_CHUNKS = 640     # 20 пачек по 32
 BATCH = 32
 PORT = 8080

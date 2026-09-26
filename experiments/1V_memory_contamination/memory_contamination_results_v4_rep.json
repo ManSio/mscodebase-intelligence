@@ -6,8 +6,8 @@
     "replication": true,
     "control_group": "1-V (facts v3)",
     "isolation": {
-      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\ab604b45\\intelligence",
-      "real": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "store_dir": "<user>AppData\\Local\\mscodebase\\projects\\ab604b45\\intelligence",
+      "real": "<user>AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
       "isolated": true
     },
     "verify_stats": {

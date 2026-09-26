@@ -69,11 +69,11 @@ if emb._onnx_client is not None:
     print("onnx server running:", emb._onnx_client._is_server_running() if hasattr(emb._onnx_client, '_is_server_running') else '?')
 
 stop = threading.Event()
-th = threading.Thread(target=sampler, args=(stop, r"C:\Users\misha\AppData\Local\Temp\opencode\ram_e14.txt"), daemon=True)
+th = threading.Thread(target=sampler, args=(stop, r"<user>AppData\Local\Temp\opencode\ram_e14.txt"), daemon=True)
 th.start()
 
 import httpx, lancedb
-DB = r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
+DB = r"<user>AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
 db = lancedb.connect(DB)
 df = db.open_table("codebase_chunks").to_pandas().head(2000)
 texts = [str(x) for x in df["text"].tolist()]
@@ -91,5 +91,5 @@ stop.set()
 # финальный дамп процесса self
 print("self RAM final:", _ram_mb(os.getpid()), "MB")
 print("--- trace ---")
-with open(r"C:\Users\misha\AppData\Local\Temp\opencode\ram_e14.txt", encoding="utf-8") as f:
+with open(r"<user>AppData\Local\Temp\opencode\ram_e14.txt", encoding="utf-8") as f:
     print(f.read())

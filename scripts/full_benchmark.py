@@ -10,7 +10,7 @@ from datetime import datetime
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-EXT_DIR = Path(os.environ.get("EXT_DIR", r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"))
+EXT_DIR = Path(os.environ.get("EXT_DIR", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
 MODEL_FILE = EXT_DIR / ".codebase_models" / "onnx" / "multilingual-e5-small-int8" / "model_quantized.onnx"
 TOKENIZER_FILE = MODEL_FILE.parent / "tokenizer.json"
 

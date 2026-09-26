@@ -2,7 +2,7 @@
 ONNX server, все python*. Пишет CSV каждые 1s. Запускать фоново через Start-Job."""
 import sys, time, subprocess, os, json
 
-OUT = r"C:\Users\misha\AppData\Local\Temp\opencode\ram_full_trace.csv"
+OUT = r"<user>AppData\Local\Temp\opencode\ram_full_trace.csv"
 DURATION = int(sys.argv[1]) if len(sys.argv) > 1 else 600  # сек
 
 def ps_tree():

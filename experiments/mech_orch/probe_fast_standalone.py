@@ -2,7 +2,7 @@
 import asyncio, json, os, sys, time
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-EXT = Path(os.getenv("EXT_ROOT", r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"))
+EXT = Path(os.getenv("EXT_ROOT", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
 if str(EXT) not in sys.path:
     sys.path.insert(0, str(EXT))
 try:

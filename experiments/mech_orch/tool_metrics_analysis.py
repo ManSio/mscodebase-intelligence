@@ -9,7 +9,7 @@ if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 METRICS = Path(
-    r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\telemetry\tool_metrics.json"
+    r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence\telemetry\tool_metrics.json"
 )
 
 def main() -> None:

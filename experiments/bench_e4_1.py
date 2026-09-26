@@ -25,7 +25,7 @@ from src.core.search.graph_adapter import SymbolIndexAdapter
 
 
 # Реальный индекс проекта MSCodeBase
-PROJECT_DB = Path(r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\graph.db")
+PROJECT_DB = Path(r"<user>AppData\Local\mscodebase\projects\bfe9644b\graph.db")
 
 # Датасет: (класс, query, expected_symbol, expected_file_hint)
 TASKS: List[Tuple[str, str, str, str]] = [
