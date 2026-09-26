@@ -1,0 +1,26 @@
+| # | entry |
+|---|-------|
+| 1 | a-component-that-needs-starting-passes-every-behaviour-test |
+| 2 | a-number-that-moves-without-new-data-is-an-assumption |
+| 3 | NONE |
+| 4 | a-surviving-mutant-can-mean-the-code-is-dead |
+| 5 | NONE |
+| 6 | NONE |
+| 7 | NONE |
+| 8 | NONE |
+| 9 | a-control-built-from-the-treated-arm-is-not-a-control |
+| 10 | an-instrument-that-reshapes-input-fabricates-the-test |
+| 11 | NONE |
+| 12 | a-guard-keyed-on-a-field-nobody-fills-is-a-silent-no-op |
+| 13 | NONE |
+| 14 | NONE |
+| 15 | NONE |
+| 16 | NONE |
+
+
+
+
+> build · longcat-2.0
+
+
+

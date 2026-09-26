@@ -1,16 +1,3 @@
-# RECOVERED ARTIFACT — E7 HANDOUT v2 (frozen input)
-
-> **Это восстановленный артефакт, а не реконструкция по памяти.**
-> Источник: `opencode.db` (сессия `ses_f3619ed80ffexz7XO14iPQ5a5w`), `write`-part `rid=75331`
-> (2026-09-22), сверено с более поздним `read` того же файла (`rid=75864`) — содержимое идентично.
-> Оригинальный путь был `C:\...\Temp\opencode\e7\HANDOUT_EN.md` (утерян при чистке temp 2026-09-26).
-> Timestamp исходника **до** E11 и до F3-research → pre-look целостность сохранена.
-> **Оговорка:** помечено «HANDOUT v2»; проверить перед использованием как frozen, что это финальная
-> версия, которой гоняли E7 (при необходимости вытащить промежуточные `edit`-part'ы).
-> SHA256 фиксируется в `AGENT_DIARY.md` и commit-body (не в самом файле — иначе хеш цикличен).
-
----
-
 # HANDOUT v2 — symptom index mapping (blind)
 
 Instruction: For **each** numbered item, pick **one** entry from the index that best explains it, or `NONE` if none fits. Do not force a match. Answer as a table: `# -> entry`. Answer from the text only; do not use tools, search, or MCP.
