@@ -121,11 +121,12 @@ Research-note: `RESEARCH.md`. Ключевое:
 - **4-arm (closed-book / oracle / hard-negatives) — prior art** (Mem2ActBench, ACL 2026, arXiv:2601.19935).
   Новизну **убрать**; заявляем **репликацию на публичном code+prose корпусе** + наш plumbing-level
   partial-arrival (дифференциация самого Tom в `4745130`).
-- **Judged-плечи: ≥10 trials при t=0 + рандомизированный порядок + majority + κ/flip-rate.**
-  Обоснование: Coin Flip Judge (arXiv:2606.13685) — single-trial ~14/100 ошибок, cross-judge κ=0.51;
-  «5 прогонов» невалидно.
-- **Failure taxonomy** — Mem2ActBench: Retrieval Miss / Retrieved-but-Unused / Lossless Retention Failure
-  (последние два = наш EXP-24 и «hits and arrives partial»).
+- **Judged-плечи: 10–20 trials majority + рандомизированный порядок + κ/flip-rate; t=0 — доп. мера (3–5 reps).**
+  Обоснование: Coin Flip Judge (arXiv:2606.13685) — single-trial mean flip **13.6%** (~14/100), cross-judge **κ=0.51**;
+  11 trials → ~5%; рекомендация авторов 10–20. «5 прогонов» невалидно.
+- **Taxonomy** — Mem2ActBench (**5 типов**: Retrieval Miss / Retrieved-but-Unused / Hallucinated Default /
+  Lossless Retention Failure / Tool Selection Error); два из них = наш EXP-24 и «hits and arrives partial».
+  Отнесение нашего случая к plumbing-side — `[инференс агента]`, не факт статьи.
 - **Hard negatives** = «most semantically similar», не random (Mem2ActBench).
 
 F5 (4A run) замораживается только с этими дельтами.
