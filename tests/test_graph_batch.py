@@ -74,3 +74,42 @@ def test_batch_commits_and_persists(tmp_path):
 
     reopened = PropertyGraph(db)
     assert reopened.count_nodes() == 1
+
+
+def test_concurrent_batches_do_not_share_a_transaction(tmp_path):
+    # Multi-threaded parse phase (4 _parse_worker threads) wrote into one
+    # shared batch and corrupted each other ("cannot start a transaction within
+    # a transaction"). A different thread must NOT join an open batch; it must
+    # block and get its own. Barrier forces overlap; without the owner check
+    # this raises OperationalError and/or miscounts.
+    import threading
+
+    pg = PropertyGraph(tmp_path / "f.db")
+    barrier = threading.Barrier(2)
+    errors: list = []
+    n = 60
+
+    def worker(tag: str):
+        try:
+            barrier.wait(timeout=10)
+            with pg.batch():
+                for i in range(n):
+                    pg.add_node(
+                        name=f"{tag}{i}",
+                        qualified_name=f"p.{tag}{i}",
+                        label="Function",
+                    )
+        except Exception as e:  # noqa: BLE001 — collected, asserted below
+            errors.append(e)
+
+    ts = [
+        threading.Thread(target=worker, args=("a",)),
+        threading.Thread(target=worker, args=("b",)),
+    ]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join(30)
+    assert not [t for t in ts if t.is_alive()], "batch deadlocked across threads"
+    assert not errors, f"concurrent batches interfered: {errors!r}"
+    assert pg.count_nodes() == 2 * n

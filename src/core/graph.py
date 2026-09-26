@@ -403,18 +403,26 @@ class PropertyGraph:
         # Batch mode (2026-09-25): when active, add_node/add_edge/delete_node
         # reuse ONE connection + ONE transaction instead of a named-mutex +
         # BEGIN/commit PER row (measured 142 -> ~67k entities/s, E18).
+        # The batch is owned by the thread that opened it (thread-aware):
+        # another thread blocks on the locks and gets its own batch. Without
+        # this, concurrent files (4 parse workers) shared one transaction and
+        # corrupted each other ("cannot start a transaction within a tx").
         self._batch_conn: Optional["sqlite3.Connection"] = None
         self._batch_depth = 0
+        self._batch_owner: Optional[int] = None
 
     @contextmanager
     def batch(self):
         """Coalesce all node/edge writes in the block into one transaction.
 
         Takes the cross-process lock and opens a single BEGIN IMMEDIATE once;
-        nested calls reuse the same transaction. Commits on success, rolls back
-        the whole block on error (atomic). Reentrant (same thread).
+        nested calls from the SAME thread reuse the transaction. A DIFFERENT
+        thread blocks on the locks and gets its own batch (thread-aware), so
+        concurrent files never share one transaction. Commits on success, rolls
+        back the whole block on error (atomic). Reentrant (same thread).
         """
-        if self._batch_depth > 0:
+        me = threading.get_ident()
+        if self._batch_depth > 0 and self._batch_owner == me:
             self._batch_depth += 1
             try:
                 yield self
@@ -428,6 +436,7 @@ class PropertyGraph:
                 conn.execute("BEGIN IMMEDIATE")
                 self._batch_conn = conn
                 self._batch_depth = 1
+                self._batch_owner = me
                 try:
                     yield self
                     conn.commit()
@@ -437,6 +446,7 @@ class PropertyGraph:
                 finally:
                     self._batch_conn = None
                     self._batch_depth = 0
+                    self._batch_owner = None
 
 
     # ── Управление подключением ────────────────────────────
@@ -560,7 +570,10 @@ class PropertyGraph:
         qname = qualified_name or name
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
-        if self._batch_conn is not None:  # batched: caller owns the transaction
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
             return self._write_node(
                 self._batch_conn, name, label, qname, file_path, props_json
             )
@@ -629,7 +642,10 @@ class PropertyGraph:
             True если узел был удалён
         """
         # Cross-process lock + retry для записи
-        if self._batch_conn is not None:  # batched: caller owns the transaction
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
             cur = self._batch_conn.execute(
                 "DELETE FROM nodes WHERE qualified_name = ?", (qualified_name,)
             )
@@ -866,7 +882,10 @@ class PropertyGraph:
         """
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
-        if self._batch_conn is not None:  # batched: caller owns the transaction
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
             return self._write_edge(
                 self._batch_conn, source_qname, target_qname, type, weight, props_json
             )
