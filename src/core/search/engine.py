@@ -495,14 +495,21 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             loop = None
 
         if loop and loop.is_running():
-            # Уже внутри event loop — запускаем в отдельном потоке
-            future = _sync_executor.submit(
-                asyncio.run,
-                self.hybrid_search_async(
-                    query, limit, use_rrf, expand, since, before, layer, intent_hint, tracer
+            # Bound without joining (timeout-class audit, 2026-09-25): a hung
+            # search must not leak a non-daemon pool worker.
+            from src.core.run_bounded import run_bounded
+
+            return run_bounded(
+                lambda: asyncio.run(
+                    self.hybrid_search_async(
+                        query, limit, use_rrf, expand, since, before, layer,
+                        intent_hint, tracer,
+                    )
                 ),
+                timeout=30,
+                label="hybrid_search",
+                default=[],
             )
-            return future.result(timeout=30)
         else:
             return asyncio.run(
                 self.hybrid_search_async(

@@ -115,17 +115,48 @@ class _CrossProcessMutex:
         self.release()
 
 
+# In-process (thread) lock per db_path. A Windows named mutex is owned by the
+# acquiring THREAD, so two threads of the SAME process contend and one times out
+# (2026-09-25: reindex finalize failed with "Could not acquire cross-process lock
+# ... within 30000ms" while a concurrent graph op held it). Serialise threads
+# locally first — the named mutex then only arbitrates CROSS-process access.
+_LOCAL_GRAPH_LOCKS: Dict[str, threading.RLock] = {}
+_LOCAL_GRAPH_LOCKS_GUARD = threading.Lock()
+
+
+def _local_graph_lock(db_path: Path) -> threading.RLock:
+    """One RLock per resolved graph.db path (threads in this process)."""
+    key = str(Path(db_path).resolve())
+    with _LOCAL_GRAPH_LOCKS_GUARD:
+        lock = _LOCAL_GRAPH_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _LOCAL_GRAPH_LOCKS[key] = lock
+        return lock
+
+
 @contextmanager
 def _cross_process_lock(db_path: Path, timeout_ms: int = 30000) -> Generator[None, None, None]:
-    """Контекстный менеджер для cross-process блокировки."""
-    mutex = _CrossProcessMutex(db_path)
-    acquired = mutex.acquire(timeout_ms)
-    if not acquired:
-        raise sqlite3.OperationalError(f"Could not acquire cross-process lock for {db_path} within {timeout_ms}ms")
+    """Thread-local + cross-process lock for graph.db.
+
+    Threads in THIS process serialise on a local RLock (no spurious timeout);
+    the named mutex then only arbitrates between PROCESSES.
+    """
+    local = _local_graph_lock(db_path)
+    local.acquire()
     try:
-        yield
+        mutex = _CrossProcessMutex(db_path)
+        acquired = mutex.acquire(timeout_ms)
+        if not acquired:
+            raise sqlite3.OperationalError(
+                f"Could not acquire cross-process lock for {db_path} within {timeout_ms}ms"
+            )
+        try:
+            yield
+        finally:
+            mutex.release()
     finally:
-        mutex.release()
+        local.release()
 
 
 # ─── Retry Decorator для SQLite OperationalError ──────────────────
@@ -369,6 +400,54 @@ class PropertyGraph:
         self._lock = threading.RLock()
         self._conn: Optional["sqlite3.Connection"] = None
         self._open_count = 0  # для reopen после закрытия
+        # Batch mode (2026-09-25): when active, add_node/add_edge/delete_node
+        # reuse ONE connection + ONE transaction instead of a named-mutex +
+        # BEGIN/commit PER row (measured 142 -> ~67k entities/s, E18).
+        # The batch is owned by the thread that opened it (thread-aware):
+        # another thread blocks on the locks and gets its own batch. Without
+        # this, concurrent files (4 parse workers) shared one transaction and
+        # corrupted each other ("cannot start a transaction within a tx").
+        self._batch_conn: Optional["sqlite3.Connection"] = None
+        self._batch_depth = 0
+        self._batch_owner: Optional[int] = None
+
+    @contextmanager
+    def batch(self):
+        """Coalesce all node/edge writes in the block into one transaction.
+
+        Takes the cross-process lock and opens a single BEGIN IMMEDIATE once;
+        nested calls from the SAME thread reuse the transaction. A DIFFERENT
+        thread blocks on the locks and gets its own batch (thread-aware), so
+        concurrent files never share one transaction. Commits on success, rolls
+        back the whole block on error (atomic). Reentrant (same thread).
+        """
+        me = threading.get_ident()
+        if self._batch_depth > 0 and self._batch_owner == me:
+            self._batch_depth += 1
+            try:
+                yield self
+            finally:
+                self._batch_depth -= 1
+            return
+
+        with _cross_process_lock(self._db_path):
+            with self._lock:
+                conn = self._get_conn()
+                conn.execute("BEGIN IMMEDIATE")
+                self._batch_conn = conn
+                self._batch_depth = 1
+                self._batch_owner = me
+                try:
+                    yield self
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    self._batch_conn = None
+                    self._batch_depth = 0
+                    self._batch_owner = None
+
 
     # ── Управление подключением ────────────────────────────
 
@@ -491,34 +570,48 @@ class PropertyGraph:
         qname = qualified_name or name
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
+            return self._write_node(
+                self._batch_conn, name, label, qname, file_path, props_json
+            )
+
         # Cross-process lock + retry для записи
         with _cross_process_lock(self._db_path):
             with self._lock:
                 conn = self._get_conn()
                 conn.execute("BEGIN IMMEDIATE")
                 try:
-                    conn.execute(
-                        """INSERT INTO nodes (name, label, qualified_name, file_path, properties)
-                           VALUES (?, ?, ?, ?, ?)
-                           ON CONFLICT(qualified_name) DO UPDATE SET
-                               name=excluded.name,
-                               label=excluded.label,
-                               file_path=excluded.file_path,
-                               properties=excluded.properties""",
-                        (name, label, qname, file_path, props_json),
+                    node = self._write_node(
+                        conn, name, label, qname, file_path, props_json
                     )
                     conn.commit()
                 except Exception:
                     conn.rollback()
                     raise
+                return node
 
-                # Возвращаем созданную запись
-                row = conn.execute(
-                    "SELECT id, name, label, qualified_name, file_path, properties "
-                    "FROM nodes WHERE qualified_name = ?",
-                    (qname,),
-                ).fetchone()
-                return Node.from_row(row)
+    @staticmethod
+    def _write_node(conn, name, label, qname, file_path, props_json) -> "Node":
+        """Insert/update one node on an already-open transaction."""
+        conn.execute(
+            """INSERT INTO nodes (name, label, qualified_name, file_path, properties)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(qualified_name) DO UPDATE SET
+                   name=excluded.name,
+                   label=excluded.label,
+                   file_path=excluded.file_path,
+                   properties=excluded.properties""",
+            (name, label, qname, file_path, props_json),
+        )
+        row = conn.execute(
+            "SELECT id, name, label, qualified_name, file_path, properties "
+            "FROM nodes WHERE qualified_name = ?",
+            (qname,),
+        ).fetchone()
+        return Node.from_row(row)
 
     def get_node(self, qualified_name: str) -> Optional[Node]:
         """Получает узел по qualified_name."""
@@ -549,6 +642,14 @@ class PropertyGraph:
             True если узел был удалён
         """
         # Cross-process lock + retry для записи
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
+            cur = self._batch_conn.execute(
+                "DELETE FROM nodes WHERE qualified_name = ?", (qualified_name,)
+            )
+            return cur.rowcount > 0
         with _cross_process_lock(self._db_path):
             with self._lock:
                 conn = self._get_conn()
@@ -781,43 +882,60 @@ class PropertyGraph:
         """
         props_json = json.dumps(properties or {}, ensure_ascii=False)
 
+        if (
+            self._batch_conn is not None
+            and self._batch_owner == threading.get_ident()
+        ):  # batched: caller owns the transaction
+            return self._write_edge(
+                self._batch_conn, source_qname, target_qname, type, weight, props_json
+            )
+
         # Cross-process lock + retry для записи
         with _cross_process_lock(self._db_path):
             with self._lock:
                 conn = self._get_conn()
                 conn.execute("BEGIN IMMEDIATE")
                 try:
-                    # Находим ID узлов (или создаём заглушки)
-                    source = conn.execute(
-                        "SELECT id FROM nodes WHERE qualified_name = ?", (source_qname,)
-                    ).fetchone()
-                    target = conn.execute(
-                        "SELECT id FROM nodes WHERE qualified_name = ?", (target_qname,)
-                    ).fetchone()
-
-                    if not source or not target:
+                    edge = self._write_edge(
+                        conn, source_qname, target_qname, type, weight, props_json
+                    )
+                    if edge is None:
                         conn.rollback()
                         return None
-
-                    conn.execute(
-                        """INSERT INTO edges (source_id, target_id, type, weight, properties)
-                           VALUES (?, ?, ?, ?, ?)
-                           ON CONFLICT(source_id, target_id, type) DO UPDATE SET
-                               weight=excluded.weight,
-                               properties=excluded.properties""",
-                        (source[0], target[0], type, weight, props_json),
-                    )
                     conn.commit()
                 except Exception:
                     conn.rollback()
                     raise
+                return edge
 
-                row = conn.execute(
-                    "SELECT id, source_id, target_id, type, weight, properties "
-                    "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
-                    (source[0], target[0], type),
-                ).fetchone()
-                return Edge.from_row(row) if row else None
+    @staticmethod
+    def _write_edge(conn, source_qname, target_qname, type, weight, props_json):
+        """Insert/update one edge on an already-open transaction.
+
+        Returns None if either endpoint node is missing (caller decides tx fate).
+        """
+        source = conn.execute(
+            "SELECT id FROM nodes WHERE qualified_name = ?", (source_qname,)
+        ).fetchone()
+        target = conn.execute(
+            "SELECT id FROM nodes WHERE qualified_name = ?", (target_qname,)
+        ).fetchone()
+        if not source or not target:
+            return None
+        conn.execute(
+            """INSERT INTO edges (source_id, target_id, type, weight, properties)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(source_id, target_id, type) DO UPDATE SET
+                   weight=excluded.weight,
+                   properties=excluded.properties""",
+            (source[0], target[0], type, weight, props_json),
+        )
+        row = conn.execute(
+            "SELECT id, source_id, target_id, type, weight, properties "
+            "FROM edges WHERE source_id = ? AND target_id = ? AND type = ?",
+            (source[0], target[0], type),
+        ).fetchone()
+        return Edge.from_row(row) if row else None
 
     def add_edge_by_ids(
         self,

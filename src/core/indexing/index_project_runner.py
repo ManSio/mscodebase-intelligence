@@ -33,6 +33,12 @@ __all__ = [
 logger = logging.getLogger("mscodebase_server.index_project")
 
 
+# Hard bound for non-cancellable native links (LanceDB / llama.cpp) in the
+# indexing chain (2026-09-25 chain map). A stalled native call must not freeze
+# the phase forever. Env-overridable.
+_LINK_TIMEOUT_SEC = float(os.environ.get("MSCODEBASE_LINK_TIMEOUT_SEC", "300"))
+
+
 class IndexProjectRunner:
     """Оркестрирует полную индексацию проекта.
 
@@ -139,6 +145,32 @@ class IndexProjectRunner:
         except Exception as e:
             logger.error(f"Table recreate failed: {e}")
 
+    def _bounded_link(self, fn, label: str, *, fatal: bool = False, default=None):
+        """Bound a NON-CANCELLABLE native link (LanceDB / llama.cpp).
+
+        Non-fatal links are skipped on timeout (index still usable); fatal links
+        (embed / DB write) raise a clear, resume-safe error — the incremental
+        checkpoint means a retry resumes instead of losing work (2026-09-25).
+
+        Note (2026-09-25): run() now excludes concurrent runs via begin_run()
+        (a lock SEPARATE from the write lock), so `fn` may acquire the write
+        lock (bulk_write/prune) on its own thread without deadlocking the
+        caller. Do NOT wrap this in _suspend_write_lock again.
+        """
+        from src.core.run_bounded import run_bounded
+
+        sentinel = object()
+        result = run_bounded(fn, _LINK_TIMEOUT_SEC, label=label, default=sentinel)
+        if result is sentinel:
+            if fatal:
+                raise RuntimeError(
+                    f"{label} exceeded {_LINK_TIMEOUT_SEC:.0f}s — native stall; "
+                    f"job aborted (resume-safe: re-run resumes from checkpoints)"
+                )
+            logger.warning(f"{label} exceeded {_LINK_TIMEOUT_SEC:.0f}s — skipped (non-fatal)")
+            return default
+        return result
+
     def _verify_and_repair_table_integrity(self) -> None:
         """Гарантирует целостность таблицы ДО индексации (resume-safe).
 
@@ -229,7 +261,7 @@ class IndexProjectRunner:
         Safe because the reindex guard (``is_reindexing()``) — not this lock —
         is what blocks concurrent search during reindex.
         """
-        _dbm = self.db_manager
+        _dbm = getattr(self, "db_manager", None)
         if _dbm is None:
             yield
             return
@@ -272,10 +304,24 @@ class IndexProjectRunner:
             return 0
 
         BATCH_SIZE = 32      # benchmarked: batch=32 = 100ch/s sustained, 50/50 ok (2026-07-26)
+        # Per-file hard bound: a hung tree-sitter parse must not freeze the phase
+        # (timeout-class audit #3, 2026-09-25).
+        _PARSE_TIMEOUT_SEC = float(os.environ.get("MSCODEBASE_PARSE_TIMEOUT_SEC", "60"))
 
-        # Write operations сериализуются через db_manager.begin_write()
-        # PID-lock уже захвачен в db_manager.__init__()
-        with (self.db_manager.begin_write() if self.db_manager else threading_lock_context()):
+        # Runs mutually exclude each other via begin_run() (NOT the write lock:
+        # run() must not hold the write RLock across the whole run, or the DB
+        # ops _bounded_link executes on another thread deadlock — 2026-09-25).
+        # Fall back to begin_write() for partial/legacy db_manager fakes.
+        if self.db_manager is None:
+            _run_ctx = threading_lock_context()
+        else:
+            _begin_run = getattr(self.db_manager, "begin_run", None)
+            if _begin_run is None:
+                _begin_run = getattr(
+                    self.db_manager, "begin_write", threading_lock_context
+                )
+            _run_ctx = _begin_run()
+        with _run_ctx:
             logger.info("🔑 Write lock acquired for indexing")
 
             # Сканирование файлов
@@ -304,7 +350,9 @@ class IndexProjectRunner:
             # поэтому целостность таблицы должна быть гарантирована до первого
             # bulk_write. Один раз за прогон (на пустой таблице почти бесплатно:
             # count_rows=0 + нет фрагментов).
-            self._verify_and_repair_table_integrity()
+            self._bounded_link(
+                self._verify_and_repair_table_integrity, "verify_integrity"
+            )
 
             # P0-FIX (регрессия ac6e5ba0e P1-3): загружаем известные хэши ОДИН раз
             # в главном потоке (RLock reentrant — безопасно под begin_write) и
@@ -315,9 +363,17 @@ class IndexProjectRunner:
             known_hashes: Dict[str, str] = {}
             if self.table is not None:
                 try:
-                    _kh_df = self.table.to_lance().to_pandas(columns=["file_path", "file_hash"])
-                    if not _kh_df.empty:
-                        known_hashes = dict(zip(_kh_df["file_path"], _kh_df["file_hash"]))
+                    _kh_df = self._bounded_link(
+                        lambda: self.table.to_lance().to_pandas(
+                            columns=["file_path", "file_hash"]
+                        ),
+                        "known_hashes_load", default=None,
+                    )
+                    if _kh_df is not None and not _kh_df.empty:
+                        from src.core.relpath import normalize_rel_path
+
+                        _kh_paths = _kh_df["file_path"].map(normalize_rel_path)
+                        known_hashes = dict(zip(_kh_paths, _kh_df["file_hash"]))
                     logger.debug(f"known_hashes bulk load: {len(known_hashes)} files")
                 except Exception as _kh_err:
                     logger.warning(f"known_hashes bulk load failed, parsing all files: {_kh_err}")
@@ -341,11 +397,23 @@ class IndexProjectRunner:
             #Phase 1: Parallel Parse
             def _parse_worker(args):
                 _idx, _root, _fname, _full_path = args
-                _rel_path = str(_full_path.relative_to(project_path))
+                from src.core.relpath import normalize_rel_path
+
+                # POSIX — otherwise `current_files_on_disk` ("\") would not match
+                # the POSIX paths in the DB and prune would delete the whole index.
+                _rel_path = normalize_rel_path(_full_path.relative_to(project_path))
                 current_files_on_disk.add(_rel_path)
                 try:
-                    parsed = self._parse_file_only(
-                        _full_path, _rel_path, source="filesystem", known_hashes=known_hashes
+                    from src.core.run_bounded import run_bounded
+
+                    parsed = run_bounded(
+                        lambda: self._parse_file_only(
+                            _full_path, _rel_path,
+                            source="filesystem", known_hashes=known_hashes,
+                        ),
+                        timeout=_PARSE_TIMEOUT_SEC,
+                        label=f"parse:{_fname}",
+                        default=None,
                     )
                     if parsed is not None:
                         return {"parsed": parsed, "name": _fname, "rel": _rel_path}
@@ -384,9 +452,12 @@ class IndexProjectRunner:
             if parsed_count == 0:
                 logger.info("No changes — index is current")
                 if prune_deleted_files:
-                    self._safe_prune(prune_deleted_files, current_files_on_disk)
+                    self._bounded_link(
+                        lambda: self._safe_prune(prune_deleted_files, current_files_on_disk),
+                        "prune", default=0,
+                    )
                 if self.searcher:
-                    self.searcher.reindex()
+                    self._bounded_link(self.searcher.reindex, "bm25_reindex")
                 if progress_callback:
                     progress_callback("", total_files, total_files, "complete")
                 return 0
@@ -429,7 +500,13 @@ class IndexProjectRunner:
                 if not _pending_prepared:
                     return
                 _t_write = time.time()
-                _written = self._db_writer.bulk_write(_pending_prepared) if self._db_writer else 0
+                _written = (
+                    self._bounded_link(
+                        lambda: self._db_writer.bulk_write(_pending_prepared),
+                        "bulk_write", fatal=True,
+                    )
+                    if self._db_writer else 0
+                )
                 _write_elapsed = time.time() - _t_write
                 _indexed_count += len(_pending_map)
                 for _fp_idx, _rec_count in _pending_map:
@@ -466,7 +543,10 @@ class IndexProjectRunner:
 
                 t0 = time.time()
                 try:
-                    embeddings = self.embedder.embed_batch(batch_texts)
+                    embeddings = self._bounded_link(
+                        lambda: self.embedder.embed_batch(batch_texts),
+                        "embed_batch", fatal=True,
+                    )
                 except Exception as embed_err:
                     logger.error(f"Embedder error: {embed_err}. Aborted.")
                     raise RuntimeError(f"Embedder unavailable: {embed_err}. Aborted.") from embed_err
@@ -587,13 +667,16 @@ class IndexProjectRunner:
             # Prune (с self-healing от Not Found)
             pruned = 0
             if prune_deleted_files:
-                pruned = self._safe_prune(prune_deleted_files, current_files_on_disk)
+                pruned = self._bounded_link(
+                    lambda: self._safe_prune(prune_deleted_files, current_files_on_disk),
+                    "prune", default=0,
+                )
 
             # BM25 reindex
             if indexed_count > 0 and self.searcher:
                 if progress_callback:
                     progress_callback("", total_files, total_files, "rebuilding_bm25")
-                self.searcher.reindex()
+                    self._bounded_link(self.searcher.reindex, "bm25_reindex")
 
             # P2-5/LOGIC-5: сбрасываем кэш поиска (TTL 30с слишком долго
             # для свежих данных — после reindex результаты stale до 30с).
@@ -618,10 +701,10 @@ class IndexProjectRunner:
                 progress_callback("", total_files, total_files, "complete")
 
             if self.summarizer:
-                self.summarizer.save_cache()
+                self._bounded_link(self.summarizer.save_cache, "summarizer_save")
 
             if save_symbol_index:
-                save_symbol_index()
+                self._bounded_link(save_symbol_index, "save_symbol_index")
 
             logger.info(
                 f"Indexing complete: {indexed_count} new/changed, "
@@ -662,31 +745,35 @@ class IndexProjectRunner:
         with self._suspend_write_lock():
             self._run_ivf_index_body(timeout=timeout)
 
+    def _call_with_timeout(self, fn, timeout: float, label: str) -> bool:
+        """Bound a NON-CANCELLABLE call by abandoning a daemon worker.
+
+        A Python thread cannot be cancelled; ``Future.result(timeout=)`` only
+        stops waiting, and ``ThreadPoolExecutor.shutdown(wait=True)`` would then
+        JOIN the still-running worker (the IVF finalize hang, 2026-09-25: job
+        stuck at 95% forever). The only way a timeout can bound a hung native
+        LanceDB call is to NOT join it: run it on a daemon thread and return on
+        timeout. ``daemon=True`` keeps process exit clean.
+
+        Returns True if ``fn`` finished, False if it was abandoned.
+        """
+        from src.core.run_bounded import run_bounded
+
+        sentinel = object()
+        result = run_bounded(fn, timeout, label=f"ivf-{label}", default=sentinel)
+        return result is not sentinel
 
     def _run_ivf_index_body(self, timeout: float = 300.0) -> None:
         # Phase 1: optimize
         def _safe_optimize():
             for attempt in range(2):
                 try:
-                    _opt_ex = ThreadPoolExecutor(max_workers=1)
-                    try:
-                        _opt_ex.submit(self.table.optimize).result(timeout=timeout)
-                    except Exception as _opt_to:
-                        logger.warning(
-                            f"Table optimize exceeded {timeout:.0f}s timeout "
-                            f"(continuing without blocking the job): {_opt_to}"
-                        )
-                        # Не ждём вечно завершения optimize в фоне — job не должен висеть.
-                        try:
-                            _opt_ex.shutdown(wait=False)
-                        except Exception:
-                            pass
-                        return True
-                    finally:
-                        try:
-                            _opt_ex.shutdown(wait=True)
-                        except Exception:
-                            pass
+                    if not self._call_with_timeout(
+                        self.table.optimize, timeout, "optimize"
+                    ):
+                        # Abandoned (hung native call). The table state is
+                        # uncertain — do NOT build create_index on top of it.
+                        return False
                     return True
                 except Exception as e:
                     if attempt == 0 and self._reset_table_if_not_found(e, "optimize", attempt):
@@ -727,24 +814,11 @@ class IndexProjectRunner:
                 logger.info("IVF_FLAT index created (legacy API)")
 
         def _safe_create_index():
-            from concurrent.futures import TimeoutError as _FuturesTimeout
-
             for attempt in range(2):
                 try:
-                    _ci_ex = ThreadPoolExecutor(max_workers=1)
-                    try:
-                        _ci_ex.submit(_create_index_once).result(timeout=timeout)
-                    except _FuturesTimeout:
-                        logger.warning(
-                            f"create_index exceeded {timeout:.0f}s timeout — "
-                            f"proceeding WITHOUT vector index (non-critical)"
-                        )
-                        return
-                    finally:
-                        try:
-                            _ci_ex.shutdown(wait=False)
-                        except Exception:
-                            pass
+                    self._call_with_timeout(
+                        _create_index_once, timeout, "create_index"
+                    )
                     return
                 except Exception as e:
                     if attempt == 0 and self._reset_table_if_not_found(e, "create_index", attempt):

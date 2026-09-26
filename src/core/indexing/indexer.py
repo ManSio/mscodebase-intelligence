@@ -2,6 +2,7 @@
 MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning)
 """
 
+import contextlib
 import hashlib
 import logging
 import time
@@ -350,6 +351,12 @@ class Indexer(IndexerTableMixin):
         Returns:
             Dict с данными чанков или None если файл не изменился.
         """
+        # Normalise to POSIX. Full reindex used to write "\" while hot-reload
+        # wrote "/", so the SAME file produced TWO rows (known_hashes miss ->
+        # re-add on every incremental pass -> ~2x index bloat, 2026-09-25).
+        from src.core.relpath import normalize_rel_path
+
+        rel_path_str = normalize_rel_path(rel_path_str)
         try:
             # 1. Получаем existing_hash (из bulk-кэша или через self.table)
             existing_hash = None
@@ -422,39 +429,46 @@ class Indexer(IndexerTableMixin):
             # 4. Обновление SymbolIndex
             if self.parser is not None:
                 try:
-                    # Очистка PropertyGraph
-                    if hasattr(self._symbol_index, "graph"):
-                        pg = self._symbol_index.graph
-                        if pg:
+                    # Вся graph-запись файла (remove + add_*) — ОДНА транзакция
+                    # (E18, 2026-09-25): per-row named-mutex + BEGIN/commit давал
+                    # 142 ent/s; батч — ~67k. PropertyGraph.batch() открывает tx
+                    # один раз, add_node/add_edge/delete_node её переиспользуют.
+                    _pg = getattr(self._symbol_index, "graph", None)
+                    _sym_ctx = (
+                        _pg.batch() if _pg is not None else contextlib.nullcontext()
+                    )
+                    with _sym_ctx:
+                        # Очистка PropertyGraph
+                        if _pg is not None:
                             self._symbol_index.remove_file(str(full_path))
 
-                    # AST-символы из кэша IndexParser (без повторного парсинга)
-                    _ast_chunks, symbols = parsed.get("_ast_symbols", (None, None))
-                    if symbols:
-                        with self._symbol_index_lock:
-                            self._symbol_index.add_definitions(str(full_path), symbols)
-                        calls = self.parser.extract_calls(full_path)
-                        if calls:
+                        # AST-символы из кэша IndexParser (без повторного парсинга)
+                        _ast_chunks, symbols = parsed.get("_ast_symbols", (None, None))
+                        if symbols:
                             with self._symbol_index_lock:
-                                self._symbol_index.add_references(str(full_path), calls)
-                        assignments = self.parser.extract_assignments(full_path)
-                        if assignments:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_assignments(str(full_path), assignments)
-                        imports = self.parser.extract_imports(full_path)
-                        if imports:
-                            with self._symbol_index_lock:
-                                self._symbol_index.add_imports(str(full_path), imports)
-                        # DECORATES/OVERRIDES (PropertyGraph-only, legacy SymbolIndex не имеет)
-                        if hasattr(self._symbol_index, "add_decorators"):
-                            decorators = self.parser.extract_decorators(full_path)
-                            if decorators:
+                                self._symbol_index.add_definitions(str(full_path), symbols)
+                            calls = self.parser.extract_calls(full_path)
+                            if calls:
                                 with self._symbol_index_lock:
-                                    self._symbol_index.add_decorators(str(full_path), decorators)
-                            overrides = self.parser.extract_overrides(full_path)
-                            if overrides:
+                                    self._symbol_index.add_references(str(full_path), calls)
+                            assignments = self.parser.extract_assignments(full_path)
+                            if assignments:
                                 with self._symbol_index_lock:
-                                    self._symbol_index.add_overrides(str(full_path), overrides)
+                                    self._symbol_index.add_assignments(str(full_path), assignments)
+                            imports = self.parser.extract_imports(full_path)
+                            if imports:
+                                with self._symbol_index_lock:
+                                    self._symbol_index.add_imports(str(full_path), imports)
+                            # DECORATES/OVERRIDES (PropertyGraph-only, legacy SymbolIndex не имеет)
+                            if hasattr(self._symbol_index, "add_decorators"):
+                                decorators = self.parser.extract_decorators(full_path)
+                                if decorators:
+                                    with self._symbol_index_lock:
+                                        self._symbol_index.add_decorators(str(full_path), decorators)
+                                overrides = self.parser.extract_overrides(full_path)
+                                if overrides:
+                                    with self._symbol_index_lock:
+                                        self._symbol_index.add_overrides(str(full_path), overrides)
                 except Exception as sym_err:
                     logger.warning(f"SymbolIndex update failed for {rel_path_str}: {sym_err}")
 
@@ -828,7 +842,9 @@ class Indexer(IndexerTableMixin):
             if self.file_guard.should_skip_file(full_path):
                 return False
 
-            rel_path_str = str(full_path.relative_to(project_path))
+            from src.core.relpath import normalize_rel_path
+
+            rel_path_str = normalize_rel_path(full_path.relative_to(project_path))
             return self._index_single_file(full_path, rel_path_str, content=content)
         except Exception as e:
             logger.error(f"[index_file] Ошибка индексации {full_path}: {e}")

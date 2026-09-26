@@ -57,7 +57,7 @@ class NotifyChangeTool(MCPTool):
         # Получаем контент из LSP VFS или с диска
         content, source = await self._get_content(rel_path)
 
-        rel_path_str = str(rel_path.relative_to(project_root))
+        rel_path_str = str(rel_path.relative_to(project_root)).replace("\\", "/")
 
         # Consistency Engine (WS2): источник изменён — индекс станет устаревшим
         # до завершения фоновой переиндексации.

@@ -32,6 +32,8 @@ from src.core.search.engine import Searcher
 logger = logging.getLogger("MSCodeBase.Intelligence")
 from dataclasses import asdict
 
+from src.core import embedder_lease, reindex_ledger
+
 # Импорты из декомпозированных модулей
 from src.core.intelligence.embed_progress import _embed_progress_from_log
 from src.core.intelligence.jobs import BackgroundJob, job_manager
@@ -143,6 +145,10 @@ class ProjectIntelligenceLayer:
         self._reindex_task: Optional[asyncio.Task] = (
             None  # Prevent GC from collecting background reindex
         )
+        # Watchdog timestamp: last observed progress (2026-09-25). If a reindex
+        # stays "running" without progress past the stall window, it is
+        # terminalised as failed and recorded to the ledger (zombie guard).
+        self._reindex_last_progress_ts: float = 0.0
         self._reindex_lock = asyncio.Lock()
         # Единый threading.Lock для sync+async записи в IntelligenceStore
         # (asyncio.Lock не защищает от sync-доступа — см. P2-4 audit).
@@ -734,6 +740,9 @@ class ProjectIntelligenceLayer:
 
             job.status = "running"
             job.progress = 0.0
+            self._reindex_last_progress_ts = time.time()
+            embedder_lease.touch("reindex_start")
+            reindex_ledger.record("start", job_id=job_id, project=str(self.project_path))
 
             try:
                 # Guard (AGENTS.md §5.13 / chunkhound SerialDatabaseExecutor):
@@ -758,9 +767,15 @@ class ProjectIntelligenceLayer:
                     loop = asyncio.get_event_loop()
 
                     # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..1.0)
+                    _phase_seen = [None]
                     def _index_progress_callback(
                         current_file, files_done, files_total, phase
                     ):
+                        self._reindex_last_progress_ts = time.time()
+                        embedder_lease.touch("reindex")
+                        if _phase_seen[0] != phase:
+                            _phase_seen[0] = phase
+                            reindex_ledger.record("phase", job_id=job_id, phase=phase)
                         if files_total > 0:
                             ratio = files_done / files_total
                             if phase == "embedding":
@@ -861,10 +876,13 @@ class ProjectIntelligenceLayer:
 
             except Exception as e:
                 logger.warning(f"Exception suppressed at layer.py: {e}")
+                reindex_ledger.record(
+                    "error", job_id=job_id, **reindex_ledger.exception_fields(e)
+                )
                 job.status = "failed"
                 job.error = str(e)
                 job.ended_at = time.time()
-                logger.error(f"Ошибка фоновой индексации: {e}")
+                logger.error(f"Ошибка фоновой индексации: {e}", exc_info=True)
                 # Consistency Engine (WS2): индексация упала — индекс недоверен.
                 try:
                     from src.core.consistency import get_consistency_tracker
@@ -875,6 +893,23 @@ class ProjectIntelligenceLayer:
                 except Exception:  # noqa: BLE001
                     pass
             finally:
+                # Гарантия терминального статуса (2026-09-25): если корутина
+                # вышла без completed/failed — фиксируем failed, чтобы клиент
+                # не видел вечный "running" (zombie job; py-spy 2026-09-25).
+                if getattr(job, "status", None) in ("pending", "running"):
+                    job.status = "failed"
+                    job.error = job.error or (
+                        "reindex coroutine exited without terminal status"
+                    )
+                    job.ended_at = time.time()
+                    reindex_ledger.record(
+                        "zombie", job_id=job_id, progress=round(job.progress, 3),
+                        reason=job.error,
+                    )
+                reindex_ledger.record(
+                    "end", job_id=job_id, status=job.status,
+                    elapsed_s=round(time.time() - job.started_at, 2),
+                )
                 # Снимаем guard в любом случае (успех/ошибка/таймаут),
                 # чтобы search снова заработал после завершения reindex.
                 _dbm = getattr(self.indexer, "db_manager", None)
@@ -1969,6 +2004,49 @@ class ProjectIntelligenceLayer:
         return result
 
 
+    _REINDEX_STALL_SEC = float(os.environ.get("MSCODEBASE_REINDEX_STALL_SEC", "900"))
+
+    def _watchdog_reindex(self) -> None:
+        """Terminalise a stalled/zombie reindex and record it (never raises).
+
+        A suspended coroutine never reaches its `finally`, so the done-callback
+        cannot fire. This runs on status polls: if the job is still "running"
+        but the driving task is done/absent, or there has been no progress past
+        the stall window, mark it failed and write a ledger row.
+        """
+        try:
+            jid = getattr(self, "_reindex_job_id", None)
+            if not jid:
+                return
+            job = job_manager.get_job(jid)
+            if job is None or job.status not in ("pending", "running"):
+                return
+            task = getattr(self, "_reindex_task", None)
+            task_done = task is None or task.done()
+            _last_progress = getattr(self, "_reindex_last_progress_ts", 0.0) or 0.0
+            stalled = (
+                _last_progress > 0
+                and (time.time() - _last_progress)
+                > self._REINDEX_STALL_SEC
+            )
+            if task_done or stalled:
+                reason = (
+                    "reindex task ended without terminal status"
+                    if task_done
+                    else f"no progress for >{int(self._REINDEX_STALL_SEC)}s"
+                )
+                job.status = "failed"
+                job.error = job.error or reason
+                job.ended_at = time.time()
+                self._reindex_job_id = None
+                self._reindex_task = None
+                reindex_ledger.record(
+                    "zombie", job_id=jid, reason=reason,
+                    progress=round(job.progress, 3), task_done=task_done,
+                )
+        except Exception:  # noqa: BLE001 — watchdog must never break a status poll
+            pass
+
     def _enrich_job_response(self, job: BackgroundJob) -> Dict[str, Any]:
         """Обогащает ответ job'а служебными полями: poll_interval_seconds, progress_label, estimated_seconds.
 
@@ -1977,6 +2055,11 @@ class ProjectIntelligenceLayer:
         progress_label — человекочитаемый статус для UI.
         estimated_seconds — примерное оставшееся время для running-задач.
         """
+        # Zombie/stall guard, tolerant of lightweight stubs (tests pass a
+        # SimpleNamespace without this method).
+        _watchdog = getattr(self, "_watchdog_reindex", None)
+        if callable(_watchdog):
+            _watchdog()
         base = asdict(job)
         base["progress"] = round(job.progress, 2)
 
