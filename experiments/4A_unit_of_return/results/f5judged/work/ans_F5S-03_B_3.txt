@@ -1,0 +1,5 @@
+Парсер использует формат `'gitignore'`, потому что `'gitwildmatch'` является устаревшим (deprecated). Это явно указано в комментарии к коду и docstring функции `load_gitignore_patterns`.
+
+
+> build · longcat-2.0
+

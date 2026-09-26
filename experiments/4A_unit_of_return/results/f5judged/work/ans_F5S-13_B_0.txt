@@ -1,0 +1,6 @@
+Если резолвер недоступен или проверка не дала результата (freshness не верифицируема), ACTIVE-узел получает вердикт **INCONCLUSIVE** (`None`). В этом случае отсутствие якоря расценивается как UNVERIFIABLE, а не REFUTED. Узел остаётся в статусе ACTIVE, но помечается флагом `verification="no_anchors"` для выдачи агенту (ADR-0003).
+
+
+> build · longcat-2.0
+
+→ Read ctx_F5S-13_B.txt [offset=1037]

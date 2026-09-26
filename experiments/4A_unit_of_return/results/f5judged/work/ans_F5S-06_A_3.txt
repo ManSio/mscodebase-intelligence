@@ -1,0 +1,5 @@
+При сбое графа (`pg is None`) тихий возврат пустого дикта с `_empty("unavailable", "PropertyGraph not available")` — никакого эксепшена наружу (`quiet_break_gate.py:12-13`).
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,178 @@
+### src/core/quiet_break_gate.py
+// Scope: function_part | giant_function_part | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+// [Part 2]
+continue  # уже был без вызывающих — не наш дельта-сигнал
+            alive = False
+            for c in callers:
+                cf = getattr(c, "file_path", "") or ""
+                if not cf:
+                    alive = True
+                    break
+                rel = _rel_posix(cf, root)
+                if rel not in changed:
+                    alive = True
+                    break
+                fp = root / rel
+                try:
+                    content = fp.read_text(encoding
+...
+
+### src/providers/embedder/remote_embedder.py
+// Scope: function | function_definition | providers.embedder.remote_embedder
+// File: src\providers\embedder\remote_embedder.py | Context: RemoteEmbedder
+async def warmup(self) -> bool:
+
+        """Прогрев эмбеддера тестовым запросом (убивает cold start)."""
+
+        if self.mode != "lm_studio":
+
+            logger.info("⏳ Warmup: LM Studio не в режиме lm_studio, пропускаю")
+
+
+
+### src/core/embedder/onnx_client.py
+// Scope: function | function_definition | core.embedder.onnx_client
+// File: src\core\embedder\onnx_client.py | Context: OnnxEmbedderClient
+def embed_batch(self, texts: List[str]) -> List[List[float]]:
+
+        """Эмбеддинг батча текстов."""
+
+        if not self.ensure_server_running():
+
+            raise RuntimeError("ONNX server not available")
+
+
+
+### src/core/indexing/indexer.py
+// Scope: function_part | giant_function_part | core.indexing.indexer
+// File: src\core\indexing\indexer.py | Context: Indexer
+// [Part 2]
+path_manager=self.path_manager,
+
+            project_path=self.project_path,
+
+        )
+
+
+
+        # Watchdog
+
+        self._watchdog_heartbeat = time.time()
+
+        self._watchdog_ever_beat = False
+
+        self._watchdog_label = "idle"
+
+        self._watchdog_lock = threading.Lock()
+
+        from src.core.indexing.watchdog import Watchdog
+
+        self._watchdog = Watchdog()
+
+
+
+        # ─── LanceDB Manager ────────────────────────────────
+
+        _dim = getattr(self.embedder, 'embedding_dim
+...
+
+### src/core/search/fts5_index.py
+// Scope: function | function_definition | core.search.fts5_index
+// File: src\core\search\fts5_index.py | Context: FTS5IndexManager
+def close(self) -> None:
+
+        """Close the SQLite connection."""
+
+        with self._lock:
+
+            if self._conn is not None:
+
+
+
+### scripts/console_flash_monitor.py
+// Scope: function | function_definition | console_flash_monitor
+// File: scripts\console_flash_monitor.py
+def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
+
+    chain = []
+
+    cur = pid
+
+    for _ in range(depth):
+
+
+
+### src/providers/embedder/remote_embedder.py
+// Scope: function | function_definition | providers.embedder.remote_embedder
+// File: src\providers\embedder\remote_embedder.py | Context: RemoteEmbedder
+async def close(self):
+
+        """Корректное закрытие connection pool."""
+
+        if self._http_client is not None:
+
+            self._http_client.close()
+
+
+
+### src/core/doc_llm_verifier.py
+// Scope: function_part | giant_function_part | core.doc_llm_verifier
+// File: src\core\doc_llm_verifier.py | Context: DocLLMVerifier
+// [Part 2]
+json={
+
+                            "model": self._model,
+
+                            "messages": payload["messages"],
+
+                            "stream": False,
+
+                        },
+
+                        timeout=30.0,
+
+                    )
+
+
+
+                if r.status_code in (200, 201):
+
+                    data = r.json()
+
+                    content = (data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+                               or data.get("message", {}
+...
+
+### src/core/intelligence/health.py
+// Scope: function_part | giant_function_part | core.intelligence.health
+// File: src\core\intelligence\health.py | Context: HealthReport
+// [Part 3]
+else:
+
+                    # Idle после завершённой индексации — ожидаемо, не critical
+
+                    self.metrics["watchdog_idle_sec"] = watchdog.get("idle_sec", 0)
+
+                    self.metrics["watchdog_label"] = watchdog.get("label", "")
+
+                    self.metrics["watchdog_state"] = "idle_after_index"
+
+            elif watchdog.get("idle_sec", 0) > 10:
+
+                self.metrics["watchdog_idle_sec"] = watchdog["idle_sec"]
+
+                self.metrics["watchdog_label"] =
+...
+
+### src/providers/embedder/remote_embedder.py
+// Scope: function | function_definition | providers.embedder.remote_embedder
+// File: src\providers\embedder\remote_embedder.py | Context: RemoteEmbedder
+def embed(self, text: str, is_query: bool = False) -> List[float]:
+
+        """Получить вектор для одного текстового фрагмента."""
+
+        res = self.embed_batch([text], is_query=is_query)
+
+        return res[0] if res else []

@@ -1,0 +1,5 @@
+`ZED_WORKTREE_ROOT` на Windows всегда не установлена (пуста) — это известный баг Zed под номером 36019, закрытый без исправления. Из-за этого нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` и `env` для `context_servers` в `settings.json`. MSCodeBase обходит это через fallback-цепочку: SQLite DB → `PROJECT_PATH` из `.env` → CWD.
+
+
+> build · longcat-2.0
+

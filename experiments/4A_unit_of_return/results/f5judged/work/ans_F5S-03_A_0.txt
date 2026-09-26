@@ -1,0 +1,5 @@
+I don't know. The provided context doesn't contain any information comparing 'gitignore' vs 'gitwildmatch' formats or explaining why one is preferred over the other.
+
+
+> build · longcat-2.0
+

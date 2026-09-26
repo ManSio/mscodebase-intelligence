@@ -1,0 +1,140 @@
+### src/core/gitignore_parser.py
+// Scope: function_part | giant_function_part | core.gitignore_parser
+// File: src\core\gitignore_parser.py
+// [Part 1]
+def _match_gitignore_pattern(path: str, pattern: str) -> bool:
+    """Простая проверка паттерна .gitignore.
+
+    Args:
+        path: Относительный путь в POSIX-формате
+        pattern: Паттерн .gitignore
+
+    Returns:
+        True если путь соответствует паттерну
+    """
+    # Убираем начальный слеш
+    if pattern.startswith("/"):
+        pattern = pattern[1:]
+
+    # Убираем концевой слеш (директория)
+    is_dir_pattern = pattern.endswith("/")
+    if is_dir_pattern:
+        pattern = pattern.rst
+...
+
+### src/core/gitignore_parser.py
+// Scope: function | function_definition | core.gitignore_parser
+// File: src\core\gitignore_parser.py
+def load_gitignore_patterns(project_path: Path) -> Set[str]:
+    """Загружает и парсит .gitignore файл, возвращая набор паттернов для исключения.
+
+    Caches result by project_path + mtime to avoid re-parsing on every file check.
+
+
+### src/core/gitignore_parser.py
+// Scope: function | function_definition | core.gitignore_parser
+// File: src\core\gitignore_parser.py
+def is_file_excluded_by_gitignore(
+    file_path: Path, project_path: Path, gitignore_patterns: Set[str]
+) -> bool:
+    """Проверяет, исключён ли файл по правилам .gitignore.
+
+
+### src/core/indexing/file_guard.py
+// Scope: function | function_definition | core.indexing.file_guard
+// File: src\core\indexing\file_guard.py | Context: FileGuard
+def _load_gitignore(self):
+        """Загружает правила из .gitignore."""
+        try:
+            from src.core.gitignore_parser import load_gitignore_patterns
+
+
+### src/sources/git_url/__init__.py
+// Scope: function | function_definition | sources.git_url.__init__
+// File: src\sources\git_url\__init__.py | Context: GitRepoCache
+def put(self, url: str, url_hash: str, entry_dir: Path, size_bytes: int) -> None:
+
+        with self._lock:
+
+            manifest = self._load()
+
+            now = time.time()
+
+
+
+### src/core/intelligence/layer.py
+// Scope: function_part | giant_function_part | core.intelligence.layer
+// File: src\core\intelligence\layer.py | Context: ProjectIntelligenceLayer
+// [Part 1]
+async def _collect_signals() -> None:
+
+            async def _health_signal() -> None:
+
+                try:
+
+                    health_report = await asyncio.wait_for(
+
+                        asyncio.to_thread(health.run_full_diagnostic), timeout=3.0
+
+                    )
+
+                    if health_report and health_report.get("overall_health") == "warning":
+
+                        candidates.append(
+
+                            {
+
+                                "component": component_
+...
+
+### src/core/indexing/file_guard.py
+// Scope: function_part | giant_function_part | core.indexing.file_guard
+// File: src\core\indexing\file_guard.py | Context: FileGuard
+// [Part 2]
+logger.debug(f"[FILEGUARD SKIP] File not in project: {file_path}")
+                return False
+
+        # 2. МЕДЛЕННЫЕ ПРОВЕРКИ (I/O Файловой системы) с Retry-логикой под Windows
+        st_size = 0
+        for attempt in range(self.max_retries):
+            try:
+                # Пытаемся получить информацию о файле
+                st_size = file_path.stat().st_size
+
+                # Дополнительная проверка: если размер 0, возможно, файл еще пишется.
+                # Даем ему шанс заполнитьс
+...
+
+### src/core/action_receipt.py
+// Scope: function | function_definition | core.action_receipt
+// File: src\core\action_receipt.py
+def _is_inconclusive_result(result: Dict[str, Any]) -> bool:
+
+    """Шаг не удалось выполнить (среда), а не провалился (содержимое)?"""
+
+    for err in result.get("errors", []) or []:
+
+        low = str(err).lower()
+
+
+
+### src/core/git_hooks_installer.py
+// Scope: function | function_definition | core.git_hooks_installer
+// File: src\core\git_hooks_installer.py | Context: GitHooksInstaller
+def check_status(self, project_root: str) -> str:
+
+        """Проверяет, установлен ли pre-commit хук.
+
+
+
+        Args:
+
+
+
+### src/core/search/engine.py
+// Scope: function_part | giant_function_part | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+// [Part 2]
+self._reranker_cache_max = 200
+
+        self._reranker_cache_lock = threading.Lock()

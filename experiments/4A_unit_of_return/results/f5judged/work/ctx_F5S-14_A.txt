@@ -1,0 +1,103 @@
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def _strip_jsonc_comments(text: str) -> str:
+
+    """Remove // and /* */ comments while respecting string literals."""
+
+    out: list[str] = []
+
+    i, n = 0, len(text)
+
+
+
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def parse_jsonc(text: str) -> dict:
+
+    """Parse Zed settings.json (JSONC) into a dict. Raises on invalid JSON."""
+
+    cleaned = _strip_trailing_commas(_strip_jsonc_comments(text))
+
+    return json.loads(cleaned)
+
+### scripts/check_lsp_health.py
+// Scope: function | function_definition | check_lsp_health
+// File: scripts\check_lsp_health.py
+def _get_zed_db_path() -> Path:
+
+    """Возвращает путь к базе данных Zed (для проверки active windows)."""
+
+    if platform.system() == "Windows":
+
+        base = Path(os.environ.get("LOCALAPPDATA", ""))
+
+
+
+### scripts/check_lsp_health.py
+// Scope: function | function_definition | check_lsp_health
+// File: scripts\check_lsp_health.py
+def _get_zed_logs_dir() -> Path:
+
+    """Возвращает путь к директории логов Zed."""
+
+    if platform.system() == "Windows":
+
+        base = Path(os.environ.get("LOCALAPPDATA", ""))
+
+
+
+### src/core/platform_utils.py
+// Scope: function | function_definition | core.platform_utils
+// File: src\core\platform_utils.py
+def is_windows() -> bool:
+    """True на Windows."""
+    return sys.platform == "win32"
+
+### src/core/platform_utils.py
+// Scope: function | function_definition | core.platform_utils
+// File: src\core\platform_utils.py
+def get_zed_db_path() -> Path:
+    """Путь к SQLite базе данных Zed (workspaces, multi_workspace_state).
+
+    ⚠️ ВНИМАНИЕ: Это недокументированная внутренняя БД Zed.
+
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+ `D:\\\\Project\\\\MSCodeBase`). Это может случиться, если\n170:      пользователь открывает исходники расширения как проект в Zed.\n171:    - Zed install dir (см. is_zed_install_dir в lsp_project_bridge).\n172:\n173:    РАНЬШЕ здесь была проверка `(p / \"src/lsp_main.py\").exists()` — она\n174:    была ошибочной, потому что исходники расширения РЕАЛЬНО содержали\n175:    `src/lsp_main.py`, и guard блокировал легитимный dev-сценарий\n176:    (\"открыть репо расширения как проект в Zed, чтобы индексировать\n177:    свой же код\"). Теперь вместо маркера-файла используется явный\n178:    ext_root-equality + is_zed_install_dir (Zed install markers\n179:    специфичны, ложных срабатываний на обычных проектах не дают).\n180:\n181:    IMPORTANT: когда source=\"ACTIVE_WORKSPACE\" — это ЯВНО активное\n182:    окно Zed (multi_workspace_state.active_workspace_id). Пользователь\n183:    ЯВНО открыл этот проект в Zed, поэтому доверяем ему даже если это\n184:    ext_root. Блокируем ext_root только д
+
+### src/core/platform_utils.py
+// Scope: function | function_definition | core.platform_utils
+// File: src\core\platform_utils.py
+def _get_zed_data_base() -> Path:
+    """Базовая директория данных Zed (db, extensions, logs).
+
+    Windows: %LOCALAPPDATA%/Zed
+
+
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def _insert_before_final_brace(text: str, snippet: str) -> str | None:
+
+    """Insert `snippet` (a `"key": value` fragment, no leading/trailing comma)
+
+    as a new top-level property right before the final `}`.
+
+
+
+
+
+### src/sources/local_fs/windows.py
+// Scope: function | function_definition | sources.local_fs.windows
+// File: src\sources\local_fs\windows.py | Context: SafePathManager
+def _finalize_tempdir(path: Optional[Path]) -> None:
+
+        """Static finalizer для weakref.finalize (не держит self)."""
+
+        if path and path.exists():
+
+            try:
+

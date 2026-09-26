@@ -1,0 +1,5 @@
+Формат `gitwildmatch` помечен как deprecated (deprecated), поэтому парсер использует актуальный формат `gitignore`. Это также устраняет deprecation warnings при работе с `pathspec`.
+
+
+> build · longcat-2.0
+

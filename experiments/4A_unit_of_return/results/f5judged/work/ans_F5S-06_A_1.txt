@@ -1,0 +1,5 @@
+При сбое графа (`pg is None` или отсутствует `db_path`) `run_quiet_break_gate` возвращает `_empty("unavailable", ...)` — пустой dict с поме
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,5 @@
+`validate_scores` отбрасывает элементы с NaN/Inf (`math.isfinite(score)` → `continue`), не включая их в результат — это fail-safe, чтобы NaN молча не становился 1.0 через clamp.
+
+
+> build · longcat-2.0
+

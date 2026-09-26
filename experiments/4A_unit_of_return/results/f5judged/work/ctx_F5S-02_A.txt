@@ -1,0 +1,157 @@
+### src/core/redact.py
+// Scope: function | function_definition | core.redact
+// File: src\core\redact.py
+def redact(text: str, counter: Optional[Dict[str, int]] = None) -> str:
+    """Возвращает `text` с вырезанными credential-подобными подстроками. Не бросает."""
+    if not text or not isinstance(text, str):
+        return text
+
+
+### src/core/redact.py
+// Scope: function | function_definition | core.redact
+// File: src\core\redact.py
+def redacted_count(text: str) -> Tuple[str, Dict[str, int]]:
+    """(redacted_text, {kind: n}) — чтобы вызывающий мог СКАЗАТЬ, что отредактировал."""
+    counter: Dict[str, int] = {}
+    return redact(text, counter), counter
+
+### experiments/bootstrap/tarantula_analysis.py
+// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.bootstrap.tarantula_analysis.py
+// File: experiments\bootstrap\tarantula_analysis.py
+"""Exp 7 follow-up (C): Tarantula-анализ trace_result.json.
+
+Считаем для каждого теста: какие src-функции он выполняет, и насколько они
+«специфичны» (вызываются только этим тестом). Кандидат = функция с max
+специфичностью. Проверяем гипотезу: >=60-70% тестов имеют однозначного
+кандидата без мутаций.
+"""
+import json
+import statistics
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
+ROOT = Path
+...
+
+### src/core/redact.py
+// Scope: function | function_definition | core.redact
+// File: src\core\redact.py
+def _looks_like_a_value(val: str) -> bool:
+    """Кред, а не путь/число/ссылка на env/плейсхолдер."""
+    if _PLACEHOLDERISH.match(val):
+        return False
+
+
+### experiments/arclux_cycles_inventory.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.arclux_cycles_inventory.py
+// File: experiments\arclux_cycles_inventory.py
+def scan_dir(root: Path) -> Tuple[Dict[str, Path], Dict[str, List[Tuple[int, str, str]]]]:
+
+    """Возвращает {модуль: путь} и {модуль: [(lineno, target, scope)]}."""
+
+    paths: Dict[str, Path] = {}
+
+    imports: Dict[str, List[Tuple[int, str, str]]] = {}
+
+
+
+### src/core/search/engine.py
+// Scope: function_part | giant_function_part | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+// [Part 2]
+"hierarchy_level": row.get("hierarchy_level", ""),
+
+                            "layer": row.get("layer", ""),
+
+                            "symbol_type": row.get("symbol_type", ""),
+
+                        },
+
+                    }
+
+                )
+
+            return results
+
+        except Exception as e:
+
+            logger.error(f"Ошибка get_chunks_by_parent_id: {e}")
+
+            return []
+
+### src/core/indexing/parser.py
+// Scope: function_part | giant_function_part | core.indexing.parser
+// File: src\core\indexing\parser.py | Context: CodeParser
+// [Part 1]
+def _extract_decorators_recursive(
+
+        self,
+
+        node,
+
+        code: bytes,
+
+        file_path: Path,
+
+        decorators: List[Dict],
+
+        current_class: str,
+
+    ):
+
+        """Рекурсивно обходит AST, извлекая декораторы (Python-first).
+
+
+
+        Python: decorated_definition оборачивает def/class и содержит узлы
+
+        decorator — обрабатываем целиком и не спускаемся внутрь (внутренний
+
+        definition уже обработан). Другие языки: decorator/annotation как
+
+        прямые
+...
+
+### src/core/modification_guard.py
+// Scope: function | function_definition | core.modification_guard
+// File: src\core\modification_guard.py
+def _file_fingerprint(file_path: str) -> str:
+
+    """Хэш mtime+size файла — токен привязан к конкретному состоянию."""
+
+    try:
+
+        p = Path(file_path)
+
+
+
+### src/core/instruction_scan.py
+// Scope: function | function_definition | core.instruction_scan
+// File: src\core\instruction_scan.py
+def has_instruction_risk(text: str) -> bool:
+
+    """True, если в тексте найден хотя бы один инструкционный паттерн."""
+
+    return bool(scan_instruction_risk(text))
+
+### src/core/intelligence/verify_on_read.py
+// Scope: function_part | giant_function_part | core.intelligence.verify_on_read
+// File: src\core\intelligence\verify_on_read.py | Context: _Fingerprint
+// [Part 2]
+continue
+
+        self.imports = imports
+
+        self.files = files
+
+        self.env_keys = env_keys
+
+        # ADR-0005: закрытый мир зависимостей (pyproject/requirements[-lock]).
+
+        self.packages = _load_manifest_packages(root) if root is not None else set()
+
+        self.build_ms = (time.perf_counter() - t0) * 1000.0

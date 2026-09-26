@@ -1,0 +1,192 @@
+### scripts/monitor.py
+// Scope: function | function_definition | monitor
+// File: scripts\monitor.py
+def parse_indexing_complete(line):
+
+    """Indexing complete: 100 new/changed, 0 removed, total 3857 chunks"""
+
+    m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
+
+    return int(m.group(1)) if m else None
+
+### src/core/embedder/onnx_client.py
+// Scope: function | function_definition | core.embedder.onnx_client
+// File: src\core\embedder\onnx_client.py | Context: OnnxEmbedderClient
+def embed_batch(self, texts: List[str]) -> List[List[float]]:
+
+        """Эмбеддинг батча текстов."""
+
+        if not self.ensure_server_running():
+
+            raise RuntimeError("ONNX server not available")
+
+
+
+### scripts/console_flash_monitor.py
+// Scope: function | function_definition | console_flash_monitor
+// File: scripts\console_flash_monitor.py
+def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
+
+    chain = []
+
+    cur = pid
+
+    for _ in range(depth):
+
+
+
+### src/providers/reranker/llama_install.py
+// Scope: function | function_definition | providers.reranker.llama_install
+// File: src\providers\reranker\llama_install.py
+def _gguf_path(model_key: str) -> Path:
+
+    """Полный путь к GGUF файлу модели."""
+
+    return _get_models_dir() / GGUF_MODELS[model_key]["file"]
+
+### src/core/intelligence/health.py
+// Scope: function | function_definition | core.intelligence.health
+// File: src\core\intelligence\health.py | Context: HealthReport
+def _check_schema(conn) -> str | None:
+
+                """Проверяет наличие scoped_kv_store и workspaces."""
+
+                if conn is None:
+
+                    return "Zed SQLite DB недоступна"
+
+
+
+### src/providers/reranker/llama_install.py
+// Scope: function_part | giant_function_part | providers.reranker.llama_install
+// File: src\providers\reranker\llama_install.py
+// [Part 1]
+def download_gguf_model(model_key: str, progress_cb=None) -> bool:
+
+    """Скачивает GGUF модель из Hugging Face."""
+
+    models_dir = _get_models_dir()
+
+    models_dir.mkdir(parents=True, exist_ok=True)
+
+
+
+    info = GGUF_MODELS[model_key]
+
+    gguf_path = _gguf_path(model_key)
+
+
+
+    if gguf_path.exists():
+
+        logger.info(f"✅ GGUF модель уже скачана: {gguf_path.name}")
+
+        return True
+
+
+
+    # Скачиваем через huggingface_hub (если есть) или urllib
+
+    from huggingface_hub import hf_
+...
+
+### install.py
+// Scope: function_part | giant_function_part | d:.project.mscodebase.install.py
+// File: install.py
+// [Part 1]
+def step_gguf(lines, lang):
+
+    """Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3."""
+
+    from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
+
+
+
+    all_ok = True
+
+    zed_models_dir = ZED_EXT_DIR / "models"
+
+
+
+    for key in ["multilingual-e5-small", "bge-reranker-v2-m3"]:
+
+        fname = GGUF_MODELS[key]["file"]
+
+        zed_gguf = zed_models_dir / fname
+
+        if zed_gguf.exists():
+
+         
+...
+
+### scripts/check_lsp_health.py
+// Scope: function_part | giant_function_part | check_lsp_health
+// File: scripts\check_lsp_health.py
+// [Part 2]
+# Проверяем MCP
+
+    mcp_block = settings.get("context_servers", {}).get("mscodebase-intelligence")
+
+    if mcp_block is not None:
+
+        result["has_mcp_block"] = True
+
+
+
+    # Проверяем на наличие ошибок парсинга (например от tab_size)
+
+    raw_errors = [line for line in content.split("\n") if "mscodebase-lsp" in line and "//" in line]
+
+    if raw_errors:
+
+        result["issues"].append(
+
+            "ℹ️  В settings.json есть комментарии рядом с mscodebase-lsp — "
+
+            "это остатки 
+...
+
+### src/core/di_container.py
+// Scope: function_part | giant_function_part | core.di_container
+// File: src\core\di_container.py
+// [Part 1]
+def _create_indexer_for_path(
+
+        p: Path,
+
+        _embedder=embedder,
+
+        _code_parser=code_parser,
+
+        _registry=registry,
+
+        _notification_broker=notification_broker,
+
+    ) -> Indexer:
+
+        """Фабрика для создания per-project Indexer.
+
+
+
+        Каждый Indexer получает свой db_path, file_guard, symbol_index,
+
+        bm25_batch — полностью изолировано от других окон.
+
+
+
+        Multi-window (INC-6BCB-v2): bm25_batch живёт НА Indexer-е
+
+        (не в DI singleton) — 
+...
+
+### src/core/embedder/onnx_client.py
+// Scope: function | function_definition | core.embedder.onnx_client
+// File: src\core\embedder\onnx_client.py
+def get_onnx_client(port: int = 9876, model_name: str = "multilingual-e5-base") -> OnnxEmbedderClient:
+
+    """Возвращает singleton клиент ONNX."""
+
+    global _client_instance
+
+    with _client_lock_module:
+

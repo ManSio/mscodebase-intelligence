@@ -1,0 +1,198 @@
+### src/core/interfaces/__init__.py
+// Scope: lines | fallback_lines | core.interfaces.__init__
+// File: src\core\interfaces\__init__.py
+"""
+Интерфейсы для компонентов MSCodeBase Intelligence.
+
+Позволяют подменять реализации (провайдеры) без изменения core-логики.
+"""
+
+from src.core.interfaces.embedder import IEmbedder
+from src.core.interfaces.reranker import IReranker
+from src.core.interfaces.searcher import ISearcher
+from src.core.interfaces.workspace_source import FileChangeEvent, WorkspaceSource
+
+__all__ = ["IEmbedder", "IReranker", "ISearcher", "WorkspaceSource", "FileChangeEvent"]
+
+### scripts/negative_controls_runner.py
+// Scope: function | function_definition | negative_controls_runner
+// File: scripts\negative_controls_runner.py
+def _append_pin_log(manifest_path: Path, guards: list[dict], reason: str) -> Path:
+
+    """TC-10: ревью-запись при --pin (кто/когда/что). Сам по себе лог —
+
+    самоаттестация; целостность — через git-историю/co-signer (v0.5)."""
+
+    from datetime import datetime, timezone
+
+
+
+### src/mcp/server_tools.py
+// Scope: function_part | giant_function_part | mcp.server_tools
+// File: src\mcp\server_tools.py
+// [Part 1]
+async def get_runtime_counters() -> str:
+
+        """Возвращает счётчики runtime: сколько запросов выполнено,
+
+        сколько отклонено и по какой причине.
+
+
+
+        Если blocked > 5% от calls — архитектура требует внимания.
+
+        """
+
+        from src.core.runtime_coordinator import get_counters
+
+        from src.utils.i18n import _
+
+        from src.utils.ui_formatter import header, section
+
+
+
+        counters = get_counters()
+
+        result = header("Runtime Counters", "ok")
+
+        re
+...
+
+### src/core/search/agentic_search.py
+// Scope: function_part | giant_function_part | core.search.agentic_search
+// File: src\core\search\agentic_search.py | Context: AgenticSearchMixin
+// [Part 2]
+),
+            (
+                r"где\s+(?:проверяется|находится|вызывается|используется|обрабатывается)\s+(.+?)(?:\s+(?:и|а|также|как)\s+|$)",
+                "где находится",
+            ),
+            (
+                r"что\s+(?:делает|происходит|содержит)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)",
+                "что делает",
+            ),
+            (
+                r"когда\s+(?:вызывается|происходит|срабатывает)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)",
+                "когда вызыва
+...
+
+### src/core/search/graph_adapter.py
+// Scope: function_part | giant_function_part | core.search.graph_adapter
+// File: src\core\search\graph_adapter.py | Context: SymbolIndexAdapter
+// [Part 1]
+def get_repo_map(self, project_root: str) -> Dict:
+
+        """Карта репозитория из PropertyGraph."""
+
+        Path(project_root).resolve().as_posix()
+
+
+
+        # Читаем все File nodes
+
+        file_nodes = self._graph.find_nodes(label=NodeLabel.FILE, limit=10000)
+
+
+
+        symbols_by_file = {}
+
+        all_symbols = []
+
+        dir_structure = {}
+
+
+
+        for fn in file_nodes:
+
+            rel_path = fn.file_path
+
+            parts = rel_path.replace("\\", "/").split("/")
+
+
+
+            cur
+...
+
+### src/core/indexing/parser.py
+// Scope: function_part | giant_function_part | core.indexing.parser
+// File: src\core\indexing\parser.py | Context: CodeParser
+// [Part 1]
+def _extract_decorators_recursive(
+
+        self,
+
+        node,
+
+        code: bytes,
+
+        file_path: Path,
+
+        decorators: List[Dict],
+
+        current_class: str,
+
+    ):
+
+        """Рекурсивно обходит AST, извлекая декораторы (Python-first).
+
+
+
+        Python: decorated_definition оборачивает def/class и содержит узлы
+
+        decorator — обрабатываем целиком и не спускаемся внутрь (внутренний
+
+        definition уже обработан). Другие языки: decorator/annotation как
+
+        прямые
+...
+
+### src/core/log_manager.py
+// Scope: function | function_definition | core.log_manager
+// File: src\core\log_manager.py
+def _migrate_logs_from_ext(target_dir: Path) -> int:
+
+    """Переносит исторические логи из расширения (ext/.codebase_indices/logs) в data_root.
+
+
+
+    Best-effort: при ошибке/отсутствии старых файлов — молча. Перемещает
+
+
+
+### scripts/console_flash_monitor.py
+// Scope: function | function_definition | console_flash_monitor
+// File: scripts\console_flash_monitor.py
+def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
+
+    chain = []
+
+    cur = pid
+
+    for _ in range(depth):
+
+
+
+### docs/research/lsp-archive/lsp_main.py
+// Scope: function | function_definition | research.lsp-archive.lsp_main
+// File: docs\research\lsp-archive\lsp_main.py
+async def on_initialized(ls: MSCodeBaseLanguageServer, params):
+
+        """После успешной инициализации подписываемся на системный watcher редактора."""
+
+        try:
+
+            from lsprotocol.types import (
+
+
+
+### scripts/architecture_linter.py
+// Scope: function | function_definition | architecture_linter
+// File: scripts\architecture_linter.py
+def _check_stale_references() -> list[str]:
+
+    """Проверяет, что нет ссылок на старые имена в исходном коде."""
+
+    errors = []
+
+    for py_file in (REPO / "src").rglob("*.py"):
+
