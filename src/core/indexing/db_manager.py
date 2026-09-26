@@ -68,6 +68,13 @@ class LanceDBManager:
         # P1-13 audit: RLock — reset_connection() вызывает _warmup_cache()
         # из-под этого же лока (реентерабельность обязательна).
         self._write_lock = table_write_lock or threading.RLock()
+        # Run-level mutual exclusion, SEPARATE from _write_lock (2026-09-25).
+        # run() holds this for the whole reindex to prevent two concurrent
+        # indexers (auto-index + manual trigger both called index_project).
+        # It must NOT be the write lock: _bounded_link runs DB ops on another
+        # thread, so holding the RLock across the run deadlocked bulk_write.
+        # Non-reentrant on purpose: a second run blocks (no re-entrancy).
+        self._run_lock = threading.Lock()
         self._reindex_guard = threading.Event()  # set = reindex идёт, search fast-fail
 
         # ─── Single-writer PID lock (Layer 3 defense) ───
@@ -632,6 +639,15 @@ class LanceDBManager:
                     f"(read-only режим). {_lock_err}"
                 ) from _lock_err
         return self._write_lock
+
+    def begin_run(self):
+        """Context manager: mutual exclusion between whole index runs.
+
+        run() wraps its entire body in this. It is NOT the write lock, so DB
+        operations executed on other threads (bulk_write via _bounded_link) can
+        acquire _write_lock without deadlocking (2026-09-25).
+        """
+        return self._run_lock
 
     # ══════════════════════════════════════════════════════════
     # Migration helpers (from IndexerTableMixin)

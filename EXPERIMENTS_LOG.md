@@ -1,5 +1,23 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
+
+**Гипотеза:** `PropertyGraph.add_node/add_edge` открывают ОДНУ SQLite-транзакцию + named-mutex на каждый узел/ребро (`graph.py:526-544, 816-851`) → graph-сборка сериализована и I/O-bound; это root cause «CPU 5% + диск ~3 МБ/с» на фазе parsing.
+**Команда:** `<ext-venv-python> experiments/misc_probes/exp_graph_write_throughput.py` (4 руки, temp-БД, одинаковый INSERT SQL).
+**Сырой вывод (после фикса, arm D = реальный `PropertyGraph.batch()`):**
+```
+N_NODES=2000 N_EDGES=4000
+A per-call PropertyGraph (mutex+txn) : 20.58s    194 entities/s
+B raw, ONE transaction+reused       :  0.03s 140875 entities/s
+C raw, per-node transaction         : 16.89s    237 entities/s
+D PropertyGraph.batch() [the fix]   :  0.15s  26826 entities/s
+speedup D/A (the fix) = 138.0x ; speedup B/A = 724.8x
+negative control counts equal: True -> [(2000, 2000)]
+```
+**Вердикт:** CONFIRMED. Per-row commit/fsync — доминанта; named-mutex добавляет ~35%. Отрицательный контроль — counts идентичны (нет порчи). Внешний baseline совпадает: SQLite 429 rows/s отдельными транзакциями vs 2.457M rows/s (одна транзакция+reused) — voidstar.tech.
+**Фикс внедрён (2026-09-25):** `PropertyGraph.batch()` (одна tx на файл) + `indexer._parse_file_only` оборачивает graph-update файла; измерено **138× на реальном API**. Guard: `tests/test_graph_batch.py` (counts/атомарность/вложенность/персистентность).
+**Live-контроль (job 268ac11b, 2026-09-26):** первая попытка на `batch()` **упала на finalize** (`cannot start a transaction within a transaction` в `GraphSymbolResolver.resolve_all`): `batch()` хранил состояние глобально, а parse идёт в 4 потока — файлы делили одну транзакцию. Фикс: владелец батча по thread-id (`_batch_owner`); чужой поток не присоединяется, а блокируется и получает свой батч (проверка и в add_node/add_edge/delete_node). Guard: `test_concurrent_batches_do_not_share_a_transaction` (Barrier, 2 потока, без OperationalError, counts). Повторный прогон → **completed 603с, 10106/10106**, path-dup 0.
+
 ## [2026-09-20] — E13 / поискочное качество: 6 исследовательских задач (план)
 
 **Статус:** Plan (код не тронут; задачи в ISSUE.md KI-R1..R6)
