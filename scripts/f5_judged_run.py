@@ -39,6 +39,7 @@ for _p in (str(EXT), str(ROOT)):
 os.environ.setdefault("PYTHONPATH", str(EXT))
 os.environ["PROJECT_PATH"] = str(ROOT)
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
+BUILD_MODEL = re.compile(r"build\s*[·>\-:]+\s*([A-Za-z0-9._/\-]+)")
 FROZEN = ROOT / "experiments" / "4A_unit_of_return" / "frozen" / "f5" / "queries.jsonl"
 
 READER_MODEL = "opencode-go/longcat-2.0"
@@ -80,7 +81,16 @@ def _run(bin_: str, prompt: str, model: str, workdir: Path, files: list[Path],
     except subprocess.TimeoutExpired:
         return "[TIMEOUT]"
     raw = (p.stdout or b"") + b"\n" + (p.stderr or b"")
-    return ANSI.sub("", raw.decode("utf-8", errors="replace"))
+    text = ANSI.sub("", raw.decode("utf-8", errors="replace"))
+    # Channel #1 guard: a silent opencode fallback to another model corrupts the
+    # experiment. Reject rather than record a wrong-model answer.
+    if "Cannot connect" in text or "Error:" in text:
+        return "[ERROR] " + text
+    m = BUILD_MODEL.search(text)
+    want = model.split("/")[-1]
+    if m and m.group(1) and want not in m.group(1):
+        return f"[MODEL-MISMATCH:{m.group(1)}] " + text
+    return text
 
 
 def _read(path: str) -> str:
@@ -206,6 +216,7 @@ def main() -> int:
                 if not budget_ok():
                     answers.append("[BUDGET]")
                     continue
+                reader_bad = False
                 if args.dry_run:
                     answers.append("[DRY]")
                     calls["n"] += 1
@@ -214,9 +225,13 @@ def main() -> int:
                     a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
                     calls["n"] += 1
                     answers.append(a)
+                    reader_bad = a.startswith("[")
                     (workdir / f"ans_{q['id']}_{arm}_{t}.txt").write_text(a, encoding="utf-8")
                 vrep = []
                 for _ in range(args.judge_repeats):
+                    if reader_bad:
+                        vrep.append("invalid")
+                        continue
                     if not budget_ok():
                         vrep.append("uncertain")
                         continue
@@ -245,7 +260,9 @@ def main() -> int:
     for arm in arms:
         vals = [v for r in records for v in r["arms"][arm]["verdicts"]]
         k = sum(1 for v in vals if v == "correct")
-        summary[arm] = {"correct": k, "n": len(vals), "rate": round(k / len(vals), 4) if vals else 0}
+        inval = sum(1 for v in vals if v == "invalid")
+        summary[arm] = {"correct": k, "n": len(vals), "invalid": inval,
+                        "rate": round(k / len(vals), 4) if vals else 0}
     print("summary:", json.dumps(summary, ensure_ascii=False))
     print(f"calls={calls['n']} -> {outdir / 'judged_raw.json'}")
     return 0
