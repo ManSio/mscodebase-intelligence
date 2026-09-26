@@ -76,7 +76,15 @@ jobs:
           pip-audit -r requirements-lock.txt --no-deps --disable-pip
 
       - name: Full test suite (no filters)
-        run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' --cov=src --cov-report=term-missing --cov-fail-under=38
+        # -n auto (pytest-xdist): run tests on all runner cores. Measured
+        # locally 197s -> 71s (x2.76, 12 cores); CI runners have 4 cores.
+        # COVERAGE_RCFILE=.coveragerc.ci: the local .coveragerc sets
+        # dynamic_context=test_function, which pytest-cov rejects under xdist
+        # (DistCovError, pytest-cov#604) and which costs ~+13.6% (sys.settrace).
+        # CI only needs the coverage % gate, so it uses the context-free config.
+        env:
+          COVERAGE_RCFILE: .coveragerc.ci
+        run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' -n auto --cov=src --cov-report=term-missing --cov-fail-under=38
         timeout-minutes: 20
 
       # Grader mutation probe (evalmut-перенос, 2026-08-14): мутационный аудит
