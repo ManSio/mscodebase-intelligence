@@ -29,6 +29,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -67,6 +68,12 @@ def _opencode_bin() -> str:
         if cand.exists():
             return str(cand)
     raise SystemExit("opencode binary not found (set OPENCODE_BIN)")
+
+
+# Only these are genuine call failures. A reader answer may legitimately start with a
+# bracketed heading (e.g. the agent's own "[ИТОГ]" summary), so startswith("[") is a
+# false-positive invalid; and a failed judge call must never count as a verdict.
+FAIL_MARKERS = ("[TIMEOUT]", "[ERROR]", "[MODEL-MISMATCH")
 
 
 def _run(bin_: str, prompt: str, model: str, workdir: Path, files: list[Path],
@@ -112,9 +119,106 @@ def _load_queries() -> list[dict]:
     return [json.loads(line) for line in lines if line.strip()]
 
 
+_PARSE_CACHE: dict = {}
+_PARSE_LOCK = threading.Lock()
+_GLOBAL_SIGS: dict | None = None
+
+
+def _file_skeleton(path: str) -> dict:
+    """Imports + callee->signature map for one source file (cached, thread-safe)."""
+    with _PARSE_LOCK:
+        hit = _PARSE_CACHE.get(path)
+    if hit is not None:
+        return hit
+    data = {"imports": [], "sigs": {}, "callees": {}}
+    try:
+        from src.core.indexing.parser import CodeParser
+
+        p = CodeParser()
+        fp = Path(path)
+        data["imports"] = [i.get("text", "") for i in p.extract_imports(fp) if i.get("text")]
+        sigs: dict = {}
+        for d in p.extract_definitions_scm(fp):
+            nm, sig = d.get("name"), d.get("signature")
+            if nm and sig and nm not in sigs:
+                sigs[nm] = sig
+        per_def: dict = {}
+        for c in p.extract_calls(fp):
+            caller = c.get("caller")
+            if caller:
+                per_def.setdefault(caller, set()).add(c.get("callee", ""))
+        data["sigs"] = sigs
+        data["callees"] = per_def
+    except Exception:  # noqa: BLE001 - one bad file must not kill the run
+        pass
+    with _PARSE_LOCK:
+        _PARSE_CACHE[path] = data
+    return data
+
+
+def _global_sigs() -> dict:
+    """Repo-wide name -> signature map (built once, lazily) for cross-file callee resolution."""
+    global _GLOBAL_SIGS
+    with _PARSE_LOCK:
+        if _GLOBAL_SIGS is not None:
+            return _GLOBAL_SIGS
+    sigs: dict = {}
+    try:
+        from src.core.indexing.parser import CodeParser
+
+        p = CodeParser()
+        root = Path(__file__).resolve().parents[1] / "src"
+        for f in root.rglob("*.py"):
+            try:
+                for d in p.extract_definitions_scm(f):
+                    nm, sg = d.get("name"), d.get("signature")
+                    if nm and sg and nm not in sigs:
+                        sigs[nm] = sg
+            except Exception:  # noqa: BLE001 - one bad file must not kill the run
+                continue
+    except Exception:  # noqa: BLE001 - one bad file must not kill the run
+        sigs = {}
+    with _PARSE_LOCK:
+        _GLOBAL_SIGS = sigs
+    return sigs
+
+
+def _augment(res: dict) -> str:
+    """Arm S: same chunk, plus file imports and callee signatures (skeleton injection)."""
+    meta = res.get("metadata") or {}
+    f = _norm(meta.get("file", ""))
+    text = res.get("text", "")
+    sk = _file_skeleton(f)
+    if not sk["imports"] and not sk["sigs"]:
+        return f"### {f}\n{text}"
+    imports_block = ""
+    if sk["imports"]:
+        imports_block = "// Imports: " + "; ".join(sk["imports"][:20]) + "\n"
+    sig_block = ""
+    sym = str(meta.get("symbol_name") or "").strip()
+    if sym:
+        bare = sym.split(".")[-1]
+        callees: set = set()
+        for caller, cs in sk["callees"].items():
+            if caller == sym or caller.endswith("." + sym) or caller.split(".")[-1] == bare:
+                callees |= set(cs)
+        sigs = []
+        gsigs = _global_sigs()
+        for c in sorted(callees)[:12]:
+            bare_c = c.split(".")[-1]
+            s = sk["sigs"].get(bare_c) or gsigs.get(bare_c)
+            if s:
+                sigs.append(s)
+        if sigs:
+            sig_block = "// Callee signatures: " + " | ".join(sigs) + "\n"
+    return f"### {f}\n{imports_block}{sig_block}{text}"
+
+
 def _arm_context(arm: str, results: list[dict], gold: str) -> str:
     if arm == "D":
         return ""
+    if arm == "S":
+        return "\n\n".join(_augment(r) for r in results)
     if arm == "A":
         parts = []
         for r in results:
@@ -228,7 +332,7 @@ def main() -> int:
             ans_file = (workdir / f"cand_{token}.txt")
             ans_file.write_text(a, encoding="utf-8")
             ans_file = ans_file.resolve()
-            if a.startswith("["):
+            if a.startswith(FAIL_MARKERS):
                 verdicts.append("invalid")
                 continue
             vrep = []
@@ -236,7 +340,12 @@ def main() -> int:
                 jp = (f"{JUDGE_INSTR}\n\nQuestion: {q['question']}\n"
                       f"Reference answer: {q['evidence_span']}")
                 jt = _run(bin_, jp, args.judge_model, workdir, [ans_file], args.timeout)
+                if jt.startswith(FAIL_MARKERS):
+                    continue
                 vrep.append(_parse_verdict(jt))
+            if not vrep:
+                verdicts.append("invalid")
+                continue
             verdicts.append(vrep[0] if len(vrep) == 1 else max(set(vrep), key=vrep.count))
         return {"id": q["id"], "population": q.get("population"), "gold_file": gold,
                 "reference": q["evidence_span"], "arm": arm,
@@ -278,7 +387,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 - one bad file must not kill the run  # noqa: BLE001
         import traceback
         traceback.print_exc()
         raise SystemExit(1)
