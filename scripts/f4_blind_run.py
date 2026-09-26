@@ -54,11 +54,15 @@ def _opencode_bin() -> str:
     raise SystemExit("opencode binary not found (set OPENCODE_BIN)")
 
 
-def run_one(bin_: str, model: str, variant: str, workdir: Path, handout: Path) -> str:
+def run_one(bin_: str, model: str, variant: str, workdir: Path, handout: Path,
+            timeout: int) -> str:
     cmd = [bin_, "run", MSG, "--model", model, "--pure", "--dir", str(workdir),
            f"--file={handout}", "--variant", variant]
     env = dict(os.environ, PYTHONUTF8="1", NO_COLOR="1")
-    p = subprocess.run(cmd, capture_output=True, timeout=300, env=env)
+    try:
+        p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env)
+    except subprocess.TimeoutExpired:
+        return f"[TIMEOUT after {timeout}s — run not completed]"
     raw = (p.stdout or b"") + b"\n" + (p.stderr or b"")
     return ANSI.sub("", raw.decode("utf-8", errors="replace"))
 
@@ -70,6 +74,7 @@ def main() -> int:
     ap.add_argument("--runs", type=int, required=True)
     ap.add_argument("--handout", required=True)
     ap.add_argument("--outdir", required=True)
+    ap.add_argument("--timeout", type=int, default=900)
     args = ap.parse_args()
 
     workdir = Path(args.outdir)
@@ -82,7 +87,7 @@ def main() -> int:
     slug = args.model.split("/")[-1]
 
     for i in range(1, args.runs + 1):
-        out = run_one(bin_, args.model, args.variant, workdir, handout)
+        out = run_one(bin_, args.model, args.variant, workdir, handout, args.timeout)
         f = workdir / f"run_{slug}_{i}.txt"
         f.write_text(out, encoding="utf-8")
         print(f"{slug} run {i}: {len(out)} chars -> {f.name}")
