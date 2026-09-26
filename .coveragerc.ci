@@ -1,0 +1,16 @@
+# Coverage config for CI only — used via COVERAGE_RCFILE=.coveragerc.ci.
+#
+# Why a separate file: the local .coveragerc sets
+# `dynamic_context = test_function`, which coverage.py implements via
+# sys.settrace. pytest-cov refuses to run that under pytest-xdist
+# (DistCovError, pytest-cov#604) and it adds ~+13.6% runtime
+# (AGENT_DIARY 2026-09-15). CI only needs the coverage % gate, not
+# per-test contexts, so it uses this context-free config and runs in
+# parallel (-n auto). Local/bootstrap runs keep the context-rich
+# .coveragerc.
+[run]
+source = src
+branch = true
+
+[report]
+show_missing = true
