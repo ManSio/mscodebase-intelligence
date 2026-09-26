@@ -205,10 +205,15 @@ def main() -> int:
             contexts[(q["id"], arm)] = _arm_context(arm, results_by_q[q["id"]], gold)
 
     bin_ = None if args.dry_run else _opencode_bin()
+    counter = {"n": 0}
 
     def run_unit(q: dict, arm: str) -> dict:
         gold = _norm(q["gold_file"])
-        ctx_file = (workdir / f"ctx_{q['id']}_{arm}.txt")
+        # OPAQUE filenames: opencode reveals the --file name to the model, so the
+        # arm/query must NOT appear in it (reader and judge stay blind).
+        token = f"c{counter['n']:05d}"
+        counter["n"] += 1
+        ctx_file = (workdir / f"ctx_{token}.txt")
         ctx_file.write_text(contexts[(q["id"], arm)], encoding="utf-8")
         ctx_file = ctx_file.resolve()
         answers, verdicts = [], []
@@ -220,11 +225,12 @@ def main() -> int:
             prompt = f"{READER_INSTR}\n\nQuestion: {q['question']}"
             a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
             answers.append(a)
-            (workdir / f"ans_{q['id']}_{arm}_{t}.txt").write_text(a, encoding="utf-8")
+            ans_file = (workdir / f"cand_{token}.txt")
+            ans_file.write_text(a, encoding="utf-8")
+            ans_file = ans_file.resolve()
             if a.startswith("["):
                 verdicts.append("invalid")
                 continue
-            ans_file = (workdir / f"ans_{q['id']}_{arm}_{t}.txt").resolve()
             vrep = []
             for _ in range(args.judge_repeats):
                 jp = (f"{JUDGE_INSTR}\n\nQuestion: {q['question']}\n"
