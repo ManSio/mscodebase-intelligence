@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **Planted-break gate (2026-09-27):** 6 controls (3 guards × pos/neg) в `tests/test_planted_break_gate.py`. Guards: core→MCP imports, tools→Registry, stale refs. Negative: planted violation ловится. Positive: clean input не флагинится. Закрывает обещание "commit gate with planted break on EVERY run" из треда hooks. Артефакты: `experiments/planted_break/`.
+
 - **NodeRAG vs chunked retrieval on long docs (2026-09-27, REFUTED):** 16 замороженных запросов (10 rules + 3 pos + 3 NONE), 2 arms (TF-IDF top-10 vs PropertyGraph BFS depth=3). A: 80% hit, 302K tokens; B: 70% hit, 170K tokens. Controls 3/3 both. Chunked wins on hit rate; graph wins on tokens but needs a seed symbol in the graph. Tom's claim not confirmed for our corpus. Artifacts: `experiments/noderag/`.
 
 - **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (ea715903). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
