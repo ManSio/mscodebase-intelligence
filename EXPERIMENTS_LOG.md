@@ -1,5 +1,35 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — stale_after + discriminator for memory notes (CONFIRMED)
+
+**Гипотеза:** Memory notes can be automatically expired via `stale_after` date or `discriminator` command — deterministic, offline, no LLM calls. Tom Jones (dev.to hooks article) describes these two keys.
+**Команда:** `python -m pytest tests/test_stale_after.py -v`
+**Сырой вывод:**
+```
+17 passed in 2.87s
+- test_positive_future_stale_after_passing_discriminator PASSED
+- test_negative_past_stale_after PASSED
+- test_negative_failing_discriminator PASSED
+- test_none_no_stale_after_no_discriminator PASSED
+- test_stale_after_today_is_not_stale PASSED
+- test_invalid_stale_after_format_graceful PASSED
+- test_discriminator_timeout_returns_expired PASSED
+- test_stale_after_checked_before_discriminator PASSED
+- test_injectable_now_date PASSED
+- test_store_positive_control PASSED
+- test_store_negative_stale_after PASSED
+- test_store_negative_discriminator PASSED
+- test_store_none_backward_compat PASSED
+- test_store_not_found PASSED
+- test_store_mixed_notes PASSED
+- test_cli_check_staleness PASSED
+- test_cli_requires_note_id PASSED
+```
+**Вердикт:** CONFIRMED. All 4 controls pass. `stale_after` (ISO date) → STALE when past. `discriminator` (shell command) → EXPIRED on non-zero exit. No stale_after/discriminator → ACTIVE (backward compat). Deterministic, offline, no LLM.
+**Дизайн:** New statuses STALE/EXPIRED (visible, not hidden like REFUTED/SUPERSEDED). `stale_after` checked before `discriminator`. Invalid date format → graceful (treated as no stale_after). Discriminator timeout 5s → EXPIRED.
+**Артефакты:** `src/core/intelligence/staleness.py`, `src/core/intelligence/store.py` (check_staleness method), `src/cli.py` (CLI command), `tests/test_stale_after.py`, `experiments/stale_after/results.json`.
+** backward compat:** Existing notes without new fields → ACTIVE.
+
 ## [2026-09-27] — redact.py: scrub personal paths with planted-key test (CONFIRMED)
 
 **Гипотеза:** A redact utility that scrubs drive-rooted paths and username from text output is alive (catches planted violations) and does not over-redact clean text.

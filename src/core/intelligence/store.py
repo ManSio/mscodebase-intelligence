@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.core.intelligence.staleness import check_note_staleness
+
 __all__ = [
     "Incident",
     "MemoryNode",
@@ -185,6 +187,43 @@ class IntelligenceStore:
             "false_retractions": false_retractions,
             "false_retraction_rate": rate,
         }
+
+    def check_staleness(self, note_id: str) -> Dict[str, Any]:
+        """Check staleness of a memory note by ID."""
+        nodes = self._load_json("project_memory.json")
+        if isinstance(nodes, dict):
+            nodes = [n for v in nodes.values() if isinstance(v, list) for n in v]
+
+        note = None
+        for n in nodes:
+            if isinstance(n, dict) and n.get("node_id") == note_id:
+                note = n
+                break
+
+        if note is None:
+            return {
+                "node_id": note_id,
+                "staleness": "NOT_FOUND",
+                "detail": f"Node {note_id} not found",
+            }
+
+        staleness = check_note_staleness(note, project_root=self.store_dir.parent)
+
+        return {
+            "node_id": note_id,
+            "staleness": staleness,
+            "stale_after": note.get("stale_after"),
+            "discriminator": note.get("discriminator"),
+            "detail": _staleness_detail(staleness, note),
+        }
+
+
+def _staleness_detail(staleness: str, note: Dict[str, Any]) -> str:
+    if staleness == "STALE":
+        return f"stale_after date {note.get('stale_after')} has passed"
+    if staleness == "EXPIRED":
+        return f"discriminator command exited non-zero"
+    return "active"
 
 
 # =====================================================================

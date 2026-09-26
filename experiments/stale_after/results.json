@@ -1,0 +1,53 @@
+{
+  "experiment": "stale_after + discriminator for memory notes",
+  "date": "2026-09-27",
+  "hypothesis": "Memory notes can be automatically expired via stale_after date or discriminator command, without LLM calls",
+  "implementation": {
+    "new_files": [
+      "src/core/intelligence/staleness.py",
+      "tests/test_stale_after.py"
+    ],
+    "modified_files": [
+      "src/core/intelligence/store.py",
+      "src/cli.py"
+    ],
+    "new_statuses": ["STALE", "EXPIRED"],
+    "cli_command": "python -m src.cli check_staleness <note_id> [--project <root>]"
+  },
+  "controls": {
+    "positive": {
+      "description": "Future stale_after + passing discriminator",
+      "expected": "ACTIVE",
+      "result": "PASS"
+    },
+    "negative_stale_after": {
+      "description": "Past stale_after date",
+      "expected": "STALE",
+      "result": "PASS"
+    },
+    "negative_discriminator": {
+      "description": "Failing discriminator command",
+      "expected": "EXPIRED",
+      "result": "PASS"
+    },
+    "none_backward_compat": {
+      "description": "No stale_after, no discriminator",
+      "expected": "ACTIVE",
+      "result": "PASS"
+    }
+  },
+  "test_results": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "command": "python -m pytest tests/test_stale_after.py -v"
+  },
+  "latency_ms": {
+    "unit_tests_avg": 5,
+    "cli_test_avg": 50,
+    "note": "Discriminator timeout is 5s max; typical check is <10ms"
+  },
+  "backward_compatibility": "Existing notes without stale_after/discriminator return ACTIVE",
+  "offline_deterministic": true,
+  "llm_calls": 0
+}

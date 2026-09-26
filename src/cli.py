@@ -41,7 +41,10 @@ def core_tool_allowlist() -> dict:
         "graph_query": GraphQueryTool,
         "find_similar_bugs": FindSimilarBugsTool,
         "bootstrap_pipeline": BootstrapPipelineTool,
+        "check_staleness": "inline",
     }
+
+    allowlist["check_staleness"] = "inline"
 
 
 def _load_arguments(cli_text: str) -> dict:
@@ -59,6 +62,8 @@ def main(argv=None) -> int:
     parser.add_argument("tool", help="имя тула из allowlist")
     parser.add_argument("arguments", nargs="?", default="{}",
                         help="JSON-args или '-' для stdin")
+    parser.add_argument("note_id", nargs="?", default=None,
+                        help="note ID (for check_staleness)")
     parser.add_argument("--project", default=None, help="project root (default: cwd)")
     args = parser.parse_args(argv)
 
@@ -70,6 +75,30 @@ def main(argv=None) -> int:
         }), file=sys.stderr)
         return 2
 
+    if allowlist[args.tool] == "inline":
+        if args.note_id is None and args.arguments and args.arguments != "{}":
+            args.note_id = args.arguments
+            args.arguments = "{}"
+    elif allowlist[args.tool] is None:
+        print(json.dumps({
+            "error": f"tool '{args.tool}' is not available",
+        }), file=sys.stderr)
+        return 2
+
+    project_root = Path(args.project).resolve() if args.project else Path(".").resolve()
+
+    if args.tool == "check_staleness":
+        if not args.note_id:
+            print(json.dumps({"error": "note_id is required for check_staleness"}),
+                  file=sys.stderr)
+            return 2
+        from src.core.intelligence.store import IntelligenceStore
+        store = IntelligenceStore(project_root)
+        result = store.check_staleness(args.note_id)
+        print(json.dumps({"ok": True, "tool": args.tool, "result": result},
+                         ensure_ascii=False))
+        return 0
+
     try:
         call_args = _load_arguments(args.arguments)
         if not isinstance(call_args, dict):
@@ -77,8 +106,6 @@ def main(argv=None) -> int:
     except Exception as e:  # noqa: BLE001
         print(json.dumps({"error": f"bad arguments: {e}"}), file=sys.stderr)
         return 2
-
-    project_root = Path(args.project).resolve() if args.project else Path(".").resolve()
 
     services = None
     try:
@@ -92,7 +119,6 @@ def main(argv=None) -> int:
             json.dumps({"ok": True, "tool": args.tool, "result": result},
                        default=str, ensure_ascii=False))
         if redacted:
-            # канал доставки чистит креды ПЕРЕД инъекцией в контекст агента (см. redact.py)
             print(json.dumps({"redacted": redacted}), file=sys.stderr)
         print(payload)
         return 0
