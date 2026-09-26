@@ -7,7 +7,7 @@
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](INSTALL.md)
 
 > **MSCodebase Intelligence** — 用于 Zed IDE 中语义代码搜索的 MCP 服务器。
-> 作为 Zed 扩展运行。开发目录：`D:\Project\MSCodeBase`。
+> 作为 Zed 扩展运行。开发目录：`<repo-root>`。
 
 ---
 

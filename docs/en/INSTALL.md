@@ -7,7 +7,7 @@
 [🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
 > **MSCodebase Intelligence** — MCP server for semantic code search in Zed IDE.
-> Runs as a Zed extension. Development in `D:\Project\MSCodeBase`.
+> Runs as a Zed extension. Development in `<repo-root>`.
 
 ---
 
