@@ -8,9 +8,9 @@
 
 **36 entries** тАФ compressed per ┬з4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21)
 
-## 2026-09-26 — G6 gate blind to paraphrase twins of index phrases (Open)
+## 2026-09-26 — G6 gate blind to paraphrase twins of index phrases (Fixed)
 - **Источник/Описание:** F4b (22 runs, `results/f4b/RED_TEAM.md` R1). must-hit `#3` — морф. двойник arrival-фразы каталога; G6 `PASS`, но symptom-условие 3/11. Чекер не видит табличные строки и не стеммит.
-- **Fix:** table-cell фразы + стемминг + правило «must-hit ≠ двойник индексной фразы». **Статус:** ⏳ Open.
+- **Fix:** `frozen_overlap_check.py` v2 — numbered-пробы + arrival-фразы каталога + лёгкий стемминг; `--selftest` + `tests/test_frozen_overlap_check.py`. **Статус:** ✅ Fixed.
 
 ## 2026-09-25 тАФ Reindex deadlock: `_bounded_link` ran `bulk_write` on a new thread while the caller held the write RLock (Fixed)
 
