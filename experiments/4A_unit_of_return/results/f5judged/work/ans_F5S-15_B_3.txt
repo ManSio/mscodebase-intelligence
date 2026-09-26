@@ -1,6 +1,4 @@
-В контексте упоминается только строка `env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"` в функции `_make_server_entry` — переменная передаётся как есть, без какой-либо информации о её формате или поведении именно на Windows. Других деталей о `ZEDWORKTREE_ROOT` на Windows в предоставленном контексте нет.
-
-I don't know.
+На Windows `ZED_WORKTREE_ROOT` всегда `<unset>` — это известный баг Zed (issue #36019), закрытый без исправления. В результате в `settings.json` для `context_servers` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` — любая попытка опираться на неё вернёт `None`. MSCodeBase обходит это цепочкой fallback'ов (SQLite DB, PROJECT_PATH из `.env`, CWD), не зависящих от этой переменной.
 
 
 > build · longcat-2.0

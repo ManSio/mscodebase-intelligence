@@ -1,3 +1,40 @@
+### EXPERIMENTS_LOG.md
+// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md
+From EXPERIMENTS_LOG.md, section '## [2026-08-03] — Гипотеза: рефлексивное обучение (Reflexion/Self-Refine) применимо к операционной DIS-системе агента через дневники':
+## [2026-08-03] — Гипотеза: рефлексивное обучение (Reflexion/Self-Refine) применимо к операционной DIS-системе агента через дневники
+
+**Триггер §1.7 п.3:** задача «как сделать агента самообучающимся» (add.md) — сама формулировка есть триггер исследования.
+**Ожидание:** академические подходы к самообучению LLM-агентов (вербальная рефлексия, memory augmentation) ложатся на существующие артефакты проекта (AGENT_DIARY, EXPERIMENTS_LOG, KNOWN_ISSUES) без переобучения весов.
+**Команда:** fetch arXiv:2303.11366 (Reflexion), arXiv:2303.17651 (Self-Refine), arXiv:2309.02427 (CoALA).
+**Сырой результат:**
+```
+Reflexion (Shinn et al., 202
+...
+
+### docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md
+// Scope: section | markdown_section | archive.agents.md_before_48_and_audit_20260722_215808
+From docs\archive\AGENTS.md_before_48_and_audit_20260722_215808.md, section '### 2.1. Строгое разделение ответственности':
+### 2.1. Строгое разделение ответственности
+
+1. **Конфигурация:** все переменные, пути, ключи — строго в `.env`, читаются
+   через `config.py`. Никаких hardcoded values в коде.
+2. **Ядро (Core):** знает только ЧТО нужно сделать. Абстрактные интерфейсы.
+3. **Провайдеры (Providers/Adapters):** конкретная реализация. Смена
+   технологии = одна строка в конфиге.
+
+### experiments/embeddinggemma/bench.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.embeddinggemma.bench.py
+// File: experiments\embeddinggemma\bench.py | Context: Bench
+def embed(self, texts) -> np.ndarray:
+
+        """POST /v1/embeddings (raw, как прод). Возвращает матрицу [n, dim]."""
+
+        s = time.perf_counter()
+
+        r = self.client.post(self.url + "/v1/embeddings", json={"input": list(texts)})
+
+
+
 ### experiments/bootstrap/a2_test_nodes.py
 // Scope: lines | fallback_lines | d:.project.mscodebase.experiments.bootstrap.a2_test_nodes.py
 // File: experiments\bootstrap\a2_test_nodes.py
@@ -18,72 +55,14 @@ print("labels count:")
 for r in con.execute("SELECT label, COUNT(*) c FROM nodes GROUP BY labe
 ...
 
-### experiments/embeddinggemma/bench.py
-// Scope: function | function_definition | d:.project.mscodebase.experiments.embeddinggemma.bench.py
-// File: experiments\embeddinggemma\bench.py | Context: Bench
-def embed(self, texts) -> np.ndarray:
+### docs/blog/README.md
+// Scope: section | markdown_section | blog.readme
+From docs\blog\README.md, section '## Как читать серию':
+## Как читать серию
 
-        """POST /v1/embeddings (raw, как прод). Возвращает матрицу [n, dim]."""
-
-        s = time.perf_counter()
-
-        r = self.client.post(self.url + "/v1/embeddings", json={"input": list(texts)})
-
-
-
-### src/core/quiet_break_gate.py
-// Scope: function_part | giant_function_part | core.quiet_break_gate
-// File: src\core\quiet_break_gate.py
-// [Part 2]
-continue  # уже был без вызывающих — не наш дельта-сигнал
-            alive = False
-            for c in callers:
-                cf = getattr(c, "file_path", "") or ""
-                if not cf:
-                    alive = True
-                    break
-                rel = _rel_posix(cf, root)
-                if rel not in changed:
-                    alive = True
-                    break
-                fp = root / rel
-                try:
-                    content = fp.read_text(encoding
-...
-
-### src/core/search/branch_aware_index.py
-// Scope: function | function_definition | core.search.branch_aware_index
-// File: src\core\search\branch_aware_index.py | Context: BranchAwareIndex
-async def get_branch_info_async(self) -> Dict:
-        """Async версия — через connect_async (не блокирует event loop)."""
-        branch = self.get_current_branch()
-        db_path = self.get_branch_db_path(branch)
-
-
-### src/mcp/server_tools.py
-// Scope: function_part | giant_function_part | mcp.server_tools
-// File: src\mcp\server_tools.py
-// [Part 6]
-from src.core.intelligence.alert_store import get_alert_store
-
-            from src.utils.ui_formatter import format_system_alerts
-
-
-
-            alerts = get_alert_store(target).collect_and_clear()
-
-            alert_text = format_system_alerts(alerts)
-
-            if alert_text:
-
-                lines.append("")
-
-                lines.append(alert_text.rstrip())
-
-        except Exception as e:  # noqa: BLE001 — алерты не роняют диагноз
-
-            logger.warning(f"explain_project_state: alert
-...
+- **Side Quest → 1 → 2 → 3**: от платформы к доверию к памяти агента.
+- Экспериментальная база всех частей — `EXPERIMENTS_LOG.md`; архитектурные решения — `docs/adr/`.
+- Часть 3 продолжается: Experiment 1-M (manifest-anchoring, закрыт) и 1-L (30-day longitudinal, дизайн) — см. `experiments/`.
 
 ### src/core/search/trace.py
 // Scope: function | function_definition | core.search.trace
@@ -98,16 +77,16 @@ def to_dict(self) -> Dict[str, Any]:
 
 
 
-### experiments/2E_evidence_ladder/temporal_facts_generator.py
-// Scope: function | function_definition | d:.project.mscodebase.experiments.2e_evidence_ladder.temporal_facts_generator.py
-// File: experiments\2E_evidence_ladder\temporal_facts_generator.py
-def _grep_zero(name: str) -> bool:
+### src/core/search/trace.py
+// Scope: function | function_definition | core.search.trace
+// File: src\core\search\trace.py | Context: SearchTracer
+def to_markdown(self, top_n: int = 5) -> str:
 
-    """Имя не встречается в src/**/*.py (детерминированная проверка)."""
+        """Форматирует trace как Markdown (для показа агенту/пользователю)."""
 
-    pat = re.compile(rf"\b{re.escape(name)}\b")
+        if not self.enabled or not self._chunks:
 
-    for f in SRC.rglob("*.py"):
+            return "_Tracing disabled or no results_"
 
 
 
@@ -177,14 +156,24 @@ def register_dev_tools(mcp_app) -> None:
         from src.core.p
 ...
 
-### src/core/artifact_paths.py
-// Scope: function | function_definition | core.artifact_paths
-// File: src\core\artifact_paths.py
-def migrate_legacy_artifacts(project_path: Path) -> Dict[str, str]:
+### docs/en/investigations/LSP_WONTFIX.md
+// Scope: section | markdown_section | en.investigations.lsp_wontfix
+From docs\en\investigations\LSP_WONTFIX.md, section '### 3.2 Реальный блокер LSP — отсутствие адаптера в `LanguageRegistry`':
+### 3.2 Реальный блокер LSP — отсутствие адаптера в `LanguageRegistry`
 
-    """Явный запуск миграции legacy-артефактов проекта в системную папку.
+Из `crates/project/src/lsp_store.rs:start_language_server`:
 
+```rust
+let adapter = self.languages
+    .lsp_adapters(language_name)
+    .into_iter()
+    .find(|adapter| adapter.name() == disposition.server_name)
+    .expect("To find LSP adapter");
+```
 
+`lsp_adapters(name)` возвращает адаптеры только из двух источников:
 
-    Обычно вызывать не нужно — get_project_dir() мигрирует при первом
-
+1. **Встроенные языки** — `crates/languages/src/*.rs` (Python, Rust, Go, …)
+   с их зашитыми LSP-адаптерами.
+2. **Загруженные расширения** — `extension.toml` + скомпилированный WA
+...

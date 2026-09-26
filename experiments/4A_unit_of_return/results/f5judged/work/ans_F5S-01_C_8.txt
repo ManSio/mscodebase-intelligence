@@ -1,0 +1,5 @@
+Потому что lock шарится между event-loop-ами LSP и MCP, а `asyncio.Lock` привязывается к loop-у первого `await` и дедлочит в cross-loop сценариях; `threading.Lock` этого не делает и совместим с sync- и async-вызывающими. Это связано с инцидентом INC-53EC / REFC-03 (упомянут в docstring `SlidingWindowRateLimiter`, rate_limiter.py:43-46).
+
+
+> build · longcat-2.0
+

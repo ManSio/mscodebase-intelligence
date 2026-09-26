@@ -1,4 +1,4 @@
-I don't know. The context only shows how env vars ARE passed (`env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"`, line 308), but doesn't describe a fallback mechanism when environment variables aren't passed.
+I don't know.
 
 
 > build · longcat-2.0

@@ -1,0 +1,5 @@
+I don't know. Контекст содержит только сигнатуры функций (`exception_fields`, `ledger_path`) из `reindex_ledger.py`, но не описывает ограничения, наложенные на модуль.
+
+
+> build · longcat-2.0
+

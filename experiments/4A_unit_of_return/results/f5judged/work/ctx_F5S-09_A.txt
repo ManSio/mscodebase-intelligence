@@ -1,3 +1,115 @@
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
 ### src/core/interfaces/__init__.py
 // Scope: lines | fallback_lines | core.interfaces.__init__
 // File: src\core\interfaces\__init__.py
@@ -14,18 +126,26 @@ from src.core.interfaces.workspace_source import FileChangeEvent, WorkspaceSourc
 
 __all__ = ["IEmbedder", "IReranker", "ISearcher", "WorkspaceSource", "FileChangeEvent"]
 
-### scripts/negative_controls_runner.py
-// Scope: function | function_definition | negative_controls_runner
-// File: scripts\negative_controls_runner.py
-def _append_pin_log(manifest_path: Path, guards: list[dict], reason: str) -> Path:
-
-    """TC-10: ревью-запись при --pin (кто/когда/что). Сам по себе лог —
-
-    самоаттестация; целостность — через git-историю/co-signer (v0.5)."""
-
-    from datetime import datetime, timezone
-
-
+### experiments/bootstrap/e17_demo.py
+// Scope: function_part | giant_function_part | d:.project.mscodebase.experiments.bootstrap.e17_demo.py
+// File: experiments\bootstrap\e17_demo.py
+// [Part 1]
+def demo_query(query: str):
+    """Показывает что получает LLM без TESTS и с TESTS."""
+    pg = PropertyGraph(get_graph_db_path(ROOT))
+    adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)
+    searcher = Searcher(indexer=FakeIndexer(adapter), embedder=None)
+    
+    print("=" * 80)
+    print(f"QUERY: {query}")
+    print("=" * 80)
+    
+    # WITHOUT TESTS
+    searcher._tests_signal = False
+    out_off = searcher._graph_stage(query, limit=5)
+    
+    print("\n[WITHOUT TESTS] Что 
+...
 
 ### src/mcp/server_tools.py
 // Scope: function_part | giant_function_part | mcp.server_tools
@@ -58,6 +178,35 @@ async def get_runtime_counters() -> str:
         re
 ...
 
+### scripts/negative_controls_runner.py
+// Scope: function | function_definition | negative_controls_runner
+// File: scripts\negative_controls_runner.py
+def _append_pin_log(manifest_path: Path, guards: list[dict], reason: str) -> Path:
+
+    """TC-10: ревью-запись при --pin (кто/когда/что). Сам по себе лог —
+
+    самоаттестация; целостность — через git-историю/co-signer (v0.5)."""
+
+    from datetime import datetime, timezone
+
+
+
+### docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md
+// Scope: section | markdown_section | archive.agents.md_before_48_and_audit_20260722_215808
+From docs\archive\AGENTS.md_before_48_and_audit_20260722_215808.md, section '## 0.-1. ПРИОРИТЕТ ПРАВИЛ И НАСЛЕДОВАНИЕ SKILLS':
+## 0.-1. ПРИОРИТЕТ ПРАВИЛ И НАСЛЕДОВАНИЕ SKILLS
+
+Этот файл (`AGENTS.md`) — верхний уровень. Любой Skill-файл (`architecture-review`,
+`bug-hunting`, `code-search-analysis`, `safe-refactoring`, `test-creation`, `systematic-cross-check`
+`documentation-update`, и любой будущий) — это **workflow**, не замена протокола.
+
+**Skill определяет ПОСЛЕДОВАТЕЛЬНОСТЬ шагов. `AGENTS.md` определяет, когда шаг
+считается пройденным и что обязано быть в финальном отчёте.**
+
+Если Skill-файл содержит свой формат `[🏁 ИТОГ ДЛЯ ТЕБЯ]` — этот формат
+**дополняется**, а 
+...
+
 ### src/core/search/agentic_search.py
 // Scope: function_part | giant_function_part | core.search.agentic_search
 // File: src\core\search\agentic_search.py | Context: AgenticSearchMixin
@@ -74,43 +223,6 @@ async def get_runtime_counters() -> str:
             (
                 r"когда\s+(?:вызывается|происходит|срабатывает)\s+(.+?)(?:\s+(?:и|а|также|где|как)\s+|$)",
                 "когда вызыва
-...
-
-### src/core/search/graph_adapter.py
-// Scope: function_part | giant_function_part | core.search.graph_adapter
-// File: src\core\search\graph_adapter.py | Context: SymbolIndexAdapter
-// [Part 1]
-def get_repo_map(self, project_root: str) -> Dict:
-
-        """Карта репозитория из PropertyGraph."""
-
-        Path(project_root).resolve().as_posix()
-
-
-
-        # Читаем все File nodes
-
-        file_nodes = self._graph.find_nodes(label=NodeLabel.FILE, limit=10000)
-
-
-
-        symbols_by_file = {}
-
-        all_symbols = []
-
-        dir_structure = {}
-
-
-
-        for fn in file_nodes:
-
-            rel_path = fn.file_path
-
-            parts = rel_path.replace("\\", "/").split("/")
-
-
-
-            cur
 ...
 
 ### src/core/indexing/parser.py
@@ -146,45 +258,6 @@ def _extract_decorators_recursive(
         прямые
 ...
 
-### src/core/log_manager.py
-// Scope: function | function_definition | core.log_manager
-// File: src\core\log_manager.py
-def _migrate_logs_from_ext(target_dir: Path) -> int:
-
-    """Переносит исторические логи из расширения (ext/.codebase_indices/logs) в data_root.
-
-
-
-    Best-effort: при ошибке/отсутствии старых файлов — молча. Перемещает
-
-
-
-### scripts/console_flash_monitor.py
-// Scope: function | function_definition | console_flash_monitor
-// File: scripts\console_flash_monitor.py
-def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
-
-    chain = []
-
-    cur = pid
-
-    for _ in range(depth):
-
-
-
-### docs/research/lsp-archive/lsp_main.py
-// Scope: function | function_definition | research.lsp-archive.lsp_main
-// File: docs\research\lsp-archive\lsp_main.py
-async def on_initialized(ls: MSCodeBaseLanguageServer, params):
-
-        """После успешной инициализации подписываемся на системный watcher редактора."""
-
-        try:
-
-            from lsprotocol.types import (
-
-
-
 ### scripts/architecture_linter.py
 // Scope: function | function_definition | architecture_linter
 // File: scripts\architecture_linter.py
@@ -196,3 +269,12 @@ def _check_stale_references() -> list[str]:
 
     for py_file in (REPO / "src").rglob("*.py"):
 
+
+
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl

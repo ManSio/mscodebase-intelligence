@@ -1,3 +1,46 @@
+### src/core/intelligence/layer.py
+// Scope: function_part | giant_function_part | core.intelligence.layer
+// File: src\core\intelligence\layer.py | Context: ProjectIntelligenceLayer
+// [Part 1]
+def _get_process_ram(pid: int) -> int:
+
+        """RSS процесса в MB через Windows API (psapi.dll / kernel32).
+
+
+
+        Замена wmic (удалён в Win11 25H2 KB5067470).
+
+        Использует GetProcessMemoryInfo — тот же паттерн что в
+
+        resource_monitor.py::_get_rss_windows(), адаптированный для
+
+        внешних PID через OpenProcess.
+
+        """
+
+        if os.name != "nt":
+
+            return 0
+
+        try:
+
+            import ctypes
+
+            from ctypes import wintypes
+
+
+
+           
+...
+
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
+
 ### src/core/bootstrap_entities.py
 // Scope: function | function_definition | core.bootstrap_entities
 // File: src\core\bootstrap_entities.py
@@ -10,66 +53,6 @@ def _is_dataclass_decorator(node: ast.expr) -> bool:
     target = node.func if isinstance(node, ast.Call) else node
 
 
-
-### src/mcp/server_factory.py
-// Scope: function_part | giant_function_part | mcp.server_factory
-// File: src\mcp\server_factory.py
-// [Part 2]
-)
-
-                )
-
-        except Exception as _diag_err:
-
-            logger.debug(f"startup diagnostics log failed: {_diag_err}")
-
-
-
-        # Ждём готовности рантайма
-
-        await asyncio.sleep(1.5)
-
-
-
-        from src.core.project_resolution import ext_root as _ext_root
-
-        if indexer.project_path.resolve() == _ext_root.resolve():
-
-            logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
-
-            return
-
-
-
-        logger.info("🚀 Auto-index: starting backgro
-...
-
-### src/mcp/server_factory.py
-// Scope: function_part | giant_function_part | mcp.server_factory
-// File: src\mcp\server_factory.py
-// [Part 2]
-logger.info(
-
-                        f"✅ Contradiction Ledger: утверждения AGENT_DIARY.md "
-
-                        f"верифицированы ({res['claims']} claims, {res['commits']} commits)"
-
-                    )
-
-                else:
-
-                    details = res.get('details', [])
-
-                    logger.warning(
-
-                        f"⚠️ Contradiction Ledger: {res['discrepancies']} расхождений "
-
-                        f"в AGENT_DIARY.md:"
-
-                    )
-
-                 
-...
 
 ### src/mcp/tools/meta_tools.py
 // Scope: function | function_definition | mcp.tools.meta_tools
@@ -84,34 +67,117 @@ async def _action_health(self, **kw) -> dict:
 
 
 
-### src/core/error_handler.py
-// Scope: function_part | giant_function_part | core.error_handler
-// File: src\core\error_handler.py
-// [Part 3]
-status=e.status,
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
 
-                        message=e.message,
+  "T01": {
 
-                        detail=e.detail,
+    "id": 26,
 
-                        recovery_hint=None if e.recoverable else "Contact admin",
+    "mode": "D_shuffled",
 
-                    )
+    "name": "_match_gitignore_pattern"
 
+  },
 
+  "T02": {
 
-                except Exception as e:
+    "id": 1,
 
-                    # Неожиданная ошибка — логируем полный traceback и НЕ повторяем
+    "mode": "A_baseline",
 
-                    logger.error(
+    "name": "IndexProjectRunner.run"
 
-                        f"[{tool_name}] Unexpected error: {e}\n{traceback.format_exc()}"
+  },
 
-                    )
+  "T03": {
 
-               
-...
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
 
 ### src/mcp/tools/meta_tools.py
 // Scope: function | function_definition | mcp.tools.meta_tools
@@ -134,42 +200,18 @@ ojectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `
 
     "fix": "** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `_register_intelligence_tools`\n- f-string без placeholder\n\n##
 
-### src/core/version_manager.py
-// Scope: function_part | giant_function_part | core.version_manager
-// File: src\core\version_manager.py | Context: VersionManager
-// [Part 1]
-def bump(
+### src/core/intelligence/project_context.py
+// Scope: function | function_definition | core.intelligence.project_context
+// File: src\core\intelligence\project_context.py | Context: ProjectContext
+async def _capture_health(
 
-        self, project_root: str, part: str = "patch", dry_run: bool = False
+        self, snap: ProjectContextSnapshot
 
-    ) -> str:
+    ) -> ProjectContextSnapshot:
 
-        """Бамп версии в pyproject.toml и обновление CHANGELOG.
-
+        try:
 
 
-        Args:
-
-            project_root: Корень проекта.
-
-            part: 'major', 'minor' или 'patch'.
-
-            dry_run: Если True — только показать, что будет изменено.
-
-
-
-        Returns:
-
-            Новая версия.
-
-        """
-
-        current = self.get_current_version(project_root)
-
-        if not current:
-
-         
-...
 
 ### src/mcp/tools/codebase_tool.py
 // Scope: function | function_definition | mcp.tools.codebase_tool

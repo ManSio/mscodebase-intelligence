@@ -1,4 +1,4 @@
-Через переменную `$ZED_WORKTREE_ROOT`, которую Zed подставляет сам — она указывает на корень текущего проекта (worktree). В `zed_config.py:308` записано `env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"`, и Zed резолвит эту переменную при запуске сервера.
+I don't know.
 
 
 > build · longcat-2.0

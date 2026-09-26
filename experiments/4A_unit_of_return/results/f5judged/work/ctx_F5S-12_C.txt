@@ -58,7 +58,7 @@ Each file is an array of records:
       "warnings_indexing_in_progress": 2
     },
     "project": {
-      "project_path": "D:\\Project\\MSCodeBase",
+      "project_path": "",
       "state": "READY",
       "index_chunks": 1362,
       "index_files": 106,

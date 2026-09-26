@@ -1,19 +1,5 @@
-I don't know.
+I don't know.
 
-ACTIVE-узел получает вердикт **INCONCLUSIVE** (`None`) — отсутствие якоря расценивается как UNVERIFIABLE, а не REFUTED (ctx_F5S-13_B.txt:1040-1041). Узел остаётся в статусе ACTIVE, но помечается флагом `verification="no_anchors"` для выдачи агенту (ctx_F5S-13_B.txt:1204-1210, 1161-1165).
-
-
-
-
-> build · longcat-2.0
-
-
-
-→ Skill "code-search-analysis"
-
-✱ Grep "ACTIVE.*вердикт|вердикт.*ACTIVE|резолвер.*недоступен|resolver.*unavailable" in  · 14 matches
-
-✱ Grep "_build_symbol_resolver|symbol_resolver|вердикт" in src · 34 matches
-
-→ Read ctx_F5S-13_B.txt [offset=1037, limit=250]
-
+
+> build · longcat-2.0
+

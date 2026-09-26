@@ -1,0 +1,5 @@
+Контекст не содержит информации об «ограничителе скорости» (rate limiter) и выборе между `threading.Lock` / `asyncio.Lock` — показан только инцидент 2026-07-05: MCP-сервер зависал после пачки `notify_change`, потому что `await self._flush()` вызывался внутри `threading.Lock`, а он не reentrant — повторный захват блокировал поток. Исправление: `should_flush` под lock, `await` — после lock.
+
+
+> build · longcat-2.0
+

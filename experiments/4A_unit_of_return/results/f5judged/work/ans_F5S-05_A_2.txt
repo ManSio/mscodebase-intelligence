@@ -1,4 +1,6 @@
-I don't know.
+I don't know.
+
+Контекст содержит фрагменты `reindex_ledger.py` (`exception_fields`, `ledger_path`) и `_reindex_fast_fail` из `engine.py`, но явного описания «главного ограничения» на модуль durable reindex ledger, предотвращающего поломку индексации, в приведённых сниппетах нет.
 
 
 > build · longcat-2.0

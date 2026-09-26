@@ -1,0 +1,5 @@
+По функции `decide` (experiments/1V_memory_contamination/memory_contamination.py:30): если проверка не дала результата (SILENT), вердикт принимается по памяти — True в плече A (с памятью), UNKNOWN/None в плече B. Сам узел при этом не отзывается — `intel_retract_memory_node` переводит ACTIVE/VERIFIED в REFUTED только при непустой причине (CONTRADICT).
+
+
+> build · longcat-2.0
+

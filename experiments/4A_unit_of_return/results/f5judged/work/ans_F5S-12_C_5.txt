@@ -1,0 +1,5 @@
+Да, метрики сохраняются. В разделе «Per-Tool Metrics» указано: «Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup» (строка 16).
+
+
+> build · longcat-2.0
+

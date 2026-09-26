@@ -1,6 +1,4 @@
-I don't know.
-
-The provided context shows fragments of watchdog setup in `indexer.py` and idle-state detection in `health.py`, but does not contain the mechanism that prevents idle-watchdog from killing a shared embedder during full reindex.
+Я не знаю. В предоставленном контексте (фрагменты `quiet_break_gate`, `indexer`, `remote_embedder`, `health.py`) нет информации о решении проблемы idle-watchdog, убивающего общий embedder во время полной переиндексации. Есть лишь отдельные упоминания watchdog label/states и heartbeat, но не механизм предотвращения этого конфликта.
 
 
 > build · longcat-2.0

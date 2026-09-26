@@ -1,0 +1,5 @@
+Quiet-break gate ведёт себя fail-open при сбое git или графа: возвращает `status` `"unavailable"` с пустым `findings`, **не блокируя коммит**, а причину логирует (`ctx_F5S-06_B.txt:17-18, 232-236, 240-241`).
+
+
+> build · longcat-2.0
+

@@ -1,13 +1,10 @@
-### scripts/monitor.py
-// Scope: function | function_definition | monitor
-// File: scripts\monitor.py
-def parse_indexing_complete(line):
-
-    """Indexing complete: 100 new/changed, 0 removed, total 3857 chunks"""
-
-    m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
-
-    return int(m.group(1)) if m else None
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
 
 ### src/core/embedder/onnx_client.py
 // Scope: function | function_definition | core.embedder.onnx_client
@@ -22,18 +19,117 @@ def embed_batch(self, texts: List[str]) -> List[List[float]]:
 
 
 
-### scripts/console_flash_monitor.py
-// Scope: function | function_definition | console_flash_monitor
-// File: scripts\console_flash_monitor.py
-def _parent_chain(pid: int, table: dict[int, dict], depth: int = 4) -> str:
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
 
-    chain = []
+  "T01": {
 
-    cur = pid
+    "id": 26,
 
-    for _ in range(depth):
+    "mode": "D_shuffled",
 
+    "name": "_match_gitignore_pattern"
 
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
 
 ### src/providers/reranker/llama_install.py
 // Scope: function | function_definition | providers.reranker.llama_install
@@ -43,19 +139,6 @@ def _gguf_path(model_key: str) -> Path:
     """Полный путь к GGUF файлу модели."""
 
     return _get_models_dir() / GGUF_MODELS[model_key]["file"]
-
-### src/core/intelligence/health.py
-// Scope: function | function_definition | core.intelligence.health
-// File: src\core\intelligence\health.py | Context: HealthReport
-def _check_schema(conn) -> str | None:
-
-                """Проверяет наличие scoped_kv_store и workspaces."""
-
-                if conn is None:
-
-                    return "Zed SQLite DB недоступна"
-
-
 
 ### src/providers/reranker/llama_install.py
 // Scope: function_part | giant_function_part | providers.reranker.llama_install
@@ -90,6 +173,19 @@ def download_gguf_model(model_key: str, progress_cb=None) -> bool:
     from huggingface_hub import hf_
 ...
 
+### experiments/bootstrap/e17_shards/shard_12.answers.json
+// Scope: fallback | shard_12.answers.json
+[
+  {
+    "id": 30,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The prompt provides only the source code and docstring of `RemoteEmbedder._shadow_compare`; no test files, test names, imports, or repository layout are included. The function calls `self.embed_batch`, the module-level helper `_vectors_collapsed`, and the constant `_ABS_MIN_QUALITY`, and it is invoked during provider switching, so relevant tests could live anywhere in the repo. Naming specific test functions would be a guess and therefore misleading. Explicit statement: cannot determine which tests exercise this function. To answer reliably one would have to search the repository for `_shadow_compare`, `shadow_compare`, canary fixtures, and `_ABS_MIN_QUALITY`, then inspect each hit. A developer should run those located tests before changing the fail-closed logic described here."
+  },
+  {
+    "id": 30,
+    "mode": "B_runtime",
+    "answer": "The tests shown that exercise `Rem
+
 ### install.py
 // Scope: function_part | giant_function_part | d:.project.mscodebase.install.py
 // File: install.py
@@ -119,65 +215,49 @@ def step_gguf(lines, lang):
          
 ...
 
-### scripts/check_lsp_health.py
-// Scope: function_part | giant_function_part | check_lsp_health
-// File: scripts\check_lsp_health.py
-// [Part 2]
-# Проверяем MCP
+### experiments/1V_memory_contamination/memory_contamination_facts_v4_rep_corrected.json
+// Scope: fallback | memory_contamination_facts_v4_rep_corrected.json
+{
 
-    mcp_block = settings.get("context_servers", {}).get("mscodebase-intelligence")
+  "_meta": {
 
-    if mcp_block is not None:
+    "experiment": "Experiment 1-V REPLICATION — Memory Contamination VERIFY-ON-READ, facts v4 (N=50)",
 
-        result["has_mcp_block"] = True
+    "date": "2026-08-11",
 
+    "seed": 7,
 
+    "control_group": "Exp 1-V (facts v3, seed=42)",
 
-    # Проверяем на наличие ошибок парсинга (например от tab_size)
+    "mix": {
 
-    raw_errors = [line for line in content.split("\n") if "mscodebase-lsp" in line and "//" in line]
+      "n_true": 25,
 
-    if raw_errors:
+      "n_absent": 16,
 
-        result["issues"].append(
+      "n_present_trap": 6,
 
-            "ℹ️  В settings.json есть комментарии рядом с mscodebase-lsp — "
+      "n_silent": 3,
 
-            "это остатки 
-...
+      "n_total": 50
 
-### src/core/di_container.py
-// Scope: function_part | giant_function_part | core.di_container
-// File: src\core\di_container.py
-// [Part 1]
-def _create_indexer_for_path(
+    },
 
-        p: Path,
+    "design": "25 real (TRUE_POOL_REP: file:6 + env:2 + import:9 + CamelCase:8, паттерны grep-валидированы) + 16 absent-mutation (другой набор grep-0) + 6 present-trap (реальные импорты) + 3 silent (другие внешние системы). value != real_value субъекта; (subject, value) уникальны. Детерминированно (seed=7).",
 
-        _embedder=embedder,
+    "corrected_from": "820bbbf60a0fc930",
 
-        _code_parser=code_parser,
+    "correction": "RED TEAM 2026-08-16: R43/R45/R46/R47 truth false->true (value импортирован+использован у субъекта); R44 — ambiguous (исключён); остальные 45 фактов без изменений. Оригинал: memory_contamination_facts_v4_rep.json"
 
-        _registry=registry,
+  },
 
-        _notification_broker=notification_broker,
+  "facts": [
 
-    ) -> Indexer:
+    {
 
-        """Фабрика для создания per-project Indexer.
+      "id": "R01",
 
-
-
-        Каждый Indexer получает свой db_path, file_guard, symbol_index,
-
-        bm25_batch — полностью изолировано от других окон.
-
-
-
-        Multi-window (INC-6BCB-v2): bm25_batch живёт НА Indexer-е
-
-        (не в DI singleton) — 
-...
+      "trut
 
 ### src/core/embedder/onnx_client.py
 // Scope: function | function_definition | core.embedder.onnx_client
@@ -190,3 +270,10 @@ def get_onnx_client(port: int = 9876, model_name: str = "multilingual-e5-base") 
 
     with _client_lock_module:
 
+
+
+### experiments/bootstrap/e17_shards/shard_9.answers.json
+// Scope: fallback | shard_9.answers.json
+[
+  {"id": 19, "mode": "A_baseline", "answer": "I cannot determine this from the information given: no test files, test names, or repository context accompany the function. Based solely on the code, `_enrich_job_response` enriches a `BackgroundJob` dict. It rounds `progress`; sets `poll_interval_seconds` from status and progress bands (0 for completed/failed, else 30, 30, 15, 5); builds `progress_label` from status and progress; and for running jobs computes an adaptive ETA via `_embed_progress_from_log`, falling back to `job_history` during finalizing, with an honest `None` when no data exists. Edge cases include missing embed progress, done at or beyond total, and non-running statuses. Without the repository test sources I cannot name any test function that must be run."},
+  {"id": 19, "mode": "B_runtime", "answer": "The tests that exercise `_enrich_job_response` are: test_enrich_eta_none_when_no_embed_progress, test_enrich_eta_uses_real_embed_speed, and test_intel_runtime_status_rep

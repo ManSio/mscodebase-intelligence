@@ -1,4 +1,4 @@
-Потому что `'gitwildmatch'` deprecated (помечен как устаревший), а использование `'gitignore'` устраняет 1740 deprecation warnings в тестах.
+Потому что `'gitwildmatch'` deprecated (устаревший). Использование формата `'gitignore'` устраняет 1740 GitWildMatchPattern deprecation warnings в тестах и ускоряет проверку .gitignore при индексации.
 
 
 > build · longcat-2.0

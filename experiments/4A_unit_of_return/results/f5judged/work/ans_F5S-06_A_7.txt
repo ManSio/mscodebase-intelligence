@@ -1,0 +1,5 @@
+При сбое графа (`pg is None` или отсутствует `db_path`) `run_quiet_break_gate` возвращает `_empty("unavailable", ...)` — dict с findings, не бросая исключений наружу (строка 10: «никогда не бросает наружу»). Поведение при сбое `git` в данном контексте не показано — взаимодействие с git видно только в `scripts/revision_gate.py`, не в `quiet_break_gate.py`.
+
+
+> build · longcat-2.0
+

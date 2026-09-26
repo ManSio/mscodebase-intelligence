@@ -1,4 +1,4 @@
-I don't know.
+Переменная `ZED_WORKTREE_ROOT` на Windows всегда `<unset>` — это известный баг Zed (#36019), закрытый без исправления.
 
 
 > build · longcat-2.0

@@ -1,4 +1,4 @@
-`threading.Lock` используется вместо `asyncio.Lock`, потому что он может быть разделён между event-loop-ами LSP и MCP, тогда как `asyncio.Lock` привязывается к loop-у первого `await` и приводит к дедлоку в cross-loop сценариях. Это связано с инцидентом **INC-53EC / REFC-03**.
+threading.Lock используется, потому что он шарится между event-loop-ами LSP и MCP, а asyncio.Lock привязывается к loop-у первого await и дедлочит в cross-loop сценариях. Это связано с инцидентами **INC-53EC / REFC-03**.
 
 
 > build · longcat-2.0

@@ -1,0 +1,5 @@
+Возвращает `_empty("unavailable", "PropertyGraph not available")` если `pg is None`, или `_empty(...)` если `db_path` не существует — и документация подтверждает, что функция никогда не бросает исключения наружу (`returns dict with findings; never throws`). Для git в контексте только вспомогательная `_git` в `scripts/revision_gate.py` — обработка ошибок там через `try/except`, но деталей поведения quiet-break gate при git-сбое в данном фрагменте нет.
+
+
+> build · longcat-2.0
+
