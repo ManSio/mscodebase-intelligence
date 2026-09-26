@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **stale_after + discriminator for memory notes (2026-09-27):** `src/core/intelligence/staleness.py` + `store.check_staleness()` + CLI. 17/17 tests. stale_after (date) → STALE; discriminator (command, exit≠0) → EXPIRED. Backward compat (no fields → ACTIVE). Implements final promise from hooks thread. Артефакты: `experiments/stale_after/`.
+
 - **redact.py: scrub personal paths (2026-09-27):** `scripts/redact.py` + `tests/test_redact.py` (5/5 pass). Drive paths → `<project>`, username → `<user>`, clean text unchanged. Implements "redact.py at delivery points + planted key test" promise. Артефакты: `scripts/redact.py`, `tests/test_redact.py`.
 
 - **Planted-break gate (2026-09-27):** 6 controls (3 guards × pos/neg) в `tests/test_planted_break_gate.py`. Guards: core→MCP imports, tools→Registry, stale refs. Negative: planted violation ловится. Positive: clean input не флагинится. Закрывает обещание "commit gate with planted break on EVERY run" из треда hooks. Артефакты: `experiments/planted_break/`.
