@@ -1,0 +1,432 @@
+{
+  "experiment": "token_reduction_v2",
+  "date": "2026-09-27",
+  "frozen_rules_sha256": "31f1b0c98edbfe2e63afba8ac48b747509146cfd6e89b558bf83eb7c065f5820",
+  "corpus_chunks": 17238,
+  "corpus_files": 892,
+  "arms": {
+    "A": {
+      "hits": 7,
+      "total": 10,
+      "rate": 0.7,
+      "tokens": 3377
+    },
+    "B": {
+      "hits": 7,
+      "total": 10,
+      "rate": 0.7,
+      "tokens": 2709
+    },
+    "C": {
+      "hits": 5,
+      "total": 10,
+      "rate": 0.5,
+      "tokens": 1560
+    },
+    "D": {
+      "hits": 7,
+      "total": 10,
+      "rate": 0.7,
+      "tokens": 2382
+    },
+    "E": {
+      "hits": 7,
+      "total": 10,
+      "rate": 0.7,
+      "tokens": 3702
+    },
+    "F": {
+      "hits": 3,
+      "total": 10,
+      "rate": 0.3,
+      "tokens": 1729
+    }
+  },
+  "controls": {
+    "positive": {
+      "A": {
+        "hits": 1,
+        "total": 3,
+        "rate": 0.3333,
+        "tokens": 1018
+      },
+      "B": {
+        "hits": 1,
+        "total": 3,
+        "rate": 0.3333,
+        "tokens": 957
+      },
+      "C": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 459
+      },
+      "D": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 763
+      },
+      "E": {
+        "hits": 1,
+        "total": 3,
+        "rate": 0.3333,
+        "tokens": 1002
+      },
+      "F": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 524
+      }
+    },
+    "none": {
+      "A": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 1182
+      },
+      "B": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 1036
+      },
+      "C": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 490
+      },
+      "D": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 693
+      },
+      "E": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 1036
+      },
+      "F": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 598
+      }
+    }
+  },
+  "per_rule": [
+    {
+      "id": "R1",
+      "control": null,
+      "target_file": "src/core/indexing/db_writer.py",
+      "A_found": false,
+      "A_tokens": 321,
+      "B_found": false,
+      "B_tokens": 257,
+      "C_found": false,
+      "C_tokens": 175,
+      "D_found": false,
+      "D_tokens": 230,
+      "E_found": false,
+      "E_tokens": 298,
+      "F_found": false,
+      "F_tokens": 195
+    },
+    {
+      "id": "R2",
+      "control": null,
+      "target_file": "src/core/artifact_gc.py",
+      "A_found": true,
+      "A_tokens": 240,
+      "B_found": true,
+      "B_tokens": 212,
+      "C_found": true,
+      "C_tokens": 146,
+      "D_found": true,
+      "D_tokens": 209,
+      "E_found": true,
+      "E_tokens": 212,
+      "F_found": false,
+      "F_tokens": 133
+    },
+    {
+      "id": "R3",
+      "control": null,
+      "target_file": "src/providers/reranker/llama_install.py",
+      "A_found": true,
+      "A_tokens": 293,
+      "B_found": true,
+      "B_tokens": 232,
+      "C_found": true,
+      "C_tokens": 147,
+      "D_found": true,
+      "D_tokens": 194,
+      "E_found": true,
+      "E_tokens": 232,
+      "F_found": true,
+      "F_tokens": 128
+    },
+    {
+      "id": "R4",
+      "control": null,
+      "target_file": "src/providers/reranker/llama_runner.py",
+      "A_found": true,
+      "A_tokens": 308,
+      "B_found": true,
+      "B_tokens": 211,
+      "C_found": true,
+      "C_tokens": 171,
+      "D_found": true,
+      "D_tokens": 233,
+      "E_found": true,
+      "E_tokens": 288,
+      "F_found": false,
+      "F_tokens": 152
+    },
+    {
+      "id": "R5",
+      "control": null,
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "A_found": false,
+      "A_tokens": 253,
+      "B_found": false,
+      "B_tokens": 184,
+      "C_found": false,
+      "C_tokens": 120,
+      "D_found": false,
+      "D_tokens": 177,
+      "E_found": false,
+      "E_tokens": 421,
+      "F_found": false,
+      "F_tokens": 125
+    },
+    {
+      "id": "R6",
+      "control": null,
+      "target_file": "src/core/graph.py",
+      "A_found": true,
+      "A_tokens": 472,
+      "B_found": true,
+      "B_tokens": 391,
+      "C_found": false,
+      "C_tokens": 172,
+      "D_found": true,
+      "D_tokens": 288,
+      "E_found": true,
+      "E_tokens": 954,
+      "F_found": false,
+      "F_tokens": 236
+    },
+    {
+      "id": "R7",
+      "control": null,
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "A_found": true,
+      "A_tokens": 342,
+      "B_found": true,
+      "B_tokens": 309,
+      "C_found": false,
+      "C_tokens": 229,
+      "D_found": true,
+      "D_tokens": 285,
+      "E_found": true,
+      "E_tokens": 309,
+      "F_found": false,
+      "F_tokens": 194
+    },
+    {
+      "id": "R8",
+      "control": null,
+      "target_file": "src/core/search/cypher_sql.py",
+      "A_found": true,
+      "A_tokens": 328,
+      "B_found": true,
+      "B_tokens": 254,
+      "C_found": true,
+      "C_tokens": 95,
+      "D_found": true,
+      "D_tokens": 194,
+      "E_found": true,
+      "E_tokens": 254,
+      "F_found": true,
+      "F_tokens": 164
+    },
+    {
+      "id": "R9",
+      "control": null,
+      "target_file": "src/core/bootstrap_tests.py",
+      "A_found": false,
+      "A_tokens": 475,
+      "B_found": false,
+      "B_tokens": 416,
+      "C_found": false,
+      "C_tokens": 155,
+      "D_found": false,
+      "D_tokens": 316,
+      "E_found": false,
+      "E_tokens": 416,
+      "F_found": false,
+      "F_tokens": 241
+    },
+    {
+      "id": "R10",
+      "control": null,
+      "target_file": "src/core/indexing/freshness.py",
+      "A_found": true,
+      "A_tokens": 345,
+      "B_found": true,
+      "B_tokens": 243,
+      "C_found": true,
+      "C_tokens": 150,
+      "D_found": true,
+      "D_tokens": 256,
+      "E_found": true,
+      "E_tokens": 318,
+      "F_found": true,
+      "F_tokens": 161
+    },
+    {
+      "id": "P1",
+      "control": "positive",
+      "target_file": "src/core/indexing/parser.py",
+      "A_found": true,
+      "A_tokens": 366,
+      "B_found": true,
+      "B_tokens": 366,
+      "C_found": false,
+      "C_tokens": 101,
+      "D_found": false,
+      "D_tokens": 205,
+      "E_found": true,
+      "E_tokens": 401,
+      "F_found": false,
+      "F_tokens": 188
+    },
+    {
+      "id": "P2",
+      "control": "positive",
+      "target_file": "src/core/search/engine.py",
+      "A_found": false,
+      "A_tokens": 386,
+      "B_found": false,
+      "B_tokens": 330,
+      "C_found": false,
+      "C_tokens": 216,
+      "D_found": false,
+      "D_tokens": 326,
+      "E_found": false,
+      "E_tokens": 340,
+      "F_found": false,
+      "F_tokens": 201
+    },
+    {
+      "id": "P3",
+      "control": "positive",
+      "target_file": "src/core/artifact_gc.py",
+      "A_found": false,
+      "A_tokens": 266,
+      "B_found": false,
+      "B_tokens": 261,
+      "C_found": false,
+      "C_tokens": 142,
+      "D_found": false,
+      "D_tokens": 232,
+      "E_found": false,
+      "E_tokens": 261,
+      "F_found": false,
+      "F_tokens": 135
+    },
+    {
+      "id": "N1",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 404,
+      "B_found": false,
+      "B_tokens": 300,
+      "C_found": false,
+      "C_tokens": 219,
+      "D_found": false,
+      "D_tokens": 264,
+      "E_found": false,
+      "E_tokens": 300,
+      "F_found": false,
+      "F_tokens": 216
+    },
+    {
+      "id": "N2",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 394,
+      "B_found": false,
+      "B_tokens": 394,
+      "C_found": false,
+      "C_tokens": 124,
+      "D_found": false,
+      "D_tokens": 246,
+      "E_found": false,
+      "E_tokens": 394,
+      "F_found": false,
+      "F_tokens": 201
+    },
+    {
+      "id": "N3",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 384,
+      "B_found": false,
+      "B_tokens": 342,
+      "C_found": false,
+      "C_tokens": 147,
+      "D_found": false,
+      "D_tokens": 183,
+      "E_found": false,
+      "E_tokens": 342,
+      "F_found": false,
+      "F_tokens": 181
+    }
+  ],
+  "redteam": {
+    "attacks": [
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "A",
+        "count": 2
+      },
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "B",
+        "count": 2
+      },
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "C",
+        "count": 3
+      },
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "D",
+        "count": 3
+      },
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "E",
+        "count": 2
+      },
+      {
+        "attack": "RT4_positive_missed",
+        "arm": "F",
+        "count": 3
+      }
+    ],
+    "clean": false
+  }
+}
