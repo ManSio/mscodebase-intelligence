@@ -822,7 +822,8 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         fp = node.file_path
         if not fp:
             return _unverifiable(f"No file for '{subject}'", "handles_error")
-        full_path = Path("D:/Project/MSCodeBase") / fp
+        project_root = self._resolve_target_path(None) or Path.cwd()
+        full_path = project_root / fp
         if not full_path.exists():
             return _unverifiable(f"File not found: {fp}", "handles_error")
         try:

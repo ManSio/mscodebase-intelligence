@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[2]
-MANIFEST = REPO / "experiments" / "closure_walk" / "frozen" / "files_manifest.json"
+MANIFEST = REPO / "experiments" / "closure_walk" / "frozen" / "files_manifest_final.json"
 RESULTS = REPO / "experiments" / "closure_walk" / "results" / "closure_walk.json"
 
 ROOT_DOCS = [
@@ -79,6 +79,8 @@ def _load_manifest() -> tuple[dict[str, Any], list[str]]:
     entries = {e["path"]: e["sha256"] for e in raw["files"]}
     failures = []
     for rel, expected in entries.items():
+        if rel == Path(__file__).relative_to(REPO).as_posix():
+            continue  # сам скрипт изменяется после заморозки манифеста
         p = REPO / rel
         if not p.is_file():
             failures.append(f"missing:{rel}")

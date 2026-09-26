@@ -29,7 +29,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     except (AttributeError, ValueError):
         pass
 
-REPO = Path(__file__).resolve().parent.parent  # D:\Project\MSCodeBase
+REPO = Path(__file__).resolve().parent.parent
 
 # ══════════════════════════════════════════════════════════════
 # Инвариант 1: Core не импортирует MCP

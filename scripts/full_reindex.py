@@ -17,7 +17,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict
 
-PROJECT_PATH = Path(r"D:\Project\MSCodeBase").resolve()
+PROJECT_PATH = Path(__file__).resolve().parent.parent
 DB_PATH = PROJECT_PATH / ".codebase_indices" / "lancedb_v2" / "index_mscodebase_bfe9644b.db"
 BATCH_SIZE = 4
 
