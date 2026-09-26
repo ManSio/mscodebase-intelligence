@@ -1,5 +1,9 @@
-MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` (namespace `multi_workspace_state`), затем по этому ID извлекает путь из таблицы `workspaces`.
+MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store`, затем по этому ID извлекает путь проекта из таблицы `workspaces` (`experiments\4A_unit_of_return\results\f5judged\work\ctx_F5S-14_C.txt:37-48`).
 
-
-> build · longcat-2.0
-
+
+
+
+> build · longcat-2.0
+
+
+

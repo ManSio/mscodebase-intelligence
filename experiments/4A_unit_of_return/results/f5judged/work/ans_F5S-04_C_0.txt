@@ -1,4 +1,4 @@
-Через файл-аренду (`embedder.lease`): процесс переиндексации обновляет его на каждом progress-tick, а idle-watchdog проверяет `is_active()` и не убивает embedder, пока аренда свежая (≤300с). Это исключает ложный idle-kill во время фазы парсинга, которая не вызывает embed.
+Создаётся кратковременный lease-файл (`embedder.lease` в `tempfile/mscodebase_locks`), который обновляется на каждый тик прогресса переиндексации; idle-watchdog обязан НЕ убивать общий embedder, пока существует свежий lease (возраст < `max_age_s` секунд).
 
 
 > build · longcat-2.0

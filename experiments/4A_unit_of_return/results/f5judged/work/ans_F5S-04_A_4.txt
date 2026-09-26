@@ -1,6 +1,4 @@
-I don't know.
-
-The context shows watchdog-related code in `health.py` (idle state handling) and a `quiet_break_gate.py` with caller-alive checks, but it doesn't contain the specific mechanism for preventing idle-watchdog from killing the shared embedder during full reindexing.
+В данном контексте нет полного ответа. Видно только фрагмент из `health.py`, где idle после завершённой индексации маркируется как `idle_after_index` (не critical), и фрагмент `quiet_break_gate`, проверяющий "живость" вызывающих по изменённым файлам. Логика, как именно watchdog отличает "idle во время полной переиндексации" от реально мёртвого эмбеддера — в контексте не раскрыта. **I don't know** (из предоставленного контекста).
 
 
 > build · longcat-2.0

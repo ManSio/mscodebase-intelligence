@@ -1,6 +1,4 @@
-I don't know.
-
-The context only shows a fallback function `threading_lock_context()` that uses `threading.Lock` when `db_manager` is unavailable, but it contains no mention of a rate limiter, `asyncio.Lock`, or any related incident.
+I don't know.
 
 
 > build · longcat-2.0

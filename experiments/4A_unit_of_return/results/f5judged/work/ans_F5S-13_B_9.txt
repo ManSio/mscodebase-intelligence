@@ -1,0 +1,7 @@
+ACTIVE-узел получает вердикт **INCONCLUSIVE** (None) и остаётся в статусе `ACTIVE` с флагом `verification="no_anchors"` — резолвер недоступен, поэтому отсутствие считается неверифицируемым, а не опровергнутым (REFUTED невозможен без свежего индекса).
+
+
+> build · longcat-2.0
+
+→ Read ctx_F5S-13_B.txt [offset=1037]
+→ Read ctx_F5S-13_B.txt [offset=1976]

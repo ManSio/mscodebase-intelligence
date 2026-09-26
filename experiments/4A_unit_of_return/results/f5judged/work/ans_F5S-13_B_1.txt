@@ -1,6 +1,5 @@
-Узел остаётся **ACTIVE** — резолвер возвращает `None`, что трактуется как **INCONCLUSIVE** («absence is UNVERIFIABLE, never REFUTED», строки 1037–1044, 1075–1077), и узел лишь помечается флагом `verification="no_anchors"` при выдаче агенту (строки 1204–1210, докстринг 1161–1165).
+I don't know.
 
 
 > build · longcat-2.0
 
-→ Read ctx_F5S-13_B.txt [offset=1037]

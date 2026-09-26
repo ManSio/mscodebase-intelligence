@@ -1,4 +1,4 @@
-Согласно функции `decide` (experiments/1V_memory_contamination/memory_contamination.py), при SILENT — код молчит, проверка не дала результата — ACTIVE-узел (A) получает вердикт как память, то есть **True** (утверждение принимается истинным по памяти).
+I don't know
 
 
 > build · longcat-2.0

@@ -1,5 +1,4 @@
-I need more context to answer this question. Let me read the rest of the file.
-Узел остаётся ACTIVE — он не переводится в REFUTED, а получает вердикт INCONCLUSIVE и помечается флагом `verification="no_anchors"` при выдаче агенту (layer.py:1161-1165, 1204-1210). Резолвер в таком случае возвращает `None` (INCONCLUSIVE), поскольку «absence is then UNVERIFIABLE, never REFUTED» — отсутствие якоря при недоступном/неготовом индексе не считается доказательством опровержения (layer.py:1037-1044, 1075-1077).
+Если резолвер недоступен и проверка не дала результата, ACTIVE-узел памяти **остаётся ACTIVE** с флагом `verification="no_anchors"` (строка 1210: `node.setdefault("verification", "no_anchors")`). Непроверяемые узлы (без якорей или при неработающем резолвере) не переходят в REFUTED — согласно ADR-0003, отсутствие проверки не является опровержением (строки 1164–1165).
 
 
 > build · longcat-2.0

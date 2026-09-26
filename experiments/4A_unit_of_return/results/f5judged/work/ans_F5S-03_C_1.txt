@@ -1,4 +1,4 @@
-Формат `gitwildmatch` помечен как deprecated (deprecated), поэтому парсер использует актуальный формат `gitignore`. Это также устраняет deprecation warnings при работе с `pathspec`.
+Потому что `'gitwildmatch'` — deprecated. Использование `'gitignore'` устраняет GitWildMatchPattern deprecation warnings (их было 1740 в тестах), как указано в комментарии модуля `gitignore_parser.py:20`.
 
 
 > build · longcat-2.0

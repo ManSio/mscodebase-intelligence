@@ -1,0 +1,5 @@
+При SILENT (проверка не дала результата) ACTIVE-узел (плечо A) получает вердикт «как память» — **True**, т.е. агент доверяет непроверенному факту (в отличие от плеча B, где SILENT даёт UNKNOWN/None) — см. `decide()` в `experiments/1V_memory_contamination/memory_contamination.py:30-40`.
+
+
+> build · longcat-2.0
+

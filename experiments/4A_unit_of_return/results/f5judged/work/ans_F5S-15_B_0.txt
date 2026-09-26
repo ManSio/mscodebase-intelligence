@@ -1,4 +1,4 @@
-Based on the context, `$ZED_WORKTREE_ROOT` is used as the value for the `PROJECT_PATH` environment variable when configuring the MCP context server in Zed's settings. The context does not provide further details about what this variable contains or how it is defined on Windows.
+На Windows `ZED_WORKTREE_ROOT` **всегда `<unset>`** — это известный баг Zed (#36019), закрытый без исправления. В `settings.json` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` — результат будет `None`. MSCodeBase использует fallback-цепочку (SQLite DB → PROJECT_PATH → CWD), которая работает без этой переменной.
 
 
 > build · longcat-2.0

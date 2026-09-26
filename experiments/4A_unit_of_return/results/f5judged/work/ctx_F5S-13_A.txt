@@ -48,6 +48,70 @@ def decide(fact: Dict, evidence: Dict[str, Dict[str, Any]], has_memory: bool, po
 
 ### experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json
 // Scope: fallback | memory_contamination_results_v3_retraction.json
+ CONTRADICT: basedpyright"
+
+      },
+
+      {
+
+        "id": "G27",
+
+        "pattern": "LLAMA_CPP",
+
+        "resp": "Узел G27 отозван (status=REFUTED). Причина: CONTRADICT: LLAMA_CPP"
+
+      },
+
+      {
+
+        "id": "G28",
+
+        "pattern": "graph.db",
+
+        "resp": "Узел G28 отозван (status=REFUTED). Причина: CONTRADICT: graph.db"
+
+      },
+
+      {
+
+        "id": "G29",
+
+        "pattern": "sqlite3",
+
+        "resp": "Узел G29 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
+
+      },
+
+      {
+
+        "id": "G30",
+
+        "pattern": "intel_auto_collect_adrs",
+
+        "resp": "Узел G30 отозван (status=REFUTED). Причина: CONTRADICT: intel_auto_collect_adrs"
+
+      },
+
+      {
+
+        "id": "G31",
+
+        "pattern": "tree_sitter",
+
+        "resp": "Узел G31 отозван (status=REFUTED). Причина: CONTRADICT: tree_sitter"
+
+      },
+
+      {
+
+        "id": "G32",
+
+        "pattern": "bm25_weight",
+
+        "resp": "Узел G32 отозван (status=REFUTED). Причина: CONTRADICT: bm
+
+### experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json
+// Scope: fallback | memory_contamination_results_v3_retraction.json
 sqlite3",
 
         "resp": "Узел G36 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
@@ -207,6 +271,118 @@ def embed_batch(
         if current_mode in ("llama_cpp", "unkn
 ...
 
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
 ### src/core/task_queue.py
 // Scope: function | function_definition | core.task_queue
 // File: src\core\task_queue.py
@@ -253,78 +429,10 @@ def _extract_decorators_recursive(
         прямые
 ...
 
-### src/core/version_manager.py
-// Scope: function_part | giant_function_part | core.version_manager
-// File: src\core\version_manager.py | Context: VersionManager
-// [Part 2]
-# Обновляем CHANGELOG.md (добавляем заголовок перед первым версионным
-
-        # заголовком — не зависеть от позиции первого h1/---)
-
-        import datetime
-
-        today = datetime.date.today().isoformat()
-
-        for rel_cl in self.CHANGELOGS:
-
-            changelog = root / rel_cl
-
-            if not changelog.exists():
-
-                print(f"  ⏭️  {rel_cl} — not found, skipping")
-
-                continue
-
-            cl_text = changelog.read_text(encoding="utf-8")
-
-            m = re.s
-...
-
-### src/core/version_manager.py
-// Scope: function_part | giant_function_part | core.version_manager
-// File: src\core\version_manager.py | Context: VersionManager
-// [Part 1]
-def bump(
-
-        self, project_root: str, part: str = "patch", dry_run: bool = False
-
-    ) -> str:
-
-        """Бамп версии в pyproject.toml и обновление CHANGELOG.
-
-
-
-        Args:
-
-            project_root: Корень проекта.
-
-            part: 'major', 'minor' или 'patch'.
-
-            dry_run: Если True — только показать, что будет изменено.
-
-
-
-        Returns:
-
-            Новая версия.
-
-        """
-
-        current = self.get_current_version(project_root)
-
-        if not current:
-
-         
-...
-
-### docs/research/lsp-archive/lsp_main.py
-// Scope: function | function_definition | research.lsp-archive.lsp_main
-// File: docs\research\lsp-archive\lsp_main.py
-async def on_initialized(ls: MSCodeBaseLanguageServer, params):
-
-        """После успешной инициализации подписываемся на системный watcher редактора."""
-
-        try:
-
-            from lsprotocol.types import (
-
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl

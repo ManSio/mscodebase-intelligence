@@ -1,44 +1,10 @@
-### docs/research/lsp-archive/lsp_main.py
-// Scope: function_part | giant_function_part | research.lsp-archive.lsp_main
-// File: docs\research\lsp-archive\lsp_main.py
-// [Part 1]
-def _process_watched_changes(changes, services=None):
-
-    """Синхронный воркер для обработки пачки внешних событий диска.
-
-
-
-    Multi-window (INC-6BCB): принимает services от caller-а (per-workspace).
-
-    """
-
-    if services is None:
-
-        with _workspace_lock:
-
-            if _services_per_workspace:
-
-                services = next(iter(_services_per_workspace.values()))
-
-    if services is None:
-
-        return
-
-
-
-    # Per-workspace indexer (multi-window). Берём default project_root
-
-
-...
-
-### experiments/embed_real_path_vs_raw/exp_feed_queue.py
-// Scope: function | function_definition | d:.project.mscodebase.experiments.embed_real_path_vs_raw.exp_feed_queue.py
-// File: experiments\embed_real_path_vs_raw\exp_feed_queue.py
-def run_batches(client, batches, nw=1):
-    times, tk_total = [], 0
-    t0 = time.time()
-    if nw == 1:
-
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
 
 ### src/mcp/server_tools.py
 // Scope: function_part | giant_function_part | mcp.server_tools
@@ -93,9 +59,130 @@ def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
     for ra
 ...
 
-### experiments/context_engine/results_v2.json
-// Scope: fallback | results_v2.json
-s (что вызывает этот символ) из metadata\n1128:                callees_raw = meta.get(\"callees\", \"\")\n1129:                if callees_raw and isinstance(callees_raw, str):\n1130:                    try:\n1131:                        callees_list = json.loads(callees_raw)\n1132:                        meta[\"callee_count\"] = len(callees_list)\n1133:                    except (json.JSONDecodeError, TypeError):\n1134:                        pass\n1135:\n1136:                r[\"metadata\"] = meta\n1137:\n1138:            return expanded_results\n1139:        except Exception as e:\n1140:            logger.debug(f\"Graph context expansion error: {e}\")\n1141:            return results\n1142:\n1143:    def _late_enrich_results(self, results: List[dict], original_query: str) -> List[dict]:\n1144:        \"\"\"Late enrichment (WS3, эксперимент): обогащает топ-N результатов.\n1145:\n1146:        Концепция Late Code Chunking (ACL 2026): chunk не обязан быть\n\n== GIT ==\ne1efe82c feat: WS1
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
+### experiments/bootstrap/e17_shards/shard_12.answers.json
+// Scope: fallback | shard_12.answers.json
+[
+  {
+    "id": 30,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The prompt provides only the source code and docstring of `RemoteEmbedder._shadow_compare`; no test files, test names, imports, or repository layout are included. The function calls `self.embed_batch`, the module-level helper `_vectors_collapsed`, and the constant `_ABS_MIN_QUALITY`, and it is invoked during provider switching, so relevant tests could live anywhere in the repo. Naming specific test functions would be a guess and therefore misleading. Explicit statement: cannot determine which tests exercise this function. To answer reliably one would have to search the repository for `_shadow_compare`, `shadow_compare`, canary fixtures, and `_ABS_MIN_QUALITY`, then inspect each hit. A developer should run those located tests before changing the fail-closed logic described here."
+  },
+  {
+    "id": 30,
+    "mode": "B_runtime",
+    "answer": "The tests shown that exercise `Rem
 
 ### docs/zh/SEARCH_PIPELINE.md
 // Scope: section | markdown_section | zh.search_pipeline
@@ -120,10 +207,6 @@ def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
         key = f"{doc['metadata'][
 ...
 
-### experiments/context_engine/results_tasks_v3.json
-// Scope: fallback | results_tasks_v3.json
-.symbol,\n1121:                            \"file\": ref.file_path,\n1122:                            \"line\": ref.line,\n1123:                        })\n1124:                if callers_list:\n1125:                    meta[\"callers\"] = callers_list\n1126:\n1127:                # Находим callees (что вызывает этот символ) из metadata\n1128:                callees_raw = meta.get(\"callees\", \"\")\n1129:                if callees_raw and isinstance(callees_raw, str):\n1130:                    try:\n1131:                        callees_list = json.loads(callees_raw)\n1132:                        meta[\"callee_count\"] = len(callees_list)\n1133:                    except (json.JSONDecodeError, TypeError):\n1134:                        pass\n1135:\n1136:                r[\"metadata\"] = meta\n1137:\n1138:            return expanded_results\n1139:        except Exception as e:\n1140:            logger.debug(f\"Graph context expansion error: {e}\")\n1141:            return results\n1142:\
-
 ### src/core/bootstrap_entities.py
 // Scope: function | function_definition | core.bootstrap_entities
 // File: src\core\bootstrap_entities.py
@@ -137,10 +220,6 @@ def _is_dataclass_decorator(node: ast.expr) -> bool:
 
 
 
-### experiments/context_engine/results_tasks_v3.json
-// Scope: fallback | results_tasks_v3.json
- -> List[dict]:\n1144:        \"\"\"Late enrichment (WS3, эксперимент): обогащает топ-N результатов.\n1145:\n1146:        Концепция Late Code Chunking (ACL 2026): chunk не обязан быть\n\n== GIT ==\ne1efe82c feat: WS1-WS7 вЂ” consistency, trust boundary, late enrichment, exec contract v2, security hardening\n59cb04da fix(audit): close Bot_snow BS-1..BS-14 (search_code, topology, health, hub)\n094ff60f refactor(search): remove dead sync reranker bridges (0 callers, -39 lines); 19 passed\n1ab2893b fix(search, mcp): lazy asyncio.Lock for multi-reranker; periodic progress cleanup (audit Item 3/4)\nd7ebf5fd fix: correct fast-mode distance sort вЂ” cosine _distance ASC\nb7f80788 fix: audit sprint вЂ” heartbeat SetLastError(0), reranker weights to config, sqlite schema cols, PYTHONUTF8=1, shell=False in install.py\n\n== MEMORY ==\nProject Memory:\n[adrs] {'node_id': 'ADR-a78be4cd5273', 'section': 'adrs', 'timestamp': '2026-08-02 21:4\n[adrs] {'node_id': 'ADR-47c9035f648c', 'section': 'adrs', '
-
 ### src/core/doc_generator.py
 // Scope: function | function_definition | core.doc_generator
 // File: src\core\doc_generator.py | Context: DocGenerator
@@ -152,3 +231,27 @@ def _get_callees_for_file(self, file_path: Path) -> Dict[str, List[str]]:
 
         try:
 
+
+
+### src/core/action_receipt.py
+// Scope: function | function_definition | core.action_receipt
+// File: src\core\action_receipt.py
+def _is_inconclusive_result(result: Dict[str, Any]) -> bool:
+
+    """Шаг не удалось выполнить (среда), а не провалился (содержимое)?"""
+
+    for err in result.get("errors", []) or []:
+
+        low = str(err).lower()
+
+
+
+### AGENT_DIARY.md
+// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md
+From AGENT_DIARY.md, section '## [2026-09-17] Bootstrap Pipeline: Шаг 1 (Data structures) реализован — детектор сущностей':
+## [2026-09-17] Bootstrap Pipeline: Шаг 1 (Data structures) реализован — детектор сущностей
+
+**Status:** Implemented (src/core/bootstrap_entities.py + 8 unit-тестов)
+**Задача:** найти чистые data structures нового проекта через AST-сигналы `@dataclass`/`NamedTuple`, НЕ регекс — последний даёт 90% шума `Table(` (это вызовы `db.open_table(...)`, LanceDB), а AST-детектор по классам их априори не видит.
+**Fix:** `detect_entities(project_root, src_dir, ignore_dirs)` — обход src/*.py через `ast.parse`, детект декоратора dataclass в 3 формах (Name/Call/Attribute, покрывает `@dataclass` со скоб
+...

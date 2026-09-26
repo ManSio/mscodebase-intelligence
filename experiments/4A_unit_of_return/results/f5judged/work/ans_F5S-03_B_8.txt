@@ -1,0 +1,5 @@
+Формат 'gitwildmatch' устарел (deprecated), поэтому парсер использует актуальный формат 'gitignore' (src/core/gitignore_parser.py:53-54).
+
+
+> build · longcat-2.0
+

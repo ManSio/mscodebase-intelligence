@@ -1,0 +1,5 @@
+При SILENT (код молчит, проверка не дала результата) ACTIVE-узел получает вердикт по памяти — True («A → вердикт как память (True)» в функции `decide` из experiments/1V_memory_contamination/memory_contamination.py).
+
+
+> build · longcat-2.0
+

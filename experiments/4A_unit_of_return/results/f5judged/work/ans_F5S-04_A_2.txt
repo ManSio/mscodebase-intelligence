@@ -1,4 +1,4 @@
-I don't know. The context shows watchdog initialization (`indexer.py`) and idle-handling logic (`health.py`), but does not contain the specific mechanism for preventing idle-watchdog from killing a shared embedder during full reindexing.
+I don't know.
 
 
 > build · longcat-2.0

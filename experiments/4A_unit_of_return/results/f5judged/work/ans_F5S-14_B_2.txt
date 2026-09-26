@@ -1,4 +1,4 @@
-Через переменную окружения `$ZED_WORKTREE_ROOT`, которую Zed сам подставляет при запуске сервера: в конфигурации entry для `mscodebase-intelligence` задано `env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"` (строка 308). Zed резолвит эту переменную в путь открытого worktree на лету.
+I don't know.
 
 
 > build · longcat-2.0

@@ -1,0 +1,7 @@
+Looking at the context, I need to find information about ACTIVE node verdict when resolver is unavailable and verification yields no result.
+Когда резолвер недоступен и проверка не дала результата, узел получает вердикт **INCONCLUSIVE** (None), а не REFUTED. Абсенс признаётся **UNVERIFIABLE** (неопровержимым), а не ложным. Узел остаётся в статусе ACTIVE, но ему присваивается флаг `verification="no_anchors"`, сигнализирующий агенту, что факт не был подтверждён (layer.py:1037-1044, 1165).
+
+
+> build · longcat-2.0
+
+→ Read ctx_F5S-13_B.txt [offset=1037]

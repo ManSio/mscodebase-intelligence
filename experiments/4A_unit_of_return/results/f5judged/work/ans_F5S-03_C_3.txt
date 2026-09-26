@@ -1,4 +1,4 @@
-Потому что `gitwildmatch` считается устаревшим (deprecated), как указано в строке 53 комментарием `# Используем 'gitignore' вместо 'gitwildmatch' (deprecated)` и в докстринге на строке 28.
+Формат `'gitwildmatch'` считается устаревшим (deprecated) в библиотеке `pathspec`; переход на `'gitignore'` устранил 1740 deprecation warnings в тестах (`gitignore_parser.py:28`, `:53-54`).
 
 
 > build · longcat-2.0

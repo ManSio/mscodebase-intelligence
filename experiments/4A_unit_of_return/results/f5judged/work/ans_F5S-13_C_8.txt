@@ -1,0 +1,5 @@
+INCONCLUSIVE — узел остаётся ACTIVE и включается в контекст (не REFUTED и не VERIFIED).
+
+
+> build · longcat-2.0
+

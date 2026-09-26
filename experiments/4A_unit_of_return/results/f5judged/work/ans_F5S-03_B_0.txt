@@ -1,6 +1,5 @@
-[ERROR] Потому что `'gitwildmatch'` deprecated — использование `'gitignore'` устраняет 1740 `GitWildMatchPattern deprecation warnings` в тестах (`src/core/gitignore_parser.py:19`).
+Потому что `'gitwildmatch'` deprecated — его использование генерировало 1740 deprecation warnings (GitWildMatchPattern) в тестах.
 
 
 > build · longcat-2.0
 
-Error: ENOMEM: not enough memory, uv_spawn

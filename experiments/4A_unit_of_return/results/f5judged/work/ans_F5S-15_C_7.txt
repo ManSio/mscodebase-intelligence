@@ -1,0 +1,5 @@
+Переменная `ZED_WORKTREE_ROOT` **не задаётся на Windows** (Zed bug #36019, закрыт без исправления). Поэтому в `settings.json` для `context_servers` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` — попытка обращения к ней даст `None`. MSCodeBase компенсирует это через fallback-цепочку: SQLite DB `workspaces`, `PROJECT_PATH` из `.env` или CWD.
+
+
+> build · longcat-2.0
+

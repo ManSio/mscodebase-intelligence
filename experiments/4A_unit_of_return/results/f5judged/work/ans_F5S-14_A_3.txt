@@ -1,4 +1,4 @@
-MCP-сервер читает активный проект из внутренней SQLite-базы Zed (`multi_workspace_state.active_workspace_id`), путь к которой определяется через `%LOCALAPPDATA%/Zed` — без использования переменных окружения.
+Based on the context: MCP uses CWD inherited from the Zed process itself, since on Windows `current_dir` in `settings.json` doesn't resolve `$ZED_WORKTREE_ROOT`. Additionally, when `source="ACTIVE_WORKSPACE"`, it explicitly uses the active Zed window via `multi_workspace_state.active_workspace_id` — trusting the project the user explicitly opened in Zed.
 
 
 > build · longcat-2.0

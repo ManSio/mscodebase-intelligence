@@ -1,4 +1,4 @@
-MCP читает внутреннюю SQLite базу данных Zed через `get_zed_db_path()` / `_get_zed_data_base()` (Windows: `%LOCALAPPDATA%/Zed`) и берёт `multi_workspace_state.active_workspace_id` — активное окно определяется напрямую из БД, а не из переменных окружения.
+I don't know.
 
 
 > build · longcat-2.0

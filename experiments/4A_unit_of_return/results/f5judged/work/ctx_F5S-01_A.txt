@@ -1,66 +1,106 @@
-### src/core/indexing/index_project_runner.py
-// Scope: function | function_definition | core.indexing.index_project_runner
-// File: src\core\indexing\index_project_runner.py
-def threading_lock_context():
+### experiments/root_cause_eval/incident_dataset_full.json
+// Scope: fallback | incident_dataset_full.json
+ "** Внешний скрипт дропнул таблицу. Indexer держал stale\nRust-backed handle. `_migrate_add_metadata_columns` не обрабатывал\nслучай повреждённой таблицы (to_pandas падал → migration выходил\nбез создания таблицы). `health_score` мигрировался как `0.0` (float value)\nвместо `\"float64\"` (type string).",
 
-    """Fallback: если db_manager нет — используем простой threading.Lock."""
+    "fix": "P0 — Table recreation + Graceful Degradation + Schema migration fix"
 
-    import threading
+  },
 
-    return threading.Lock()
+  {
 
-### experiments/context_engine/results_tasks_v3.json
-// Scope: fallback | results_tasks_v3.json
-Lock",
+    "title": "2026-07-05",
 
-      "arms": {
+    "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
 
-        "A": {
+    "root_cause": "** `await self._flush()` вызывался внутри `threading.Lock`.\n`threading.Lock` не reentrant — второй захват блокирует поток навсегда.",
 
-          "round_trips": 5,
+    "fix": "`should_flush` под lock, сам `await` — после lock."
 
-          "agent_latency_ms": 1702.0,
+  },
 
-          "server_latency_ms": 1702.0,
+  {
 
-          "tokens": 348,
+    "title": "2026-07-05",
 
-          "full": "🔍 _InterProcessLock — 1 defs, 3 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 272. Called from: _acquire_llama_lock (llama_runner.py:272), LlamaRunner._start_sync (llama_runner.py:934), LlamaRunner.start_reranker (llama_runner.py:1034)\nSymbol '_InterProcessLock' not found\nclass _InterProcessLock › def __enter__ (llama_runner.py:184-194): kernel32 = ctypes.windll.kernel32; # bInitialOwner=False: владение только через WaitForSingleObject. True = рекурсивный захват (recursion 2 при WaitForSingleObject), один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок). self._mutex_handle = kernel32.CreateMutexW(None, False, self._name); WAIT_MS = 10_000; result = kernel32.WaitForSingleObject(self._mutex_handle, WAIT_MS); if result not in (0, 128): logger.warning('Не удалось захвати
+    "symptom": "2026-07-05",
 
-### experiments/context_engine/results_v2.json
-// Scope: fallback | results_v2.json
-k": "T15",
+    "root_cause": "`mscodebase-lsp` не регистрируется\nв `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать\nновый LSP — только override пути для уже существующего.\nТреб
 
-      "klass": "prepare_change",
+### experiments/root_cause_eval/incident_dataset.json
+// Scope: fallback | incident_dataset.json
+ },
 
-      "symbol": "_InterProcessLock",
+  {
 
-      "arms": {
+    "title": "2026-07-05",
 
-        "A": {
+    "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
 
-          "round_trips": 5,
+    "root_cause": "** `await self._flush()` вызывался внутри `threading.Lock`.\n`threading.Lock` не reentrant — второй захват блокирует поток навсегда.",
 
-          "agent_latency_ms": 1702.0,
+    "fix": "`should_flush` под lock, сам `await` — после lock.",
 
-          "server_latency_ms": 1702.0,
+    "files": ""
 
-          "tokens": 348,
+  },
 
-          "full": "🔍 _InterProcessLock — 1 defs, 3 callers, 0 callees. Definition: (ПУСТОЙ ПУТЬ!) line 272. Called from: _acquire_llama_lock (llama_runner.py:272), LlamaRunner._start_sync (llama_runner.py:934), LlamaRunner.start_reranker (llama_runner.py:1034)\nSymbol '_InterProcessLock' not found\nclass _InterProcessLock › def __enter__ (llama_runner.py:184-194): kernel32 = ctypes.windll.kernel32; # bInitialOwner=False: владение только через WaitForSingleObject. True = рекурсивный захват (recursion 2 при WaitForSingleObject), один ReleaseMutex → утечка владения до смерти потока (multi-window дедлок). self._mutex_handle = kernel32.CreateMutexW(None, False, self._name); WAIT_MS = 10_000; result = kernel32.WaitForSingleObject(self._mutex_han
+  {
 
-### experiments/lock_zombie/benchmark_selfhealing.py
-// Scope: function | function_definition | d:.project.mscodebase.experiments.lock_zombie.benchmark_selfhealing.py
-// File: experiments\lock_zombie\benchmark_selfhealing.py
-def _run():
+    "title": "2026-07-05",
 
-            lock2 = DatabaseLock(path, wait_timeout=1.5, poll_interval=0.05)
+    "symptom": "2026-07-05",
 
-            try:
+    "root_cause": "`mscodebase-lsp` не регистрируется\nв `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать\nновый LSP — только override пути для уже существующего.\nТребуется Rust/WASM-адаптер для полноценной поддержки.\nMCP-сервер (43 инструмента) работает полноценно и без LSP.",
 
-                lock2.acquire()
+    "fix": "",
+
+    "files": ""
+
+  },
+
+  {
+
+    "title": "2026-07-04",
+
+    "symptom": "** `intel_trigger_reindex` → `intel_get_job_status` всегда возвращал `progress: 0.5`.\nJob висел в статусе \"running\" бесконечно.",
+
+    "root_cause": "** `trigger_async_
+
+### src/core/search/engine.py
+// Scope: function | function_definition | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+def _reindex_fast_fail(self) -> bool:
+
+        """True, если идёт переиндексация — поиск обязан мгновенно вернуть пусто,
+
+        а не висеть на lock'ах БД/FTS5 (инцидент 2026-08-13: search_code таймаутил
+
+        во время full reindex; паттерн hybrid_search fast-fail / chunkhound guard)."""
 
 
+
+### experiments/lock_zombie/orphan_holder.py
+// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.lock_zombie.orphan_holder.py
+// File: experiments\lock_zombie\orphan_holder.py
+"""Эксперимент C: симуляция зомби-holder'а PID-lock (осиротевший процесс).
+
+Процесс-holder: захватывает DatabaseLock на tmp-путь, держит 60s.
+Запускается DETACHED, чтобы его родитель умер сразу -> holder остаётся
+живым процессом с мёртвым parent'ом (Windows не убивает детей).
+
+Использование:
+    python orphan_holder.py <lock_path>
+"""
+import json
+import sys
+import time
+from pathlib import Path
+
+from src.core.indexing.database_lock import DatabaseLock
+
+lock_path = Path(sys.argv[1])
+lock = Databas
+...
 
 ### src/core/indexing/database_lock.py
 // Scope: function | function_definition | core.indexing.database_lock
@@ -70,15 +110,6 @@ def is_held(self) -> bool:
         """True если lock захвачен ЭТИМ экземпляром."""
 
         return self._acquired
-
-### src/core/indexing/database_lock.py
-// Scope: function | function_definition | core.indexing.database_lock
-// File: src\core\indexing\database_lock.py | Context: ProcessInspector
-def is_alive(self, pid: int) -> bool:
-
-        """Жив ли процесс с данным PID (в т.ч. завершённый, не очищенный ОС)."""
-
-        return DatabaseLock._is_pid_alive(pid)
 
 ### src/core/indexing/database_lock.py
 // Scope: function | function_definition | core.indexing.database_lock
@@ -121,3 +152,11 @@ def parse_indexing_complete(line):
     m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
 
     return int(m.group(1)) if m else None
+
+### src/core/intelligence/store.py
+// Scope: function | function_definition | core.intelligence.store
+// File: src\core\intelligence\store.py | Context: JobHistoryStore
+def load_history(self) -> List[Dict[str, Any]]:
+        """Загружает историю. Возвращает [] при ошибке/отсутствии."""
+        if self.history_file.exists():
+            try:
