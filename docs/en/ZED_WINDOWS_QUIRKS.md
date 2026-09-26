@@ -23,9 +23,9 @@ Zed protection mechanism.
 ### How to fix
 
 1. **Press "Trust and Continue"** (or `Enter`)
-2. **Check "Trust all projects in D:\Project"** — so you won't
+2. **Check "Trust all projects in <repos-root>"** — so you won't
    see this dialog again for the entire workspace directory
-3. **Without this checkbox**, every new project from `D:\Project` will
+3. **Without this checkbox**, every new project from `<repos-root>` will
    show the dialog again
 
 ### Why MSCodeBase needs to know this
@@ -218,7 +218,7 @@ aggressively, Zed may temporarily freeze its watchers.
 ### Windows UNC Path Normalization
 
 Windows paths may have a `\\?\` prefix (UNC). When comparing paths,
-`D:\Project` and `\\?\D:\Project` are considered DIFFERENT strings, but
+`<repos-root>` and `\\?\<repos-root>` are considered DIFFERENT strings, but
 they point to the same directory.
 
 **Solution:** Always use `Path(p).resolve()` when comparing paths.

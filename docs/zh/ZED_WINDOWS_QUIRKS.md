@@ -21,8 +21,8 @@
 ### 如何修复
 
 1. **点击"Trust and Continue"**（或按 `Enter`）
-2. **勾选"Trust all projects in D:\Project"** — 这样整个工作区目录都不会再看到此对话框
-3. **如果不勾选此复选框**，来自 `D:\Project` 的每个新项目都会再次显示该对话框
+2. **勾选"Trust all projects in <repos-root>"** — 这样整个工作区目录都不会再看到此对话框
+3. **如果不勾选此复选框**，来自 `<repos-root>` 的每个新项目都会再次显示该对话框
 
 ### 为什么 MSCodeBase 需要知道这一点
 
@@ -187,7 +187,7 @@ Zed 使用排他锁锁定打开的文件。如果第三方进程（索引器、�
 
 ### Windows UNC 路径规范化（UNC Path Normalization）
 
-Windows 路径可能有 `\\?\` 前缀（UNC）。比较路径时，`D:\Project` 和 `\\?\D:\Project` 被视为**不同的字符串**，但它们指向同一目录。
+Windows 路径可能有 `\\?\` 前缀（UNC）。比较路径时，`<repos-root>` 和 `\\?\<repos-root>` 被视为**不同的字符串**，但它们指向同一目录。
 
 **解决方案：** 比较路径时始终使用 `Path(p).resolve()`。这会去除 UNC 前缀。
 

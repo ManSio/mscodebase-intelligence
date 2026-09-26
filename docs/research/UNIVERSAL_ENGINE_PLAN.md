@@ -43,7 +43,7 @@ change; only the surround changes. A rewrite would discard the safety net for no
 
 ### D-2. One repo, one feature branch, new packages INSIDE the tree — not a parallel project folder.
 
-- **Phases 0-1** (behavior-preserving refactor): in-place in `D:\Project\MSCodeBase`.
+- **Phases 0-1** (behavior-preserving refactor): in-place in `<repo-root>`.
 - **Phases 2+** (new subsystems): new package dirs inside the SAME repo, developed
   behind the existing tree, wired through DI, verified by the existing 1398-test
   suite + `smoke_e2e.py` on every merge:

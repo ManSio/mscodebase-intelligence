@@ -45,7 +45,7 @@
 
 ### ВАЖНО: архитектура проекта
 
-- **Source code:** `D:\Project\MSCodeBase` — здесь ты редактируешь код
+- **Source code:** `<repo-root>` — здесь ты редактируешь код
 - **Extension dir:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — откуда MCP реально запускается
 - **Venv:** `{EXT}\venv\Scripts\python.exe`
 - **llama binary:** `{EXT}\llama_msvc\` (CPU) или `{EXT}\llama_vulkan\` (GPU)
@@ -78,7 +78,7 @@ taskkill //F //FI "WINDOWTITLE eq mscodebase*" //IM python.exe 2>&1
 
 #### Шаг 3. Запустить install.py
 ```bash
-cd /d/Project/MSCodeBase
+cd /path/to/repo
 printf 's\nn\n' | python install.py
 ```
 
@@ -91,7 +91,7 @@ install.py сделает всё сам:
 
 #### Шаг 4. ПРОВЕРКА — запустить MCP напрямую из расширения
 ```bash
-cd "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence"
+cd "/path/to/LocalAppData/Zed/extensions/mscodebase-intelligence"
 nohup venv/Scripts/python.exe -m src.main > /tmp/mcp_test.log 2>&1 &
 sleep 10
 ```
@@ -171,7 +171,7 @@ install.py делает ВСЮ тяжёлую работу. Этот промп�
 
 | Что делает install.py | Детали |
 |---|---|
-| **Копирование исходников** | 39+ файлов из `D:\Project\MSCodeBase\src\` в расширение |
+| **Копирование исходников** | 39+ файлов из `<repo-root>\src\` в расширение |
 | **Venv + пакеты** | 33 Python пакета (httpx, lancedb, pyarrow и т.д.) |
 | **llama.cpp бинарник** | `b9940` — MSVC (CPU) + Clang (Vulkan GPU) |
 | **CRT патч для Insider** | Авто-патч PE импортов `api-ms-win-crt-*` → `ucrtbase.dll` |
@@ -213,7 +213,7 @@ install.py делает ВСЮ тяжёлую работу. Этот промп�
 Когда нужно изменить код и проверить:
 
 ```
-ШАГ 1 — Правим код в исходниках (D:\Project\MSCodeBase\src\)
+ШАГ 1 — Правим код в исходниках (<repo-root>\src\)
 ШАГ 2 — Убиваем старые процессы
 ШАГ 3 — install.py (синхронизация в расширение)
 ШАГ 4 — Запуск MCP напрямую из расширения

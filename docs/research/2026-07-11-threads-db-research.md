@@ -100,7 +100,7 @@ threads.db (SQLite)
 | **Decompressed** | **11.2 MB** |
 | **Provider** | opencode |
 | **Model** | go/deepseek-v4-flash |
-| **Project** | D:\Project\MSCodeBase |
+| **Project** | <repo-root> |
 
 ---
 
