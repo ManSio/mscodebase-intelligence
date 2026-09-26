@@ -1,90 +1,93 @@
 # 4A — F3 Research note (prior art + design deltas)
 
 **Дата:** 2026-09-26. **Назначение:** gate для F5 (без применения дельт F5 не замораживается).
-**Метод:** целевые веб-поиски (arxiv/ACL/ICML), 2026. Числа — цитаты источников, не наши замеры.
+**Метод:** первоисточники открыты и сверены построчно 2026-09-26 (arXiv HTML).
+Числа — **цитаты с указанием Table/Section**; интерпретации помечены `[инференс агента]`.
 
 ---
 
-## 1. Что нашлось (и что это меняет)
+## 1. Verified: Mem2ActBench
 
-### 1.1 Mem2ActBench — наш 4-arm уже существует
 Shen, Li, Zhou, Hu. *Mem2ActBench: A Benchmark for Evaluating Long-Term Memory Utilization in
-Task-Oriented Autonomous Agents.* **ACL 2026**, arXiv:2601.19935; код `github.com/Cantaloupe-M/Mem2ActBench`.
+Task-Oriented Autonomous Agents.* **ACL 2026**; arXiv:2601.19935v1. Код `github.com/Cantaloupe-M/Mem2ActBench`.
+*(проверено по arXiv HTML 2601.19935v1)*
 
-- 400 memory-dependent tool-use задач из 2 029 сессий; human-verified **91.3%** не решаемы без памяти.
-- **У них уже есть плечи: `No Retrieval` (closed book), `Passive Retrieval` (BM25/dense/hybrid), `Perfect Retrieval (Oracle)`.**
-  Сырые числа: No Retrieval TSA **73.8** / F1 10.0; BM25@5 TSA 90.2; Hybrid@5 TSA 86.0; Oracle F1 **53.8**.
-- **Hard negatives определены явно:** «distractor tools **most semantically similar** to the ground-truth tool».
-  Замер: random-negatives TSA почти не падает (93.5–95.5%), **hard negatives 94.5% → 69.75%** (N=1→5);
-  EM 14.25–18.25%; Arg_F1 29.88→22.64.
-- Failure taxonomy: **Retrieval Miss / Retrieved-but-Unused / Hallucinated Default / Lossless Retention Failure** (+1).
+- Масштаб: **2 029 сессий**, **400** tool-use задач, avg 13 turns; human-verified memory dependency
+  **91.3%** `[verified: §3.6, Table 2 — "Memory Dependency Validity 200 / 91.3"]`.
+- **Плечи уже есть** `[verified: §5.1, Table 4]`:
+  - `No Retrieval` (closed book): Recall@k `–`, **F1 10.0**, BLEU 8.9, **TSA 73.8**;
+  - `Passive` (BM25/Dense/Hybrid, k=1/5/10); лучший passive — Hybrid k=5, **F1≈30.7**;
+  - `Perfect Retrieval (Oracle)`: **F1 53.8**, BLEU 53.7, TSA 88.2 (разрыв >23 F1 → бутылочное горлышко = retrieval).
+- **Hard negatives** `[verified: §5.4, Table 5]`: defined as «distractor tools **most semantically similar** to the
+  ground-truth tool». Random negatives TSA почти не падает (93.50–95.50%); **hard negatives TSA 94.50% → 69.75%**
+  (N=1→5); EM 14.25–18.25%; Arg_F1 29.88→22.64.
+- **Failure taxonomy — ПЯТЬ типов** `[verified: §5.5]`: (i) Retrieval Miss, (ii) Retrieved-but-Unused,
+  (iii) Hallucinated Default, (iv) Lossless Retention Failure, (v) Tool Selection Error.
+  *(В черашней версии я написал 4 + «+1» — неверно: их ровно 5, пятый — Tool Selection Error.)*
 
-**Вывод (инверсивный):** протокол «4 плеча + closed book + oracle + hard negatives» — **prior art**, а не
-изобретение Tom. Наш claim нельзя подавать как «мы впервые ставим closed book».
+## 2. Verified: Coin Flip Judge (надёжность LLM-судьи)
 
-### 1.2 Tom это уже признаёт
-Tom в `4745130` (Crystals) сам цитирует Mem2ActBench и **дифференцируется**: его случай — «раньше, в
-plumbing: заметка правильно сматчена и обрезана бюджетом, до модели не дошла». То есть наша ниша =
-**plumbing-level partial arrival**, а НЕ retrieval-провал.
+Yagubyan. *The Coin Flip Judge? Reliability and Bias in LLM-as-a-Judge Evaluation.* arXiv:2606.13685v1.
+*(проверено по arXiv HTML 2606.13685v1)*
 
-### 1.3 LLM-as-judge — судья это конфаунд, с числами
-- *The Coin Flip Judge? Reliability and Bias in LLM-as-a-Judge* (arXiv:2606.13685): cross-judge **κ=0.51**
-  → «**1 из 4 исходов зависит от выбора судьи**»; noise budget: 100-вопросный single-trial бенчмарк
-  содержит **~14 неверных** исходов, при 11 trials majority → **~5**. Minimum standard: **≥10 trials при t=0,
-  рандомизированный порядок**, отчёт majority + flip rate + CI.
-- *When the Judge Changes, So Does the Measurement* (2026): evaluator-replacement ambiguity — score
-  двигается при замене судьи. *Reliability without Validity* (arXiv:2606.19544): exact-match agreement
-  завышает; κ-дефляция 33–41 п.п.
-- *Reasoning Model Is Superior LLM-Judge, Yet Suffers from Biases* (ACL EvalEval 2026): даже reasoning-судьи
-  несут bias.
+- **Cross-judge agreement 76%, κ=0.51** `[verified: §5.6 — "22 of 29 questions (76%), yielding Cohen's κ=0.51"]`.
+  Прямая цитата: «approximately one in four evaluation outcomes depends on which judge model is selected».
+- **Noise budget** `[verified: §6.2]`: single-trial mean flip rate **13.6%** → «a 100-question benchmark has an
+  expected noise budget of **13.6** incorrect outcomes per run»; 3 trials ≈10%; **11 trials ≈5%**; 20 trials ≈3%.
+- **Reliability curve** `[verified: §5.9, Table 6]`: single trial = **86.6%** fidelity; 90% → **3 trials**
+  (averaged); 95% → **11 trials**; для high-flip вопросов (FR≥10%) — **15 trials на 90%**, 50+ на 95%.
+- **Рекомендация** `[verified: §5.9/§6.4]`: **10–20 trials с majority voting**; для high-stakes до 50.
+  `t=0` снижает flip на 43–79% (GPT-4o-mini 13.3%→2.8%; GPT-4.1-mini 13.9%→7.9%), **но residual остаётся** —
+  `t=0` necessary but not sufficient (3–5 reps всё равно).
+- Ограничение автора: оба судьи — OpenAI; cross-provider replication не сделана `[verified: Abstract]`.
 
-**Вывод:** любой judged-arm у нас требует **≥10 trials + majority**, отчёта κ и flip rate. «5 прогонов» из
-нашего черновика — **недостаточно**.
+> ⚠ **Поправка к вчерашней формулировке.** Я написал «≥10 trials при t=0» — это **смешало два факта**:
+> (а) рекомендация — 10–20 trials majority; (б) t=0 — отдельная мера, снижающая, но не убирающая flip.
+> Верная формулировка: **10–20 trials majority; t=0 как дополнительная мера (3–5 reps)**.
 
-### 1.4 Chunking / unit of return
-- *Long Context vs RAG* (arXiv:2501.01880): «слишком много чанков вредит», «единица должна быть длиннее»,
-  top 5–10 чанков — оптимум; chunk-based уступает index/summarization.
-- *Three Sides of Retrieval* (arXiv:2607.24781): чанкинг разрушает структуру документа (заголовки,
-  cross-refs) — прямо в одну линию с «whole document vs chunks».
+## 3. Chunking / unit of return
 
----
+- *Long Context vs RAG* (arXiv:2501.01880): «too many chunks harms», единица длиннее, top 5–10 оптимум.
+- *Three Sides of Retrieval* (arXiv:2607.24781): чанкинг разрушает структуру (заголовки, cross-refs).
 
-## 2. Design deltas (ОБЯЗАТЕЛЬНЫ для F5)
+## 4. Design deltas (ОБЯЗАТЕЛЬНЫ для F5)
 
-| # | Дельта | Что меняется у нас |
-|---|---|---|
-| **D1** | Новизна 4-arm опровергнута (Mem2ActBench) | Claim пере-позиционируется: **репликация на ПУБЛИЧНОМ code+prose корпусе** + наш plumbing-level partial-arrival. «Мы впервые ставим closed book» **убрать**. |
-| **D2** | Failure taxonomy Mem2ActBench | В отчёт добавить `Retrieval Miss` / `Retrieved-but-Unused` / `Lossless Retention Failure` — второе и третье прямо закрывают наш EXP-24 (21.7M withheld) и вывод Tom «hits and arrives partial». |
-| **D3** | Judge — конфаунд (κ=0.51, noise ~14/100) | Judged-плечи: **≥10 trials при t=0 + рандомизированный порядок + majority**; публиковать κ и flips per question + CI. Чердак «5 прогонов» → невалидно. |
-| **D4** | Hard negatives = «most semantically similar» | Наш hard-negative контроль — ближайший по семантике кандидат (не random). Совпадает с Mem2ActBench. |
-| **D5** | Closed-book = prior art | Плечо D подаём как Mem2ActBench-aligned, не как находку Tom. |
+| # | Дельта | Источник | Что меняется |
+|---|---|---|---|
+| **D1** | 4-arm (closed-book/oracle/hard-neg) — **prior art**, не наша новизна | Mem2ActBench Table 4–5 `[verified]` | Claim пере-позиционировать: **репликация на публичном code+prose + plumbing-level partial**. «Впервые closed book» убрать. |
+| **D2** | Failure taxonomy (5 типов) | Mem2ActBench §5.5 `[verified]` | В отчёт: Retrieval Miss / Retrieved-but-Unused / Hallucinated Default / Lossless Retention Failure / Tool Selection Error. Второе и четвёртое = наш EXP-24 и «hits and arrives partial». |
+| **D3** | Judge — конфаунд | Coin Flip §6.2/§5.9 `[verified]` | Judged-плечи: **10–20 trials + majority + рандомизированный порядок + κ/flip-rate + t=0 как доп. мера**. «5 прогонов» невалидно. |
+| **D4** | Hard negatives = «most semantically similar» | Mem2ActBench §5.4 `[verified]` | Наш hard-negative контроль — ближайший семантически кандидат, не random. |
+| **D5** | Closed-book — prior art | Mem2ActBench Table 4 `[verified]` | Плечо D подаём как Mem2ActBench-aligned, не как находку Tom. |
 
----
+## 5. Дифференциация Tom — это ИНТЕРПРЕТАЦИЯ, не факт статьи
 
-## 3. Что это значит для ответа Tom (F7)
+`[инференс агента]` Tom в `4745130` сам цитирует Mem2ActBench и разделяет:
+- Mem2ActBench `Retrieved-but-Unused` = доказательство **дошло** до контекста, модель не применила (model-side);
+- Tom-случай = заметка **сматчена и обрезана бюджетом**, до модели не дошла вообще (plumbing-side).
 
-- **Не** заявлять протокол как наш/его вклад. Заявлять: (a) репликация протокола на публичном корпусе;
-  (b) **дифференциация Tom подтверждена independently**: его differentiation (plumbing vs model-side) — это
-  грань между Mem2ActBench «Retrieved-but-Unused» (дошло, модель не использовала) и нашим/Tom
-  «**Lossless Retention Failure на уровне канала**» (не дошло вообще). Это цитируемо и проверяемо.
-- Наш вклад = **измерение plumbing-level partial на публичном корпусе** + метод F4b (held-out generalization),
+Отнесение нашего EXP-24 (молчаливое усечение `search_memory`) к **plumbing-side** — это **наша интерпретация**,
+согласованная с формулировкой Tom, но **не claim первоисточника**. В отчёте держать как `[инференс]`, отделяя
+от verified-цитат. Проверяемо это станет только через F5 (репликация).
+
+## 6. Что это значит для ответа Tom (F7)
+
+- Не заявлять протокол как наш/его вклад. Заявлять: (a) репликация на публичном корпусе;
+  (b) `[инференс]` грань Mem2ActBench «Retrieved-but-Unused» (model-side) ↔ plumbing-level lossless retention
+  (не дошло) — как проверяемую гипотезу, а не факт.
+- Наш вклад = **измерение plumbing-level partial на публичном корпусе** + метод F4b (held-out),
   которого у Tom не было (его 5/5 — confirmation).
 
-## 4. Источники
-1. arXiv:2601.19935 / ACL 2026 — Mem2ActBench.
-2. arXiv:2606.13685 — The Coin Flip Judge.
-3. arXiv:2606.19544 — Reliability without Validity.
-4. arXiv:2607.08535 — When the Judge Changes.
-5. ACL EvalEval 2026 — Reasoning Model Is Superior LLM-Judge.
-6. ACL GEM 2026 (Yamauchi et al.) — LLM-as-Judge design choices.
-7. arXiv:2501.01880 — Long Context vs RAG.
-8. arXiv:2607.24781 — Three Sides of Retrieval.
+## 7. Ledger (сверено с первоисточником 2026-09-26)
 
-## 5. Ledger
 | # | Утверждение | Источник | Статус |
 |---|---|---|---|
-| 1 | 4-arm (closed book/oracle) — prior art | Mem2ActBench | ✅ verified (citation) |
-| 2 | Hard negatives ≫ random | Mem2ActBench таблица 5 | ✅ |
-| 3 | Judge κ=0.51, ~14/100 single-trial noise | Coin Flip Judge | ✅ |
-| 4 | Наш EXP-24 = Lossless Retention Failure класса | наш EXP-24 | ✅ (наш замер) |
-| 5 | Репликация на публичном корпусе всё ещё не сделана | — | ⏳ F5 |
+| 1 | 4-arm (closed book/oracle) — prior art | Mem2ActBench Table 4 | ✅ verified (HTML) |
+| 2 | Hard negatives 94.50→69.75 (N=1→5) | Mem2ActBench Table 5 | ✅ verified |
+| 3 | No Retrieval TSA 73.8 / Oracle F1 53.8 | Mem2ActBench Table 4 | ✅ verified |
+| 4 | Taxonomy — 5 типов | Mem2ActBench §5.5 | ✅ verified |
+| 5 | κ=0.51, 1-in-4 исходов зависит от судьи | Coin Flip §5.6 | ✅ verified |
+| 6 | 10–20 trials majority; single-trial 86.6% | Coin Flip §5.9/§6.4 | ✅ verified |
+| 7 | Наш EXP-24 = plumbing-level «Lossless Retention» класс | наш EXP-24 | ✅ (наш замер) |
+| 8 | Это именно plumbing, а не model-side | — | 🧠 `[инференс агента]` |
+| 9 | Репликация на публичном корпусе | — | ⏳ F5 |
