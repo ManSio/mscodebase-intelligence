@@ -1,0 +1,7 @@
+{
+  "model": "opencode-go/qwen3.7-plus",
+  "variant": "high",
+  "runs": 3,
+  "handout": "experiments/4A_unit_of_return/frozen/f4b/handout_arrival.md",
+  "rule": "variant required (reasoning confound)"
+}

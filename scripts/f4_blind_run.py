@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
+REPO = Path(__file__).resolve().parents[1]
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 MSG = ("For each numbered item in the attached handout, pick one entry from "
        "its index that best explains it, or NONE. Answer ONLY as a markdown "
@@ -91,9 +92,13 @@ def main() -> int:
         f = workdir / f"run_{slug}_{i}.txt"
         f.write_text(out, encoding="utf-8")
         print(f"{slug} run {i}: {len(out)} chars -> {f.name}")
+    try:
+        handout_ref = handout.relative_to(REPO).as_posix()
+    except ValueError:
+        handout_ref = handout.name
     (workdir / "manifest.json").write_text(json.dumps({
         "model": args.model, "variant": args.variant, "runs": args.runs,
-        "handout": str(handout), "rule": "variant required (reasoning confound)",
+        "handout": handout_ref, "rule": "variant required (reasoning confound)",
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     return 0
 

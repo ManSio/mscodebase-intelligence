@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "mscodebase-intelligence": { "enabled": false },
+    "msp-portfolio": { "enabled": false },
+    "community-memory": { "enabled": false },
+    "arclux": { "enabled": false }
+  },
+  "permission": { "edit": "deny", "bash": "deny", "webfetch": "deny",
+                  "websearch": "deny", "external_directory": "deny" }
+}
