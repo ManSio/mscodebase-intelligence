@@ -181,7 +181,7 @@ class AutoDocUpdater:
 
     # ─── Internal: обновление README.md ───────────────────
 
-    def _count_tools(self, root: Path) -> int:
+    def _count_tools(self, root: Path, *, include_env_optional: bool = True) -> int:
         """Считает количество MCP-инструментов по местам регистрации.
 
         Зеркалит runtime-константы register_all_tools (32 core + 16 intel +
@@ -191,7 +191,12 @@ class AutoDocUpdater:
         - intel: @mcp_app.tool(\" в src/core/intelligence/tools_reg.py (14);
         - inline: @mcp.tool(\" в server_tools.py (12);
         - dev: @mcp_app.tool(\" в src/mcp/tools/dev_tools.py (4);
-        - ExecuteScriptTool: +1 только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true.
+        - ExecuteScriptTool: +1 только при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
+          и include_env_optional=True.
+        - include_env_optional=False: базовое детерминированное число (65) без
+          опционального execute_script — нужно _update_readme, чтобы публичный
+          заголовок не зависел от локального .env (2026-09-26: README «грязнел»
+          после каждого reindex на машине с включённым флагом).
         """
         mcp_dir = root / "src" / "mcp"
         if not mcp_dir.exists():
@@ -240,7 +245,7 @@ class AutoDocUpdater:
             os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower()
             == "true"
         )
-        if exec_script_defined and exec_enabled:
+        if exec_script_defined and exec_enabled and include_env_optional:
             core_classes += 1
 
         return core_classes + inline + intel + dev
@@ -264,7 +269,11 @@ class AutoDocUpdater:
 
         text = readme_path.read_text(encoding="utf-8")
 
-        tool_count = self._count_tools(root)
+        # README-контракт (строка "65 registered = ... + опциональный
+        # execute_script → 66") требует ДЕТЕРМИНИРОВАННОГО числа: опциональный
+        # инструмент не должен менять публичный заголовок из-за локального .env,
+        # иначе README «грязнеет» после каждого reindex (2026-09-26).
+        tool_count = self._count_tools(root, include_env_optional=False)
         test_count = self._count_tests(root)
 
         # Бейдж тестов: обновляем только точную форму tests-N%20passed
