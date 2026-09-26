@@ -1,0 +1,27 @@
+﻿opencode.cmd : 
+строка:1 знак:335
++ ... ch-Object { & $oc run $msg --model opencode-go/longcat-2.0 --pure --d ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+> build ┬╖ longcat-2.0
+
+| # | entry |
+| --- | --- |
+| 1 | a-component-that-needs-starting-passes-every-behaviour-test |
+| 2 | NONE |
+| 3 | NONE |
+| 4 | a-surviving-mutant-can-mean-the-code-is-dead |
+| 5 | NONE |
+| 6 | NONE |
+| 7 | NONE |
+| 8 | NONE |
+| 9 | a-control-built-from-the-treated-arm-is-not-a-control |
+| 10 | NONE |
+| 11 | NONE |
+| 12 | a-guard-keyed-on-a-field-nobody-fills-is-a-silent-no-op |
+| 13 | NONE |
+| 14 | an-instrument-that-answers-a-different-question-can-be-wrong-two-ways |
+| 15 | NONE |
+| 16 | NONE |
