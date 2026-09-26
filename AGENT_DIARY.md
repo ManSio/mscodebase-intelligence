@@ -52,6 +52,13 @@
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
 
+## [2026-09-26] Конфунды агентной аппаратуры + pre-registered 4-arm (P1 Tom)
+**Status:** 🟡 Дизайн заморожен, прогона нет.
+**Root Cause вопроса:** «повлияет ли запуск чистых opencode-агентов/субагентов на эксперимент» — да, и в репо уже 6 каналов: (1) модель/budget читателя (E7: deepseek-low провалил NONE; qwen 8/10 vs longcat 4/10); (2) судья видит артефакт плеча (E17 v2: p=0.0046 → p=1.00); (3) самооценка генератор=судья (Tom 4727138); (4) аппаратура рапортует успех при мёртвом инструменте (E17 pilot 120/120 Error 500; Tom exit 0); (5) лёгкий контроль (E17 v6→v7 rho +0.54→не воспроизвёлся; Tom 4744919 hard-negative); (6) конкуренция за :8080/:8081 (инцидент 2026-09-25 — devbase-MCP убил наш сервер).
+**Fix/design:** `experiments/4A_unit_of_return/README.md` — протокол `3fj0o` (top-k / whole-doc / oracle / **closed book**) + контуры §3-4 (изоляция data-root, MCP off, разные шарды генерации/судьи, manifest с моделью+budget, ≥5 прогонов, hard negatives, referent у каждого числа). Стоп-условние G6: свежий замороженный набор (панель 35 видели).
+**Нельзя:** коммит в main, мутация живого индекса, смена ретривера после увиденного.
+**Триггер:** протокол Tom `3fj0o` (dev.to) + вопрос владельца.
+
 ## [2026-09-26] CI test parallelization (pytest-xdist) — Adopted
 **Status:** ✅ Adopted + CI-green (#45/#46/#47 merged).
 **Root Cause:** серийные прогоны доминировали в CI (test 13-16м, clean-state 13м); E13 (2026-09-23) отверг xdist по замеру `-n 4` (~15%) — недогрузка ядер на многоядерной машине + CI-overhead (coverage/`dynamic_context`).
