@@ -90,7 +90,7 @@
   остальные 7 hook-скриптов ≈ 10s. «8-минутный коммит» — CPU contention от 2 llama-servers
   (embed+rerank) при коммите, НЕ медленные тесты. pytest остаётся single-thread, НЕ хтейзить.
 - Помогать не нужно: временный `pytest --basetemp <tmp>` — при параллельных прогонах два pytest
-  коллизят на общем `pytest-of-misha/pytest-0` → 452 ложных FileNotFoundError (а не баг кода).
+  коллизят на общем `pytest-of-<user>/pytest-0` → 452 ложных FileNotFoundError (а не баг кода).
 
 ## Doc-vs-code semantic drift (2026-08-12)
 - stale_detector сверяет ТОЛЬКО version-строки — имена тулов/счётчики в доках

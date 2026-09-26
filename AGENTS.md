@@ -149,7 +149,7 @@ read_live_file(file_path="src\\core\\indexer.py")   ← только нужны�
 
 ### Архитектура
 
-- **Source code:** `D:\Project\MSCodeBase` — здесь ты редактируешь код.
+- **Source code:** `<repo-root>` — здесь ты редактируешь код.
 - **Extension dir:** `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — откуда MCP реально запускается.
 - **Venv:** `{EXT}\venv\Scripts\python.exe` — Python со всеми пакетами.
 - **llama binary:** `{EXT}\llama_msvc\` (CPU) или `{EXT}\llama_vulkan\` (GPU).
@@ -161,7 +161,7 @@ read_live_file(file_path="src\\core\\indexer.py")   ← только нужны�
 Когда пользователь просит что-то изменить и проверить:
 
 ```
-ШАГ 1 — Правим код в исходниках (D:\Project\MSCodeBase\src\)
+ШАГ 1 — Правим код в исходниках (<repo-root>\src\)
 ШАГ 2 — Синхронизируем в расширение + убиваем процессы
 ШАГ 3 — Запускаем install.py для обновления
 ШАГ 4 — Запускаем MCP вручную из расширения
@@ -173,7 +173,7 @@ read_live_file(file_path="src\\core\\indexer.py")   ← только нужны�
 ### Детальный протокол
 
 **Шаг 1 — Правка кода:**
-- Редактируешь файлы в `D:\Project\MSCodeBase\src\`.
+- Редактируешь файлы в `<repo-root>\src\`.
 - После `edit_file` / `write_file` → `notify_change()`.
 - Для переименования файлов используй `apply_file_move(old, new)` вместо `notify_change` — мета-патчинг (50ms, 0MB RAM) вместо полной переиндексации (5s, 700MB RAM).
 
@@ -186,13 +186,13 @@ sleep 2
 
 # Скопировать изменённые файлы в расширение
 # (если install.py запускать не надо, а надо быстро обновить один файл)
-cp /d/Project/MSCodeBase/src/providers/reranker/llama_runner.py \
-   "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence/src/providers/reranker/llama_runner.py"
+cp /path/to/repo/src/providers/reranker/llama_runner.py \
+   "/path/to/LocalAppData/Zed/extensions/mscodebase-intelligence/src/providers/reranker/llama_runner.py"
 ```
 
 **Шаг 3 — install.py (если нужно обновить бинарники/модули):**
 ```bash
-cd /d/Project/MSCodeBase && python install.py
+cd /path/to/repo && python install.py
 ```
 Учти: install.py интерактивный (спрашивает Y/n). Если нужно авто-подтверждение:
 ```bash
@@ -201,7 +201,7 @@ printf 's\nn\n' | python install.py   # s=skip pip, n=skip ONNX models
 
 **Шаг 4 — Запуск MCP для теста:**
 ```bash
-cd "/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence" && \
+cd "/path/to/LocalAppData/Zed/extensions/mscodebase-intelligence" && \
   nohup venv/Scripts/python.exe -m src.main > /tmp/mcp_test.log 2>&1 &
 sleep 8   # ждём пока стартанёт embedder + reranker
 ```
@@ -462,9 +462,9 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 12. Root чистый? (нет новых одноразовых скриптов/логов в корне — §0.6)
 
 13. **Синхронизация лаборатории с портфолио (обязательна после ЛЮБОЙ эксперимент-серии или изменения вывода):**
-    - Файлы: `D:\Project\MSPortfolio\src\data\lab\experiments.json` (+ `experiments.ru.json`) — эксперименты и отрицательные результаты; при необходимости `diary.json`/`known-issues.json` (и RU-зеркала). Портфолио — публичное зеркало этой лаборатории, рассинхрон = публичный неточный claim (прецеденты: KI-103 present-trap, exp-18/19 «graph не помогает» vs E5).
+    - Файлы: `<portfolio-root>\src\data\lab\experiments.json` (+ `experiments.ru.json`) — эксперименты и отрицательные результаты; при необходимости `diary.json`/`known-issues.json` (и RU-зеркала). Портфолио — публичное зеркало этой лаборатории, рассинхрон = публичный неточный claim (прецеденты: KI-103 present-trap, exp-18/19 «graph не помогает» vs E5).
     - Новый эксперимент → запись с полями: id (`exp-N`), date, title, hypothesis, command, result, verdict, finding, chart (если есть числа), conclusion, links. Сырые числа из `EXPERIMENTS_LOG.md`, не по памяти.
     - Опровергнут прежний вывод → НЕ молча менять старую запись, а добавить в неё `CORRECTED (…): <что опровергнуто и чем>` (формат как в exp-19/E5), сохраняя историю.
     - RU-файл обновляется В ТОМ ЖЕ коммите, что и EN (конгруэнтность по id/verdict/temperature — guard-тест в `tests/lab.test.ts`).
-    - Проверка перед коммитом портфолио: `cd D:\Project\MSPortfolio && pnpm test tests/lab.test.ts tests/evidence-eval.test.ts` — ловит рассинхрон EN/RU и коллизии с парафраз-сетами (новые слова в корпусе могут случайно поддержать парафразу — тогда переформулировать, не трогать тест).
+    - Проверка перед коммитом портфолио: `cd <portfolio-root> && pnpm test tests/lab.test.ts tests/evidence-eval.test.ts` — ловит рассинхрон EN/RU и коллизии с парафраз-сетами (новые слова в корпусе могут случайно поддержать парафразу — тогда переформулировать, не трогать тест).
     - Не выполнено → статус `⚠️ портфолио не синхронизировано` в `[🏁 ИТОГ]`, даже если тесты проекта зелёные.

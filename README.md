@@ -135,7 +135,7 @@ Designed and tested on **Windows**. macOS and Linux should work but have not bee
 Install the `mscodebase-intelligence` extension in Zed, then:
 
 ```bash
-cd D:\Project\MSCodeBase
+cd <repo-root>
 python install.py
 
 # Quick sync (code only, no prompts):

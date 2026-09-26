@@ -3,8 +3,8 @@
 [🇬🇧 English](../../en/investigations/LSP_WONTFIX.md) • [🇨🇳 中文](LSP_WONTFIX.md)
 
 **日期：** 2026-07-05
-**作者：** AI 代理（应 misha 要求）
-**项目：** `D:\Project\MSCodeBase` — 扩展 `mscodebase-intelligence`
+**作者：** AI 代理（应 <user> 要求）
+**项目：** `<repo-root>` — 扩展 `mscodebase-intelligence`
 **Zed 版本：** 1.9.0（最新版，发布于 2026 年 7 月 1 日，提交 `ced90fc`）
 **严重性：** 中等 — 该功能不阻塞发布，因为所有语义
 已经通过 MCP 工作（50 个工具，1540 个块）。LSP 只会增加
@@ -54,7 +54,7 @@ LM Studio 嵌入、用于项目解析的 SQLite 回退）。
 | 8 | `.zed/settings.json`（本地）包含 `mscodebase-lsp` | 被忽略 — Zed 1.9.0 不读取 LSP 的 per-project 设置 |
 
 **已排除的原因：**
-- ❌ 受限模式 — `D:\Project\MSCodeBase` 在 `trusted_worktrees` 中。
+- ❌ 受限模式 — `<repo-root>` 在 `trusted_worktrees` 中。
 - ❌ `ZED_WORKTREE_ROOT` = null — 已通过 SQLite 回退处理。
 - ❌ LSP 代码损坏 — 独立运行正常。
 - ❌ Python venv — `python.exe` 存在，可启动。

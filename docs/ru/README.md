@@ -126,7 +126,7 @@ MSCodeBase **использует LSP только для `codebase(action="rena
 Установите расширение `mscodebase-intelligence` в Zed, затем:
 
 ```bash
-cd D:\Project\MSCodeBase
+cd <repo-root>
 python install.py
 
 # Перезапустите Zed (File → Quit → reopen)
