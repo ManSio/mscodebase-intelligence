@@ -35,12 +35,20 @@ STOP = {
 
 
 def _items(path: Path) -> list[str]:
+    """First contiguous block of numbered item lines only.
+
+    Stops at the first non-item, non-blank line after the block starts, so
+    trailing numbered lists (e.g. a "next steps" section) are not counted.
+    """
     out: list[str] = []
+    started = False
     for line in path.read_text(encoding="utf-8").splitlines():
         s = line.strip()
-        if not ITEM.match(s):
-            continue
-        out.append(s.lower())
+        if ITEM.match(s):
+            started = True
+            out.append(s.lower())
+        elif started and s:
+            break
     return out
 
 
