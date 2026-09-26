@@ -133,8 +133,13 @@ else
         || { echo -e "${RED}PIP INSTALL FAILED${NC}"; exit 1; }
 fi
 
-echo "Running full test suite (no filters)..."
-RESULT=$("$VENV_BIN/python" -m pytest tests/ -q --tb=short 2>&1)
+echo "Running full test suite (no filters, parallel)..."
+# -n auto (pytest-xdist, dev dep): SAME selection as before — no file list, and
+# pyproject addopts keep `-m 'not slow and not benchmark'` — only spread across
+# cores. This is exactly the set the `test` job runs (and which passed in
+# parallel on ubuntu+windows), so parallel safety is already proven. Measured
+# locally: 197s -> 71s (12 cores); CI runners have 4 cores. No quality loss.
+RESULT=$("$VENV_BIN/python" -m pytest tests/ -q --tb=short -n auto 2>&1)
 EXIT_CODE=$?
 
 PASSED=$(echo "$RESULT" | grep -oE '[0-9]+ passed' | head -1 | grep -oE '[0-9]+' || echo "0")
