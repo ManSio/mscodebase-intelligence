@@ -7,7 +7,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.." || exit 2
 
 PY="${PYTHON:-python}"
-command -v "$PY" >/dev/null 2>&1 || PY="/c/Users/misha/AppData/Local/Zed/extensions/mscodebase-intelligence/venv/Scripts/python.exe"
+command -v "$PY" >/dev/null 2>&1 || PY="<user>AppData/Local/Zed/extensions/mscodebase-intelligence/venv/Scripts/python.exe"
 
 echo "PY=$PY"
 echo "=== EXP-5: verify_clean_state.sh — falsifiability ==="

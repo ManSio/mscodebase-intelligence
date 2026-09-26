@@ -5,7 +5,7 @@ Walk всех файлов → IndexParser → RemoteEmbedder → LanceDB.
 
 Запуск:
     cd D:\\Project\\MSCodeBase
-    C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe scripts\\full_reindex.py
+    <user>AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe scripts\\full_reindex.py
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')

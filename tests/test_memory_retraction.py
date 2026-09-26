@@ -238,7 +238,7 @@ def test_add_memory_node_preserves_explicit_anchors(isolated_data: Path):
 def test_add_memory_node_skips_absolute_path(isolated_data: Path):
     """Абсолютный путь (C:\\Users) не становится файловым якорем (ADR-0003)."""
     layer = _make_layer(isolated_data)
-    _add(layer, data={"claim": "данные в C:\\Users\\misha\\graph.db"})
+    _add(layer, data={"claim": "данные в <user>graph.db"})
     node = _raw_nodes(layer)[0]
     anchors = node["data"].get("anchors", [])
     assert not any(a["kind"] == "file" for a in anchors)

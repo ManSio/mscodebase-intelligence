@@ -51,7 +51,7 @@
   {
     "title": "2026-07-16 21:50",
     "symptom": "** MCP-сервер падал через 2 сек после запуска, 120MB RAM",
-    "root_cause": "** В SQLite БД Zed поле `paths` содержит 2 пути через `\\n`:\n\n- `C:\\Users\\misha\\Downloads\\Project Remaining Tasks Review.md` (файл, не папка!)\n- `D:\\Project\\MSCodeBase` (настоящий проект)\n\n`resolve_project_root()` брал первую часть (файл), `_generate_unique_db_path` пытался создать\nдиректорию по этому пути и падал с FileExistsError.",
+    "root_cause": "** В SQLite БД Zed поле `paths` содержит 2 пути через `\\n`:\n\n- `<user>Downloads\\Project Remaining Tasks Review.md` (файл, не папка!)\n- `D:\\Project\\MSCodeBase` (настоящий проект)\n\n`resolve_project_root()` брал первую часть (файл), `_generate_unique_db_path` пытался создать\nдиректорию по этому пути и падал с FileExistsError.",
     "fix": "MCP server crash при старте (path с \\n)",
     "files": ""
   },

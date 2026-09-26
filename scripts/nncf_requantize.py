@@ -12,7 +12,7 @@ from onnxruntime.quantization import quantize_dynamic, QuantType
 import onnxruntime as ort
 from tokenizers import Tokenizer
 
-EXT_ROOT = Path(r'C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence')
+EXT_ROOT = Path(r'<user>AppData\Local\Zed\extensions\mscodebase-intelligence')
 MODEL_SLUG = 'e5-base-v2'
 FP32_PATH = EXT_ROOT / '.codebase_models' / 'onnx' / MODEL_SLUG / 'model.onnx'
 OUTPUT_DIR = EXT_ROOT / '.codebase_models' / 'onnx' / f'{MODEL_SLUG}-int8-nncf'

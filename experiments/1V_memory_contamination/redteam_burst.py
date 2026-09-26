@@ -34,7 +34,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 ROOT = Path(r"D:\Project\MSCodeBase")
-MEM = Path(r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\intelligence\project_memory.json")
+MEM = Path(r"<user>AppData\Local\mscodebase\projects\bfe9644b\intelligence\project_memory.json")
 _CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 

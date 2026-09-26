@@ -32,7 +32,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-EXT = Path(os.getenv("EXT_ROOT", r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"))
+EXT = Path(os.getenv("EXT_ROOT", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
 for _p in (str(EXT), str(ROOT)):
     if _p not in sys.path:
         sys.path.insert(0, _p)

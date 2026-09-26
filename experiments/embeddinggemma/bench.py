@@ -39,7 +39,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent.parent.parent
 EXP = ROOT / "experiments" / "embeddinggemma"
 MODELS_DIR = EXP / "models"
-EXT = Path(r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence")
+EXT = Path(r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence")
 LLAMA_EXE = EXT / "llama_msvc" / "llama-server.exe"
 
 # (gguf-path, max_input_tokens, full dim, note)
