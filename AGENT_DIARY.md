@@ -1,6 +1,6 @@
 ## Key Historical Decisions
 
-- **Closure-walk: guard сертифицирует неправильное множество (2026-09-27):** `tests/test_no_personal_paths.py` зелёный, но 4699 утечек (drive-rooted project path) в 98 tracked-файлах вне scope (experiments/scripts/tests/data). Frozen 1828 files sha256, positive control найден, none control чист. Дефект «true statement about the wrong set» подтверждён. Не исправлено — требует нормализации или расширения scope (решение владельца). Артефакты: `experiments/closure_walk/`.
+- **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (ea715903). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
 
 - **F5 judged FULL (trials=10) + полнота данных (2026-09-26):** 16 запросов × 4 плеча × 10 trials (160/плечо). **A 16.3% · B 34.4% · C 97.5% · D 0.0%**; code **B 50% ≫ A 6.3%**, prose A 26% > B 19% (слабо). Majority: A 2/16, B 6/16, C 16/16, D 0/16. Судья 9.4% неединогласных. Воспроизводимо (trials=5 ↔ trials=10 согласованы). **Все данные в репо**: `results/f5judged/{judged_raw,judged_aggregate}.json` + `MANIFEST.json` (sha256 всех 809 артефактов 4A). Ключ: единица возврата влияет на читателя, не на ретрив. ⚠️ Крах opencode при parallel=8 → перезапуск на parallel=4.
 
