@@ -3,8 +3,8 @@
 [🇬🇧 English](ONNX_SESSION_REPORT.md) • [🇷🇺 Русский] *(не переведён)*
 
 **Дата:** 2026-07-08 — 2026-07-09
-**Автор:** AI-Agent (по запросу misha)
-**Проект:** `D:\Project\MSCodeBase` — `mscodebase-intelligence`
+**Автор:** AI-Agent (по запросу <user>)
+**Проект:** `<repo-root>` — `mscodebase-intelligence`
 **Версия:** v2.7.0 (после сессии)
 **Severity:** High — полный переход с LM Studio на ONNX Runtime, исправление 7 критических багов
 **Статус:** ✅ Завершено. Все 50 инструментов работают в ONNX-режиме.

@@ -187,7 +187,8 @@ experiments/bootstrap/__pycache__/
 # Bootstrap Step 3: дефолтный trace_result.json в cwd (bootstrap_trace_plugin.py)
 bootstrap_trace_*.json
 docs/generated/MODULE_INDEX.md
-.local/state/gh/device-id
+# Local machine scripts (personal absolute paths) — never publish
+.local/
 
 # Agent temp scripts
 scripts/_diag_*.py

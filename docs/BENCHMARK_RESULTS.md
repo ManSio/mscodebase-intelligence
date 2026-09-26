@@ -1,6 +1,6 @@
 # Benchmark Results — MSCodeBase Intelligence
 
-*Generated: 2026-07-22 | Project: MSCodeBase (D:\Project\MSCodeBase) | Environment: Windows 11, Python 3.14.3, OpenVINO 2024.x, INT8 multilingual-e5-small*
+*Generated: 2026-07-22 | Project: MSCodeBase (<repo-root>) | Environment: Windows 11, Python 3.14.3, OpenVINO 2024.x, INT8 multilingual-e5-small*
 
 ---
 
@@ -26,7 +26,7 @@
 ```
 ============================= test session starts =============================
 platform win32 -- Python 3.14.3, pytest-9.1.1
-rootdir: D:\Project\MSCodeBase
+rootdir: <repo-root>
 collected 655 items / 202 deselected / 453 selected
 
 tests\test_assignments.py .........................sssssssss
@@ -96,7 +96,7 @@ FAILED tests/test_index_progress.py::TestIndexerProgressCallback::test_callback_
 
 ```
 ======================================================================
-Project: D:\Project\MSCodeBase
+Project: <repo-root>
 ======================================================================
 Found 8064 Python files
 Built graph: 8064 nodes, 197 edges
