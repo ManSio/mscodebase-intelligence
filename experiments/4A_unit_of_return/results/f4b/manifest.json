@@ -1,0 +1,39 @@
+{
+  "experiment": "F4b held-out generalization — run manifest",
+  "date": "2026-09-26",
+  "branch": "experiment/4a-unit-of-return",
+  "runner": "scripts/f4_blind_run.py",
+  "orchestrator": "scripts/f4b_run_all.py",
+  "validator": "scripts/f4b_validate.py",
+  "isolation": ["empty workdir per stream", "--pure", "MCP disabled", "tools deny", "external_directory deny"],
+  "variant": "high (pinned, required)",
+  "conditions": {
+    "symptom": "frozen/f4b/handout_symptom.md",
+    "arrival": "frozen/f4b/handout_arrival.md"
+  },
+  "models": ["opencode-go/longcat-2.0", "opencode-go/qwen3.7-plus", "opencode-go/deepseek-v4.1-flash"],
+  "runs_per_model": {
+    "longcat-2.0": 5,
+    "qwen3.7-plus": 3,
+    "deepseek-v4.1-flash": 3
+  },
+  "streams": 6,
+  "total_runs": 22,
+  "must_hit": {
+    "3": "a-cached-429-is-not-a-rate-limit",
+    "8": "a-rate-knob-cannot-fix-a-denominator",
+    "13": "a-single-run-ranking-is-noise-even-at-temp-zero"
+  },
+  "must_none": [5, 10, 14],
+  "handout_sha256": {
+    "handout_symptom.md": "2c0112ff450b7dae9c969d34aa99841752d238c815ea3dc5050537e4e342071c",
+    "handout_arrival.md": "4b3ebb3ec669112e652797c6a4b3d82773279ee4e0cda2cac76b7a4a0d732e54"
+  },
+  "catalogue_sha256": "5429c4ff810758b9d811a22ae7b00c21ecf78e27ba1860d66354a784886a954d",
+  "result_summary": {
+    "validator_clean": "13/22",
+    "arrival_clean": "10/11",
+    "symptom_clean": "3/11",
+    "symptom_failures_all_on_item": 3
+  }
+}
