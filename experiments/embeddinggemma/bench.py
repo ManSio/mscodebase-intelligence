@@ -48,6 +48,9 @@ PRESETS = {
     "gemma_q8": (MODELS_DIR / "embeddinggemma-300M-Q8_0.gguf", 2048, 768, "gemma Q8_0 ggml-org"),
     "gemma_q4": (MODELS_DIR / "embeddinggemma-300m-Q4_0.gguf", 2048, 768, "gemma Q4_0 unsloth"),
     "gemma_qat4": (MODELS_DIR / "embeddinggemma-300M-qat-Q4_0.gguf", 2048, 768, "gemma Q4_0 QAT ggml-org"),
+    "nomic_q8": (MODELS_DIR / "nomic-embed-text-v1.5.Q8_0.gguf", 8192, 768, "nomic-embed v1.5 Q8_0 nomic-ai"),
+    "bge_small": (MODELS_DIR / "bge-small-en-v1.5-q8_0.gguf", 512, 384, "bge-small-en-v1.5 Q8_0 ggml-org"),
+    "minilm": (MODELS_DIR / "all-MiniLM-L6-v2.F16.gguf", 512, 384, "all-MiniLM-L6-v2 F16 leliuga"),
 }
 
 GOLD = [
@@ -161,7 +164,7 @@ class Server:
 
 
 class Bench:
-    def __init__(self, key, port, skip_server, ubatch=512, chunk_tokens=420, qual_tokens=400):
+    def __init__(self, key, port, skip_server, ubatch=512, chunk_tokens=420, qual_tokens=400, prefix="none"):
         self.key = key
         self.gguf, self.max_tokens, self.dim, self.note = PRESETS[key]
         self.port = port
@@ -169,6 +172,7 @@ class Bench:
         self.ubatch = ubatch
         self.chunk_tokens = chunk_tokens
         self.qual_tokens = qual_tokens
+        self.prefix = prefix
         self.url = f"http://127.0.0.1:{port}"
         self.client = httpx.Client(timeout=240.0)
         self.server = None
@@ -216,10 +220,16 @@ class Bench:
                 texts.append(p.read_text(encoding="utf-8", errors="replace")[:max_chars])
         return texts
 
+    def doc_t(self, text: str) -> str:
+        return "search_document: " + text if self.prefix == "nomic" else text
+
+    def qry_t(self, text: str) -> str:
+        return "search_query: " + text if self.prefix == "nomic" else text
+
     # ── фазы ─────────────────────────────────────────────────────
     def phase_throughput(self):
         srcs = self.read_files({f for _, f in GOLD} | set(DISTRACTORS))
-        texts = [self.prep(t, self.chunk_tokens) for t in srcs][: THROUGHPUT_N]
+        texts = [self.doc_t(self.prep(t, self.chunk_tokens)) for t in srcs][: THROUGHPUT_N]
         toks = [self.token_count(t) for t in texts]
         self.embed(texts[:4])  # warmup
         rows = []
@@ -246,12 +256,13 @@ class Bench:
     def phase_chunk_sweep(self):
         srcs = self.read_files({f for _, f in GOLD} | set(DISTRACTORS))
         rows = []
+        pfx_tok = 1 if self.prefix == "nomic" else 0
         for target in CHUNK_SWEEP_TARGETS:
             if target > self.max_tokens:
                 continue
-            if self.ubatch and target > self.ubatch:
+            if self.ubatch and target + pfx_tok > self.ubatch - 2:
                 continue
-            texts = [self.prep(s, target) for s in srcs[: CHUNK_SWEEP_N]]
+            texts = [self.doc_t(self.prep(s, target)) for s in srcs[: CHUNK_SWEEP_N]]
             toks = [self.token_count(t) for t in texts]
             vecs, total_tok, dt_s, ch_s, tok_s = self.embed_timed(texts, toks)
             rows.append({
@@ -283,13 +294,13 @@ class Bench:
                 seg = body[i * step: (i + 1) * step]
                 if len(seg) < 30:
                     continue
-                c = self.prep(seg, self.qual_tokens)
+                c = self.doc_t(self.prep(seg, self.qual_tokens))
                 if len(c) < 20:
                     continue
                 texts.append(c)
                 file_ids.append(f.replace("\\", "/"))
                 gold_flags.append(f in {g for _, g in GOLD})
-        queries = [q for q, _ in GOLD]
+        queries = [self.qry_t(q) for q, _ in GOLD]
         Q, _ = self.embed(queries)
         C, _ = self.embed(texts)
         return self._score(Q, C, file_ids, queries), Q, C, file_ids, texts
@@ -387,7 +398,7 @@ class Bench:
             },
             "mrl": mrl,
             "env": {"cpu_threads": 10, "ubatch": self.ubatch, "ctx": 2048, "kv": "q4_0", "pooling": "mean",
-                "chunk_tokens": self.chunk_tokens, "qual_tokens": self.qual_tokens},
+                "chunk_tokens": self.chunk_tokens, "qual_tokens": self.qual_tokens, "prefix": self.prefix},
         }
 
 
@@ -400,10 +411,11 @@ def main():
     ap.add_argument("--ubatch", type=int, default=512)
     ap.add_argument("--chunk-tokens", type=int, default=420)
     ap.add_argument("--qual-tokens", type=int, default=400)
+    ap.add_argument("--prefix", choices=["none", "nomic"], default="none")
     args = ap.parse_args()
 
     bench = Bench(args.key, args.port, args.skip_server, args.ubatch,
-                  args.chunk_tokens, args.qual_tokens)
+                  args.chunk_tokens, args.qual_tokens, args.prefix)
     try:
         res = bench.run()
     finally:
