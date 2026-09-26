@@ -16,6 +16,7 @@ negative control counts equal: True -> [(2000, 2000)]
 ```
 **Вердикт:** CONFIRMED. Per-row commit/fsync — доминанта; named-mutex добавляет ~35%. Отрицательный контроль — counts идентичны (нет порчи). Внешний baseline совпадает: SQLite 429 rows/s отдельными транзакциями vs 2.457M rows/s (одна транзакция+reused) — voidstar.tech.
 **Фикс внедрён (2026-09-25):** `PropertyGraph.batch()` (одна tx на файл) + `indexer._parse_file_only` оборачивает graph-update файла; измерено **138× на реальном API**. Guard: `tests/test_graph_batch.py` (counts/атомарность/вложенность/персистентность).
+**Live-контроль (job 268ac11b, 2026-09-26):** первая попытка на `batch()` **упала на finalize** (`cannot start a transaction within a transaction` в `GraphSymbolResolver.resolve_all`): `batch()` хранил состояние глобально, а parse идёт в 4 потока — файлы делили одну транзакцию. Фикс: владелец батча по thread-id (`_batch_owner`); чужой поток не присоединяется, а блокируется и получает свой батч (проверка и в add_node/add_edge/delete_node). Guard: `test_concurrent_batches_do_not_share_a_transaction` (Barrier, 2 потока, без OperationalError, counts). Повторный прогон → **completed 603с, 10106/10106**, path-dup 0.
 
 ## [2026-09-20] — E13 / поискочное качество: 6 исследовательских задач (план)
 
