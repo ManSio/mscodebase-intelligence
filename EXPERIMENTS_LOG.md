@@ -1,5 +1,21 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — redact.py: scrub personal paths with planted-key test (CONFIRMED)
+
+**Гипотеза:** A redact utility that scrubs drive-rooted paths and username from text output is alive (catches planted violations) and does not over-redact clean text.
+**Команда:** `python -m pytest tests/test_redact.py -v`
+**Сырой вывод:**
+```
+5 passed in 0.43s
+- test_drive_path_is_redacted PASSED
+- test_forward_slash_path_is_redacted PASSED
+- test_username_is_redacted PASSED
+- test_clean_text_unchanged PASSED
+- test_selftest_passes PASSED
+```
+**Вердикт:** CONFIRMED. Drive paths (backslash + forward slash) → `<project>`, username → `<user>`, clean text unchanged. Implements "redact.py at our delivery points + planted key test" promise.
+**Артефакты:** `scripts/redact.py`, `tests/test_redact.py`.
+
 ## [2026-09-27] — Planted-break gate: guards are alive, not decoration (CONFIRMED)
 
 **Гипотеза:** Guards verified only at build time drift into decoration. A planted break (deliberative violation) must be caught by the guard on every run.
