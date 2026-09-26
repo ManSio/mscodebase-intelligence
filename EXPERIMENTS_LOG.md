@@ -889,7 +889,7 @@ lancedb version: 0.34.0
 **Ожидание:** исправление PROJECT_ROOT (parent×3 → parents[3]) в onnx_client/onnx_server вернёт ONNX-режим: сервер найдёт скрипт и модель, /embed вернёт 384-dim.
 **Команда:**
 ```
-cd <ext> && PYTHONPATH=<ext> venv/Scripts/python.exe D:/Project/MSCodeBase/.local/onnx_client_check.py
+cd <ext> && PYTHONPATH=<ext> venv/Scripts/python.exe <repo-root>/.local/onnx_client_check.py
 curl -X POST http://127.0.0.1:9876/embed -d '{"text":"тест"}'
 ```
 **Сырой результат:**
@@ -1067,7 +1067,7 @@ graph: 7247 nodes, 21404 edges
 latency_ms: [0.3, 0.14, 0.12, 0.11, 0.09, 0.09, 0.09]  median_ms: 0.11
 ```
 **Вердикт:** подтверждена — 0.11ms медиана (гипотеза <50ms выполнена ×450). Реальный путь найден, структура корректна (source→CALLS→target).
-**Урок:** `shortest_path` траverses ТОЛЬКО outgoing-рёбра (`graph.py:974` `WHERE source_id = ?`) — классы/методы без исходящих рёбер недостижимы. MCP-обёртке `action="path"` нужен опциональный `direction="both"` (BFS уже параметризуем). Также: qname-формат `D:.D:/Project/...` — клиенту нужен подсказчик имён (как `find_nodes(name_pattern=...)`).
+**Урок:** `shortest_path` траverses ТОЛЬКО outgoing-рёбра (`graph.py:974` `WHERE source_id = ?`) — классы/методы без исходящих рёбер недостижимы. MCP-обёртке `action="path"` нужен опциональный `direction="both"` (BFS уже параметризуем). Также: qname-формат `D:.<repos-root>/...` — клиенту нужен подсказчик имён (как `find_nodes(name_pattern=...)`).
 
 ---
 
@@ -2030,13 +2030,13 @@ Red Team: 5/5 атак с защитой (dirty-cache-persistence, stale-verifie
 
 **Контекст:** закрыть doc 10-continuous-verification (H1 idle + H2 HEAD-инвалидация на main; остался H3 TTL для INCONCLUSIVE/непроверенных узлов, которые «висят вечно»: 42-70 ACTIVE без verified_at). Гипотеза выбора N: «сколько дней без подтверждения = не подтверждён» — мерить распределение verified_at live-памяти, а не угадывать.
 
-**Дизайн:** измерение live `project_memory.json` (C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\intelligence\project_memory.json) через scratch-скрипт (vor_ttl_audit.py, удалён); затем реализация: `last_checked` для всех проверенных (INCONCLUSIVE включительно, rate-limit записи `VOR_LAST_CHECKED_INTERVAL_SEC=6h` — H1 idle не переписывает файл каждый тик) + `stale_ttl_nodes` в stats (не проверен в проходе и след старше `VOR_TTL_DAYS`), label `verification="stale_ttl"`.
+**Дизайн:** измерение live `project_memory.json` (%LOCALAPPDATA%\mscodebase\projects\bfe9644b\intelligence\project_memory.json) через scratch-скрипт (vor_ttl_audit.py, удалён); затем реализация: `last_checked` для всех проверенных (INCONCLUSIVE включительно, rate-limit записи `VOR_LAST_CHECKED_INTERVAL_SEC=6h` — H1 idle не переписывает файл каждый тик) + `stale_ttl_nodes` в stats (не проверен в проходе и след старше `VOR_TTL_DAYS`), label `verification="stale_ttl"`.
 
 **Команда:** `venv/Scripts/python.exe <tmp>/vor_ttl_audit.py`; `python -m pytest tests/test_verify_on_read_ttl.py -v`; полный `python -m pytest tests/ -q`.
 
 **Сырой результат:**
 ```
-audit 2026-09-11 (bfe9644b project_memory.json, symlink D:\Project\MSCodeBase):
+audit 2026-09-11 (bfe9644b project_memory.json, symlink <repo-root>):
   ACTIVE:     70 total, 70 без verified_at
   REFUTED:    28 total, 27 без verified_at,  старейший age_days=28
   SUPERSEDED:  4 total,  3 без verified_at,  старейший age_days=7

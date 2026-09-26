@@ -3,8 +3,8 @@
 [🇬🇧 English](../../en/investigations/LSP_WONTFIX.md) • [🇷🇺 Русский](LSP_WONTFIX.md) • [🇨🇳 中文](../../zh/investigations/LSP_WONTFIX.md)
 
 **Дата:** 2026-07-05
-**Автор:** AI-Agent (по запросу misha)
-**Проект:** `D:\Project\MSCodeBase` — расширение `mscodebase-intelligence`
+**Автор:** AI-Agent (по запросу <user>)
+**Проект:** `<repo-root>` — расширение `mscodebase-intelligence`
 **Версия Zed:** 1.9.0 (Latest, выпущен 01 Jul 2026, коммит `ced90fc`)
 **Severity:** Medium — функциональность не блокирует релиз, потому что вся семантика
 уже работает через MCP (43 инструмента, 1540 чанков). LSP добавлял бы только
@@ -55,7 +55,7 @@ LM Studio эмбеддинги, SQLite fallback для project resolution).
 | 8 | `.zed/settings.json` (локальный) с `mscodebase-lsp` | Игнорируется — Zed 1.9.0 не читает per-project settings для LSP |
 
 **Исключённые причины:**
-- ❌ Restricted Mode — `D:\Project\MSCodeBase` в `trusted_worktrees`.
+- ❌ Restricted Mode — `<repo-root>` в `trusted_worktrees`.
 - ❌ `ZED_WORKTREE_ROOT` = null — обработано SQLite fallback.
 - ❌ Битый код LSP — работает standalone.
 - ❌ Python venv — `python.exe` существует, запускается.

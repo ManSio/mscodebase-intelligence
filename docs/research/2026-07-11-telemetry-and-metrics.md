@@ -254,9 +254,9 @@ tests/
 | **PID** | `14412` |
 | **Started** | `2026-07-11T19:21:09.802981` |
 | **Uptime** | `1496.6s` |
-| **Source** | `D:\Project\MSCodeBase\src\mcp\server.py` |
-| **User** | `misha` |
-| **CWD** | `D:\Project\MSCodeBase` |
+| **Source** | `<repo-root>\src\mcp\server.py` |
+| **User** | `<user>` |
+| **CWD** | `<repo-root>` |
 | **Ext Root** | `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` |
 
 ---

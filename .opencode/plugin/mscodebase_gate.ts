@@ -18,10 +18,11 @@
 import type { Plugin } from "@opencode-ai/plugin"
 import { appendFileSync, mkdirSync } from "node:fs"
 import { execFile } from "node:child_process"
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
+import { tmpdir } from "node:os"
 
-const PY = process.env.MSCODEBASE_PY ?? "D:/Project/MSCodeBase/venv/Scripts/python.exe"
-const LOG = process.env.MSCODEBASE_GATE_LOG ?? "C:/Users/misha/AppData/Local/Temp/opencode/mscodebase_gate.log"
+// Project-local venv by default; MSCODEBASE_PY overrides. No machine-specific path.
+const LOG = process.env.MSCODEBASE_GATE_LOG ?? join(tmpdir(), "opencode", "mscodebase_gate.log")
 const STALE_MODE = process.env.MSCODEBASE_STALE_GATE ?? "block"
 const ISO_MODE = process.env.MSCODEBASE_ISOLATION_GATE ?? "advisory"
 
@@ -38,10 +39,11 @@ function log(rec: Record<string, unknown>) {
 }
 
 function cli(directory: string, tool: string, argsJson: string): Promise<string> {
+  const py = process.env.MSCODEBASE_PY ?? join(directory, "venv", "Scripts", "python.exe")
   return new Promise((resolve) => {
     try {
       execFile(
-        PY,
+        py,
         ["-m", "src.cli", tool, argsJson],
         { cwd: directory, timeout: 90000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
         (_err, stdout) => resolve(stdout ?? ""),

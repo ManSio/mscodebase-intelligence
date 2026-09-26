@@ -127,7 +127,7 @@ MSCodeBase **在 `codebase(action="rename")` 中使用 LSP** — LSP 客户端�
 在 Zed 中安装 `mscodebase-intelligence` 扩展，然后：
 
 ```bash
-cd D:\Project\MSCodeBase
+cd <repo-root>
 python install.py
 
 # 重启 Zed（File → Quit → 重新打开）

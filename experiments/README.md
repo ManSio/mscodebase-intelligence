@@ -28,6 +28,7 @@
 | Late Enrichment | Late code chunking (WS3) | [`late_enrichment/`](late_enrichment/) | 🟡 исследование | imports=0.0 — находка, KNOWN_ISSUES |
 | Benchmark D | Контекстный бенчмарк (12 задач L3-L5) | [`benchmark2/`](benchmark2/) | ✅ 2026-08-08 | runner.py + tasks.jsonl + README |
 | Probes | Одноразовые пробы (без отчётов) | [`misc_probes/`](misc_probes/) | — | см. README папки |
+| **4A** | Unit of return (4-arm, протокол Tom `3fj0o`) + контуры против конфундов агентной аппаратуры | [`4A_unit_of_return/`](4A_unit_of_return/) | 🟡 pre-registered 2026-09-26 | top-k / whole-doc / oracle / **closed book**; аппаратура влияет — 6 каналов (E7/E11/E17/E25/порты) |
 
 ## Исследовательские заметки (в корне experiments/, не эксперименты)
 
