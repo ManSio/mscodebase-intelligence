@@ -31,20 +31,20 @@ This is **not** an LSP server or a replacement for the editor's built-in autocom
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                      Zed IDE                         │
+│                      Zed IDE                        │
 │  ┌───────────────────────────────────────────────┐  │
-│  │        LSP (built-in autocomplete,           │  │
-│  │        inline hints, diagnostics)            │  │
+│  │        LSP (built-in autocomplete,            │  │
+│  │        inline hints, diagnostics)             │  │
 │  └───────────────────────────────────────────────┘  │
-│                        │                              │
-│                        ▼                              │
+│                        │                            │
+│                        ▼                            │
 │  ┌───────────────────────────────────────────────┐  │
-│  │  MSCodeBase (MCP server)                     │  │
-│  │  · Semantic search across the codebase       │  │
-│  │  · Call graph & impact analysis              │  │
-│  │  · Project memory (ADR, tech debt)           │  │
-│  │  · Self-diagnostics and self-healing         │  │
-│  │  · 65 tools for AI assistant                 │  │
+│  │  MSCodeBase (MCP server)                      │  │
+│  │  · Semantic search across the codebase        │  │
+│  │  · Call graph & impact analysis               │  │
+│  │  · Project memory (ADR, tech debt)            │  │
+│  │  · Self-diagnostics and self-healing          │  │
+│  │  · 65 tools for AI assistant                  │  │
 │  └───────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────┘
 ```
@@ -353,41 +353,41 @@ Deep-dives into specific technical findings from building this project:
 ### Clean Architecture with DI Container
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                   MCP Server (~1000 lines)                        │
-│            src/mcp/server.py + server_tools.py + server_factory.py │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-|  │              DI Container (18 services)                   │   │
-│  │  src/core/di_container.py — ServiceCollection              │   │
-│  │                                                           │   │
-│  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
-│  │  │ Indexer  │  │  Searcher  │  │  DebounceBatch       │  │   │
-│  │  │ Embedder │  │  SymbolIdx │  │  CircuitBreaker      │  │   │
-│  │  │ Parser   │  │  FileGuard │  │  RateLimiter         │  │   │
-│  │  └──────────┘  └────────────┘  └──────────────────────┘  │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                           │                                       │
-│              ┌────────────┴────────────┐                         │
-│              ▼                          ▼                         │
-│  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  32 Tool Classes   │  │  16 intel_* + 13 inline tools    │  │
-│  │  src/mcp/tools/*.py │  │  intelligence/layer.py +           │  │
-│  │  + codebase hub     │  │  server_tools.py (inline)          │  │
-│  │  Constructor Inj.   │  │  error_boundary decorator          │
-│  │  1 execute_script   │  │  asyncio.wait_for(timeout)        │  │
-│  └────────────────────┘  └────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                  MCP Server (~1000 lines)                      │
+│    src/mcp/server.py + server_tools.py + server_factory.py     │
+│                                                                │
+│  ┌───────────────────────────────────────────────────────┐     │
+|  │              DI Container (18 services)               │     │
+│  │  src/core/di_container.py — ServiceCollection         │     │
+│  │                                                       │     │
+│  │  ┌──────────┐  ┌────────────┐  ┌───────────────────┐  │     │
+│  │  │ Indexer  │  │  Searcher  │  │  DebounceBatch    │  │     │
+│  │  │ Embedder │  │  SymbolIdx │  │  CircuitBreaker   │  │     │
+│  │  │ Parser   │  │  FileGuard │  │  RateLimiter      │  │     │
+│  │  └──────────┘  └────────────┘  └───────────────────┘  │     │
+│  └───────────────────────────────────────────────────────┘     │
+│                           │                                    │
+│              ┌────────────┴─────────────┐                      │
+│              ▼                          ▼                      │
+│  ┌─────────────────────┐  ┌─────────────────────────────────┐  │
+│  │  32 Tool Classes    │  │  16 intel_* + 13 inline tools   │  │
+│  │  src/mcp/tools/*.py │  │  intelligence/layer.py +        │  │
+│  │  + codebase hub     │  │  server_tools.py (inline)       │  │
+│  │  Constructor Inj.   │  │  error_boundary decorator       │  |
+│  │  1 execute_script   │  │  asyncio.wait_for(timeout)      │  │
+│  └─────────────────────┘  └─────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
          │
          ▼
-┌─────────────────┐     ┌───────────────────┐
-│  RemoteEmbedder  │     │  LanceDB v2       │
-│  (llama.cpp GGUF  │     │  (Vector DB)       │
-│   native, primary;│     │  BM25 + Vector    │
-│   ONNX INT8       │     │                    │
-│   in-process      │     │                    │
-│   fallback)       │     │                    │
-└─────────────────┘     └───────────────────┘
+┌────────────────────┐     ┌────────────────────┐
+│  RemoteEmbedder    │     │  LanceDB v2        │
+│  (llama.cpp GGUF   │     │  (Vector DB)       │
+│   native, primary; │     │  BM25 + Vector     │
+│   ONNX INT8        │     │                    │
+│   in-process       │     │                    │
+│   fallback)        │     │                    │
+└────────────────────┘     └────────────────────┘
 ```
 
 ---
