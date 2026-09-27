@@ -8,6 +8,14 @@
 
 **21 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
+## 2026-09-27 — F5 judge verdict parsing takes first regex match (Open)
+
+- **Локация:** `scripts/f5_judged_run.py:238-246` (`_parse_verdict`): сначала первый regex-матч `"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?`, иначе первое вхождение в порядке (incorrect, correct, uncertain).
+- **Симптом / риск:** Haiku-style самокоррекция судьи («incorrect… actually correct, final answer: correct») оценивается по ПЕРВОМУ слову — вердикт инвертируется. Fallback-порядок (incorrect перед correct) корректен как подстрока-защита, но не как семантика: первое упоминание ≠ финальное решение. Ошибка тихая (verdict всегда парсится, `uncertain` по умолчанию недостижим при любом упоминании).
+- **Аудит (2026-09-27, выполнено при записи):** `experiments/4A_unit_of_return/results/f5judged/judged_raw.json` (sha256 `4be6d79d2012a5c5…`, 16 запросов × 4 плеча × 10 trials = 640 answers): ответов с ≥2 verdict-словами (correct/incorrect/uncertain, границы слов, case-insensitive) — **0**; с ≥1 — **0** (reader-ответы: «I don't know» / код, verdict-слов не содержат). Латентный риск на текущих данных не сработал, но сырого текста судьи в judged_raw.json НЕТ (только reader answers + распарсенные verdicts) — самокоррекцию судьи задним числом проверить нечем.
+- **Fix options (решение владельца):** (a) писать judge raw text в judged_raw.json + парсить explicit-final (последний матч / маркер «final verdict:»); (b) решить first/last/explicit-final как контракт парсера и зафиксировать тестом с самокоррекцией pos/neg; (c) минимум: warning-счётчик ответов с ≥2 verdict-строками в агрегатор.
+- **Статус:** 🔬 Open (корректность F5-чисел зависит от несуществующего контракта судьи).
+
 ## 2026-09-27 — Ранкер `bge-reranker-v2-m3` оценивает целевой файл ниже порога фильтра (Open)
 
 - **Симптом / контекст:** positive-контроли P2 и P3 (`experiments/token_reduction_v3_lancedb`) не находят целевой файл, positive controls 1/3. Стадия потерь локализована бисекцией — теряет только реранкер, MMR / `_boost_exact_name_matches` / `_dedupe_by_symbol` теряют 0:
