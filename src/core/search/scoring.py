@@ -17,6 +17,9 @@ from src.config.settings import CODE_EXTENSIONS, DOCS_EXTENSIONS, get_config
 
 __all__ = [
     "reciprocal_rank_fusion",
+    "reciprocal_rank_fusion_3way",
+    "rrf_key",
+    "anchor_tier_winners",
     "auto_detect_intent",
     "apply_bucket_weights",
     "apply_mmr_diversity",
@@ -147,6 +150,82 @@ def reciprocal_rank_fusion_3way(
             }
         )
     return out
+
+
+def rrf_key(item: dict) -> str:
+    """Канонический ключ фьюжена ``file:chunk_index`` (единый для RRF,
+    дедупа тиров и якорей — расхождение форматов роняло бы сверку)."""
+    meta = item.get("metadata", {}) or {}
+    return f"{meta.get('file', '?')}:{meta.get('chunk_index', 0)}"
+
+
+def anchor_tier_winners(
+    rrf_ranked: List[dict],
+    tiers: List[tuple],
+    limit: int,
+    per_tier: int = 1,
+    pool_cap: int = 30,
+    rrf_k: int = 60,
+) -> List[dict]:
+    """Гарантирует место в pre-rerank пуле лидерам каждого тира (P2-fix).
+
+    Мотивация (P2, verified): 3-way RRF награждает multi-tier консенсус —
+    цель, найденная ОДНИМ тиром (BM25 rank 0 → ``1/(60+1)``), проигрывает
+    мусору из 2-3 тиров (``2-3x``) и ампутируется срезом ``[:limit]`` до
+    реранкера. MMR невиновен (только переупорядочивает), bucket-веса
+    фаворизируют цель (.py=1.0 против .txt/.md=0.5).
+
+    Механика: пул = RRF top-``limit`` + недостающие лидеры тиров
+    (``per_tier`` голов каждого тира), взятые из полного RRF-списка;
+    если лидера нет даже там (сверхзагрязнённый индекс) — fused-запись
+    строится из сырого тир-элемента с его RRF-вкладом. Порядок RRF
+    сохраняется, дубли исключаются, размер ограничен ``pool_cap``.
+
+    Args:
+        rrf_ranked: Полный RRF-ранжированный список (до среза, ~raw_limit).
+        tiers: Список ``(tier_items, score_key)`` — score_key один из
+            ``bm25_score`` / ``dense_score`` / ``fts5_score`` / ``graph_score``.
+        limit: Базовый размер пула (RRF top-limit входит безусловно).
+        per_tier: Сколько голов тира закреплять (default 1).
+        pool_cap: Жёсткий потолок пула (реранкер ~37ms/текст).
+        rrf_k: Та же константа RRF, что при фьюжене.
+
+    Returns:
+        Пул для реранкера (схема записей = RRF, с ``final_score``).
+    """
+    if limit <= 0:
+        return []  # контракт hybrid_search_async: limit=0 -> пустой пул
+    pool = list(rrf_ranked[:limit])
+    pool_keys = {rrf_key(c) for c in pool}
+    ranked_by_key = {rrf_key(c): c for c in rrf_ranked}
+
+    for tier_items, score_key in tiers:
+        for rank, item in enumerate(tier_items[:per_tier], 1):
+            if len(pool) >= pool_cap:
+                return pool
+            key = rrf_key(item)
+            if key in pool_keys:
+                continue
+            if key in ranked_by_key:
+                pool.append(ranked_by_key[key])
+            else:
+                # Лидер тира вне RRF-списка: восстанавливаем fused-запись
+                # с его собственным RRF-вкладом 1/(k+rank).
+                contrib = 1.0 / (rrf_k + rank)
+                entry = {
+                    "text": item.get("text", ""),
+                    "metadata": item.get("metadata", {}),
+                    "bm25_score": 0.0,
+                    "dense_score": 0.0,
+                    "fts5_score": 0.0,
+                    "graph_score": 0.0,
+                    "final_score": contrib,
+                }
+                if score_key in entry:
+                    entry[score_key] = contrib
+                pool.append(entry)
+            pool_keys.add(key)
+    return pool
 
 
 def auto_detect_intent(query: str) -> str:

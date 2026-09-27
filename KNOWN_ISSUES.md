@@ -40,12 +40,14 @@
 - **Guard:** `tests/test_reranker.py` — `test_sigmoid_matches_reference_values` (4 кейса), `test_sigmoid_is_numerically_stable_at_extremes`, `test_llama_cpp_scores_normalized_to_unit_interval`, `test_llama_cpp_negative_logit_does_not_leave_unit_interval`. Проверено мутацией (`_sigmoid` → identity): **7 failed / 38 passed**; чисто — 45 passed.
 - **T3 (обобщение):** иных мест с абсолютным порогом по логитам в `src/` нет. `_DEFAULT_THRESHOLD = 0.85` в `duplication.py:37` — порог по Jaccard (по определению в [0,1], `clamp` на строке 136), другой механизм.
 
-## 2026-09-27 — P2: целевой файл не доходит до финального пула; причина не установлена (Open)
+## 2026-09-27 — P2: целевой файл не доходит до финального пула (Root Cause установлен, fix в PR)
 
 - **Симптом:** для запроса P2 (`hybrid_search_async reciprocal_rank_fusion FTS5 BM25`) целевой `src/core/search/engine.py` не найден. Top-хиты — собственные артефакты эксперимента: `experiments/**/*.txt`, `results.json`, `docs/zh/SEARCH_PIPELINE.md`. Реранкер ни при чём — цели нет в пуле ещё до него.
-- **Root Cause: НЕ УСТАНОВЛЕН.** Зафиксировано открытое противоречие: отдельный standalone-прогон BM25 вернул цель на **rank 0**, что несовместимо с утверждением «цель не находится вовсе». Расхождение между standalone BM25 и путём внутри `hybrid_search_async` не изучено. **Причину не утверждать** до разбора построения пула и RRF-слияния.
-- **Побочно (Verified):** индекс содержит вывод собственных экспериментов, что загрязняет lexical-выдачу по общим терминам — это отдельная проблема индексации, не фильтра.
-- **Что нужно:** разобрать построение pre-rerank пула и слияние RRF; выяснить, почему BM25 rank-0 не доходит до финального пула.
+- **Root Cause (Verified чтением кода + синтетической регрессией):** RRF-консенсус размывает однотирные находки. Цель P2 — BM25 rank 0, но только одного тира → `1/(60+1)≈0.0164`; мусор из 2-3 тиров на средних рангах накапливает 2-3x → `rrf_results[:limit]` (`engine.py:746`) ампутирует цель до реранкера. MMR невиновен (reorder-only), bucket-веса фаворизируют цель (.py 1.0 vs .txt/.md 0.5), expansion держит verbatim-запрос как variants[0] — «противоречие» standalone-BM25-rank-0 vs hybrid-loss этим и разрешается: hybrid никогда не возвращает сырой BM25-порядок.
+- **Fix (adopt/reranker-threshold-and-pool):** `anchor_tier_winners` (`scoring.py`) — пул = MMR-база + лидеры тиров (per_tier=1, потолок MAX_RERANKER_INPUT), дописываются в хвост после MMR; `top_n` реранкера (=limit) и путь без реранкера не меняются. Плюс top-N recall floor `MAX_RERANKER_TOPN` (default 0=off) и `threshold_calibration.calibrate_threshold` с кодовым запретом калибровки на eval (ValueError). Дефолт 0.3 не тронут — калибровать только на holdout, дизъюнктном с frozen eval-16.
+- **Guard:** `tests/test_reranker_pool_and_threshold.py` (18: P2-регрессия падала до фикса, якоря/дедуп/cap/fallback/limit=0, top-N вкл/выкл/cap, F1-калибровка, 6 eval-маркеров → ValueError). Смежные: 143 passed (reranker+searcher+hardening+ubatch+bs_audit); ruff чист.
+- **Остаточное:** live-проверка P2/P3 на реальном индексе+llama.cpp не выполнена в этой среде (только синтетика + залогированные скоры P3/R2); holdout-набор для калибровки не собран (нужно ≥10 запросов вне eval-16) — решение владельца.
+- **Статус:** 🔧 Fixed (код+тесты) / 🔬 Open (live-валидация + holdout-калибровка).
 
 ## 2026-09-25 — Падения не фиксировались: zombie-job + глушение исключений + нет ledger (Fixed) / Open (server hard-death)
 
