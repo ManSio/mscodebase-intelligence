@@ -30,11 +30,13 @@ from .bm25 import BM25Mixin
 from .fts5_mixin import FTS5Mixin
 from .scoring import (
     _apply_co_change_boost,
+    anchor_tier_winners,
     apply_bucket_weights,
     apply_mmr_diversity,
     auto_detect_intent,
     reciprocal_rank_fusion,
     reciprocal_rank_fusion_3way,
+    rrf_key,
 )
 from .token_savings import calculate_token_savings
 from .trace import SearchTracer
@@ -756,6 +758,32 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         )
         if tracer and _mmr_before:
             tracer.record_mmr(_mmr_before, pre_rerank_results, lambda_param=0.6)
+
+        # === P2-fix: лидеры тиров в pre-rerank пул (anchor_tier_winners) ===
+        # RRF награждает multi-tier консенсус: цель из ОДНОГО тира (P2: BM25
+        # rank 0) проигрывает multi-tier мусору и срезалась [:limit] до
+        # реранкера. Якоря дописываются ПОСЛЕ MMR (он только переупорядочивает),
+        # потолок — MAX_RERANKER_INPUT; top_n реранкера (=limit) не меняется.
+        if use_rrf:
+            # MMR-порядок базового среза сохраняется как есть (важен для
+            # пути без реранкера); якоря только дописываются в хвост —
+            # при живом реранкере он всё равно пересортирует по своим скорам.
+            _mmr_keys = {rrf_key(c) for c in pre_rerank_results}
+            _anchored = anchor_tier_winners(
+                rrf_results,
+                [
+                    (unique_bm25, "bm25_score"),
+                    (all_dense_results, "dense_score"),
+                    (all_fts5_results, "fts5_score"),
+                    (graph_results, "graph_score"),
+                ],
+                limit,
+                per_tier=1,
+                pool_cap=MAX_RERANKER_INPUT,
+            )
+            pre_rerank_results = list(pre_rerank_results) + [
+                c for c in _anchored if rrf_key(c) not in _mmr_keys
+            ]
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
