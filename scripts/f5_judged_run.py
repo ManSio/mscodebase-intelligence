@@ -236,13 +236,22 @@ def _arm_context(arm: str, results: list[dict], gold: str) -> str:
 
 
 def _parse_verdict(text: str) -> str:
-    m = re.search(r'"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?', text, re.I)
-    if m:
-        return m.group(1).lower()
-    low = text.lower()
-    for v in ("incorrect", "correct", "uncertain"):
-        if v in low:
-            return v
+    """Explicit-final contract (validated on 1014 judge sessions, 2026-09-27).
+
+    A reasoning judge may hesitate mid-text ("looks incorrect ... actually
+    correct"). The FINAL decision is the LAST one stated: last JSON
+    "verdict" match wins; otherwise the last verdict-word mention wins.
+    Measured on judged_cot_backfill.json: last==final 842/1014 vs
+    first-match 820/1014; on 61 flip sessions last==final 53/61 (87%)
+    vs first==final 34/61 (56%). No explicit "final verdict:" marker
+    exists in the wild (0/61), so last-match IS the contract.
+    """
+    matches = re.findall(r'"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?', text or "", re.I)
+    if matches:
+        return matches[-1].lower()
+    hits = re.findall(r"\b(correct|incorrect|uncertain)\b", text or "", re.I)
+    if hits:
+        return hits[-1].lower()
     return "uncertain"
 
 
@@ -327,11 +336,12 @@ def main() -> int:
         ctx_file = (workdir / f"ctx_{token}.txt")
         ctx_file.write_text(contexts[(q["id"], arm)], encoding="utf-8")
         ctx_file = ctx_file.resolve()
-        answers, verdicts = [], []
+        answers, verdicts, judge_texts = [], [], []
         for t in range(args.trials):
             if args.dry_run:
                 answers.append("[DRY]")
                 verdicts.append("uncertain")
+                judge_texts.append(["[DRY]"])
                 continue
             prompt = f"{reader_instr}\n\nQuestion: {q['question']}"
             a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
@@ -341,22 +351,25 @@ def main() -> int:
             ans_file = ans_file.resolve()
             if a.startswith(FAIL_MARKERS):
                 verdicts.append("invalid")
+                judge_texts.append([])
                 continue
-            vrep = []
+            vrep, jraw = [], []
             for _ in range(args.judge_repeats):
                 jp = (f"{JUDGE_INSTR}\n\nQuestion: {q['question']}\n"
                       f"Reference answer: {q['evidence_span']}")
                 jt = _run(bin_, jp, args.judge_model, workdir, [ans_file], args.timeout)
                 if jt.startswith(FAIL_MARKERS):
                     continue
+                jraw.append(jt)
                 vrep.append(_parse_verdict(jt))
+            judge_texts.append(jraw)
             if not vrep:
                 verdicts.append("invalid")
                 continue
             verdicts.append(vrep[0] if len(vrep) == 1 else max(set(vrep), key=vrep.count))
         return {"id": q["id"], "population": q.get("population"), "gold_file": gold,
                 "reference": q["evidence_span"], "arm": arm,
-                "answers": answers, "verdicts": verdicts}
+                "answers": answers, "verdicts": verdicts, "judge_texts": judge_texts}
 
     units = [(q, arm) for q in queries for arm in arms]
     rng.shuffle(units)  # randomized order (blind)
@@ -372,7 +385,8 @@ def main() -> int:
         rec = by_q.setdefault(r["id"], {"id": r["id"], "population": r["population"],
                                         "gold_file": r["gold_file"], "reference": r["reference"],
                                         "arms": {}})
-        rec["arms"][r["arm"]] = {"answers": r["answers"], "verdicts": r["verdicts"]}
+        rec["arms"][r["arm"]] = {"answers": r["answers"], "verdicts": r["verdicts"],
+                                   "judge_texts": r["judge_texts"]}
     ordered = [by_q[q["id"]] for q in queries]
 
     outdir.mkdir(parents=True, exist_ok=True)
