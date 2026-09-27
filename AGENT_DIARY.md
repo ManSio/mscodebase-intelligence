@@ -677,3 +677,17 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 **Шаг 3 (закрыт):** флаг оставлен off по умолчанию (экспериментальный тумблер, паттерн late_enrichment) — прод не меняется. Воспроизводимый A/B-скрипт перенесён в experiments/bootstrap/e17_ab_tests_signal.py (stable: hit@1=7/7, MRR=1.0, 6/7, 0 битых). Описана статья-draft docs/blog/bootstrap-pipeline.md (+ строка в docs/blog/README.md). Портфолио синхронизировано: exp-46 EN+RU, guard pnpm test 26/26 passed. Ruff clean. 102 pytest green.
 **Статья (draft, полная история, английский):** docs/blog/bootstrap-pipeline.md — полная история на английском (отредактированная версия владельца): Exp 7→7b→8→9→16→E17. **Критические данные добавлены:** широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%, overhead +15.3%), языковое покрытие (Python 34.0%, Other/TypeScript 0%), red team 5/5 атак отражено. **Вывод:** TESTS-сигнал не улучшает hit@1 (off=on), только добавляет контекст для LLM. Раздел «What Could Go Wrong»: 12 рисков. Experiment Matrix обновлена. Воспроизводимо: e17_wide_panel.py, e17_redteam.py, e17_ab_tests_signal.py. Verified: pytest 34 green, ruff clean. Проверка: PR нужен для clean-state и prod-решения.
 **Next:** owner: панель 30+ запросов с embedder → решение прод-включения → PR (для verified_from_clean_state).
+
+## [2026-09-27] RERANK — Шкала скора реранкера: логиты против [0,1]
+
+**Status:** ⚠️ Verified частично (45 pytest green; ruff недоступен в venv; мутация-контроль 7 failed / 38 passed). P2/P3 **не закрыты**.
+**Root Cause (CONFIRMED):** llama.cpp `/v1/rerank` отдаёт сырые логиты (≈[-11,+11]), а `MIN_RERANK_SCORE=0.3` откалиброван под [0,1] — контракт Cohere нарушен (ggml-org/llama.cpp#9510, пример ggerganov: 5.97 / -11.03). Фильтр резал 70-97% выдачи.
+**Fix:** `_sigmoid` + вызов в ветке `llama_cpp` (`multi_provider.py`), `MIN_RERANK_SCORE=0.3` **не тронут**. Бисекция: теряет только реранкер, MMR/boost/dedupe — 0 потерь.
+**Не fix (важно):** цель P3 после нормализации = 0.271 < 0.3 — модель `bge-reranker-v2-m3` оценивает верный файл отрицательным логитом (-0.99). Это ранжирование, не шкала. Любой положительный порог такое не удержит.
+**Guard:** 7 тестов в `tests/test_reranker.py` (4 параметризованных + extremes + 2 интеграционных), проверены мутацией `_sigmoid`→identity.
+**T3:** иных абсолютных порогов по логитам в `src/` нет; `duplication.py:37` — Jaccard (по определению [0,1], clamp на :136), другой механизм.
+**verified_from_clean_state:** нет — uncommitted, локальный прогон.
+
+**P-002 — измерение на пуле, уже прошедшем фильтр (survivorship bias).** Дважды за сессию эффект фильтра измерялся по выжившим и дал ложный вердикт: (1) проба `/v1/rerank` с пулом из `hybrid_search_async` → «фильтр режет 0», на деле резал 8 из 10; (2) sweep порогов по тем же 16 frozen-правилам → «0.02 даёт 8 hits», это перебор на оценочной выборке, владелец остановил. **Правило:** фильтр/порог меряется только на полном pre-rerank пуле и калибруется на holdout, отдельном от eval-набора. **Guard:** запрет внесён в EXPERIMENTS_LOG; тесты на фильтр строятся с positive+negative control (мусор отсекается, релевантный выживает).
+
+**P-003 — правка не в той ветке.** Сигмоида попала в ONNX-блок вместо `llama_cpp` (oldString оказался уникальным, но не тем), ветка ONNX осиротела, `if scores:` выехал из `try`. Поймано `ast.parse` + просмотром diff. **Правило:** после правки в много-ветвистом коде — `git diff` целиком, а не только «применилось».
