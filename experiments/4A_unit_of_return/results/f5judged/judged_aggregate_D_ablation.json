@@ -1,0 +1,58 @@
+{
+  "n_queries": 16,
+  "arms": [
+    "D"
+  ],
+  "populations": [
+    "code",
+    "prose"
+  ],
+  "code": {
+    "D": {
+      "correct": 0,
+      "n": 24,
+      "rate": 0.0,
+      "ci95": [
+        0,
+        0.138
+      ]
+    }
+  },
+  "prose": {
+    "D": {
+      "correct": 2,
+      "n": 24,
+      "rate": 0.0833,
+      "ci95": [
+        0.0232,
+        0.2585
+      ]
+    }
+  },
+  "majority": {
+    "D:code": {
+      "correct": 0,
+      "n": 8,
+      "rate": 0.0
+    },
+    "D:prose": {
+      "correct": 0,
+      "n": 8,
+      "rate": 0.0
+    },
+    "D:ALL": {
+      "correct": 0,
+      "n": 16,
+      "rate": 0.0
+    }
+  },
+  "judge_nonunanimous": {
+    "k": 0,
+    "n": 16,
+    "rate": 0.0,
+    "note": "judge_repeats=1, unanimity trivial"
+  },
+  "trials": 3,
+  "reader_instruction": "no-abstention ablation (frozen reader_D_ablation.txt)",
+  "source_raw": "judged_raw_D_ablation.json"
+}

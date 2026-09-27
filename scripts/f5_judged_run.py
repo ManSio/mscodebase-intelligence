@@ -259,8 +259,15 @@ def main() -> int:
     ap.add_argument("--judge-model", default=JUDGE_MODEL)
     ap.add_argument("--timeout", type=int, default=400)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--reader-instr-file", default=None,
+                    help="path to file with reader instruction verbatim (default: built-in READER_INSTR)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+
+    if args.reader_instr_file:
+        reader_instr = Path(args.reader_instr_file).read_text(encoding="utf-8")
+    else:
+        reader_instr = READER_INSTR
 
     arms = [a.strip().upper() for a in args.arms.split(",") if a.strip()]
     queries = _load_queries()
@@ -326,7 +333,7 @@ def main() -> int:
                 answers.append("[DRY]")
                 verdicts.append("uncertain")
                 continue
-            prompt = f"{READER_INSTR}\n\nQuestion: {q['question']}"
+            prompt = f"{reader_instr}\n\nQuestion: {q['question']}"
             a = _run(bin_, prompt, args.reader_model, workdir, [ctx_file], args.timeout)
             answers.append(a)
             ans_file = (workdir / f"cand_{token}.txt")
