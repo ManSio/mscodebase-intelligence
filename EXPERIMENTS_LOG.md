@@ -2819,3 +2819,26 @@ R2@limit=30:          30→30 | reranker 30→1
 
 **Открыто:** P2 — целевой файл не входит в pre-rerank пул вовсе (проблема retrieval, не фильтра; top-хиты — собственные артефакты `experiments/**`). P3 — целевой chunk переживает reranker, но не проходит порог. Требуется отдельное решение владельца; подбирать порог по eval-набору нельзя.
 
+## [2026-09-27] — exp-54 (PLANNED — NOT RUN): CoT effect as function of task shape
+
+**Статус:** ⏳ PLANNED — НЕ ЗАПУЩЕН (дизайн зафиксирован, прогона нет, чисел нет).
+**Гипотеза:** CoT окупается на why-diagnosis (Grok 100→35 — мышление чинит диагноз), но ~ноль на fact-verification (наши VOR-плечи: CoT дал qwen3.6 recall 0.08→0.20 ценой ×30–65, у 3 из 4 моделей выигрыш нулевой) — эффект CoT = функция формы задачи, а не «модели стали умнее».
+**Дизайн:** те же модели × 2 формы (why-diagnosis vs fact-verification) × CoT on/off; замороженный набор (frozen, в репо); слепой судья (blind, единый reference по плечам); pos/neg контроли в каждом прогоне.
+**Ожидаемая форма вердикта:** интеракция shape×CoT (CoT≫0 на why, CoT≈0 на fact) либо REFUTED (CoT равномерен/нулевой везде) — цитируются только дельты с контролями, не абсолюты.
+**Связи:** ["exp-1","exp-18"].
+
+## [2026-09-27] — F5 D-arm no-abstention ablation (floor test)
+
+**Гипотеза (Tom):** D-плечо (closed book) даёт ~0 только потому, что инструкция разрешает abstention («I don't know»); без разрешения сдаваться reader priors покажут реальный уровень.
+**Метод:** те же 16 frozen queries × 3 trials = 48 reader-прогонов (reader `opencode-go/longcat-2.0`, инструкция из `experiments/4A_unit_of_return/frozen/f5/reader_D_ablation.txt`, sha256 `91b16b8b…`) + 48 judge-прогонов (judge `opencode-go/qwen3.7-plus`, без изменений, blind, единый reference). Дизайн: arm D only, populations code/prose.
+**Сырой результат:**
+```
+D overall: 2/48 = 4.2%
+code:  0/24 = 0%
+prose: 2/24 = 8.3% (F5S-10, F5S-13, по одному среднему trial)
+majority (≥2/3): 0/16
+invalid/uncertain: 0
+```
+**Вердикт:** reader priors существуют на уровне шума — механизм Tom подтверждён, масштаб нет (его 6/14 vs наши 2/48). Prose-плечо B 18.8% читается на фоне ~4% пола, отрыв сохраняется.
+**Артефакты:** `experiments/4A_unit_of_return/results/f5judged/judged_raw_D_ablation.json`, `experiments/4A_unit_of_return/results/f5judged/judged_aggregate_D_ablation.json`.
+
