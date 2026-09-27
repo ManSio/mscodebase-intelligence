@@ -13,7 +13,7 @@
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
 [![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-1889%20passed-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1965%20passed-brightgreen)](tests/)
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Tools](#mcp-tools-65-total) • [Documentation](#-documentation-map) • [Installation](docs/en/INSTALL.md) • [Architecture](docs/en/ARCHITECTURE.md) • [Contributing](CONTRIBUTING.md) • [Security](SECURITY.md)
 
@@ -212,6 +212,12 @@ Deep-dives into specific technical findings from building this project:
 - [PageRank vs RAG on a Real Codebase: Corrected Numbers, and What I Almost Got Wrong Twice](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) — comparing retrieval methods, with two rounds of honest self-correction
 - [I Asked One AI to Fact-Check Another AI's Audit of My Own Code](https://dev.to/mansio/i-asked-one-ai-to-fact-check-another-ais-audit-of-my-own-code-1ac3)
 - [The Silent Vector Contamination Bug: Why Your Concurrent Embeddings Might Be Lying to You](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7)
+
+## Recent results (Sept 2026)
+
+- **F5 4-arm unit-of-return:** A 16.3% / B 34.4% / C 97.5% / D 0%; code 50% vs 6.3% → [writeup](docs/blog/unit-of-return-4arm.md)
+- **NodeRAG refuted** on the same bench: TF-IDF 80% vs graph BFS 70%
+- **D-ablation floor test** (no-abstention): ~4% (2/48), majority 0/16 — prose B margin survives
 
 ---
 
