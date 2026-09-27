@@ -1,0 +1,388 @@
+{
+  "experiment": "noderag_deterministic",
+  "date": "2026-09-27",
+  "frozen_rules_sha256": "8657a7e3949b5a3eed8f025b8086dcf539cdafacd0cd335f28e607fcf0e44f9a",
+  "total_rules": 16,
+  "results": [
+    {
+      "id": "R1",
+      "rule": "begin_write() holds _write_lock (RLock) the entire reindex causing server freeze",
+      "query": "begin_write _write_lock RLock reindex freeze",
+      "target_file": "src/core/indexing/db_writer.py",
+      "control": null,
+      "file_found_by_A": false,
+      "file_found_by_B": false,
+      "tokens_A": 24007,
+      "tokens_B": 0,
+      "arm_a_top_files": [
+        "src/core/intelligence/layer.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/search/engine.py"
+      ],
+      "arm_b_visited_files": [],
+      "arm_b_start": "begin_write"
+    },
+    {
+      "id": "R2",
+      "rule": "ArtifactGC retains 30d projects, 90d telemetry, 7d logs",
+      "query": "ArtifactGC 30d projects 90d telemetry 7d logs retention",
+      "target_file": "src/core/artifact_gc.py",
+      "control": null,
+      "file_found_by_A": false,
+      "file_found_by_B": false,
+      "tokens_A": 35940,
+      "tokens_B": 0,
+      "arm_a_top_files": [
+        "src/core/intelligence/layer.py",
+        "src/core/intelligence/layer.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/index_project_runner.py"
+      ],
+      "arm_b_visited_files": [],
+      "arm_b_start": "ArtifactGC"
+    },
+    {
+      "id": "R3",
+      "rule": "ubatch: embed role uses 512, rerank role uses 1024",
+      "query": "ubatch embed 512 rerank 1024 resolve_ubatch",
+      "target_file": "src/providers/reranker/llama_install.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 34252,
+      "tokens_B": 52295,
+      "arm_a_top_files": [
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_install.py",
+        "src/core/search/engine.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/intelligence/layer.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/artifact_gc.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "arm_b_start": "resolve_ubatch"
+    },
+    {
+      "id": "R4",
+      "rule": "PID-reuse guard: _InterProcessLock._is_pid_alive uses OpenProcess(SYNCHRONIZE)",
+      "query": "_InterProcessLock _is_pid_alive OpenProcess SYNCHRONIZE stale PID",
+      "target_file": "src/providers/reranker/llama_runner.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 15410,
+      "tokens_B": 4843,
+      "arm_a_top_files": [
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/intelligence/layer.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "arm_b_start": "_is_pid_alive"
+    },
+    {
+      "id": "R5",
+      "rule": "search_code timeouts caused by idle-unloaded embedder and blocking hot-reload",
+      "query": "search_code timeout idle embedder _revive_llama_cpp hot-reload",
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 33833,
+      "tokens_B": 6341,
+      "arm_a_top_files": [
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/search/engine.py",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/embedder/remote_embedder.py"
+      ],
+      "arm_b_start": "_revive_llama_cpp"
+    },
+    {
+      "id": "R6",
+      "rule": "PropertyGraph.add_node/add_edge open ONE SQLite transaction per node/edge",
+      "query": "PropertyGraph add_node add_edge SQLite transaction per node edge",
+      "target_file": "src/core/graph.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 32321,
+      "tokens_B": 52295,
+      "arm_a_top_files": [
+        "src/core/indexing/parser.py",
+        "src/core/graph.py",
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/artifact_gc.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "arm_b_start": "add_node"
+    },
+    {
+      "id": "R7",
+      "rule": "e5-small max ctx = 512, client truncates to 480 (LLAMA_EMBED_MAX_TOKENS)",
+      "query": "e5-small max ctx 512 truncates 480 LLAMA_EMBED_MAX_TOKENS",
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": false,
+      "tokens_A": 52092,
+      "tokens_B": 0,
+      "arm_a_top_files": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/intelligence/layer.py"
+      ],
+      "arm_b_visited_files": [],
+      "arm_b_start": "LLAMA_EMBED_MAX_TOKENS"
+    },
+    {
+      "id": "R8",
+      "rule": "collect() in Cypher translates to json_group_array",
+      "query": "collect Cypher json_group_array cypher_sql",
+      "target_file": "src/core/search/cypher_sql.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 18078,
+      "tokens_B": 52295,
+      "arm_a_top_files": [
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/indexing/index_project_runner.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/artifact_gc.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "arm_b_start": "collect"
+    },
+    {
+      "id": "R9",
+      "rule": "TESTS edges identify verifying tests far better than decoys",
+      "query": "TESTS edges verifying tests decoys bootstrap_tests",
+      "target_file": "src/core/bootstrap_tests.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 25641,
+      "tokens_B": 1233,
+      "arm_a_top_files": [
+        "src/core/graph.py",
+        "src/core/search/engine.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/graph.py"
+      ],
+      "arm_b_visited_files": [
+        "src/core/bootstrap_tests.py"
+      ],
+      "arm_b_start": "bootstrap_tests"
+    },
+    {
+      "id": "R10",
+      "rule": "FreshnessChecker was dead code and broken: table.to_pandas(columns=) fails on lancedb 0.34",
+      "query": "FreshnessChecker to_pandas columns lancedb broken dead code",
+      "target_file": "src/core/indexing/freshness.py",
+      "control": null,
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 30407,
+      "tokens_B": 838,
+      "arm_a_top_files": [
+        "src/core/indexing/parser.py",
+        "src/core/search/engine.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/indexing/freshness.py"
+      ],
+      "arm_b_visited_files": [
+        "src/core/indexing/freshness.py"
+      ],
+      "arm_b_start": "FreshnessChecker"
+    },
+    {
+      "id": "P1",
+      "rule": "CodeParser tree-sitter parse_file AST",
+      "query": "CodeParser tree-sitter parse_file AST",
+      "target_file": "src/core/indexing/parser.py",
+      "control": "positive",
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 19352,
+      "tokens_B": 52295,
+      "arm_a_top_files": [
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/graph.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/artifact_gc.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "arm_b_start": "CodeParser"
+    },
+    {
+      "id": "P2",
+      "rule": "hybrid_search BM25 vector FTS5",
+      "query": "hybrid_search BM25 vector FTS5",
+      "target_file": "src/core/search/engine.py",
+      "control": "positive",
+      "file_found_by_A": true,
+      "file_found_by_B": true,
+      "tokens_A": 17723,
+      "tokens_B": 52295,
+      "arm_a_top_files": [
+        "src/core/search/engine.py",
+        "src/core/search/engine.py",
+        "src/core/search/engine.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/search/engine.py"
+      ],
+      "arm_b_visited_files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/engine.py",
+        "src/core/graph.py",
+        "src/core/indexing/parser.py",
+        "src/core/artifact_gc.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "arm_b_start": "hybrid_search"
+    },
+    {
+      "id": "P3",
+      "rule": "ArtifactGC retention policy",
+      "query": "ArtifactGC retention policy",
+      "target_file": "src/core/artifact_gc.py",
+      "control": "positive",
+      "file_found_by_A": true,
+      "file_found_by_B": false,
+      "tokens_A": 566,
+      "tokens_B": 0,
+      "arm_a_top_files": [
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py"
+      ],
+      "arm_b_visited_files": [],
+      "arm_b_start": "ArtifactGC"
+    },
+    {
+      "id": "N1",
+      "rule": "quantum computing configuration",
+      "query": "quantum computing configuration",
+      "target_file": null,
+      "control": "none",
+      "file_found_by_A": false,
+      "file_found_by_B": false,
+      "tokens_A": 0,
+      "tokens_B": 0,
+      "arm_a_top_files": [],
+      "arm_b_visited_files": [],
+      "arm_b_start": null
+    },
+    {
+      "id": "N2",
+      "rule": "blockchain consensus algorithm",
+      "query": "blockchain consensus algorithm",
+      "target_file": null,
+      "control": "none",
+      "file_found_by_A": false,
+      "file_found_by_B": false,
+      "tokens_A": 0,
+      "tokens_B": 0,
+      "arm_a_top_files": [],
+      "arm_b_visited_files": [],
+      "arm_b_start": null
+    },
+    {
+      "id": "N3",
+      "rule": "kubernetes deployment yaml",
+      "query": "kubernetes deployment yaml",
+      "target_file": null,
+      "control": "none",
+      "file_found_by_A": false,
+      "file_found_by_B": false,
+      "tokens_A": 12184,
+      "tokens_B": 0,
+      "arm_a_top_files": [
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/intelligence/verify_on_read.py",
+        "src/config/settings.py"
+      ],
+      "arm_b_visited_files": [],
+      "arm_b_start": null
+    }
+  ],
+  "aggregate": {
+    "A_hit_rate": 0.8,
+    "B_hit_rate": 0.7,
+    "A_tokens": 301981,
+    "B_tokens": 170140,
+    "A_hits": 8,
+    "B_hits": 7,
+    "total_rule_queries": 10
+  },
+  "controls": {
+    "positive_controls_passed": 3,
+    "positive_controls_total": 3,
+    "none_controls_clean": 3,
+    "none_controls_total": 3
+  },
+  "verdict": "REFUTED"
+}

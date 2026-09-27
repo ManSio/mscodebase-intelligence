@@ -1,5 +1,25 @@
 ## Key Historical Decisions
 
+- **stale_after + discriminator for memory notes (2026-09-27):** `src/core/intelligence/staleness.py` + `store.check_staleness()` + CLI. 17/17 tests. stale_after (date) → STALE; discriminator (command, exit≠0) → EXPIRED. Backward compat (no fields → ACTIVE). Implements final promise from hooks thread. Артефакты: `experiments/stale_after/`.
+
+- **redact.py: scrub personal paths (2026-09-27):** `scripts/redact.py` + `tests/test_redact.py` (5/5 pass). Drive paths → `<project>`, username → `<user>`, clean text unchanged. Implements "redact.py at delivery points + planted key test" promise. Артефакты: `scripts/redact.py`, `tests/test_redact.py`.
+
+- **Planted-break gate (2026-09-27):** 6 controls (3 guards × pos/neg) в `tests/test_planted_break_gate.py`. Guards: core→MCP imports, tools→Registry, stale refs. Negative: planted violation ловится. Positive: clean input не флагинится. Закрывает обещание "commit gate with planted break on EVERY run" из треда hooks. Артефакты: `experiments/planted_break/`.
+
+- **NodeRAG vs chunked retrieval on long docs (2026-09-27, REFUTED):** 16 замороженных запросов (10 rules + 3 pos + 3 NONE), 2 arms (TF-IDF top-10 vs PropertyGraph BFS depth=3). A: 80% hit, 302K tokens; B: 70% hit, 170K tokens. Controls 3/3 both. Chunked wins on hit rate; graph wins on tokens but needs a seed symbol in the graph. Tom's claim not confirmed for our corpus. Artifacts: `experiments/noderag/`.
+
+- **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (ea715903). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
+
+- **F5 judged FULL (trials=10) + полнота данных (2026-09-26):** 16 запросов × 4 плеча × 10 trials (160/плечо). **A 16.3% · B 34.4% · C 97.5% · D 0.0%**; code **B 50% ≫ A 6.3%**, prose A 26% > B 19% (слабо). Majority: A 2/16, B 6/16, C 16/16, D 0/16. Судья 9.4% неединогласных. Воспроизводимо (trials=5 ↔ trials=10 согласованы). **Все данные в репо**: `results/f5judged/{judged_raw,judged_aggregate}.json` + `MANIFEST.json` (sha256 всех 809 артефактов 4A). Ключ: единица возврата влияет на читателя, не на ретрив. ⚠️ Крах opencode при parallel=8 → перезапуск на parallel=4.
+
+- **F5 judged reader arm — пилот-результат (2026-09-26):** 16 запросов × 4 плеча × 5 trials (читатель longcat, слепой судья qwen). **A 16.3% · B 30.0% · C 95.0% · D 0.0%**. По популяциям: code **B 47.5% ≫ A 7.5%** (whole-doc ~6× чанков); prose A 25% > B 12.5% (слабо). Судья шумит (12.5% неединогласных ≈ Coin Flip). Ключ: **единица возврата влияет на ЧИТАТЕЛЯ, а не на попадание gold-файла** (objective был A≈B). Артефакты: `results/f5judged/{judged_raw,judged_aggregate}.json`, `f5/RESULTS_JUDGED.md`. ⚠️ Два Windows-бага opencode CLI (многострочный argv-промпт → fallback; `--file` относительный к `--dir`) — исправлены в `scripts/f5_judged_run.py`.
+
+- **F5 judged arm — измеренный блокер + инцидент (2026-09-26):** harness `scripts/f5_judged_run.py` готов (dry-run + прямые вызовы ок), но reader-вызов через opencode CLI реалистично **~200s** (тривиальный 8.4s) → полный дизайн (n=16 × 4 плеча × 10–20 trials) = часы–дни, **неисполним**. Нужно решение владельца (прямой API = §3 HALT / урезанный пилот / отложить). План и варианты: `experiments/4A_unit_of_return/f5/JUDGED_PLAN.md`. **INCIDENT:** при остановке раннера команда `CommandLine -match 'opencode'` убила хост opencode (текущую сессию) — guard: процесс-фильтр ТОЛЬКО по точному имени скрипта, никогда по `opencode`/`python`. ⚠️ KNOWN_ISSUES не обновлён: файл на лимите 300 строк, нужна архивация перед новой записью.
+
+- **G6-gate v2 (2026-09-26):** найденный в F4b слепой пятно закрыто: `scripts/frozen_overlap_check.py` теперь сравнивает numbered-пробы прошлых наборов **и arrival-фразы каталога**, с лёгким стеммингом (`timing/times`→`tim`). F4b #3 (прежде `OVERLAP: PASS`) теперь **флажится без FP**. Guard: `--selftest` (negative+positive control) + `tests/test_frozen_overlap_check.py`. Вывод: сравнивать пробы со *всеми* индексными фразами нельзя (легитимная проба совпадает со своим ключом) — только register проб.
+
+- **F4b held-out generalization (2026-09-26):** 22 прогона (2 индекса × 3 модели × 3–5), `--variant high`, изоляция. **arrival clean 10/11** (must-hit 33/33, must-NONE 32/33); **symptom clean 3/11** — *все* провалы на `#3`. Root cause: `#3` = морфологический двойник arrival-фразы каталога (`timing/retry` vs `times/try`) → находится через arrival-индекс (11/11), проваливается через symptom-ключ (`rate limited`). Чисто-лексическая гипотеза **опровергнута**: E7 `#1`→`a-component` при shared=0. Guard-gap: `scripts/frozen_overlap_check.py` видит только нумерованные пункты (табличные arrival-строки каталога — нет) и не стеммит → не ловит двойники. F6: 6 атак, **0 FATAL**; symptom-claim = **direction, not result**. Артефакты: `experiments/4A_unit_of_return/results/f4b/{RESULTS.md,RED_TEAM.md,manifest.json}`, `scripts/f4b_aggregate.py`.
+
 - **CI/тест-параллелизация (2026-09-26, xdist `-n auto`):** внедрено в CI test job (#45), `clean-state` (#46) и локальный pre-commit Gate-zero `verify_diary` (#47, fallback serial без xdist). CI-критпуть **~16мин → ~4мин**: ubuntu 13m44s→**1m58s**, windows 16m23s→**3m11s**, clean-state 13m25s→**1m41s**; локальный коммит ~200с→~70с. Ключ: `-n auto` (а не `-n 4` из E13), `.coveragerc.ci` (CI без `dynamic_context` — несовместим с xdist, pytest-cov#604) + module-fixture temporal (36.6s→20.8s). **CORRECTED E13/Exp 25:** «xdist ~15%, не берём» опровергнуто (×2.76 локально, ×7 в CI). Watch: был отмечен llama-конфликт локального xdist — не воспроизведён за 2 прогона.
 
 - **E6/E7: opencode-хук → MSCodeBase CLI; blind eval каталога кристаллов (2026-09-22):** E6 — плагин `tool.execute.before` на `git commit` зовёт `python -m src.cli stale_detector` (без MCP), при drift>0 бросает; negative/positive control пройдены, модель отказ не обошла (подчинение 4/4 суммарно с E3). Гоча: CLI `--project` игнорируется, проект = cwd. E7 — слепой маппинг 10 реальных симптомов на индекс каталога Tom Jones (`crystal-memory`/`crystals`, Apache-2.0, Spanda Works), 11 прогонов / 3 модели: controls 60/60 валидных (deepseek-low провалил NONE-controls → валидность зависит от reasoning), ключевой входной симптом → NONE 10/10 валидных (семья есть, из симптома недостижима), надёжный hit только 1/10, воспроизводимость qwen 8/10 vs longcat 4/10 (свойство модели). Детали — EXPERIMENTS_LOG Exp 18/19.
@@ -51,6 +71,19 @@
 - **LIVE-SMOKE (2026-08-13):** scripts/smoke_e2e.py — реальные сервисы без моков (embed llama.cpp / rerank BGE-M3 / векторный поиск по реальному LanceDB); §7 п.10b: для runtime-изменений ✅ = live-check, не только pytest (инцидент: 7 тестов зелёные по неверной причине)
 - **Чёрные окна CMD (2026-08-14):** MCP запускался как `venv\Scripts\python.exe` (console-подсистема) → каждое окно Zed = своё чёрное окно; фикс: `pythonw.exe` в extension.toml + CREATE_NO_WINDOW во ВСЕХ runtime subprocess (13 файлов) — с pythonw (нет консоли) незакрытые git/wmic/netstat мигали бы окнами
 - **FA=0.00 ≠ качество guardrail (2026-08-15):** Exp 1-L Day 3 — qwen3.6/3.7 (zero-shot VOR) достигают FA=0.00 ценой recall(real)=0.08–0.20 (code_first: 2/25 правды принято, 7/25 активно отвергнуто) — fail-closed политика, а не «фильтрация лжи»; выбор LLM для verify-on-read = выбор политики (fail-closed qwen vs max-coverage glm), recall(real) обязан быть в метриках. CoT (V3/Part 5) НЕ окупается: только qwen3.6 recall 0.08→0.20 при цене ×30–65
+
+## [2026-09-26] Frozen list утерян и восстановлен — guard на местоположение
+**Status:** ✅ Восстановлен из opencode.db + guard добавлен.
+**Root Cause:** замороженный список E7/E11 (`HANDOUT_EN.md`; 16 пунктов = 10 симптомов + 6 контролей)
+хранился в `%TEMP%/opencode/e11/` (scratch) и **не коммитился**; при чистке temp удалён → verbatim-регрессия
+стала невозможной. Дневник/лог сохранили **результат**, но не **вход** (§13 «референт в одном месте»,
+§14.5 «числа подтверждены командой» — пробел).
+**Recovery:** содержимое найдено в базе сессий opencode `opencode.db` (write `rid=75331`, 2026-09-22;
+сверено с read `rid=75864`) → сохранено в репо `experiments/4A_unit_of_return/frozen/e7_HANDOUT_EN.recovered.md`.
+Это восстановление артефакта по timestamp (pre-look), **не** реконструкция по памяти.
+**SHA256:** `a6f719df100ec0e3256a91e1d78469a1dc0ba3a9595aa266046199fe9f68de0a`.
+**Guard:** `tests/test_frozen_inputs_tracked.py` — любой файл под `experiments/**/frozen/**` обязан быть git-tracked.
+**Правило:** frozen-входы живут только в репо; `%TEMP%`/`/tmp` запрещены.
 
 ## [2026-09-26] Конфунды агентной аппаратуры + pre-registered 4-arm (P1 Tom)
 **Status:** 🟡 Дизайн заморожен, прогона нет.
@@ -644,3 +677,17 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 **Шаг 3 (закрыт):** флаг оставлен off по умолчанию (экспериментальный тумблер, паттерн late_enrichment) — прод не меняется. Воспроизводимый A/B-скрипт перенесён в experiments/bootstrap/e17_ab_tests_signal.py (stable: hit@1=7/7, MRR=1.0, 6/7, 0 битых). Описана статья-draft docs/blog/bootstrap-pipeline.md (+ строка в docs/blog/README.md). Портфолио синхронизировано: exp-46 EN+RU, guard pnpm test 26/26 passed. Ruff clean. 102 pytest green.
 **Статья (draft, полная история, английский):** docs/blog/bootstrap-pipeline.md — полная история на английском (отредактированная версия владельца): Exp 7→7b→8→9→16→E17. **Критические данные добавлены:** широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%, overhead +15.3%), языковое покрытие (Python 34.0%, Other/TypeScript 0%), red team 5/5 атак отражено. **Вывод:** TESTS-сигнал не улучшает hit@1 (off=on), только добавляет контекст для LLM. Раздел «What Could Go Wrong»: 12 рисков. Experiment Matrix обновлена. Воспроизводимо: e17_wide_panel.py, e17_redteam.py, e17_ab_tests_signal.py. Verified: pytest 34 green, ruff clean. Проверка: PR нужен для clean-state и prod-решения.
 **Next:** owner: панель 30+ запросов с embedder → решение прод-включения → PR (для verified_from_clean_state).
+
+## [2026-09-27] RERANK — Шкала скора реранкера: логиты против [0,1]
+
+**Status:** ⚠️ Verified частично (45 pytest green; ruff недоступен в venv; мутация-контроль 7 failed / 38 passed). P2/P3 **не закрыты**.
+**Root Cause (CONFIRMED):** llama.cpp `/v1/rerank` отдаёт сырые логиты (≈[-11,+11]), а `MIN_RERANK_SCORE=0.3` откалиброван под [0,1] — контракт Cohere нарушен (ggml-org/llama.cpp#9510, пример ggerganov: 5.97 / -11.03). Фильтр резал 70-97% выдачи.
+**Fix:** `_sigmoid` + вызов в ветке `llama_cpp` (`multi_provider.py`), `MIN_RERANK_SCORE=0.3` **не тронут**. Бисекция: теряет только реранкер, MMR/boost/dedupe — 0 потерь.
+**Не fix (важно):** цель P3 после нормализации = 0.271 < 0.3 — модель `bge-reranker-v2-m3` оценивает верный файл отрицательным логитом (-0.99). Это ранжирование, не шкала. Любой положительный порог такое не удержит.
+**Guard:** 7 тестов в `tests/test_reranker.py` (4 параметризованных + extremes + 2 интеграционных), проверены мутацией `_sigmoid`→identity.
+**T3:** иных абсолютных порогов по логитам в `src/` нет; `duplication.py:37` — Jaccard (по определению [0,1], clamp на :136), другой механизм.
+**verified_from_clean_state:** нет — uncommitted, локальный прогон.
+
+**P-002 — измерение на пуле, уже прошедшем фильтр (survivorship bias).** Дважды за сессию эффект фильтра измерялся по выжившим и дал ложный вердикт: (1) проба `/v1/rerank` с пулом из `hybrid_search_async` → «фильтр режет 0», на деле резал 8 из 10; (2) sweep порогов по тем же 16 frozen-правилам → «0.02 даёт 8 hits», это перебор на оценочной выборке, владелец остановил. **Правило:** фильтр/порог меряется только на полном pre-rerank пуле и калибруется на holdout, отдельном от eval-набора. **Guard:** запрет внесён в EXPERIMENTS_LOG; тесты на фильтр строятся с positive+negative control (мусор отсекается, релевантный выживает).
+
+**P-003 — правка не в той ветке.** Сигмоида попала в ONNX-блок вместо `llama_cpp` (oldString оказался уникальным, но не тем), ветка ONNX осиротела, `if scores:` выехал из `try`. Поймано `ast.parse` + просмотром diff. **Правило:** после правки в много-ветвистом коде — `git diff` целиком, а не только «применилось».

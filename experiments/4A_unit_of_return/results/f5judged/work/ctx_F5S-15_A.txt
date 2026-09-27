@@ -1,0 +1,9 @@
+### docs/en/ZED_WINDOWS_QUIRKS.md
+// Scope: section | markdown_section | en.zed_windows_quirks
+From docs\en\ZED_WINDOWS_QUIRKS.md, section '## 🪟 Windows Specifics: ZED_WORKTREE_ROOT':
+## 🪟 Windows Specifics: ZED_WORKTREE_ROOT
+
+**Status:** ⚠️ Always `<unset>` on Windows (Zed bug #36019)
+
+The `ZED_WORKTREE_ROOT` environment variable is NOT set on Windows.
+This is a known Zed bug, closed without a fix.

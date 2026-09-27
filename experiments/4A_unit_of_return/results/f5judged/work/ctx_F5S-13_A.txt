@@ -1,0 +1,438 @@
+### src/core/intelligence/layer.py
+// Scope: function_part | giant_function_part | core.intelligence.layer
+// File: src\core\intelligence\layer.py | Context: ProjectIntelligenceLayer
+// [Part 1]
+async def intel_retract_memory_node(self, node_id: str, reason: str) -> str:
+
+        """Отозвать узел проектной памяти (ADR-0002).
+
+
+
+        Переводит узел (ACTIVE или VERIFIED) в REFUTED — терминальный статус —
+
+        и фиксирует причину отзыва (retract_reason) и время (retracted_at).
+
+        Отзыв без непустой причины невозможен; повторный отзыв запрещён
+
+        (первичная причина отзыва сохраняется).
+
+        """
+
+        reason = reason.strip() if reason else ""
+
+        if not reason:
+...
+
+### experiments/1V_memory_contamination/memory_contamination.py
+// Scope: function_part | giant_function_part | d:.project.mscodebase.experiments.1v_memory_contamination.memory_contamination.py
+// File: experiments\1V_memory_contamination\memory_contamination.py
+// [Part 1]
+def decide(fact: Dict, evidence: Dict[str, Dict[str, Any]], has_memory: bool, policy: str) -> Dict[str, Any]:
+
+    """Детерминированное решение агента. Вердикт — ответ на claim: «истинно ли утверждение?».
+
+
+
+    CONTRADICT → код опровергает claim → вердикт False;
+
+    SUPPORT    → код подтверждает claim → вердикт True;
+
+    SILENT     → код молчит: B → UNKNOWN (None); A → вердикт как память (True).
+
+    """
+
+    contra_found = [p for p in fact["contra_patterns"] if evidence[p]["found"]]
+
+    sup
+...
+
+### experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json
+// Scope: fallback | memory_contamination_results_v3_retraction.json
+ CONTRADICT: basedpyright"
+
+      },
+
+      {
+
+        "id": "G27",
+
+        "pattern": "LLAMA_CPP",
+
+        "resp": "Узел G27 отозван (status=REFUTED). Причина: CONTRADICT: LLAMA_CPP"
+
+      },
+
+      {
+
+        "id": "G28",
+
+        "pattern": "graph.db",
+
+        "resp": "Узел G28 отозван (status=REFUTED). Причина: CONTRADICT: graph.db"
+
+      },
+
+      {
+
+        "id": "G29",
+
+        "pattern": "sqlite3",
+
+        "resp": "Узел G29 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
+
+      },
+
+      {
+
+        "id": "G30",
+
+        "pattern": "intel_auto_collect_adrs",
+
+        "resp": "Узел G30 отозван (status=REFUTED). Причина: CONTRADICT: intel_auto_collect_adrs"
+
+      },
+
+      {
+
+        "id": "G31",
+
+        "pattern": "tree_sitter",
+
+        "resp": "Узел G31 отозван (status=REFUTED). Причина: CONTRADICT: tree_sitter"
+
+      },
+
+      {
+
+        "id": "G32",
+
+        "pattern": "bm25_weight",
+
+        "resp": "Узел G32 отозван (status=REFUTED). Причина: CONTRADICT: bm
+
+### experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json
+// Scope: fallback | memory_contamination_results_v3_retraction.json
+sqlite3",
+
+        "resp": "Узел G36 отозван (status=REFUTED). Причина: CONTRADICT: sqlite3"
+
+      },
+
+      {
+
+        "id": "G37",
+
+        "pattern": "ASSIGNED_FROM",
+
+        "resp": "Узел G37 отозван (status=REFUTED). Причина: CONTRADICT: ASSIGNED_FROM"
+
+      },
+
+      {
+
+        "id": "G38",
+
+        "pattern": "bm25_weight",
+
+        "resp": "Узел G38 отозван (status=REFUTED). Причина: CONTRADICT: bm25_weight"
+
+      },
+
+      {
+
+        "id": "G39",
+
+        "pattern": "intel_log_incident",
+
+        "resp": "Узел G39 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+
+      },
+
+      {
+
+        "id": "G40",
+
+        "pattern": "intel_log_incident",
+
+        "resp": "Узел G40 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+
+      },
+
+      {
+
+        "id": "G41",
+
+        "pattern": "project_memory.json",
+
+        "resp": "Узел G41 отозван (status=REFUTED). Причина: CONTRADICT: project_memory.json"
+
+      },
+
+      {
+
+        "id": "G42",
+
+  
+
+### experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json
+// Scope: fallback | memory_contamination_results_v3_retraction.json
+     "id": "G41",
+
+        "pattern": "project_memory.json",
+
+        "resp": "Узел G41 отозван (status=REFUTED). Причина: CONTRADICT: project_memory.json"
+
+      },
+
+      {
+
+        "id": "G42",
+
+        "pattern": "incidents.json",
+
+        "resp": "Узел G42 отозван (status=REFUTED). Причина: CONTRADICT: incidents.json"
+
+      },
+
+      {
+
+        "id": "G43",
+
+        "pattern": "LLAMA_CPP",
+
+        "resp": "Узел G43 отозван (status=REFUTED). Причина: CONTRADICT: LLAMA_CPP"
+
+      },
+
+      {
+
+        "id": "G44",
+
+        "pattern": "intel_log_incident",
+
+        "resp": "Узел G44 отозван (status=REFUTED). Причина: CONTRADICT: intel_log_incident"
+
+      },
+
+      {
+
+        "id": "G45",
+
+        "pattern": "fastmcp",
+
+        "resp": "Узел G45 отозван (status=REFUTED). Причина: CONTRADICT: fastmcp"
+
+      },
+
+      {
+
+        "id": "G46",
+
+        "pattern": "bge-reranker-v2-m3",
+
+        "resp": "Узел G46 отозван (status=REFUTED). Причина: CONTRADICT: bge-reranker-v2-m3"
+
+      
+
+### src/providers/embedder/remote_embedder.py
+// Scope: function_part | giant_function_part | providers.embedder.remote_embedder
+// File: src\providers\embedder\remote_embedder.py | Context: RemoteEmbedder
+// [Part 1]
+def embed_batch(
+
+        self, texts: List[str], is_query: bool = False
+
+    ) -> List[List[float]]:
+
+        """Пакетное получение векторов через активный провайдер.
+
+
+
+        НИКОГДА не меняет mode. Если провайдер недоступен —
+
+        возвращает нулевые векторы (режим не сбрасывается).
+
+        """
+
+        if not texts:
+
+            return []
+
+
+
+        with self._mode_lock:
+
+            current_mode = self.mode
+
+
+
+        # ═══ llama.cpp ═══
+
+        if current_mode in ("llama_cpp", "unkn
+...
+
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
+### src/core/task_queue.py
+// Scope: function | function_definition | core.task_queue
+// File: src\core\task_queue.py
+def _check_index_health():
+
+    """Проверка целостности индекса + фоновый VOR памяти (preemptible)."""
+
+    logger.debug("[Idle] check_index_health")
+
+    if _IDLE_VOR_CALLBACK is not None:
+
+
+
+### src/core/indexing/parser.py
+// Scope: function_part | giant_function_part | core.indexing.parser
+// File: src\core\indexing\parser.py | Context: CodeParser
+// [Part 1]
+def _extract_decorators_recursive(
+
+        self,
+
+        node,
+
+        code: bytes,
+
+        file_path: Path,
+
+        decorators: List[Dict],
+
+        current_class: str,
+
+    ):
+
+        """Рекурсивно обходит AST, извлекая декораторы (Python-first).
+
+
+
+        Python: decorated_definition оборачивает def/class и содержит узлы
+
+        decorator — обрабатываем целиком и не спускаемся внутрь (внутренний
+
+        definition уже обработан). Другие языки: decorator/annotation как
+
+        прямые
+...
+
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl

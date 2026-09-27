@@ -1,0 +1,6 @@
+ACTIVE-узел остаётся **ACTIVE** с меткой `verification="no_anchors"` (INCONCLUSIVE). Согласно логике `_build_symbol_resolver`, при недоступности резолвера или отсутствии результата проверки возвращается `None` — отсутствие трактуется как **UNVERIFIABLE**, но никогда как REFUTED.
+
+
+> build · longcat-2.0
+
+→ Read ctx_F5S-13_B.txt [offset=1037, limit=500]

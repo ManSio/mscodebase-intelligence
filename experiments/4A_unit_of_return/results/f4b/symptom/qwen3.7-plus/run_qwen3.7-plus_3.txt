@@ -1,0 +1,20 @@
+| # | entry |
+|---|-------|
+| 1 | a-component-that-needs-starting-passes-every-behaviour-test |
+| 2 | a-guard-keyed-on-a-field-nobody-fills-is-a-silent-no-op |
+| 3 | a-cached-429-is-not-a-rate-limit |
+| 4 | NONE |
+| 5 | NONE |
+| 6 | a-generated-document-is-unverified-until-you-render-it |
+| 7 | a-check-written-with-the-code-inherits-its-assumptions |
+| 8 | a-rate-knob-cannot-fix-a-denominator |
+| 9 | a-failed-lookup-must-not-render-as-a-real-zero |
+| 10 | NONE |
+| 11 | a-failed-lookup-must-not-render-as-a-real-zero |
+| 12 | an-instrument-that-reshapes-input-fabricates-the-test |
+| 13 | a-single-run-ranking-is-noise-even-at-temp-zero |
+| 14 | NONE |
+
+
+> build · qwen3.7-plus
+

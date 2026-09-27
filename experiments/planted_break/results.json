@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-09-26T22:37:51.596742+00:00",
+  "guards": {
+    "core_no_mcp_imports": {
+      "guard_name": "core_no_mcp_imports",
+      "negative_control_caught": true,
+      "positive_control_passed": true
+    },
+    "tools_no_direct_registry": {
+      "guard_name": "tools_no_direct_registry",
+      "negative_control_caught": true,
+      "positive_control_passed": true
+    },
+    "stale_references": {
+      "guard_name": "stale_references",
+      "negative_control_caught": true,
+      "positive_control_passed": true
+    }
+  },
+  "all_passed": true
+}

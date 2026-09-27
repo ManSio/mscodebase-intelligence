@@ -1,0 +1,7 @@
+{
+  "model": "opencode-go/longcat-2.0",
+  "variant": "high",
+  "runs": 5,
+  "handout": "experiments/4A_unit_of_return/frozen/f4b/handout_symptom.md",
+  "rule": "variant required (reasoning confound)"
+}

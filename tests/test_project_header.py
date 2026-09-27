@@ -52,7 +52,7 @@ class TestIsSelfIndexPath:
         [
             r"C:\AI\Zed",
             r"D:\AI\Zed",
-            r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence",
+            r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence",
             r"D:\AI\Zed\Zed.exe",
         ],
     )
@@ -63,7 +63,7 @@ class TestIsSelfIndexPath:
     @pytest.mark.parametrize(
         "path_str",
         [
-            r"C:\Users\misha\Documents\my-project",
+            r"<user>Documents\my-project",
             r"D:\projects\my-app",
         ],
     )
@@ -130,7 +130,7 @@ class TestResolveIndexerSelfIndexGuard:
 
         # _ext_root = D:\Project\MSCodeBase (real). Используем путь,
         # который ЗАВЕДОМО не равен ext_root и не Zed install.
-        user_project = Path(r"C:\Users\misha\Documents\my-cool-project")
+        user_project = Path(r"<user>Documents\my-cool-project")
         services = self._make_services(user_project)
         idx = resolve_indexer_for_request(
             services, explicit_project_root=str(user_project)
@@ -191,7 +191,7 @@ class TestProjectHeader:
         """
         from src.mcp.tools.search_tools import SearchCodeTool
 
-        user_project = Path(r"C:\Users\misha\Documents\my-project")
+        user_project = Path(r"<user>Documents\my-project")
         services = MagicMock()
         mock_indexer = MagicMock()
         mock_indexer.project_path = user_project
@@ -220,7 +220,7 @@ class TestProjectHeader:
         """_project_metadata() возвращает dict с project_path, chunks и т.п."""
         from src.mcp.tools.search_tools import SearchCodeTool
 
-        user_project = Path(r"C:\Users\misha\Documents\my-project")
+        user_project = Path(r"<user>Documents\my-project")
         services = MagicMock()
         mock_indexer = MagicMock()
         mock_indexer.project_path = user_project

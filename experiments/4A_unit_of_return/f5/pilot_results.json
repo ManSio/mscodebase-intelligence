@@ -1,0 +1,496 @@
+{
+  "queries": 12,
+  "mode": "quality",
+  "limit": 10,
+  "populations": [
+    "code"
+  ],
+  "metrics": {
+    "A_hit@1": {
+      "k": 1,
+      "n": 12,
+      "rate": 0.0833,
+      "ci95": [
+        0.0149,
+        0.3539
+      ]
+    },
+    "A_hit@3": {
+      "k": 5,
+      "n": 12,
+      "rate": 0.4167,
+      "ci95": [
+        0.1933,
+        0.6805
+      ]
+    },
+    "A_hit@10": {
+      "k": 5,
+      "n": 12,
+      "rate": 0.4167,
+      "ci95": [
+        0.1933,
+        0.6805
+      ]
+    },
+    "B_top1_is_gold": {
+      "k": 1,
+      "n": 12,
+      "rate": 0.0833,
+      "ci95": [
+        0.0149,
+        0.3539
+      ]
+    },
+    "C_oracle": {
+      "k": 12,
+      "n": 12,
+      "rate": 1.0,
+      "ci95": [
+        0.7575,
+        1.0
+      ]
+    },
+    "D_closed_book": {
+      "k": 0,
+      "n": 12,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.2425
+      ]
+    }
+  },
+  "avg_context_chars": {
+    "A": 4947,
+    "B": 135738,
+    "C": 35196,
+    "D": 0
+  },
+  "records": [
+    {
+      "id": "MSC-2-001",
+      "population": "code",
+      "gold_file": "src/mcp/tools/indexing_tools.py",
+      "returned_files": [
+        "experiments/context_engine/results_v2.json",
+        "experiments/context_engine/results_tasks_v3.json"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 2080
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/context_engine/results_v2.json",
+        "hit": false,
+        "context_chars": 331663
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 15954
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-002",
+      "population": "code",
+      "gold_file": "src/core/project_resolution.py",
+      "returned_files": [
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/indexing/indexer.py",
+        "src/core/project_resolution.py",
+        "src/core/graph.py",
+        "src/core/search/cross_project_deps.py",
+        "src/core/change_preview.py",
+        "tests/benchmark_agentic_search.py",
+        "src/core/auto_doc_updater.py",
+        "src/main.py",
+        "src/core/autonomous_fix.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4874
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/context_engine/results_tasks_v3.json",
+        "hit": false,
+        "context_chars": 797230
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 19034
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-003",
+      "population": "code",
+      "gold_file": "src/core/search/engine.py",
+      "returned_files": [
+        "src/core/graph_rag.py",
+        "src/core/search/engine.py",
+        "src/core/change_preview.py",
+        "experiments/misc_probes/exp_population_blindspot.py",
+        "src/mcp/tools/search_tools.py",
+        "experiments/search_quality/E11_graph_hybrid_arms.py",
+        "tests/benchmark_agentic_search.py",
+        "tests/benchmark_agentic_search.py",
+        "src/core/search/engine.py",
+        "scripts/monitor.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4702
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/graph_rag.py",
+        "hit": false,
+        "context_chars": 8772
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 70313
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-004",
+      "population": "code",
+      "gold_file": "src/core/artifact_paths.py",
+      "returned_files": [
+        "experiments/bootstrap/e17_judge/shard_4.scores.json",
+        "scripts/console_flash_monitor.py",
+        "src/core/commit_memory.py",
+        "src/core/graph.py",
+        "experiments/bootstrap/e17_judge/shard_6.scores.json",
+        "src/core/commit_memory.py",
+        "src/sources/local_fs/windows.py",
+        "experiments/bootstrap/e17_judge/shard_8.scores.json",
+        "src/core/execution_contract.py",
+        "src/core/indexing/file_guard.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4980
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/bootstrap/e17_judge/shard_4.scores.json",
+        "hit": false,
+        "context_chars": 740
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 15041
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-005",
+      "population": "code",
+      "gold_file": "src/mcp/tools/write_tools.py",
+      "returned_files": [
+        "experiments/context_engine/results_v2.json",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/platform_utils.py",
+        "src/sources/local_fs/windows.py",
+        "src/sources/local_fs/windows.py",
+        "src/sources/local_fs/windows.py",
+        "scripts/check_lsp_health.py",
+        "scripts/check_lsp_health.py",
+        "scripts/lock_guard.py",
+        "scripts/console_flash_monitor.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4323
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/context_engine/results_v2.json",
+        "hit": false,
+        "context_chars": 331663
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 52372
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-006",
+      "population": "code",
+      "gold_file": "src/core/indexing/indexer.py",
+      "returned_files": [
+        "experiments/bootstrap/e17_smoke_prompts.json",
+        "src/core/di_container.py",
+        "src/mcp/tools/indexing_tools.py",
+        "src/core/indexing/symbol_index.py",
+        "src/mcp/server_factory.py",
+        "scripts/console_flash_monitor.py",
+        "src/core/indexing/symbol_index.py",
+        "experiments/2E_evidence_ladder/graph_contexts_594dae2a.json",
+        "src/mcp/tools/indexing_tools.py",
+        "experiments/root_cause_eval/evaluate_root_cause.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 5731
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/bootstrap/e17_smoke_prompts.json",
+        "hit": false,
+        "context_chars": 15795
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 37465
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-007",
+      "population": "code",
+      "gold_file": "src/core/search/engine.py",
+      "returned_files": [
+        "src/core/search/fts5_mixin.py",
+        "src/core/search/engine.py",
+        "src/core/search/fts5_mixin.py",
+        "src/core/search/fts5_mixin.py",
+        "experiments/fts5_search.py",
+        "src/core/search/fts5_mixin.py",
+        "src/core/search/agentic_search.py",
+        "src/core/search/branch_aware_index.py",
+        "scripts/monitor.py",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4151
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/search/fts5_mixin.py",
+        "hit": false,
+        "context_chars": 7670
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 70313
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-008",
+      "population": "code",
+      "gold_file": "src/mcp/server_tools.py",
+      "returned_files": [
+        "src/core/version_manager.py",
+        "src/core/graph_rag.py",
+        "src/core/search/engine.py",
+        "scripts/console_flash_monitor.py",
+        "src/mcp/context.py",
+        "scripts/monitor.py",
+        "src/core/graph.py",
+        "experiments/context_engine/tasks_v2.json",
+        "src/core/multi_project_searcher.py",
+        "src/plugins/trust_store.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 5205
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/version_manager.py",
+        "hit": false,
+        "context_chars": 6610
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 36614
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-009",
+      "population": "code",
+      "gold_file": "src/core/rate_limiter.py",
+      "returned_files": [
+        "experiments/2E_evidence_ladder/temporal_duo_contexts_e8571628.json",
+        "experiments/2E_evidence_ladder/temporal_contexts_e8571628.json",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/core/graph.py",
+        "experiments/misc_probes/sandbox_lancedb_race.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/search/graph_adapter_pure.py",
+        "scripts/monitor.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 5717
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/2E_evidence_ladder/temporal_duo_contexts_e8571628.json",
+        "hit": false,
+        "context_chars": 29887
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 14768
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-010",
+      "population": "code",
+      "gold_file": "src/core/modification_guard.py",
+      "returned_files": [
+        "src/core/modification_guard.py",
+        "src/mcp/server_tools.py",
+        "src/core/modification_guard.py",
+        "experiments/context_engine/tasks_v2.json",
+        "src/mcp/tools/analysis_tools.py",
+        "src/mcp/tools/analysis_tools.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/modification_guard.py",
+        "experiments/context_engine/strategy_a_data_v2.json",
+        "src/core/modification_guard.py"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4978
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/modification_guard.py",
+        "hit": true,
+        "context_chars": 14129
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 14129
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-011",
+      "population": "code",
+      "gold_file": "src/core/search/engine.py",
+      "returned_files": [
+        "src/core/search/scoring.py",
+        "src/core/code_health.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/search/trace.py",
+        "scripts/monitor.py",
+        "src/core/version_manager.py",
+        "src/mcp/server_factory.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4406
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/search/scoring.py",
+        "hit": false,
+        "context_chars": 14380
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 70313
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "MSC-2-012",
+      "population": "code",
+      "gold_file": "src/core/consistency.py",
+      "returned_files": [
+        "src/core/search/engine.py",
+        "src/core/intelligence/tools_reg.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "scripts/monitor.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/search/engine.py",
+        "experiments/context_engine/results_v2.json",
+        "experiments/context_engine/results_tasks_v3.json",
+        "experiments/context_engine/results_tasks_v3.json"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 8215
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/search/engine.py",
+        "hit": false,
+        "context_chars": 70313
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 6040
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    }
+  ]
+}

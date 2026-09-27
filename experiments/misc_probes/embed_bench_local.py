@@ -17,7 +17,7 @@ if sys.stdout.encoding != "utf-8":
 import httpx
 import numpy as np
 
-EXT = r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"
+EXT = r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"
 MODEL = EXT + r"\models\Bge-M3-568M-Q4_K_M.gguf"
 SERVER = EXT + r"\llama_msvc\llama-server.exe"
 PORT = 8080

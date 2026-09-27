@@ -1,0 +1,5 @@
+Потому что `'gitwildmatch'` deprecated — его использование генерировало 1740 deprecation warnings (GitWildMatchPattern) в тестах.
+
+
+> build · longcat-2.0
+

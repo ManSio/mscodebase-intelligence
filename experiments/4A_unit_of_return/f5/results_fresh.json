@@ -1,0 +1,640 @@
+{
+  "queries": 16,
+  "mode": "quality",
+  "limit": 10,
+  "populations": [
+    "code",
+    "prose"
+  ],
+  "metrics": {
+    "A_hit@1": {
+      "k": 5,
+      "n": 16,
+      "rate": 0.3125,
+      "ci95": [
+        0.1416,
+        0.556
+      ]
+    },
+    "A_hit@3": {
+      "k": 6,
+      "n": 16,
+      "rate": 0.375,
+      "ci95": [
+        0.1848,
+        0.6136
+      ]
+    },
+    "A_hit@10": {
+      "k": 6,
+      "n": 16,
+      "rate": 0.375,
+      "ci95": [
+        0.1848,
+        0.6136
+      ]
+    },
+    "B_top1_is_gold": {
+      "k": 5,
+      "n": 16,
+      "rate": 0.3125,
+      "ci95": [
+        0.1416,
+        0.556
+      ]
+    },
+    "C_oracle": {
+      "k": 16,
+      "n": 16,
+      "rate": 1.0,
+      "ci95": [
+        0.8064,
+        1.0
+      ]
+    },
+    "D_closed_book": {
+      "k": 0,
+      "n": 16,
+      "rate": 0.0,
+      "ci95": [
+        0.0,
+        0.1936
+      ]
+    }
+  },
+  "avg_context_chars": {
+    "A": 4946,
+    "B": 19747,
+    "C": 7337,
+    "D": 0
+  },
+  "records": [
+    {
+      "id": "F5S-01",
+      "population": "code",
+      "gold_file": "src/core/rate_limiter.py",
+      "returned_files": [
+        "src/core/indexing/index_project_runner.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "experiments/context_engine/results_v2.json",
+        "experiments/lock_zombie/benchmark_selfhealing.py",
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/index_project_runner.py",
+        "scripts/lock_guard.py",
+        "scripts/monitor.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4676
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/indexing/index_project_runner.py",
+        "hit": false,
+        "context_chars": 39276
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 14768
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-02",
+      "population": "code",
+      "gold_file": "src/core/redact.py",
+      "returned_files": [
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "experiments/bootstrap/tarantula_analysis.py",
+        "src/core/redact.py",
+        "experiments/arclux_cycles_inventory.py",
+        "src/core/search/engine.py",
+        "src/core/indexing/parser.py",
+        "src/core/modification_guard.py",
+        "src/core/instruction_scan.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4354
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/redact.py",
+        "hit": true,
+        "context_chars": 4570
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 4570
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-03",
+      "population": "code",
+      "gold_file": "src/core/gitignore_parser.py",
+      "returned_files": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "src/sources/git_url/__init__.py",
+        "src/core/intelligence/layer.py",
+        "src/core/indexing/file_guard.py",
+        "src/core/action_receipt.py",
+        "src/core/git_hooks_installer.py",
+        "src/core/search/engine.py"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 4164
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/gitignore_parser.py",
+        "hit": true,
+        "context_chars": 4990
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 4990
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-04",
+      "population": "code",
+      "gold_file": "src/core/embedder_lease.py",
+      "returned_files": [
+        "src/core/quiet_break_gate.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder/onnx_client.py",
+        "src/core/indexing/indexer.py",
+        "src/core/search/fts5_index.py",
+        "scripts/console_flash_monitor.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/doc_llm_verifier.py",
+        "src/core/intelligence/health.py",
+        "src/providers/embedder/remote_embedder.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4729
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/quiet_break_gate.py",
+        "hit": false,
+        "context_chars": 11770
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 2232
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-05",
+      "population": "code",
+      "gold_file": "src/core/reindex_ledger.py",
+      "returned_files": [
+        "src/core/reindex_ledger.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "experiments/context_engine/results_v2.json",
+        "src/core/search/engine.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/reindex_ledger.py",
+        "src/core/interfaces/searcher.py",
+        "src/core/log_manager.py",
+        "src/core/indexing/index_project_runner.py",
+        "scripts/lock_guard.py"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 5505
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/reindex_ledger.py",
+        "hit": true,
+        "context_chars": 2552
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 2552
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-06",
+      "population": "code",
+      "gold_file": "src/core/quiet_break_gate.py",
+      "returned_files": [
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/graph.py",
+        "src/core/quiet_break_gate.py",
+        "scripts/revision_gate.py",
+        "src/core/graph.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/graph_rag.py"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 3847
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/quiet_break_gate.py",
+        "hit": true,
+        "context_chars": 11770
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 11770
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-07",
+      "population": "code",
+      "gold_file": "src/providers/reranker/reranker_scoring.py",
+      "returned_files": [
+        "scripts/diag_quality_hang.py",
+        "src/core/search/trace.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/search/scoring.py",
+        "experiments/root_cause_eval/incident_dataset_full.json",
+        "local/e2e_chain_test.py",
+        "experiments/bootstrap/e17_export_judge.py",
+        "src/core/error_handler.py",
+        "src/core/intelligence/health.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 6269
+      },
+      "B_whole_doc": {
+        "top1_file": "scripts/diag_quality_hang.py",
+        "hit": false,
+        "context_chars": 10932
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 7358
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-08",
+      "population": "code",
+      "gold_file": "src/core/error_envelope.py",
+      "returned_files": [
+        "src/core/bootstrap_entities.py",
+        "src/mcp/server_factory.py",
+        "src/mcp/server_factory.py",
+        "src/mcp/tools/meta_tools.py",
+        "src/core/error_handler.py",
+        "src/mcp/tools/meta_tools.py",
+        "experiments/root_cause_eval/incident_dataset_full.json",
+        "src/core/version_manager.py",
+        "src/mcp/tools/codebase_tool.py",
+        "src/core/action_receipt.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 5363
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/bootstrap_entities.py",
+        "hit": false,
+        "context_chars": 10532
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 4271
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-09",
+      "population": "prose",
+      "gold_file": "docs/en/GRACEFUL_DEGRADATION.md",
+      "returned_files": [
+        "src/core/interfaces/__init__.py",
+        "scripts/negative_controls_runner.py",
+        "src/mcp/server_tools.py",
+        "src/core/search/agentic_search.py",
+        "src/core/search/graph_adapter.py",
+        "src/core/indexing/parser.py",
+        "src/core/log_manager.py",
+        "scripts/console_flash_monitor.py",
+        "docs/research/lsp-archive/lsp_main.py",
+        "scripts/architecture_linter.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4926
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/interfaces/__init__.py",
+        "hit": false,
+        "context_chars": 457
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 7394
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-10",
+      "population": "prose",
+      "gold_file": "docs/en/SEARCH_PIPELINE.md",
+      "returned_files": [
+        "docs/research/lsp-archive/lsp_main.py",
+        "experiments/embed_real_path_vs_raw/exp_feed_queue.py",
+        "src/mcp/server_tools.py",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "experiments/context_engine/results_v2.json",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/bootstrap_entities.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/core/doc_generator.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 6900
+      },
+      "B_whole_doc": {
+        "top1_file": "docs/research/lsp-archive/lsp_main.py",
+        "hit": false,
+        "context_chars": 30020
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 9413
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-11",
+      "population": "prose",
+      "gold_file": "docs/TRUST_BOUNDARY.md",
+      "returned_files": [
+        "experiments/bootstrap/a2_test_nodes.py",
+        "experiments/embeddinggemma/bench.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/search/branch_aware_index.py",
+        "src/mcp/server_tools.py",
+        "src/core/search/trace.py",
+        "experiments/2E_evidence_ladder/temporal_facts_generator.py",
+        "src/mcp/tools/dev_tools.py",
+        "src/mcp/server_tools.py",
+        "src/core/artifact_paths.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 5093
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/bootstrap/a2_test_nodes.py",
+        "hit": false,
+        "context_chars": 1146
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 2531
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-12",
+      "population": "prose",
+      "gold_file": "docs/en/TELEMETRY.md",
+      "returned_files": [
+        "src/core/search/engine.py",
+        "src/core/search/engine.py",
+        "src/main.py",
+        "experiments/1V_memory_contamination/memory_contamination_facts_v4_rep_corrected.json",
+        "src/config/settings.py",
+        "scripts/console_flash_monitor.py",
+        "src/core/task_queue.py",
+        "experiments/embed_real_path_vs_raw/exp_real_path.py",
+        "src/core/intelligence/alert_store.py",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4356
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/search/engine.py",
+        "hit": false,
+        "context_chars": 70313
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 11160
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-13",
+      "population": "prose",
+      "gold_file": "docs/adr/0003-verify-on-read.md",
+      "returned_files": [
+        "src/core/intelligence/layer.py",
+        "experiments/1V_memory_contamination/memory_contamination.py",
+        "experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json",
+        "experiments/1V_memory_contamination/memory_contamination_results_v3_retraction.json",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/task_queue.py",
+        "src/core/indexing/parser.py",
+        "src/core/version_manager.py",
+        "src/core/version_manager.py",
+        "docs/research/lsp-archive/lsp_main.py"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 6924
+      },
+      "B_whole_doc": {
+        "top1_file": "src/core/intelligence/layer.py",
+        "hit": false,
+        "context_chars": 98612
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 12852
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-14",
+      "population": "prose",
+      "gold_file": "docs/en/HANDFOFF.md",
+      "returned_files": [
+        "tests/conftest.py",
+        "src/core/platform_utils.py",
+        "scripts/check_lsp_health.py",
+        "adapters/zed/zed_config.py",
+        "experiments/context_engine/results_tasks_v3.json",
+        "src/sources/local_fs/windows.py",
+        "adapters/zed/zed_config.py",
+        "src/core/platform_utils.py",
+        "adapters/zed/zed_config.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 4091
+      },
+      "B_whole_doc": {
+        "top1_file": "tests/conftest.py",
+        "hit": false,
+        "context_chars": 2551
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 6479
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-15",
+      "population": "prose",
+      "gold_file": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "returned_files": [
+        "docs/en/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "A_chunks": {
+        "hit@1": true,
+        "hit@3": true,
+        "hit@10": true,
+        "context_chars": 390
+      },
+      "B_whole_doc": {
+        "top1_file": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "hit": true,
+        "context_chars": 12446
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 12446
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    },
+    {
+      "id": "F5S-16",
+      "population": "prose",
+      "gold_file": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "returned_files": [
+        "experiments/bootstrap/e17_smoke_answers.json",
+        "src/core/embedder/onnx_client.py",
+        "experiments/bootstrap/e17_judge/mapping.json",
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_install.py",
+        "experiments/bootstrap/e17_shards/shard_12.answers.json",
+        "install.py",
+        "experiments/1V_memory_contamination/memory_contamination_facts_v4_rep_corrected.json",
+        "src/core/embedder/onnx_client.py",
+        "experiments/bootstrap/e17_shards/shard_9.answers.json"
+      ],
+      "A_chunks": {
+        "hit@1": false,
+        "hit@3": false,
+        "hit@10": false,
+        "context_chars": 7548
+      },
+      "B_whole_doc": {
+        "top1_file": "experiments/bootstrap/e17_smoke_answers.json",
+        "hit": false,
+        "context_chars": 4017
+      },
+      "C_oracle": {
+        "hit": true,
+        "context_chars": 2608
+      },
+      "D_closed_book": {
+        "hit": false,
+        "context_chars": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,1170 @@
+{
+  "config": {
+    "outdir": "experiments/4A_unit_of_return/results/f5judged",
+    "n": 16,
+    "ids": "",
+    "arms": "A,B,C,D",
+    "trials": 5,
+    "judge_repeats": 1,
+    "parallel": 8,
+    "reader_model": "opencode-go/longcat-2.0",
+    "judge_model": "opencode-go/qwen3.7-plus",
+    "timeout": 400,
+    "seed": 42,
+    "dry_run": false
+  },
+  "records": [
+    {
+      "id": "F5S-01",
+      "population": "code",
+      "gold_file": "src/core/rate_limiter.py",
+      "reference": "Защита от race conditions: threading.Lock (НЕ asyncio.Lock) —",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-01_D.txt\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know. В предоставленном контексте нет информации о выборе `threading.Lock` вместо `asyncio.Lock` в ограничителе скорости и связанном с этим инциденте.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\n\nThe context only shows a fallback function `threading_lock_context()` that uses `threading.Lock` when `db_manager` is unavailable, but it contains no mention of a rate limiter, `asyncio.Lock`, or any related incident.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "threading.Lock используется, потому что asyncio.Lock привязывается к event-loop'у первого `await` и дедлочит при шаринге между разными loop'ами LSP и MCP. Это связано с инцидентами **INC-53EC** и **REFC-03**.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "threading.Lock используется вместо asyncio.Lock, потому что asyncio.Lock привязывается к event loop первого await и дедлочится в cross-loop сценариях LSP+MCP, тогда как threading.Lock безопасно шарят между разными loop-ами. Это связано с инцидентами INC-53EC / REFC-03.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "threading.Lock используется, потому что asyncio.Lock привязывается к loop-у первого await и вызывает дедлок при совместном использовании между event-loop-ами LSP и MCP. Это связано с инцидентами INC-53EC / REFC-03.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`threading.Lock` используется, потому что он шарится между event-loop-ами LSP и MCP, а `asyncio.Lock` привязывается к loop-у первого await и дедлочит в cross-loop сценариях. Это связано с инцидентом **INC-53EC / REFC-03**, зафиксированным в коде.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`threading.Lock` используется вместо `asyncio.Lock`, потому что он может быть разделён между event-loop-ами LSP и MCP, тогда как `asyncio.Lock` привязывается к loop-у первого `await` и приводит к дедлоку в cross-loop сценариях. Это связано с инцидентом **INC-53EC / REFC-03**.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "uncertain",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-02",
+      "population": "code",
+      "gold_file": "src/core/redact.py",
+      "reference": "Ловит только ИЗВЕСТНЫЕ ФОРМЫ по структурному префиксу.",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "A": {
+          "answers": [
+            "Контекст показывает только интерфейс модуля: `redact` вырезает credential-подобные подстроки и никогда не бросает исключений, а принцип виден лишь частично — кандидат-строки фильтруются эвристикой `_looks_like_a_value`, которая отбрасывает плейсхолдеры, пути, числа и ссылки на env через регэксп `_PLACEHOLDERISH`. Сами паттерны ловли секретов и данные о надёжности (тесты, покрытие) в контексте отсутствуют, поэтому оценить надёжность по нему нельзя.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Из контекста виден лишь принцип частично: `redact` вырезает credential-подобные подстроки regex-эвристикой, а `_looks_like_a_value` отсеивает не-креды (пути, числа, ссылки на env, плейсхолдеры) через паттерн `_PLACEHOLDERISH`. Сам механизм ловли (набор паттернов) и данные о надёжности в контексте отсутствуют, поэтому оценить надёжность по нему нельзя.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "По контексту виден только принцип: `redact` эвристически вырезает «credential-подобные подстроки» (не бросает исключений), а `_looks_like_a_value` отсеивает не-креды — пути, числа, ссылки на env и плейсхолдеры через `_PLACEHOLDERISH`; счётчик по kind (`redacted_count`) позволяет вызывающему отчитаться, что было отредактировано. Насколько надёжно (覆盖率, доля ложных пропусков/срабатываний) — в контексте нет реализации и замеров: I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Принцип — эвристический: `redact()` вырезает credential-подобные подстроки по паттернам, а `_looks_like_a_value()` фильтрует кандидатов, отсекая плейсхолдеры/пути/числа/env-ссылки через регэксп `_PLACEHOLDERISH` (т.е. ловит «то, что выглядит как значение-кред», а не проверяет реальную валидность секрета). Насколько это надёжно — в контексте нет данных (нет тестов, метрик покрытия или списка паттернов), оценить надёжность по нему нельзя.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль работает эвристически: `redact` вырезает «credential-подобные» подстроки, а фильтр `_looks_like_a_value` отсекает не-секреты (пути, числа, env-ссылки, плейсхолдеры) через regex `_PLACEHOLDERISH`, т.е. ловится то, что «похоже на значение-кред». Надёжность в плане отказоустойчивости хороша — функция не бросает исключений и возвращает вход неизменным для не-строк, а `redacted_count` отдаёт счётчик по типам `{kind: n}`, чтобы вызывающий мог отчитаться о вырезанном; однако полноту/точность самих паттернов по этому контексту оценить нельзя — regex-правила детекции не показаны.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "uncertain",
+            "uncertain",
+            "uncertain",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "Модуль ловит только **известные формы** секретов по структурному префиксу (AKIA/sk-ant-/ghp_/xox-/AIza/eyJ…, URL с кредами, Bearer-токены) — сам docstring прямо говорит «⛔ ЭТО НЕ ГРАНИЦА БЕЗОПАСНОСТИ»: новый формат, секрет, разбитый по строкам или записанный словами, пройдёт насквозь. Принцип — prefix-anchored regex, а не энтропия или слово «key», чтобы не резать легитимные hex-дайджесты, хеши коммитов и пути; присваивания (`KEY=...`) режутся только если значение похоже на кред (не плейсхолдер/путь/число). Итог: снижает цену случайной утечки, но не делает канал доставки безопасным для секретов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит только **известные формы** секретов по структурному префиксу (AKIA/sk-ant/ghp_/xox-/Bearer и т.п.) — принцип prefix-anchored, намеренно не entropy-based, чтобы не резать легитимные хеши и пути; присваивания вида `KEY=` режутся лишь если значение похоже на кред. Надёжность ограниченная — сам файл прямо помечает «⛔ ЭТО НЕ ГРАНИЦА БЕЗОПАСНОСТИ»: новый формат, разбитый по строкам или записанный словами секрет пройдёт насквозь, модуль лишь снижает цену случайности.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит только **известные формы** секретов по структурному префикс-анкору (AKIA…, sk-ant-…, ghp_…, `-----BEGIN PRIVATE KEY-----`, URL с кредами, Bearer и т.п.) — намеренно без энтропии и слова «key», чтобы не резать легитимные хеши и пути; присваивания вида `KEY=` режутся, только если значение похоже на кред (не плейсхолдер/путь/число). Надёжность ограничена: в docstring прямо сказано, что это **не граница безопасности** — новый формат, секрет, разбитый по строкам, или записанный словами пройдёт насквозь, т.е. модуль лишь снижает цену случайной утечки, не делая канал безопасным.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит секреты по принципу **префикс-анкоренных паттернов** (известные формы: `AKIA…`, `sk-ant-…`, `ghp_…`, `xox…`, `-----BEGIN PRIVATE KEY-----` и т.д.), а не по энтропии — чтобы не резать легитимные хеши и пути. Надёжность ограниченная: docstring явно помечает «⛔ ЭТО НЕ ГРАНИЦА БЕЗОПАСНОСТИ» — новый формат, секрет разбитый по строкам или записанный словами проходит. Модуль лишь снижает цену случайной утечки (секретов в заметках, доставляемых в контекст агента в обход commit-gate), но не делает канал безопасным.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль `redact` ловит секреты по **структурному префиксу** (prefix-anchored, не по энтропии) — известные формы вроде `AKIA...`, `sk-...`, `-----BEGIN...PRIVATE KEY-----`. Надёрность ограничена: модуль явно **не является границей безопасности** — он пропускает новые форматы, секреты, разбитые по строкам или записанные словами. Это снижает цену случайности, но не делает канал доставки безопасным для секретов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Модуль ловит только **известные формы** по структурному префиксу (не энтропию) — AWS-ключи, JWT, Bearer-токены, URL с кредами, присваивания вида `API_KEY=<значение>`. Это **не граница безопасности**: новый формат, секрет, разбитый по строкам, или записанный словами — проходит, и код это прямо документирует (строки 11–13).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **ненадёжен как граница безопасности** — он ловит только известные форматы по структурному префиксу; новый формат, секрет по строкам или словами — проходит. Принцип — **prefix-anchored** (не энтропия и не слово «key»): матчит `AKIA...`, `sk-...`, `-----BEGIN PRIVATE KEY-----` и т.д., чтобы не резать легитимные hex-дайджесты и хеши. Для присваиваний (`KEY=value`) режет только если значение похоже на кред — длинное и не placeholder/путь/число.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ненадёжен как граница безопасности: ловит только известные формы по структурному префиксу, а новый формат, разбитый по строкам или записанный словами секрет — проходит. Принцип — prefix-anchored (якорение на префикс), а не на энтропию/слово «key», чтобы не резать легитимные hex-дайджесты, хеши коммитов и пути. Снижает цену случайности, но не делает канал безопасным для секретов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ненадёжен как граница безопасности: ловит только известные формы по структурному префиксу, а новый формат, секрет разбитый по строкам или записанный словами — проходит. Принцип — prefix-anchored (якоря на префикс вроде `AKIA`, `sk-`, `ghp_`), а не на энтропию или слово «key», чтобы не резать легитимные hex-дайджесты и хеши коммитов. Идея заимствована у Tom Jones (crystal-memory), реализация своя.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **НЕ является надёжной границей безопасности**: он ловит только ИЗВЕСТНЫЕ ФОРМЫ по структурному префиксу (prefix-anchored, а не по энтропии/слову «key»), поэтому новый формат, секрет, разбитый по строкам или записанный словами, проходит мимо. Принцип — регулярные выражения с якорями на префиксы (например, `AKIA`, `sk-ant-`, `ghp_`), чтобы не резать легитимные hex-дайджесты, хеши коммитов и пути. Это снижает цену случайной утечки, но не делает канал доставки безопасным для секретов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-03",
+      "population": "code",
+      "gold_file": "src/core/gitignore_parser.py",
+      "reference": "# Используем 'gitignore' вместо 'gitwildmatch' (deprecated)",
+      "arms": {
+        "B": {
+          "answers": [
+            "[ERROR] Потому что `'gitwildmatch'` deprecated — использование `'gitignore'` устраняет 1740 `GitWildMatchPattern deprecation warnings` в тестах (`src/core/gitignore_parser.py:19`).\r\n\n\r\n> build · longcat-2.0\r\n\r\nError: ENOMEM: not enough memory, uv_spawn\r\n",
+            "Формат 'gitwildmatch' устарел (deprecated), поэтому используется 'gitignore' — это устраняет 1740 deprecation warnings в тестах и ускоряет проверку .gitignore при индексации.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что `gitwildmatch` считается устаревшим (deprecated), а `gitignore` — актуальный формат.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Парсер использует формат `'gitignore'`, потому что `'gitwildmatch'` является устаревшим (deprecated). Это явно указано в комментарии к коду и docstring функции `load_gitignore_patterns`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что `'gitwildmatch'` deprecated (устарел) — использование формата `'gitignore'` устраняет 1740 `GitWildMatchPattern` deprecation warnings в тестах.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "invalid",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Потому что `'gitwildmatch'` **deprecated** (устаревший), как указано в комментарии на строке 53 и docstring.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Формат `gitwildmatch` помечен как deprecated (deprecated), поэтому парсер использует актуальный формат `gitignore`. Это также устраняет deprecation warnings при работе с `pathspec`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что `'gitwildmatch'` **deprecated** (как указано в комментариях и docstring), а `'gitignore'` — актуальный формат в `pathspec`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что `gitwildmatch` считается устаревшим (deprecated), как указано в строке 53 комментарием `# Используем 'gitignore' вместо 'gitwildmatch' (deprecated)` и в докстринге на строке 28.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что `'gitwildmatch'` deprecated (помечен как устаревший), а использование `'gitignore'` устраняет 1740 deprecation warnings в тестах.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know. The provided context doesn't contain any information comparing 'gitignore' vs 'gitwildmatch' formats or explaining why one is preferred over the other.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-04",
+      "population": "code",
+      "gold_file": "src/core/embedder_lease.py",
+      "reference": "Fix: an indexing process creates a short-lived *lease* file refreshed on every",
+      "arms": {
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know. The context shows watchdog initialization (`indexer.py`) and idle-handling logic (`health.py`), but does not contain the specific mechanism for preventing idle-watchdog from killing a shared embedder during full reindexing.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\n\nThe provided context shows fragments of watchdog setup in `indexer.py` and idle-state detection in `health.py`, but does not contain the mechanism that prevents idle-watchdog from killing a shared embedder during full reindex.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\n\nThe context shows watchdog-related code in `health.py` (idle state handling) and a `quiet_break_gate.py` with caller-alive checks, but it doesn't contain the specific mechanism for preventing idle-watchdog from killing the shared embedder during full reindexing.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Через файл-аренду (`embedder.lease`): процесс переиндексации обновляет его на каждом progress-tick, а idle-watchdog проверяет `is_active()` и не убивает embedder, пока аренда свежая (≤300с). Это исключает ложный idle-kill во время фазы парсинга, которая не вызывает embed.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Индексирующий процесс создаёт кратковременный *lease*-файл (`embedder.lease`), обновляя его на каждом тике прогресса; idle-watchdog обязан убивать embedder только если свежего lease-файла нет (или он старше `max_age_s`). Таким образом, во время фазы парсинга без эмбед-запросов lease остаётся свежим, и watchdog не убивает embedder посередине переиндексации.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Создается кратковременный файл-аренда (`embedder.lease`), который обновляется на каждом тике прогресса переиндексации. Idle-watchdog обязан не убивать общий embedder, пока существует свежая аренда, сигнализирующая о том, что какой-то процесс активно им пользуется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Индексирующий процесс создаёт lease-файл (`embedder.lease` в `%TEMP%/mscodebase_locks`), обновляемый на каждом progress-tick через `touch()`. Idle-watchdog перед убийством embedder'а проверяет `is_active()` — если lease свежий (моложе 300 c), он не убивает embedder, даже если это lease другого процесса.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Проблема решена через механизм lease-файла (`embedder_lease.py`): процесс индексации создаёт файл `embedder.lease`, который обновляется на каждом progress-тике. Перед убийством idle-watchdog проверяет `is_active()` — если lease свежий (по умолчанию <300с), embedder не убивается, даже если в parse-фазе не было embed-вызовов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-05",
+      "population": "code",
+      "gold_file": "src/core/reindex_ledger.py",
+      "reference": "- MUST NOT raise, ever (a recording channel cannot break indexing).",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не выбрасывает исключения и не пропускает их наружу** — все ошибки проглатываются (`except Exception: pass`, «never propagate»). Это гарантирует, что запись в журнал не может прервать или сломать процесс индексации, даже при сбое подсистемы артефактов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Главное ограничение — модуль **никогда не должен выбрасывать исключения** (MUST NOT raise, ever), потому что канал записи не может ломать индексацию. Все ошибки проглотляются (`except Exception: pass`), и запись либо успешно добавляет строку в ledger, либо молча ничего не делает.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Главное ограничение — модуль **никогда не должен выбрасывать исключение** (`MUST NOT raise, ever`), потому что recording-канал не может ломать индексацию. Функция `record()` целиком обёрнута в `try/except`, который поглощает все ошибки. Это означает, что при любом сбое (недоступность artifact_paths, ошибка записи на диск) запись просто молча игнорируется, а индексация продолжается без прерывания.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Главное ограничение — модуль никогда не должен выбрасывать исключение (MUST NOT raise) и поглощает любые ошибки, поскольку канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "Главное ограничение — модуль **никогда не должен выбрасывать исключения** (MUST NOT raise, ever): он перехватывает и глотает все ошибки по design'у, потому что канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Главное ограничение — модуль **никогда не должен выбрасывать исключение** (MUST NOT raise, ever). Функция `record()` перехватывает все ошибки через `except Exception: pass`, потому что канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Главное ограничение — модуль **никогда не должен выбрасывать исключение** (\"MUST NOT raise, ever\"): функция `record()` перехватывает все ошибки конструкцией `try/except` и глотает их (`pass`), потому что канал записи не имеет права сломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключения** — он поглощает все ошибки по дизайну (swallows every error), потому что канал записи не может иметь права сломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключение** — все ошибки проглатываются намеренно (`except Exception: pass`), потому что канал записи не может ломать индексацию, которую он мониторит.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-06",
+      "population": "code",
+      "gold_file": "src/core/quiet_break_gate.py",
+      "reference": "(fail-open, причина логируется): инфраструктурный сбой не должен блокировать коммит.",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "При отсутствии git или графа гейт переходит в статус \"unavailable\" с пустым списком findings и **не срабатывает** (fail-open: инфраструктурный сбой не блокирует коммит, причина логируется). Если изменения есть, но граф недоступен по конкретному узлу, такой узел пропускается с debug-логом, а gate продолжает работу.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Quiet-break gate при инфраструктурном сбое git или графа ведёт себя **fail-open**: возвращает статус `\"unavailable\"` или `\"empty\"` с пустым `findings` и **не срабатывает** (не блокирует коммит), а причина логируется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое git или графа gate возвращает status `\"unavailable\"` с пустым `findings` и **не срабатывает** (fail-open). Это явно зафиксировано в docstring: «инфраструктурный сбой не должен блокировать коммит». При этом причина отказа логируется через `logger.warning`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Quiet-break gate ведёт себя **fail-open**: при инфраструктурном сбое (отсутствие git, недоступность PropertyGraph или базы) возвращает статус `\"unavailable\"` с пустым списком `findings` и **не блокирует коммит** — причина сбоя логируется. Изменения тоже дают `\"empty\"` без срабатывания гейта.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое (отсутствие git, графа или изменений) гейт возвращает статус `\"unavailable\"` или `\"empty\"` с пустым `findings` и **не срабатывает** (fail-open), логируя причину. Инфраструктурный сбой не должен блокировать коммит.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "uncertain"
+          ]
+        },
+        "B": {
+          "answers": [
+            "При сбое git или графа gate возвращает status `\"unavailable\"`, findings пусты, и гейт **НЕ срабатывает** (fail-open). То есть инфраструктурный сбой не блокирует коммит — причина лишь логируется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При сбое git или графа quiet-break gate не срабатывает (fail-open): возвращает `findings: []` и статус `\"unavailable\"` или `\"empty\"`, а причина логируется. Инфраструктурный сбой не блокирует коммит.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое git или графа quiet-break gate ведёт себя **fail-open**: возвращает статус `\"unavailable\"` с пустым `findings` и нулевыми счётчиками, **не блокируя коммит**. Причина сбоя логируется, но индекс не мутируется, а пустой результат трактуется как «сигнала нет», а не «всё сломано».\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При сбое git или графа гейт переходит в статус `unavailable`, а findings остаются пустым — то есть гейт **не срабатывает** (режим fail-open: «инфраструктурный сбой не должен блокировать коммит»), а причина логируется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое (отсутствие git, графа или изменений) гейт возвращает статус \"unavailable\"/\"empty\" с пустым findings и **не срабатывает (fail-open)** — причина логируется, а коммит не блокируется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "При сбое графа (`pg is None` или отсутствует файл БД) `run_quiet_break_gate` возвращает `_empty(\"unavailable\", ...)` — dict с findings, но без исключений (строка 10: \"никогда не бросает наружу\"). Это fail-safe поведение: gate не ломает pipeline, а сигнализирует через статус, что граф недоступен.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При сбое графа (`pg is None` или отсутствует `db_path`) `run_quiet_break_gate` возвращает `_empty(\"unavailable\", ...)` — пустой dict с поме\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Quiet-break gate при сбое PropertyGraph возвращает `_empty(\"unavailable\", ...)` — никакой ошибки наружу. Согласно строке 10, функция **«никогда не бросает наружу»**: при `pg is None` (строка 12–13) или отсутствующем `db_path` (строка 15–16) она мягко деградирует до пустого результата с пометкой «unavailable». Контекст не содержит детальную обработку самого git-сбоя внутри `revision_gate.py`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При сбое графа (`pg is None`) тихий возврат пустого дикта с `_empty(\"unavailable\", \"PropertyGraph not available\")` — никакого эксепшена наружу (`quiet_break_gate.py:12-13`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Граф недоступен (`pg is None`) → `run_quiet_break_gate` возвращает `_empty(\"unavailable\", \"PropertyGraph not available\")`. Если путь к БД графа не существует → тоже `_empty(...)` (статус обрезан). По контракту функции — «никогда не бросает наружу», при инфраструктурном сбое тихо деградирует в пустой результат без исключений.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "uncertain",
+            "incorrect",
+            "correct",
+            "correct"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-07",
+      "population": "code",
+      "gold_file": "src/providers/reranker/reranker_scoring.py",
+      "reference": "score: конечное число. NaN/Inf отбрасываются",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "uncertain"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Отбрасывает их (строки 70–71). NaN и Inf не являются конечными числами, поэтому `math.isfinite(score)` возвращает False и элемент пропускается. Это fail-safe: иначе clamp молча превратил бы NaN в 1.0 (максимальный скор), а Inf в 0.0 — и неоценённый чанк получил бы фейковый приоритет.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает элементы с NaN/Inf (`math.isfinite(score)` → `continue`), не включая их в результат — это fail-safe, чтобы NaN молча не становился 1.0 через clamp.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает такие элементы, так как проверка `math.isfinite(score)` не пропускает NaN и Inf. Это сделано для предотвращения ситуации, когда операция clamp молча превратила бы NaN в 1.0 (максимальный скор неоценённому чанку). Согласно контракту, отсутствие конечного числа означает отсутствие оценки, а не значение больше 1.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "validate_scores отбрасывает такие чанки, так как NaN и Inf расцениваются как отсутствие оценки, а не высокий скор. Без этого фильтра операция clamp превратила бы NaN в максимальный скор 1.0, дав неоценённому чанку необоснованное преимущество. В итоге эти элементы исключаются из валидированного списка.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает (исключает) элементы со значениями NaN или Inf, так как они означают отсутствие оценки и при clamp молча превращались бы в максимальный скор 1.0.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-08",
+      "population": "code",
+      "gold_file": "src/core/error_envelope.py",
+      "reference": "``next_action`` hint so an agent can branch and recover without guessing",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Поле `next_action` даёт конкретную подсказку «что делать дальше» для каждой ошибки, чтобы агент мог ветвиться и восстанавливаться без угадываний (докстринг модуля, строки 4–7). Агенты ветвятся по `code`, а люди читают именно `next_action`, причём каждая подсказка — конкретная и одношаговая (комментарий к `_PLAYBOOK`, строки 39–40).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Поле `next_action` содержит конкретную подсказку «что делать дальше» для каждой ошибки, чтобы агент мог ветвиться и восстанавливаться без угадываний (docstring, строки 4-6): агенты ветвятся по `code`, а люди читают `next_action`, при этом каждая подсказка — конкретная и одношаговая (строки 39-40).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Поле `next_action` даёт конкретную подсказку «что делать дальше» (retry, reindex, backoff и т.д.), чтобы агент мог ветвиться и восстанавливаться после ошибки без угадываний — сам агент ветвится по `code`, а человек читает `next_action` (строки 4-6, 39-40).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "next_action даёт конкретный, одношаговый подсказ, чтобы агент мог ветвиться и восстанавливаться без догадок (агенты ветвятся по `code`, люди читают `next_action`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Поле `next_action` даёт агенту конкретную подсказку, что делать при ошибке, чтобы он мог ветвиться и восстанавливаться без угадываний (агент ветвится по `code`, а подсказку читает человек/агент). Каждая подсказка — канонический одношаговый рецепт из `_PLAYBOOK` для соответствующего кода ошибки.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-09",
+      "population": "prose",
+      "gold_file": "docs/en/GRACEFUL_DEGRADATION.md",
+      "reference": "it **degrades gracefully** through 6 levels,",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Система рассчитана на **6 уровней** деградации. Когда внешние провайдеры недоступны, она последовательно переключается с llama.cpp на ONNX/OpenVINO INT8 (in-process fallback), затем на LM Studio, потом — на чисто ключевой поиск BM25, далее — только на AST-индекс символов, и в итоге остаётся в режиме ожидания индексации.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Система рассчитана на **6 уровней** деградации. Когда внешние провайдеры недоступны, система последовательно переключается на локальные запасные варианты (llama.cpp → ONNX in-process → LM Studio → BM25 → SymbolIndex), сохраняя базовую функциональность даже при полной недоступности всех внешних сервисов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Система рассчитана на **6 уровней деградации**. Когда внешние провайдеры недоступны, система последовательно переключается на резервные режимы: от llama.cpp GGUF → ONNX/OpenVINO (in-process) → LM Studio → BM25 → SymbolIndex → Fallback, сохраняя базовую функциональность (keyword search, AST symbols) вплоть до полного отсутствия поиска при первом запуске.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Система рассчитана на **6 уровней** деградации. Когда внешние провайдеры недоступны, она последовательно переключается с llama.cpp GGUF на ONNX/OpenVINO INT8, затем на LM Studio, потом только на BM25 (ключевой поиск), далее на SymbolIndex (чисто AST-символы) и в итоге переходит в режим ожидания индексации, сохраняя базовую функциональность на каждом уровне.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Система рассчитана на **6 уровней** деградации (от L1 llama.cpp GGUF до L6 Fallback). Когда внешние провайдеры недоступны, система последовательно переключается на локальные альтернативы: L2 ONNX/OpenVINO INT8 (in-process), L3 LM Studio (remote), L4 BM25 (keyword only), L5 SymbolIndex (AST), пока не дойдёт до L6, где остаётся только ожидание индексации.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-10",
+      "population": "prose",
+      "gold_file": "docs/en/SEARCH_PIPELINE.md",
+      "reference": "Ranks are computed **separately** for each channel, starting from 1.",
+      "arms": {
+        "A": {
+          "answers": [
+            "Потому что математически корректная RRF требует, чтобы ранги считались раздельно для каждого канала (BM25 и dense), начиная с 1 — объединённый `enumerate(bm25 + dense)` давал бы неверные скоры, так как интерливинг списков нарушил бы ранжирование внутри каждого канала (docs/ru/SEARCH_PIPELINE.md:79-87).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что математически корректная RRF требует, чтобы ранги считались раздельно для каждого канала (BM25 и dense), начиная с 1 — объединённый `enumerate(bm25 + dense)` дал бы неверные скоры (docs/ru/SEARCH_PIPELINE.md:79-80).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что математически корректная RRF требует, чтобы ранги каждого канала (BM25 и dense) считались независимо, начиная с 1 (docs/ru/SEARCH_PIPELINE.md:79-87). Общий `enumerate(bm25 + dense)` сместил бы ранги второго канала на длину первого, и документы получали бы неверные скоры.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что математически корректная формула RRF требует отдельного ранжирования для каждого канала, начиная с 1 — объединённый `enumerate(bm25 + dense)` дал бы неверные скоры.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что математически корректная RRF требует ранги каждого канала отдельно, начиная с 1 — объединённый `enumerate(bm25 + dense)` дал бы неверные скоры, так как ранги одного канала сдвинулись бы на длину другого списка (docs/ru/SEARCH_PIPELINE.md, раздел 4).\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-10_D.txt\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Потому что этого требует математически корректная формула RRF — общий `enumerate(bm25 + dense)` даст неправильные оценки (строка 111-112 и docstring в функции `rrf_fusion`).\n\n[🏁 ИТОГ] Ответ из контекста: отдельный enumerate с start=1 для каждого канала — требование формулы RRF, общий счётчик исказил бы скоры.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что это требуется математически корректной формулой RRF — совместный `enumerate(bm25 + dense)` привёл бы к неправильным скорам.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Ранги считаются отдельно для каждого канала (начиная с 1), так как это требуется математически корректной формулой RRF. Использование общего `enumerate(bm25 + dense)` привело бы к некорректным скорингам (оценкам релевантности).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Потому что общий `enumerate(bm25 + dense)` привёл бы к неверным оценкам — математически корректная формула RRF требует, чтобы ранги для каждого канала вычислялись отдельно и начинались с 1.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Ответ содержится в файле контекста (строки 111-120): ранги считаются отдельно для каждого канала (BM25 и Dense), начиная с 1, потому что это требование **математически корректной RRF-формулы**. Общий `enumerate(bm25 + dense)` дал бы некорректные оценки, так как RRF работает с относительными позициями *внутри* каждого канала, а не с общим порядком объединённого списка.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-11",
+      "population": "prose",
+      "gold_file": "docs/TRUST_BOUNDARY.md",
+      "reference": "**Принцип: содержимое репозитория — это ДАННЫЕ, а не код.**",
+      "arms": {
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "\n",
+            "Как к данным. Согласно документу, принцип системы: «содержимое репозитория — это ДАННЫЕ, а не код», а инструкции из чужого корня — «данные для анализа, не команды к исполнению».\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Содержимое репозитория — это **ДАННЫЕ, а не код**: инструкции из индексируемого репо не являются authority для агента и не исполняются как команды.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Система относит инструкции из проиндексированного чужого репозитория **к данным, а не к командам**. Принцип задокументирован явно: «содержимое репозитория — это ДАННЫЕ, а не код», а инструкции из `untrusted` корня (`AGENTS.md`, `SKILL.md`) — это данные для анализа, не команды к исполнению.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Как к данным, а не к командам. Принцип: «содержимое репозитория — это ДАННЫЕ, а не код»; инструкции из `untrusted` корня — данные для анализа, не команды к исполнению.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-12",
+      "population": "prose",
+      "gold_file": "docs/en/TELEMETRY.md",
+      "reference": "Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup.",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Да, метрики сохраняются между перезапусками: они записываются в JSON каждые 10 вызовов и при завершении работы, а при старте `load_metrics()` читает сохранённый файл.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Да, метрики сохраняются между перезапусками MCP-сервера — они автоматически записываются в JSON каждые 10 вызовов и при завершении работы, а при старте `load_metrics()` читает сохранённый файл.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Да, метрики по инструментам сохраняются между перезапусками MCP-сервера — при старте вызывается `load_metrics()`, которая читает сохранённый JSON.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Да. Метрики по инструментам сохраняются между перезапусками MCP-сервера: они автоматически записываются в JSON каждые 10 вызовов и при завершении работы, а при старте `load_metrics()` читает сохранённый JSON (docs/en/TELEMETRY.md:30).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Да, метрики сохраняются. Согласно документации (строка 31): «Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup». Метрики пишутся в JSON каждые 10 вызовов и при завершении работы, а при старте — читаются обратно.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\n\nКонтекст не содержит информации о сохранении метрик между перезапусками. Показаны фрагменты из разных модулов (engine, main, config, task_queue, alert_store, llama_runner), но ни один из них не описывает персистентность метрик при рестарте сервера.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-13",
+      "population": "prose",
+      "gold_file": "docs/adr/0003-verify-on-read.md",
+      "reference": "вердикт **INCONCLUSIVE, никогда VERIFIED** (fail-closed:",
+      "arms": {
+        "C": {
+          "answers": [
+            "INCONCLUSIVE — узел остаётся ACTIVE и включается в контекст как раньше (резолвер недоступен или вернул `None` — это не доказательство отсутствия, поэтому REFUTED невозможен).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Вердикт **INCONCLUSIVE** — узел остаётся ACTIVE и включается в контекст как раньше (fail-closed: `None`/непроверяемость не считается доказательством отсутствия и не даёт ни VERIFIED, ни REFUTED).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "INCONCLUSIVE — узел остаётся ACTIVE и включается в контекст как раньше (вместо REFUTED), поскольку `None`/недоступность резолвера не является доказательством отсутствия референта (fail-closed, без ложных отзывов).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "INCONCLUSIVE — узел остаётся ACTIVE и включается в контекст как раньше, а не переходит в REFUTED, поскольку отсутствие результата проверки (резолвер недоступен, вернул `None`, неизвестный kind) не является доказательством отсутствия якоря (ADR-0003, docs/adr/0003-verify-on-read.md:77-80).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "INCONCLUSIVE — узел остаётся ACTIVE и включается в контекст как раньше (fail-closed: `None`/недоступный резолвер не считается доказательством отсутствия, поэтому REFUTED невозможен).\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "Вердикт True — по правилу SILENT для плеча A: если код молчит (резолвер недоступен, проверка ничего не дала), вердикт принимается «как память», то есть ACTIVE-узел считается истинным.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Согласно функции `decide` (experiments/1V_memory_contamination/memory_contamination.py), при SILENT — код молчит, проверка не дала результата — ACTIVE-узел (A) получает вердикт как память, то есть **True** (утверждение принимается истинным по памяти).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Вердикт True — по памяти. Согласно функции `decide` (experiments/1V_memory_contamination/memory_contamination.py), при SILENT (код молчит, проверка не дала результата) для случая A вердикт принимается как в памяти: «A → вердикт как память (True)».\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "Если резолвер недоступен или проверка не дала результата (freshness не верифицируема), ACTIVE-узел получает вердикт **INCONCLUSIVE** (`None`). В этом случае отсутствие якоря расценивается как UNVERIFIABLE, а не REFUTED. Узел остаётся в статусе ACTIVE, но помечается флагом `verification=\"no_anchors\"` для выдачи агенту (ADR-0003).\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-13_B.txt [offset=1037]\r\n",
+            "Узел остаётся **ACTIVE** — резолвер возвращает `None`, что трактуется как **INCONCLUSIVE** («absence is UNVERIFIABLE, never REFUTED», строки 1037–1044, 1075–1077), и узел лишь помечается флагом `verification=\"no_anchors\"` при выдаче агенту (строки 1204–1210, докстринг 1161–1165).\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-13_B.txt [offset=1037]\r\n",
+            "I need more context to answer this question. Let me read the rest of the file.\r\nУзел остаётся ACTIVE — он не переводится в REFUTED, а получает вердикт INCONCLUSIVE и помечается флагом `verification=\"no_anchors\"` при выдаче агенту (layer.py:1161-1165, 1204-1210). Резолвер в таком случае возвращает `None` (INCONCLUSIVE), поскольку «absence is then UNVERIFIABLE, never REFUTED» — отсутствие якоря при недоступном/неготовом индексе не считается доказательством опровержения (layer.py:1037-1044, 1075-1077).\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-13_B.txt [offset=1037]\r\n",
+            "Узел остаётся ACTIVE с флагом `verification=\"no_anchors\"` (INCONCLUSIVE): резолвер возвращает `None` при любой непроверяемости (resolver failure, legacy index без build_head, non-git, dirty tree), и отсутствие остаётся UNVERIFIABLE — никогда не REFUTED (ctx_F5S-13_B.txt:1037-1044, 1161-1165).\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-13_B.txt [offset=1037, limit=200]\r\n",
+            "I don't know.\r\nACTIVE-узел получает вердикт **INCONCLUSIVE** (`None`) — отсутствие якоря расценивается как UNVERIFIABLE, а не REFUTED (ctx_F5S-13_B.txt:1040-1041). Узел остаётся в статусе ACTIVE, но помечается флагом `verification=\"no_anchors\"` для выдачи агенту (ctx_F5S-13_B.txt:1204-1210, 1161-1165).\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Skill \"code-search-analysis\"\r\n✱ Grep \"ACTIVE.*вердикт|вердикт.*ACTIVE|резолвер.*недоступен|resolver.*unavailable\" in  · 14 matches\r\n✱ Grep \"_build_symbol_resolver|symbol_resolver|вердикт\" in src · 34 matches\r\n→ Read ctx_F5S-13_B.txt [offset=1037, limit=250]\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-14",
+      "population": "prose",
+      "gold_file": "docs/en/HANDFOFF.md",
+      "reference": "**Solution:** read Zed's SQLite database directly:",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из `scoped_kv_store`, затем извлекает путь проекта по ID из таблицы `workspaces`. Это реализовано в `src/mcp/server.py`, функция `resolve_project_root()` (priority 0).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` (namespace `multi_workspace_state`), затем по этому ID извлекает путь из таблицы `workspaces`. Реализовано в `src/mcp/server.py`, функция `resolve_project_root()`, приоритет 0.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер читает базу данных SQLite Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` по namespace `multi_workspace_state`, а затем по этому ID извлекает путь из таблицы `workspaces`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` (namespace `multi_workspace_state`), затем по этому ID извлекает путь из таблицы `workspaces`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` (namespace `multi_workspace_state`), затем по этому ID извлекает путь проекта из таблицы `workspaces` (`SELECT paths FROM workspaces WHERE workspace_id = ?`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "MCP-сервер читает внутреннюю SQLite базу Zed (`%LOCALAPPDATA%/Zed`), в частности таблицу `multi_workspace_state` с полем `active_workspace_id` — это определяет активное окно Zed напрямую из БД, без переменных окружения. Дополнительно `lsp_project_bridge` использует `is_zed_install_dir` для проверки маркеров установки Zed и различает легитимный dev-сценарий (исходники расширения открыты как проект) от системных путей.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер определяет открытый проект через внутреннюю SQLite базу данных Zed по пути `%LOCALAPPDATA%/Zed`, читая `multi_workspace_state.active_workspace_id` — идентификатор активного окна.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер определяет открытый проект через **SQLite базу данных Zed** (`%LOCALAPPDATA%/Zed`), читая `multi_workspace_state.active_workspace_id` — недокументированная внутренняя БД Zed, где хранится ID активного окна.\n\nКонтекст: `src/core/platform_utils.py:61` (\"Путь к SQLite базе данных Zed (workspaces, multi_workspace_state)\") + фрагмент про `source=\"ACTIVE_WORKSPACE\"` из `results_tasks_v3.json`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP-сервер читает активный проект из внутренней SQLite-базы Zed (`multi_workspace_state.active_workspace_id`), путь к которой определяется через `%LOCALAPPDATA%/Zed` — без использования переменных окружения.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "MCP читает внутреннюю SQLite базу данных Zed через `get_zed_db_path()` / `_get_zed_data_base()` (Windows: `%LOCALAPPDATA%/Zed`) и берёт `multi_workspace_state.active_workspace_id` — активное окно определяется напрямую из БД, а не из переменных окружения.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "B": {
+          "answers": [
+            "Через переменную `$ZED_WORKTREE_ROOT`, которую Zed подставляет сам — она указывает на корень текущего проекта (worktree). В `zed_config.py:308` записано `env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"`, и Zed резолвит эту переменную при запуске сервера.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know. The context only shows how env vars ARE passed (`env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"`, line 308), but doesn't describe a fallback mechanism when environment variables aren't passed.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Через переменную окружения `$ZED_WORKTREE_ROOT`, которую Zed сам подставляет при запуске сервера: в конфигурации entry для `mscodebase-intelligence` задано `env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"` (строка 308). Zed резолвит эту переменную в путь открытого worktree на лету.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Через переменную окружения `$ZED_WORKTREE_ROOT`, которую Zed автоматически передаёт контекстному серверу. В `_make_server_entry` задаётся `env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"` — сервер резолвит проект по этому пути, а не из пользовательских переменных.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Через переменную `$ZED_WORKTREE_ROOT` (строка 308), которую Zed автоматически подставляет в env — это путь к корню worktree открытого проекта. Серверу не нужно передавать переменные вручную: Zed сам инжектит этот путь при запуске контекстного сервера.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-15",
+      "population": "prose",
+      "gold_file": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "reference": "**Status:** ⚠️ Always `<unset>` on Windows (Zed bug #36019)",
+      "arms": {
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n→ Read ctx_F5S-15_D.txt\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "B": {
+          "answers": [
+            "Based on the context, `$ZED_WORKTREE_ROOT` is used as the value for the `PROJECT_PATH` environment variable when configuring the MCP context server in Zed's settings. The context does not provide further details about what this variable contains or how it is defined on Windows.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "В контексте упоминается только строка `env[\"PROJECT_PATH\"] = \"$ZEDED_WORKTREE_ROOT\"` — переменная подставляется как есть в окружение сервера. Что именно она содержит на Windows и откуда берётся — в этом файле не объяснено.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переменная `$ZED_WORKTREE_ROOT` используется как значение переменной окружения `PROJECT_PATH` для MCP-сервера в settings.json — это placeholder Zed IDE (обозначаемый символом `$`), который задаёт путь к рабочему дереву проекта. В контексте упоминается только факт её подстановки при конфигурации серверной записи; дополнительных деталей о поведении на Windows нет.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "В контексте упоминается только строка `env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"` в функции `_make_server_entry` — переменная передаётся как есть, без какой-либо информации о её формате или поведении именно на Windows. Других деталей о `ZEDWORKTREE_ROOT` на Windows в предоставленном контексте нет.\n\nI don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "В контексте `ZED_WORKTREE_ROOT` используется как значение переменной окружения `PROJECT_PATH` в записи MCP-сервера для Zed (строка 308: `env[\"PROJECT_PATH\"] = \"$ZED_WORKTREE_ROOT\"`). Это переменная Zed, передающая путь к корню рабочего дерева проекта, — детали её поведения на Windows в данном файле не раскрываются.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Переменная `ZED_WORKTREE_ROOT` на Windows **всегда `<unset>`** — это известный баг Zed (#36019), закрытый без исправления. Полагаться на неё нельзя, MSCodeBase использует fallback-цепочку (SQLite DB → PROJECT_PATH → CWD). На Linux/macOS работает корректно.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переменная `ZED_WORKTREE_ROOT` на Windows всегда `<unset>` — это известный баг Zed #36019, закрытый без исправления. Любая попытка использовать её в `settings.json` (например, в `current_dir` или `env`) вернёт `None`. MSCodeBase компенсирует это fallback-цепочкой (LSP → SQLite DB → `.env`), которая работает без этой переменной.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`ZED_WORKTREE_ROOT` на Windows всегда не установлена (пуста) — это известный баг Zed под номером 36019, закрытый без исправления. Из-за этого нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` и `env` для `context_servers` в `settings.json`. MSCodeBase обходит это через fallback-цепочку: SQLite DB → `PROJECT_PATH` из `.env` → CWD.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переменная `ZED_WORKTREE_ROOT` на Windows всегда `<unset>` — это известный баг Zed (#36019), закрытый без исправления. Использовать её в `settings.json` (в `current_dir` или `env`) нельзя — любая попытка даст `None`; на Linux/macOS переменная выставляется корректно.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`ZED_WORKTREE_ROOT` **не выставляется** на Windows — это известный баг Zed (#36019), закрытый без исправления. В `settings.json` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir`/`env` — она всегда `<unset>`/`None`, из-за чего CWD MCP-сервера наследуется от процесса Zed (а не от проекта). На Linux/macOS переменная работает корректно.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-16",
+      "population": "prose",
+      "gold_file": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "reference": "Moving to llama.cpp GGUF reduced MCP memory by 88% and total by 60%.",
+      "arms": {
+        "A": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "C": {
+          "answers": [
+            "Память MCP-процесса снизилась на 88%: с 1 931 МБ (ONNX in-process) до 252 МБ (Qwen3 + BGE-M3 GGUF), а суммарное потребление — на 60% (с ~2 688 МБ до ~1 048 МБ).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Память MCP-процесса снизилась на 88%: с ~1 931 МБ (ONNX Runtime in-process, 2 GB+) до ~252 МБ после перехода на llama.cpp GGUF; суммарное потребление (MCP + модели) снизилось на 60%.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом на 88% (с 1,931 МБ до 252 МБ).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переход снизил потребление памяти MCP-процессом на 88%: с ~1,931 MB (ONNX Runtime in-process, 2026-07-09) до 252 MB (Qwen3 + BGE-M3 GGUF, 2026-07-10), а суммарное потребление — на 60% (с ~2,688 MB до ~1,048 MB).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Переход снизил потребление памяти MCP-процессом на 88% — с 1 931 МБ (ONNX in-process) до 252 МБ, а суммарное потребление — на 60% (с ~2 688 МБ до ~1 048 МБ).\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ]
+        },
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        },
+        "D": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ]
+        }
+      }
+    }
+  ]
+}

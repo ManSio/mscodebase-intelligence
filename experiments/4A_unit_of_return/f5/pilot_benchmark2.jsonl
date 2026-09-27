@@ -1,0 +1,12 @@
+{"id": "MSC-2-001", "question": "Почему notify_change может индексировать устаревшее состояние файла, и какой механизм решает эту проблему?", "gold_file": "src/mcp/tools/indexing_tools.py", "population": "code"}
+{"id": "MSC-2-002", "question": "Какой порядок резолва корня проекта (CWD-first) и почему SQLite active_workspace больше не главный источник?", "gold_file": "src/core/project_resolution.py", "population": "code"}
+{"id": "MSC-2-003", "question": "Что реально затронет изменение сигнатуры hybrid_search_async (добавление параметра)? Перечислите вызывающие стороны и риск.", "gold_file": "src/core/search/engine.py", "population": "code"}
+{"id": "MSC-2-004", "question": "Какой commit ввёл перенос артефактов в системную папку (Задача 4/5) и какие файлы он затронул?", "gold_file": "src/core/artifact_paths.py", "population": "code"}
+{"id": "MSC-2-005", "question": "Найди скрытый дефект в _atomic_write: при каких условиях пост-верификация SHA-256 (WS4) даст ложное расхождение на Windows?", "gold_file": "src/mcp/tools/write_tools.py", "population": "code"}
+{"id": "MSC-2-006", "question": "Какие подсистемы зависят от Indexer (composition root)? Что сломается при изменении его __init__?", "gold_file": "src/core/indexing/indexer.py", "population": "code"}
+{"id": "MSC-2-007", "question": "Почему FTS5 поиск обёрнут в asyncio.wait_for(2s) и что происходит при таймауте?", "gold_file": "src/core/search/engine.py", "population": "code"}
+{"id": "MSC-2-008", "question": "Что затронет добавление нового MCP-инструмента (регистрация, доки, контракт-тест)?", "gold_file": "src/mcp/server_tools.py", "population": "code"}
+{"id": "MSC-2-009", "question": "Найди потенциальный race в DebounceBatch (rate_limiter.py): что произойдёт при двух одновременных add() из разных потоков?", "gold_file": "src/core/rate_limiter.py", "population": "code"}
+{"id": "MSC-2-010", "question": "Как impact_token (modification_guard) связан с impact_analysis и что даёт TTL=600s?", "gold_file": "src/core/modification_guard.py", "population": "code"}
+{"id": "MSC-2-011", "question": "Почему reranker перезаписывает final_score ПОСЛЕ MMR-разнообразия, и что сломается при обратном порядке?", "gold_file": "src/core/search/engine.py", "population": "code"}
+{"id": "MSC-2-012", "question": "Какие состояния Consistency Engine (WS2) соответствуют сценариям: файл изменён; reindex идёт; reindex упал; reset_index; refresh_db_connection?", "gold_file": "src/core/consistency.py", "population": "code"}

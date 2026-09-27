@@ -5,8 +5,8 @@
     "control_group": "v3 (memory_contamination_facts_v3_generated.json, same 50 facts)",
     "parity_with_v3_A_code_first_adoption": "OK",
     "isolation": {
-      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\107b52a6\\intelligence",
-      "real_project_store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "store_dir": "<user>AppData\\Local\\mscodebase\\projects\\107b52a6\\intelligence",
+      "real_project_store_dir": "<user>AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
       "isolated": true
     },
     "validation": {

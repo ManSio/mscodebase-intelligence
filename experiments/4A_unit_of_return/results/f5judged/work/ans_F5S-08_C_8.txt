@@ -1,0 +1,5 @@
+`next_action` даёт агенту конкретный одношаговый совет по восстановлению после ошибки (agents branch on `code`; humans read `next_action`), чтобы он действовал, а не гадал.
+
+
+> build · longcat-2.0
+

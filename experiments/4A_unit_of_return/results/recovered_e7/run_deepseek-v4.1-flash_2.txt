@@ -1,0 +1,27 @@
+﻿opencode.cmd : 
+строка:1 знак:391
++ ... ch-Object { & $oc run $msg --model "opencode-go/$m" --pure --dir $iso ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+> build ┬╖ deepseek-v4.1-flash
+
+| # | entry |
+| --- | --- |
+| 1 | a-component-that-needs-starting-passes-every-behaviour-test |
+| 2 | a-number-that-moves-without-new-data-is-an-assumption |
+| 3 | NONE |
+| 4 | a-surviving-mutant-can-mean-the-code-is-dead |
+| 5 | NONE |
+| 6 | NONE |
+| 7 | NONE |
+| 8 | NONE |
+| 9 | a-control-built-from-the-treated-arm-is-not-a-control |
+| 10 | testing-rejection-is-not-testing-immutability |
+| 11 | a-generated-document-is-unverified-until-you-render-it |
+| 12 | a-guard-keyed-on-a-field-nobody-fills-is-a-silent-no-op |
+| 13 | NONE |
+| 14 | an-instrument-that-answers-a-different-question-can-be-wrong-two-ways |
+| 15 | an-instrument-that-reshapes-input-fabricates-the-test |
+| 16 | NONE |

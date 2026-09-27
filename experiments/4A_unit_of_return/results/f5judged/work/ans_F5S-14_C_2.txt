@@ -1,0 +1,5 @@
+MCP-сервер читает SQLite-базу Zed напрямую: сначала получает `active_workspace_id` из таблицы `scoped_kv_store` (namespace `multi_workspace_state`), затем по этому ID берёт путь проекта из таблицы `workspaces` (`resolve_project_root()` в `src/mcp/server.py`, приоритет 0).
+
+
+> build · longcat-2.0
+

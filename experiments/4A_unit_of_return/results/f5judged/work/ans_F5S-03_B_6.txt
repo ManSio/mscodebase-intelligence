@@ -1,0 +1,5 @@
+Потому что `gitwildmatch` — deprecated. Переход на `gitignore` устраняет 1740 GitWildMatchPattern deprecation warnings в тестах (`src/core/gitignore_parser.py:20,53`).
+
+
+> build · longcat-2.0
+

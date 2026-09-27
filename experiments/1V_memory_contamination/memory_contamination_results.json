@@ -4,8 +4,8 @@
     "date": "2026-08-11",
     "scan_ms_total": 91.4,
     "isolation": {
-      "store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\e8d56bb9\\intelligence",
-      "real_project_store_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
+      "store_dir": "<user>AppData\\Local\\mscodebase\\projects\\e8d56bb9\\intelligence",
+      "real_project_store_dir": "<user>AppData\\Local\\mscodebase\\projects\\bfe9644b\\intelligence",
       "isolated": true
     }
   },

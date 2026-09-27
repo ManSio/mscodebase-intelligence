@@ -41,7 +41,7 @@ try:
 except ImportError:
     LOG_DIR = Path(os.environ.get(
         "LOG_DIR",
-        r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs"
+        r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence\.codebase_indices\logs"
     ))
     LOG_FILE = LOG_DIR / "mscodebase-intelligence.log"
 

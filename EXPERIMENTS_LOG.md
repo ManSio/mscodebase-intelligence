@@ -1,5 +1,111 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
 
+## [2026-09-27] — stale_after + discriminator for memory notes (CONFIRMED)
+
+**Гипотеза:** Memory notes can be automatically expired via `stale_after` date or `discriminator` command — deterministic, offline, no LLM calls. Tom Jones (dev.to hooks article) describes these two keys.
+**Команда:** `python -m pytest tests/test_stale_after.py -v`
+**Сырой вывод:**
+```
+17 passed in 2.87s
+- test_positive_future_stale_after_passing_discriminator PASSED
+- test_negative_past_stale_after PASSED
+- test_negative_failing_discriminator PASSED
+- test_none_no_stale_after_no_discriminator PASSED
+- test_stale_after_today_is_not_stale PASSED
+- test_invalid_stale_after_format_graceful PASSED
+- test_discriminator_timeout_returns_expired PASSED
+- test_stale_after_checked_before_discriminator PASSED
+- test_injectable_now_date PASSED
+- test_store_positive_control PASSED
+- test_store_negative_stale_after PASSED
+- test_store_negative_discriminator PASSED
+- test_store_none_backward_compat PASSED
+- test_store_not_found PASSED
+- test_store_mixed_notes PASSED
+- test_cli_check_staleness PASSED
+- test_cli_requires_note_id PASSED
+```
+**Вердикт:** CONFIRMED. All 4 controls pass. `stale_after` (ISO date) → STALE when past. `discriminator` (shell command) → EXPIRED on non-zero exit. No stale_after/discriminator → ACTIVE (backward compat). Deterministic, offline, no LLM.
+**Дизайн:** New statuses STALE/EXPIRED (visible, not hidden like REFUTED/SUPERSEDED). `stale_after` checked before `discriminator`. Invalid date format → graceful (treated as no stale_after). Discriminator timeout 5s → EXPIRED.
+**Артефакты:** `src/core/intelligence/staleness.py`, `src/core/intelligence/store.py` (check_staleness method), `src/cli.py` (CLI command), `tests/test_stale_after.py`, `experiments/stale_after/results.json`.
+** backward compat:** Existing notes without new fields → ACTIVE.
+
+## [2026-09-27] — redact.py: scrub personal paths with planted-key test (CONFIRMED)
+
+**Гипотеза:** A redact utility that scrubs drive-rooted paths and username from text output is alive (catches planted violations) and does not over-redact clean text.
+**Команда:** `python -m pytest tests/test_redact.py -v`
+**Сырой вывод:**
+```
+5 passed in 0.43s
+- test_drive_path_is_redacted PASSED
+- test_forward_slash_path_is_redacted PASSED
+- test_username_is_redacted PASSED
+- test_clean_text_unchanged PASSED
+- test_selftest_passes PASSED
+```
+**Вердикт:** CONFIRMED. Drive paths (backslash + forward slash) → `<project>`, username → `<user>`, clean text unchanged. Implements "redact.py at our delivery points + planted key test" promise.
+**Артефакты:** `scripts/redact.py`, `tests/test_redact.py`.
+
+## [2026-09-27] — Planted-break gate: guards are alive, not decoration (CONFIRMED)
+
+**Гипотеза:** Guards verified only at build time drift into decoration. A planted break (deliberative violation) must be caught by the guard on every run.
+**Команда:** `python -m pytest tests/test_planted_break_gate.py -v`
+**Сырой вывод:**
+```
+6 passed in 0.10s
+- test_core_no_mcp_imports_negative_control PASSED
+- test_core_no_mcp_imports_positive_control PASSED
+- test_tools_no_direct_registry_negative_control PASSED
+- test_tools_no_direct_registry_positive_control PASSED
+- test_stale_references_negative_control PASSED
+- test_stale_references_positive_control PASSED
+```
+**Вердикт:** CONFIRMED. 3 guards × 2 controls (pos/neg) all pass. Guards catch planted violations and stay clean on valid input. Implements "commit gate with planted break on EVERY run" promise.
+**Артефакты:** `tests/test_planted_break_gate.py`, `experiments/planted_break/results.json`.
+
+## [2026-09-27] — NodeRAG deterministic experiment: chunked vs graph traversal (REFUTED)
+
+**Гипотеза:** NodeRAG (graph traversal) outperforms chunked retrieval on long documents with rules buried inside (Tom Jones claim). Our corpus (AGENT_DIARY.md = 669 lines, EXPERIMENTS_LOG.md = 2666 lines) has exactly this shape.
+
+**Эксперимент:** 16 замороженных запросов (10 правил + 3 позитивных контроля + 3 NONE-контроля), 2 плеча: Arm A = TF-IDF chunked retrieval (top-10), Arm B = PropertyGraph BFS traversal (depth=3). Без LLM-вызовов, детерминированно.
+
+**Замороженные правила:** `experiments/noderag/frozen/rules.jsonl`, SHA256: `8657a7e3949b5a3eed8f025b8086dcf539cdafacd0cd335f28e607fcf0e44f9a`
+
+**Результат:**
+```
+Arm A (chunked TF-IDF): 8/10 = 80.0% hit rate, 301,981 tokens
+Arm B (graph BFS):      7/10 = 70.0% hit rate, 170,140 tokens
+Positive controls: 3/3 passed
+NONE controls: 3/3 clean
+Verdict: REFUTED (A >= B)
+```
+
+**Детали:**
+- Arm A промахнулся: R1 (begin_write), R2 (ArtifactGC) — TF-IDF не нашёл целевые файлы в топ-10
+- Arm B промахнулся: R1 (begin_write), R2 (ArtifactGC), R7 (LLAMA_EMBED_MAX_TOKENS) — символы не найдены в графе (не являются функциями/классами в AST-парсинге)
+- Arm B потребил на 43% меньше токенов (170K vs 302K)
+- Arm B при промахах возвращает 0 файлов (нет начального символа = нет обхода)
+
+**Вывод:** Для нашего корпуса chunked retrieval (TF-IDF) превосходит графовую навигацию по hit rate при большем расходе токенов. Графовая навигация эффективнее по токенам, но ограничена наличием начального символа в графе. Гипотеза Tom Jones о превосходстве NodeRAG на длинных документах с правилами внутри **опровергнута** для данного корпуса.
+
+**Артефакты:** `experiments/noderag/results/results.json`, `experiments/noderag/results/graph.db`, `experiments/noderag/frozen/rules.jsonl`
+
+## [2026-09-27] — Closure-walk: personal-path guard certifies the wrong set (CONFIRMED + FIXED)
+
+**Гипотеза:** `tests/test_no_personal_paths.py` зелёный, потому что его scope — только human-facing docs; пути и username остаются в tracked-файлах вне scope (experiments/scripts/tests/data). Guard, сертифицирующий неправильное множество, — «a true statement about the wrong set» (Tom Jones, hooks thread).
+**Команда:** `python experiments/closure_walk/closure_walk.py`
+**Сырой вывод (до фикса):**
+```
+integrity_clean=True failures=0
+in_scope_files=0 out_scope_files=98
+out_scope_violations=4699
+positive_hit=True none_clean=True
+```
+**Распределение:** experiments 4633, tests 29, docs 16, scripts 11, src 6, .local 4.
+**Вердикт:** CONFIRMED. 4699 утечек в 98 файлах вне scope; guard зелёный только потому, что не смотрит туда.
+**Фикс (ea715903):** 17 production-утечек нормализованы (src/: 6, scripts/: 11). `graph_tools.py:825` заменён на `self._resolve_target_path(None)`. Осталось 4633 в experiments/ (исторический контекст).
+**Контролы:** planted leak найден, repo-relative пути не флагнятся.
+
 ## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
 
 **Гипотеза:** `PropertyGraph.add_node/add_edge` открывают ОДНУ SQLite-транзакцию + named-mutex на каждый узел/ребро (`graph.py:526-544, 816-851`) → graph-сборка сериализована и I/O-bound; это root cause «CPU 5% + диск ~3 МБ/с» на фазе parsing.
@@ -2648,3 +2754,68 @@ CI до/после: test ubuntu **13m44s→1m58s**, windows **16m23s→3m11s**, 
 
 **Вердикт:** CONFIRMED. Внедрено: #45 (test job), #46 (clean-state), #47 (pre-commit `verify_diary` Gate-zero, с fallback на serial, если xdist нет).
 **Остаточный риск:** Exp 25 фиксировал «конфликт с llama» при локальном xdist; полный параллельный прогон локально прошёл `0 failed`, но флейки серверных тестов многократно не проверялись → watch.
+
+---
+
+## [2026-09-27] Exp v3 (Token Reduction): production-retriever arm — CONFIRMED (42.9% compression @ hit@10=70%); чисто-векторный прогон отозван как невалидный дубликат E10
+
+**Контекст.** Серия v1/v2/v3 измеряла сжатие токенов на реальных данных MSCodeBase. v1 (`5e7fd2da`) невалиден by design (TF-IDF по заранее известным target files), v2 (`5ab7265a`) exploratory. Первый прогон v3 (`run_experiment.py`) использовал `search_lancedb` — **прямой dense-поиск в LanceDB мимо штатного ретривера** — и дал 2/13 (0.154) hit.
+
+**Почему этот прогон невалиден (3 независимых дефекта harness, не дефекта продукта):**
+1. `run_experiment.py:68-98` — чистый вектор в обход `hybrid_search_async`. Замеренное 0.154 лежит внутри задокументированной полосы pure-vector (E10, EXPERIMENTS_LOG.md:2306-2332; потолок search-only ~0.23, EXPERIMENTS_LOG.md:1873). **Продукт не сломан — закрыта та же ветка, что и в E10.**
+2. `run_experiment.py:124` — `compressed_found = (tf in found_files)`, т.е. **тавтология** `baseline_found`. Evidence retention не измерялся вообще.
+3. `run_experiment.py:48-50` — `sentence_filter` резал по `[.!?]`; у кода таких границ ≤2 → `return text`, компрессор был **no-op** на реальных чанках.
+
+**Исправленный harness:** `run_experiment_hybrid.py` — штатный `searcher.search_with_mode(mode="quality", limit=10)` → `hybrid_search_async` (BM25 + dense + FTS5 + graph_stage → RRF → reranker, `engine.py:520`). Токены — настоящий BPE `llama.cpp /tokenize` (не regex-прокси). Компрессор построчный (держит пересекающиеся с запросом идентификаторы + структурные строки). Evidence retention измеряется отдельно от retrieval.
+
+**Команда:** `python experiments/token_reduction_v3_lancedb/run_experiment_hybrid.py` (live embed 8080 / rerank 8081, индекс 10463 строки, живой прогон, venv расширения).
+
+**Сырой результат:**
+```
+RULES (n=10):  hit@1=20.0%  hit@5=50.0%  hit@10=70.0%   tokens 12939 -> 7392   reduction=42.9%  evidence_retention=0.763 (n=7)
+POSITIVE (n=3):hit@1=33.3%  hit@5=33.3%  hit@10=33.3%   tokens  2357 -> 1308   reduction=44.5%  evidence_retention=0.833
+NONE (n=3):    hit@1= 0.0%  hit@5= 0.0%  hit@10= 0.0%    tokens  4609 -> 2507   reduction=45.6%
+latency mean 3225ms; redteam: RT_positive_missed P2, P3
+```
+
+**Вердикт: ✅ CONFIRMED (с оговоркой).** Сжатие ~43% токенов при hit@10=70% и сохранении 76% идентификаторов в найденных чанках. Ни одного разрушения доказательной нагрузки (`RT_evidence_destroyed` = 0), ни одного false-positive на NONE-контролях.
+
+**Сверка с закрытыми экспериментами (важно):**
+- Прод-ретривер даёт **hit@1=20% / hit@5=50%** — точно в задокументированной полосе E10 (quality 20%/40%, `:2320`) и E11 (baseline 20%/20%, `:2345`). **Плато подтверждено, дефекта нет.**
+- Прежние 0.154 → 0.70 hit@10: разница целиком в том, КАКОЙ тир измерялся. E10 это уже предсказал: pure-vector закрыт как бесполезный, следующий ход — AST/Graph-hybrid (E11, `:2336-2356`), он и стоит в проде (`engine.py:689-696`).
+- `graph_stage` в этом прогоне не сработал (0/16) — identifier-запросы ушли в lexical/RRF-ветку. **Это не баг:** ветка включается на `_symbolish`/`_IDENTIFIER_QUERY_RE` (`engine.py:574,689`), а у frozen-запросов формат multi-token дампа. Проверка graph-стадии — отдельная задача, не этот эксперимент.
+
+**Red Team:** P2/P3 (positive controls) не найдены → до отсева 2/3 контрольных кейсов теряют цель. Причина не в сжатии (оно не меняет retrieval), а в качестве lexical-тюнинга на конкретных формулировках. **Оговорка DoD:** полный ✅ не ставится — controls 2/3.
+
+**Урок (психологический, главный):** три гипотезы, которые я выдвигал как «баги индекса» (потеря 64% текста, обрезанный `text`, скорость >30 ч/с), были **уже измерены и закрыты** 19-20 сентября — E10a (полный текст в индекс, REFUTED), E12 (потолок embed по длине чанка, CONFIRMED, «156 ch/s» = синтетика), плюс фикс разделителей путей 2026-09-25 (19653 → 10103 rows, дубли 0), задокументированный в KNOWN_ISSUES. **Я измерил закрытую ветку и назвал это новым дефектом.** Три версии подряд (wrong model / trim leak / lossy index) — охотники за ведьмами, потому что Phase Zero и Research→Experiment→Decision были пропущены: гипотеза раньше чтения первоисточников.
+
+**Guard:** `run_experiment_hybrid.py` остаётся переиспользуемым инструментом; pure-vector путь в нём недостижим (единая точка входа — прод-ретривер). Серия записана в дневник/лог согласно §13.
+
+**Artifacts:** experiments/token_reduction_v3_lancedb/{run_experiment_hybrid.py, frozen/rules.jsonl (sha 31f1b0c9…), results/results_hybrid.json}; невалидный results.json помечен как invalid-duplicate-E10.
+
+## [2026-09-27] Reranker score scale mismatch (P2/P3) — PARTIAL
+
+**Гипотеза:** P2/P3 теряются на стадии reranker потому, что `MIN_RERANK_SCORE=0.3` (калиброван под шкалу [0,1]) применяется к сырым логитам llama.cpp (≈[-11,+11]).
+
+**Метод:** runtime-бисекция стадий (monkeypatch `apply_mmr_diversity` / `_dedupe_by_symbol` / `_boost_exact_name_matches` / `_apply_multi_reranker_async`), затем перехват `apply_scores` для полного распределения скоров на pre-rerank пуле. На этапе измерений `src/` не изменялся.
+
+**Сырой результат — потери 100% на reranker (MMR/boost/dedupe прозрачны):**
+```
+P2:        MMR 10→10 | reranker 10→3 | boost 3→3 | dedupe 3→3   цель в пул НЕ входит
+P3:        MMR 10→10 | reranker 10→2 | boost 2→2 | dedupe 2→2   цель поз.4 -> None
+R2:        MMR 10→10 | reranker 10→1 | boost 1→1 | dedupe 1→1   цель поз.6 -> None
+R2@limit=30:          30→30 | reranker 30→1
+```
+Сырые скоры: P3 `-6.88 +1.65 -8.25 -0.99 -9.38 -2.95 -8.99 -5.55 -8.08 +0.75`; R2 `-3.72 -9.02 -6.82 +1.96 -3.79 -2.60 -8.11 -4.29 -8.32 -0.20`. Диапазон отрезанных -9.38…-0.20 — нормализованный [0,1] так не умеет.
+
+**Источник:** llama.cpp PR #9510 (собственный пример ggerganov) — `relevance_score` = сырой логит (`5.97` / `-11.03`); Cohere-контракт `/v1/rerank` обещает нормализацию в [0,1]. Нарушение контракта подтверждено измерением.
+
+**Вердикт: PARTIAL.** «Нарушен контракт шкалы» — CONFIRMED (фильтр режет 70-97% выдачи). Исправлено: сигмоида `1/(1+e^-x)` в llama_cpp-ветке `multi_provider.py`, `MIN_RERANK_SCORE=0.3` сохранён (21 строка, один файл). **Но «порог = root cause P2/P3» — REFUTED:** после нормализации цель P3 = 0.27 < 0.3, цель R2 = 0.07 — кросс-энкодер оценивает правильный файл отрицательным логитом (P3 -0.99, R2 -2.60). Это дефект ранжирования/модели, а не только порога. P2/P3 НЕ закрыты.
+
+**Отрицательные результаты (не повторять):**
+1. **Подгонка порога sweep-ом по тем же 16 frozen-правилам = перебор на оценочной выборке.** 0.05/0.02 давали 7-8 hits против 5 на тех же правилах, которыми меряется результат. Отклонено владельцем; константа не менялась. Калибровать порог можно только на отдельном holdout.
+2. **Survivorship bias:** вызов `/v1/rerank` с пулом из уже отфильтрованного `hybrid_search_async` дал ложный вывод «фильтр режет 0». Порог меряется только на полном pre-rerank пуле.
+3. Латентный баг `apply_mmr_diversity` при смешанном `vector` (IndexError) реален, но в этом пайплайне не срабатывает — финальные chunks идут без `vector`.
+
+**Открыто:** P2 — целевой файл не входит в pre-rerank пул вовсе (проблема retrieval, не фильтра; top-хиты — собственные артефакты `experiments/**`). P3 — целевой chunk переживает reranker, но не проходит порог. Требуется отдельное решение владельца; подбирать порог по eval-набору нельзя.
+

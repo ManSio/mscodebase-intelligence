@@ -1,0 +1,5 @@
+`validate_scores` отбрасывает элементы с NaN/Inf — строка 70: `if not math.isfinite(score): continue`. Это отсутствие оценки, а не «больше 1»; иначе clamp молча превратил бы NaN в 1.0 (максимальный скор).
+
+
+> build · longcat-2.0
+

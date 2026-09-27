@@ -1,0 +1,179 @@
+### EXPERIMENTS_LOG.md
+// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md
+From EXPERIMENTS_LOG.md, section '## [2026-08-03] — Гипотеза: рефлексивное обучение (Reflexion/Self-Refine) применимо к операционной DIS-системе агента через дневники':
+## [2026-08-03] — Гипотеза: рефлексивное обучение (Reflexion/Self-Refine) применимо к операционной DIS-системе агента через дневники
+
+**Триггер §1.7 п.3:** задача «как сделать агента самообучающимся» (add.md) — сама формулировка есть триггер исследования.
+**Ожидание:** академические подходы к самообучению LLM-агентов (вербальная рефлексия, memory augmentation) ложатся на существующие артефакты проекта (AGENT_DIARY, EXPERIMENTS_LOG, KNOWN_ISSUES) без переобучения весов.
+**Команда:** fetch arXiv:2303.11366 (Reflexion), arXiv:2303.17651 (Self-Refine), arXiv:2309.02427 (CoALA).
+**Сырой результат:**
+```
+Reflexion (Shinn et al., 202
+...
+
+### docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md
+// Scope: section | markdown_section | archive.agents.md_before_48_and_audit_20260722_215808
+From docs\archive\AGENTS.md_before_48_and_audit_20260722_215808.md, section '### 2.1. Строгое разделение ответственности':
+### 2.1. Строгое разделение ответственности
+
+1. **Конфигурация:** все переменные, пути, ключи — строго в `.env`, читаются
+   через `config.py`. Никаких hardcoded values в коде.
+2. **Ядро (Core):** знает только ЧТО нужно сделать. Абстрактные интерфейсы.
+3. **Провайдеры (Providers/Adapters):** конкретная реализация. Смена
+   технологии = одна строка в конфиге.
+
+### experiments/embeddinggemma/bench.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.embeddinggemma.bench.py
+// File: experiments\embeddinggemma\bench.py | Context: Bench
+def embed(self, texts) -> np.ndarray:
+
+        """POST /v1/embeddings (raw, как прод). Возвращает матрицу [n, dim]."""
+
+        s = time.perf_counter()
+
+        r = self.client.post(self.url + "/v1/embeddings", json={"input": list(texts)})
+
+
+
+### experiments/bootstrap/a2_test_nodes.py
+// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.bootstrap.a2_test_nodes.py
+// File: experiments\bootstrap\a2_test_nodes.py
+# -*- coding: utf-8 -*-
+"""A2: есть ли тестовые узлы в живой БД, какие рёбра к ним, как назван Test."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+import sqlite3
+from src.core.artifact_paths import get_graph_db_path
+
+sys.stdout.reconfigure(encoding="utf-8")
+con = sqlite3.connect(get_graph_db_path(Path(".").resolve()))
+con.row_factory = sqlite3.Row
+
+print("labels count:")
+for r in con.execute("SELECT label, COUNT(*) c FROM nodes GROUP BY labe
+...
+
+### docs/blog/README.md
+// Scope: section | markdown_section | blog.readme
+From docs\blog\README.md, section '## Как читать серию':
+## Как читать серию
+
+- **Side Quest → 1 → 2 → 3**: от платформы к доверию к памяти агента.
+- Экспериментальная база всех частей — `EXPERIMENTS_LOG.md`; архитектурные решения — `docs/adr/`.
+- Часть 3 продолжается: Experiment 1-M (manifest-anchoring, закрыт) и 1-L (30-day longitudinal, дизайн) — см. `experiments/`.
+
+### src/core/search/trace.py
+// Scope: function | function_definition | core.search.trace
+// File: src\core\search\trace.py | Context: ChunkTrace
+def to_dict(self) -> Dict[str, Any]:
+
+        """Сериализует в dict (без None значений для краткости)."""
+
+        d = {}
+
+        for k, v in self.__dict__.items():
+
+
+
+### src/core/search/trace.py
+// Scope: function | function_definition | core.search.trace
+// File: src\core\search\trace.py | Context: SearchTracer
+def to_markdown(self, top_n: int = 5) -> str:
+
+        """Форматирует trace как Markdown (для показа агенту/пользователю)."""
+
+        if not self.enabled or not self._chunks:
+
+            return "_Tracing disabled or no results_"
+
+
+
+### src/mcp/tools/dev_tools.py
+// Scope: function_part | giant_function_part | mcp.tools.dev_tools
+// File: src\mcp\tools\dev_tools.py
+// [Part 1]
+def register_dev_tools(mcp_app) -> None:
+
+    """Регистрирует dev-инструменты в MCP-приложении.
+
+
+
+    Вызывается из server.py или server_factory.py.
+
+    """
+
+
+
+    @mcp_app.tool("generate_docs")
+
+    async def generate_docs(project_root: str) -> str:
+
+        """DEPRECATED — используй auto_update_docs.
+
+
+
+        Генерирует Markdown-документацию из PropertyGraph для любого проекта.
+
+        Сохраняет результат в файл docs/generated/MODULE_INDEX.md.
+
+
+
+        Args:
+
+            project_root: А
+...
+
+### src/mcp/server_tools.py
+// Scope: function_part | giant_function_part | mcp.server_tools
+// File: src\mcp\server_tools.py
+// [Part 4]
+# ─── 3. intel_explain_project_state ───────────
+
+    @mcp.tool("intel_explain_project_state")
+
+    async def intel_explain_project_state(project_root: str = "") -> str:
+
+        """Человекочитаемый диагноз состояния проекта.
+
+
+
+        Args:
+
+            project_root: путь к проекту (по умолчанию — текущий).
+
+
+
+        Returns:
+
+            Текстовый диагноз с состоянием каждого слоя.
+
+        """
+
+        from src.core.intelligence.project_context import ProjectContext
+
+        from src.core.p
+...
+
+### docs/en/investigations/LSP_WONTFIX.md
+// Scope: section | markdown_section | en.investigations.lsp_wontfix
+From docs\en\investigations\LSP_WONTFIX.md, section '### 3.2 Реальный блокер LSP — отсутствие адаптера в `LanguageRegistry`':
+### 3.2 Реальный блокер LSP — отсутствие адаптера в `LanguageRegistry`
+
+Из `crates/project/src/lsp_store.rs:start_language_server`:
+
+```rust
+let adapter = self.languages
+    .lsp_adapters(language_name)
+    .into_iter()
+    .find(|adapter| adapter.name() == disposition.server_name)
+    .expect("To find LSP adapter");
+```
+
+`lsp_adapters(name)` возвращает адаптеры только из двух источников:
+
+1. **Встроенные языки** — `crates/languages/src/*.rs` (Python, Rust, Go, …)
+   с их зашитыми LSP-адаптерами.
+2. **Загруженные расширения** — `extension.toml` + скомпилированный WA
+...

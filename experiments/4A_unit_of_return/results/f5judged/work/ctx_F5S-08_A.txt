@@ -1,0 +1,239 @@
+### src/core/intelligence/layer.py
+// Scope: function_part | giant_function_part | core.intelligence.layer
+// File: src\core\intelligence\layer.py | Context: ProjectIntelligenceLayer
+// [Part 1]
+def _get_process_ram(pid: int) -> int:
+
+        """RSS процесса в MB через Windows API (psapi.dll / kernel32).
+
+
+
+        Замена wmic (удалён в Win11 25H2 KB5067470).
+
+        Использует GetProcessMemoryInfo — тот же паттерн что в
+
+        resource_monitor.py::_get_rss_windows(), адаптированный для
+
+        внешних PID через OpenProcess.
+
+        """
+
+        if os.name != "nt":
+
+            return 0
+
+        try:
+
+            import ctypes
+
+            from ctypes import wintypes
+
+
+
+           
+...
+
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
+
+### src/core/bootstrap_entities.py
+// Scope: function | function_definition | core.bootstrap_entities
+// File: src\core\bootstrap_entities.py
+def _is_dataclass_decorator(node: ast.expr) -> bool:
+
+    """Декоратор — dataclass в формах Name (@dataclass), Call (@dataclass(k=...)),
+
+    Attribute (@dataclasses.dataclass / dataclasses.dataclass(k=...))."""
+
+    target = node.func if isinstance(node, ast.Call) else node
+
+
+
+### src/mcp/tools/meta_tools.py
+// Scope: function | function_definition | mcp.tools.meta_tools
+// File: src\mcp\tools\meta_tools.py | Context: IndexTool
+async def _action_health(self, **kw) -> dict:
+
+        from src.mcp.tools.indexing_tools import IndexHealthTool
+
+
+
+        tool = IndexHealthTool(self._services)
+
+
+
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
+### src/mcp/tools/meta_tools.py
+// Scope: function | function_definition | mcp.tools.meta_tools
+// File: src\mcp\tools\meta_tools.py | Context: SystemTool
+async def _action_counters(self, **kw) -> str:
+
+        """Runtime counters — делегирует в runtime_coordinator."""
+
+        from src.core.runtime_coordinator import get_counters
+
+
+
+
+
+### experiments/root_cause_eval/incident_dataset_full.json
+// Scope: fallback | incident_dataset_full.json
+ojectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `_register_intelligence_tools`\n- f-string без placeholder\n\n### ",
+
+    "root_cause": "** При декомпозиции server.py (Фаза 2, Шаг 1) импорт `_is_self_index_path` не был перенесён в `_register_inline_tools()`\n- **Fix:** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `_register_intelligence_tools`\n- f-string без placeholder\n\n### 5. Экономия\n\n- В tool_classes: 19→16 (без intel и diagnostic)\n- Видимых п",
+
+    "fix": "** `from src.mcp.tools.base import _is_self_index_path` в `debug_runtime_passport`\n\n### 4. Убраны предупреждения\n\n- `Optional` (unused) в server_tools.py\n- `ProjectRegistry` (unused) в graph_tools.py\n- `_is_self_index_path` (unused) в `_register_intelligence_tools`\n- f-string без placeholder\n\n##
+
+### src/core/intelligence/project_context.py
+// Scope: function | function_definition | core.intelligence.project_context
+// File: src\core\intelligence\project_context.py | Context: ProjectContext
+async def _capture_health(
+
+        self, snap: ProjectContextSnapshot
+
+    ) -> ProjectContextSnapshot:
+
+        try:
+
+
+
+### src/mcp/tools/codebase_tool.py
+// Scope: function | function_definition | mcp.tools.codebase_tool
+// File: src\mcp\tools\codebase_tool.py | Context: CodebaseTool
+async def _action_system(self, **kw) -> str:
+
+        """System operations — делегирует в SystemTool."""
+
+        from src.mcp.tools.meta_tools import SystemTool
+
+
+
+
+
+### src/core/action_receipt.py
+// Scope: function | function_definition | core.action_receipt
+// File: src\core\action_receipt.py | Context: ActionReceiptStore
+def query(self, limit: int = 20, action_type: str = "") -> List[Dict[str, Any]]:
+
+        """Последние N receipts (опционально по типу), новые в конце."""
+
+        entries = self._load_all()
+
+        if action_type:
+

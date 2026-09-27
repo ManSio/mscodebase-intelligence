@@ -1,0 +1,5 @@
+`asyncio.Lock` привязывается к event-loop первого `await` и дедлочит в cross-loop сценариях LSP+MCP, тогда как `threading.Lock` шарится между разными loop-ами. Связано с инцидентами **INC-53EC** и **REFC-03**.
+
+
+> build · longcat-2.0
+

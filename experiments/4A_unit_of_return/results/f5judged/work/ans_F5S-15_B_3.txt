@@ -1,0 +1,5 @@
+На Windows `ZED_WORKTREE_ROOT` всегда `<unset>` — это известный баг Zed (issue #36019), закрытый без исправления. В результате в `settings.json` для `context_servers` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` — любая попытка опираться на неё вернёт `None`. MSCodeBase обходит это цепочкой fallback'ов (SQLite DB, PROJECT_PATH из `.env`, CWD), не зависящих от этой переменной.
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,5 @@
+MCP-сервер определяет открытый проект через внутреннее состояние Zed — `multi_workspace_state.active_workspace_id`, которое явно указывает на активное окно, если пользователь его открыл. Также он наследует CWD от процесса Zed, поскольку на Windows `current_dir` в `settings.json` не резолвит `$ZED_WORKTREE_ROOT`, и CWD MCP-сервера равна CWD самого Zed.
+
+
+> build · longcat-2.0
+

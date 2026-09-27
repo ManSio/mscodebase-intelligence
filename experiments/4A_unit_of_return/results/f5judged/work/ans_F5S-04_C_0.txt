@@ -1,0 +1,5 @@
+Создаётся кратковременный lease-файл (`embedder.lease` в `tempfile/mscodebase_locks`), который обновляется на каждый тик прогресса переиндексации; idle-watchdog обязан НЕ убивать общий embedder, пока существует свежий lease (возраст < `max_age_s` секунд).
+
+
+> build · longcat-2.0
+

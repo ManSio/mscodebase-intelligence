@@ -1,0 +1,5 @@
+MCP-сервер определяет проект через CWD (current working directory), унаследованную от самого процесса Zed, и через `multi_workspace_state.active_workspace_id` — явный идентификатор активного окна Zed, в котором пользователь открыл проект.
+
+
+> build · longcat-2.0
+

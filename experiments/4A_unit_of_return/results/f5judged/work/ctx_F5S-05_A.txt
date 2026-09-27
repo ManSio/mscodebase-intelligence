@@ -1,0 +1,151 @@
+### src/core/reindex_ledger.py
+// Scope: function | function_definition | core.reindex_ledger
+// File: src\core\reindex_ledger.py
+def exception_fields(exc: BaseException) -> dict:
+    """Standard error+short-traceback fields for a ledger record."""
+    tb = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    return {"error": f"{type(exc).__name__}: {exc}", "traceback": tb[-4000:]}
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+rips": 4,
+
+          "agent_latency_ms": 6177.0,
+
+          "server_latency_ms": 6177.0,
+
+          "tokens": 246,
+
+          "full": "ℹ️ intel_trigger_reindex — not found\n📞 Called by: trigger_reindex (tools_reg.py:97), reset_index (tools_reg.py:227). async def trigger_async_reindex(self) -> str: Двухфазная операция: запускает асинхронную переиндексацию. Предотвращает конкурентные вызовы: если reindex уже запущен, возвращает существующий job_id. Возвращает job_id мгновенно, задача в фоне. Zed опрашивает статус через intel_get_job_status. Также: get_active_reindex_job_id() -> Optional[str]\n🧠 Project Memory: 55 ADR entries: feat: PID-lock + self-healing + auto-index guard (3-layer defense); feat: audit fixes B1-B12 + 10 test fixes + CI + verify_diary 14%->68%; feat: verify_diary 81%->89% + B10/B11 KNOWN_ISSUES + SymbolCache MCP tools; ... (выборка из intel_get_project_memory)\ne1efe82c WS1-WS7; a7a7a9e7 sort imports ruff I001; 8a07c23e docs+fix audit; f9ebd3a5 feat(artifacts): артефакт
+
+### experiments/context_engine/results_v2.json
+// Scope: fallback | results_v2.json
+k": "T5",
+
+      "klass": "find_test",
+
+      "symbol": "intel_trigger_reindex",
+
+      "arms": {
+
+        "A": {
+
+          "round_trips": 4,
+
+          "agent_latency_ms": 6177.0,
+
+          "server_latency_ms": 6177.0,
+
+          "tokens": 246,
+
+          "full": "ℹ️ intel_trigger_reindex — not found\n📞 Called by: trigger_reindex (tools_reg.py:97), reset_index (tools_reg.py:227). async def trigger_async_reindex(self) -> str: Двухфазная операция: запускает асинхронную переиндексацию. Предотвращает конкурентные вызовы: если reindex уже запущен, возвращает существующий job_id. Возвращает job_id мгновенно, задача в фоне. Zed опрашивает статус через intel_get_job_status. Также: get_active_reindex_job_id() -> Optional[str]\n🧠 Project Memory: 55 ADR entries: feat: PID-lock + self-healing + auto-index guard (3-layer defense); feat: audit fixes B1-B12 + 10 test fixes + CI + verify_diary 14%->68%; feat: verify_diary 81%->89% + B10/B11 KNOWN_ISSUES + SymbolCache MCP tools; ... (выборка из inte
+
+### src/core/search/engine.py
+// Scope: function | function_definition | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+def _reindex_fast_fail(self) -> bool:
+
+        """True, если идёт переиндексация — поиск обязан мгновенно вернуть пусто,
+
+        а не висеть на lock'ах БД/FTS5 (инцидент 2026-08-13: search_code таймаутил
+
+        во время full reindex; паттерн hybrid_search fast-fail / chunkhound guard)."""
+
+
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+       "precision": 0.824,
+
+          "wrong_rate": 0.0,
+
+          "dup_rate": 0.242,
+
+          "retrieved_facts": [
+
+            "F1",
+
+            "F2",
+
+            "F3",
+
+            "F4"
+
+          ]
+
+        }
+
+      }
+
+    },
+
+    {
+
+      "task": "T23",
+
+      "klass": "find_bug_cause",
+
+      "symbol": "get_active_reindex_job_id",
+
+      "arms": {
+
+        "A": {
+
+          "round_trips": 4,
+
+          "agent_latency_ms": 1405.0,
+
+          "server_latency_ms": 1405.0,
+
+          "tokens": 156,
+
+          "full": "🔍 get_active_reindex_job_id — 1 definitions, 0 usages. Definition: src/core/intelligence/layer.py строка 807 (function_definition)\nSymbol 'get_active_reindex_job_id' not found\ndef get_active_reindex_job_id(self) -> Optional[str]: \"\"\"Возвращает ID активного reindex job'а или None.\"\"\" if self._reindex_job_id: job = job_manager.get_job(self._reindex_job_id); if job and job.status == 'running': return self._reindex_job_id; return None\n379
+
+### src/core/reindex_ledger.py
+// Scope: function | function_definition | core.reindex_ledger
+// File: src\core\reindex_ledger.py
+def ledger_path() -> Optional[Path]:
+    """Resolve the ledger file. None if the artifact layer is unavailable."""
+    try:
+        from src.core.artifact_paths import get_logs_dir
+
+
+### src/core/interfaces/searcher.py
+// Scope: function | function_definition | core.interfaces.searcher
+// File: src\core\interfaces\searcher.py | Context: ISearcher
+def reindex(self) -> None:
+        """Сброс BM25 индекса."""
+        ...
+
+### src/core/log_manager.py
+// Scope: function | function_definition | core.log_manager
+// File: src\core\log_manager.py
+def _migrate_logs_from_ext(target_dir: Path) -> int:
+
+    """Переносит исторические логи из расширения (ext/.codebase_indices/logs) в data_root.
+
+
+
+    Best-effort: при ошибке/отсутствии старых файлов — молча. Перемещает
+
+
+
+### src/core/indexing/index_project_runner.py
+// Scope: function | function_definition | core.indexing.index_project_runner
+// File: src\core\indexing\index_project_runner.py | Context: IndexProjectRunner
+def _reset_table_if_not_found(self, error: Exception, context: str, attempt: int) -> bool:
+
+        """Проверяет, является ли ошибка 'Not found' (LanceDB race),
+
+        и если да — пытается восстановить таблицу через reset_connection.
+
+        Возвращает True, если восстановление выполнено и можно retry.
+
+
+
+### scripts/lock_guard.py
+// Scope: function | function_definition | lock_guard
+// File: scripts\lock_guard.py
+def purpose_short(data: Dict) -> str:
+
+    return str(data.get("purpose", ""))[:60] or "done"

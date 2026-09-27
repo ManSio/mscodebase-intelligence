@@ -1,0 +1,5 @@
+Quiet-break gate ведёт себя как **fail-open**: при отсутствии git (`_git_diff` возвращает `None`) или PropertyGraph (`pg is None` / БД не найдена) функция `run_quiet_break_gate` возвращает статус `"unavailable"` с пустым `findings`, **не блокируя коммит** — причина логируется (`logger.warning`), поскольку «инфраструктурный сбой не должен блокировать коммит» (quiet_break_gate.py:17-18, 232-236).
+
+
+> build · longcat-2.0
+

@@ -25,7 +25,7 @@ if sys.stdout.encoding != "utf-8":
     except Exception:
         pass
 
-EXT = Path(r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence")
+EXT = Path(r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence")
 PY = EXT / "venv" / "Scripts" / "python.exe"
 PROJECT = Path(r"D:\Project\MSCodeBase")
 

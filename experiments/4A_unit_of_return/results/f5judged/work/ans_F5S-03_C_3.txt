@@ -1,0 +1,5 @@
+Формат `'gitwildmatch'` считается устаревшим (deprecated) в библиотеке `pathspec`; переход на `'gitignore'` устранил 1740 deprecation warnings в тестах (`gitignore_parser.py:28`, `:53-54`).
+
+
+> build · longcat-2.0
+

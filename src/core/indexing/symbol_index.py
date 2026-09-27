@@ -717,7 +717,7 @@ class SymbolIndex:
         affected_modules = set()
         for f in affected_files:
             # BS-12 (аудит Bot_snow): брался ПЕРВЫЙ сегмент Windows-пути —
-            # «D:/Project/Bot_snow/bot.py» → «D:». Теперь идём с конца:
+            # «<project>/bot.py» → «D:». Теперь идём с конца:
             # ближайший к файлу каталог — самый специфичный модуль.
             parts = f.replace("\\", "/").split("/")
             for part in reversed(parts):

@@ -1,0 +1,5 @@
+Формат 'gitwildmatch' считается устаревшим (deprecated), поэтому парсер использует 'gitignore'. Это также устраняет 1740 предупрежде ний GitWildMatchPattern в тестах при индексации.
+
+
+> build · longcat-2.0
+

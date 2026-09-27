@@ -1,0 +1,5 @@
+Да, метрики по инструментам сохраняются между перезапусками сервера. В документе прямо указано: «Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup» — то есть при старте метрики читаются из ранее сохранённого JSON-файла `{ext_root}/telemetry/tool_metrics.json`, который пишется каждые 10 вызовов и по shutdown (строки 15–16, 20 контекста).
+
+
+> build · longcat-2.0
+
