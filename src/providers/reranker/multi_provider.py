@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any, Dict, List, Optional
 
@@ -84,8 +85,22 @@ def _truncate_rerank_pair(
 
 
 # Минимальный скор реранкера для фильтрации низкокачественных чанков
-# Chunk'и со скором ниже этого значения отсекаются из финальных результатов
+# Chunk'и со скором ниже этого значения отсекаются из финальных результатов.
+#
+# ВАЖНО: порог задан для шкалы [0,1]. llama.cpp /v1/rerank отдаёт СЫРЫЕ логиты
+# кросс-энкодера (диапазон ≈[-11,+11]), хотя endpoint позиционируется как
+# Cohere-совместимый, где контракт обещает нормализацию в [0,1]
+# (ggml-org/llama.cpp#9510 — собственный пример ggerganov: 5.97 и -11.03).
+# Без нормализации порог 0.3 отсекает 70-97% выдачи, в т.ч. целевые файлы.
 MIN_RERANK_SCORE = 0.3
+
+
+def _sigmoid(x: float) -> float:
+    """Логит -> вероятность [0,1], численно устойчиво для |x| > 700."""
+    if x >= 0.0:
+        return 1.0 / (1.0 + math.exp(-x))
+    e = math.exp(x)
+    return e / (1.0 + e)
 
 
 class MultiProviderReranker(IReranker):
@@ -631,6 +646,11 @@ class MultiProviderReranker(IReranker):
                 ]
                 scores = await self._llama_cpp_rerank(query, passages)
                 if scores:
+                    # llama.cpp отдаёт сырые логиты кросс-энкодера (≈[-11,+11]),
+                    # а не нормализованный [0,1] по Cohere-контракту. Без
+                    # приведения MIN_RERANK_SCORE отсекает 70-97% выдачи.
+                    # Сортировка не меняется: сигмоида монотонна.
+                    scores = [_sigmoid(s) for s in scores]
                     scored = [{"index": i, "score": s} for i, s in enumerate(scores)]
                     chunks = apply_scores(chunks, scored, top_n)
                     self.last_timing["reranker_ms"] = (_time.perf_counter() - t1) * 1000
@@ -664,11 +684,24 @@ class MultiProviderReranker(IReranker):
 
         self.last_timing["total_ms"] = (_time.perf_counter() - t_start) * 1000
 
-        # Фильтр низкорелевантных чанков (мусор — JSON локали, битые fallback)
+        # Фильтр низкорелевантных чанков (мусор — JSON локали, битые fallback).
+        # На этом месте chunks уже отсортированы по reranker_score desc
+        # (apply_scores) и обрезаны до top_n.
         _filtered = [
             c for c in chunks[:top_n]
             if c.get("reranker_score", 1.0) >= MIN_RERANK_SCORE
         ]
+        # Top-N recall floor (MAX_RERANKER_TOPN, default 0 = выключено):
+        # union прошедших порог с top-N по скору. Абсолютный порог хрупок на
+        # некалиброванных кросс-энкодерных скорах (P3: цель 0.271<0.3);
+        # floor гарантирует, что N лучших всегда доходят до выдачи.
+        _topn_keep = get_config().performance.reranker_topn_keep
+        if _topn_keep > 0 and len(_filtered) < min(_topn_keep, top_n):
+            _n = min(_topn_keep, top_n, len(chunks))
+            _keep_ids = {id(c) for c in _filtered} | {
+                id(c) for c in chunks[:_n]
+            }
+            _filtered = [c for c in chunks if id(c) in _keep_ids]
         if _filtered:
             return _filtered
         return chunks[:top_n]
