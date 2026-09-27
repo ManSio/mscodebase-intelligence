@@ -891,3 +891,169 @@ Moved 48 closed entries from KNOWN_ISSUES.md verbatim; open/unmarked entries sta
 - **Описание:** **Status:** Fixed (эксперимент подтверждён; сопровождение задачи closed)
 **Root Cause:** при росте базы 3,989 → 13,519 статей (3.4x), refresh own занял 10м38с на 13.5k статей/82.5k комментов (134 сете...
 - **Статус:** автоматически синхронизировано
+
+---
+
+## Archived 2026-09-27 (R1 size guard: experiment/4a-unit-of-return merge, closed-only batch)
+
+Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixed/resolved AND NOT open/unresolved); open/unmarked entries stay live. Mojibake duplicates removed in the same session (clean copies kept live or archived).
+
+## 2026-09-25 тАФ Reindex deadlock: `_bounded_link` ran `bulk_write` on a new thread while the caller held the write RLock (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** live job `090149f1` (stuck 52% "running", 0 CPU); `py-spy dump 6780` тЖТ ╨┐╨╛╤В╨╛╨║ `bounded-bulk_write` idle ╨╜╨░ `db_writer.py:336` (`with self._table_write_lock:`), ╨┐╨╛╤В╨╛╨║ `asyncio_1` ╨╢╨┤╤С╤В ╨╡╨│╨╛ ╨▓ `_bounded_link`; `reindex_ledger.jsonl` ╨╖╨░╨┐╨╕╤Б╨░╨╗ `RuntimeError: bulk_write exceeded 300s`.
+- **Root Cause:** `run()` ╨┤╨╡╤А╨╢╨╕╤В ╨│╨╗╨╛╨▒╨░╨╗╤М╨╜╤Л╨╣ RLock (`db_manager.begin_write()`) ╨▓╨╡╤Б╤М reindex ╨╜╨░ ╤Б╨▓╨╛╤С╨╝ ╨┐╨╛╤В╨╛╨║╨╡; `_bounded_link` (timeout-╤Д╨╕╨║╤Б 2026-09-25) ╨╖╨░╨┐╤Г╤Б╨║╨░╨╗ `bulk_write` ╨▓ ╨Э╨Ю╨Т╨Ю╨Ь daemon-╨┐╨╛╤В╨╛╨║╨╡, ╨░ `bulk_write` ╨▒╨╡╤А╤С╤В ╨в╨Ю╨в ╨Ц╨Х RLock тЖТ ╨┤╨╡╨┤╨╗╨╛╨║. ╨в╨╛╤В ╨╢╨╡ ╨║╨╗╨░╤Б╤Б ╨┤╨╗╤П `prune`/`verify` (`recreate_table_physical`).
+- **Fix:** `_bounded_link` ╨╛╨▒╨╛╤А╨░╤З╨╕╨▓╨░╨╡╤В bounded-╨▓╤Л╨╖╨╛╨▓ ╨▓ `_suspend_write_lock()` (╤Г╨╢╨╡ ╨┐╤А╨╕╨╝╨╡╨╜╤С╨╜╨╜╤Л╨╣ ╨┤╨╗╤П `_safe_ivf_index`) тАФ ╨╡╨┤╨╕╨╜╨░╤П ╤В╨╛╤З╨║╨░, ╨┐╨╛╨║╤А╤Л╨▓╨░╨╡╤В ╨▓╤Б╨╡ ╨╖╨▓╨╡╨╜╤М╤П.
+- **Fix (╨╕╤В╨╛╨│):** ╤А╨░╨╖╨┤╨╡╨╗╨╡╨╜╤Л ╨┤╨▓╨░ ╨╝╤М╤О╤В╨╡╨║╤Б╨░ тАФ `run()` ╨┤╨╡╤А╨╢╨╕╤В ╨╛╤В╨┤╨╡╨╗╤М╨╜╤Л╨╣ `begin_run()` (non-reentrant, ╨▓╨╖╨░╨╕╨╝╨╜╨╛╨╡ ╨╕╤Б╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨╖╨░╨┐╤Г╤Б╨║╨╛╨▓), ╨░ `_table_write_lock` ╨▒╨╡╤А╤С╤В╤Б╤П ╤В╨╛╨╗╤М╨║╨╛ ╨╜╨░ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╤О. `_bounded_link` ╨▒╨╛╨╗╤М╤И╨╡ ╨╜╨╡ ╨╛╤Б╨▓╨╛╨▒╨╛╨╢╨┤╨░╨╡╤В write-lock. ╨н╤В╨╛ ╨╖╨░╨║╤А╤Л╨╗╨╛ ╨╕ ╨┤╨╡╨┤╨╗╨╛╨║, ╨╕ ╨┐╨░╤А╨░╨╗╨╗╨╡╨╗╤М╨╜╤Л╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨░╤В╨╛╤А╤Л (auto-index + manual trigger) тАФ ╨╛╨╜╨╕ ╤В╨╡╨┐╨╡╤А╤М ╤Б╨╡╤А╨╕╨░╨╗╨╕╨╖╤Г╤О╤В╤Б╤П.
+- **Guard:** `tests/test_bounded_link_deadlock.py` (write-lock ╨╜╨░ ╨┤╤А╤Г╨│╨╛╨╝ ╨┐╨╛╤В╨╛╨║╨╡ ╨╜╨╡ ╨┤╨╡╨┤╨╗╨╛╤З╨╕╤В + ╤Б╤В╤А╤Г╨║╤В╤Г╤А╨╜╤Л╨╣ ╨║╨╛╨╜╤В╤А╨░╨║╤В), `tests/test_run_singleflight.py` (begin_run тЙа begin_write; ╨▓╤В╨╛╤А╨╛╨╣ run ╨▒╨╗╨╛╨║╨╕╤А╤Г╨╡╤В╤Б╤П).
+- **LIVE verified (2026-09-25):** full reindex job `c09c2e22` тЖТ **completed ╨╖╨░ 858.5╤Б** (ledger: parsingтЖТembeddingтЖТfinalizingтЖТcompleteтЖТend). ╨Ш╨╜╨┤╨╡╨║╤Б: **19653 тЖТ 10103**, path-duplication **668 тЖТ 0**, dup(file_path,chunk_index) **144 тЖТ 0**.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed + live-verified.
+
+## 2026-09-25 тАФ ╨а╨░╨╖╨┤╤Г╨▓╨░╨╜╨╕╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨░ ~├Ч2: full-reindex ╨┐╨╕╤Б╨░╨╗ `\`, incremental тАФ `/` (╨╛╨┤╨╕╨╜ ╤Д╨░╨╣╨╗ = ╨┤╨▓╨╡ ╤Б╤В╤А╨╛╨║╨╕) (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** ╤Б╨╜╨╕╨╝╨╛╨║ ╨╕╨╜╨┤╨╡╨║╤Б╨░ (`experiments/misc_probes/exp_index_dedup_probe.py`): `file_path` distinct raw=**1378** vs normalized=**710** (path-duplication **668**); ╨║╨╛╨┤: `index_project_runner._parse_worker` (`str(relative_to)` тЖТ `\`), `freshness.py:96` (`.replace(os.sep,"/")`), `db_writer` id=`md5(rel_path)_i`, `indexer._parse_file_only` (`known_hashes.get(rel_path_str)`).
+- **Root Cause:** ╨┐╨╛╨╗╨╜╤Л╨╣ reindex ╨┐╨╕╤Б╨░╨╗ ╨┐╤Г╤В╨╕ ╤Б `\`, hot-reload/freshness тАФ ╤Б `/`. `known_hashes` ╨╕ id ╤Б╤В╤А╨╛╨║╨╕ ╤Б╤В╤А╨╛╤П╤В╤Б╤П ╨┐╨╛ **╨▒╤Г╨║╨▓╨░╨╗╤М╨╜╨╛╨╝╤Г** `file_path` тЖТ ╤Д╨╛╤А╨╝╤Л ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨┤╨░╨╗╨╕ тЖТ incremental **╨┐╨╡╤А╨╡-╨┤╨╛╨▒╨░╨▓╨╗╤П╨╗** ╤Г╨╢╨╡ ╨┐╤А╨╛╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╨╛╨▓╨░╨╜╨╜╤Л╨╡ ╤Д╨░╨╣╨╗╤Л ╨║╨░╨╢╨┤╤Л╨╣ ╨┐╤А╨╛╨│╨╛╨╜ тЖТ ╤А╨╛╤Б╤В ~├Ч2. ╨Ш╨╖╨╝╨╡╤А╨╡╨╜╨╛: `9991 тЖТ 19653` ╤З╨░╨╜╨║╨╛╨▓.
+- **╨Т╤В╨╛╤А╨░╤П ╨┐╤А╨╕╤З╨╕╨╜╨░:** data-JSON тАФ **5272 ╤З╨░╨╜╨║╨░ (27%)**, ╨║╤А╤Г╨┐╨╜╤Л╨╡ `results_*.json` (╨┤╨╛ 1002 ╤З╨░╨╜╨║╨╛╨▓ ╨╜╨░ ╤Д╨░╨╣╨╗).
+- **Fix:** ╨║╨░╨╜╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╣ POSIX ╤З╨╡╤А╨╡╨╖ `src/core/relpath.py::normalize_rel_path`, ╨┐╤А╨╕╨╝╨╡╨╜╤С╨╜ ╨▓ `indexer._parse_file_only` (choke: rel + ╨╕╨╖╨▓╨╡╤Б╤В╨╜╤Л╨╡ ╤Е╤Н╤И╨╕), `db_writer.write_records`/`prepare_records`, `index_project_runner` (known_hashes load), `indexing_tools.notify_change`. **T3-╤Б╨▓╨╕╨┐ (╨╛╨▒╨╛╨▒╤Й╨╡╨╜╨╕╨╡) ╨╜╨░╤И╤С╨╗ ╨╡╤Й╤С 2 ╨║╤А╨╕╤В╨╕╤З╨╜╤Л╤Е ╨╕╨╜╨┤╨╡╨║╤Б-╨┐╨╕╤В╨░╤О╤Й╨╕╤Е ╨╝╨╡╤Б╤В╨░:** `indexer.index_file` (`:837`) ╨╕ `index_project_runner._parse_worker` тЖТ `current_files_on_disk` (╨▓╤Е╨╛╨┤ prune) тАФ ╨▒╨╡╨╖ ╨╜╨╛╤А╨╝╨░╨╗╨╕╨╖╨░╤Ж╨╕╨╕ prune-╨╝╨╜╨╛╨╢╨╡╤Б╤В╨▓╨╛ (`\`) ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨╗╨╛ ╨▒╤Л ╤Б ╨С╨Ф (`/`) (╤Б╨┐╨░╤Б╨░╨╗ safety-guard >50%); ╨╜╨╛╤А╨╝╨░╨╗╨╕╨╖╨╛╨▓╨░╨╜╤Л. ╨Я╤А╨╛╤З╨╕╨╡ `str(relative_to)` тАФ doc/display (╨╜╨╡ ╨╕╨╜╨┤╨╡╨║╤Б), ╨║ ╤А╨╡╨▓╨╕╨╖╨╕╨╕ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨╛.
+- **Guard:** `tests/test_relpath.py` (5); resume-╤В╨╡╤Б╤В ╨╛╨▒╨╜╨╛╨▓╨╗╤С╨╜ ╨┐╨╛╨┤ ╨║╨░╨╜╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨┐╤Г╤В╤М; 27 passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed + **live-verified collapse**: full reindex тЖТ 19653 тЖТ **10103** rows, path-duplication **668 тЖТ 0**, dup(file_path,chunk_index) **144 тЖТ 0**. ╨Ш╤Б╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ data-JSON (5272 ╤З╨░╨╜╨║╨░) тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨╛.
+
+## 2026-09-25 тАФ graph.db lock ╨╖╨░╨▓╨░╨╗╨╕╨▓╨░╨╗ reindex: named mutex ╨▓╨╗╨░╨┤╨╡╨╡╤В╤Б╤П ╨Я╨Ю╨в╨Ю╨Ъ╨Ю╨Ь, ╨▓╨╜╤Г╤В╤А╨╕╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╜╨╛╨│╨╛ lock ╨╜╨╡ ╨▒╤Л╨╗╨╛ (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** reindex `cb8305f7` failed ┬лCould not acquire cross-process lock for graph.db within 30000ms┬╗; `src/core/graph.py:46-128`; `experiments/misc_probes/exp_graph_mutex_cross_thread.py`; `tests/test_graph_lock_threadsafe.py`
+- **Root Cause:** `_cross_process_lock` ╨╕╤Б╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╨╗ **╤В╨╛╨╗╤М╨║╨╛** Windows named mutex. Named mutex ╨┐╤А╨╕╨╜╨░╨┤╨╗╨╡╨╢╨╕╤В **╨┐╨╛╤В╨╛╨║╤Г-╨▓╨╗╨░╨┤╨╡╨╗╤М╤Ж╤Г** ╨╕ ╨╜╨╡ ╤А╨╡╨╡╨╜╤В╨╡╤А╨░╨▒╨╡╨╗╨╡╨╜ ╨╝╨╡╨╢╨┤╤Г ╨┐╨╛╤В╨╛╨║╨░╨╝╨╕ тЖТ ╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╤В╨╛╨│╨╛ ╨╢╨╡ MCP-╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░ (╤А╨╡╨╕╨╜╨┤╨╡╨║╤Б-finalize vs ╨╢╨╕╨▓╨░╤П graph-╨╛╨┐╨╡╤А╨░╤Ж╨╕╤П) ╨╜╨╡ ╨┐╨╛╨╗╤Г╤З╨░╨╡╤В ╨╝╤Г╤В╨╡╨║╤Б ╨╕ ╨┐╨░╨┤╨░╨╡╤В ╤А╨╛╨▓╨╜╨╛ ╨┐╨╛ ╤В╨░╨╣╨╝╨░╤Г╤В╤Г. ╨н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В: ╨┐╤А╨╕ ╤Г╨┤╨╡╤А╨╢╨░╨╜╨╕╨╕ 3╤Б ╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╨╛╤В╨║╨░╨╖╨░╨╗ ╨╜╨░ **0.80╤Б** (=╨╡╨│╨╛ ╤В╨░╨╣╨╝╨░╤Г╤В). ╨Ч╨╜╨░╤З╨╕╤В ╨╗╤О╨▒╨░╤П graph-╨╛╨┐╨╡╤А╨░╤Ж╨╕╤П >30╤Б ╨╖╨░╨▓╨░╨╗╨╕╨▓╨░╨╗╨░ ╤А╨╡╨╕╨╜╨┤╨╡╨║╤Б.
+- **Fix:** ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨▓╨╜╤Г╤В╤А╨╕╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╜╤Л╨╣ `threading.RLock` ╨╜╨░ `db_path` (`_local_graph_lock`) **╨Я╨Х╨а╨Х╨Ф** named mutex тЖТ ╨┐╨╛╤В╨╛╨║╨╕ ╤Б╨╡╤А╨╕╨░╨╗╨╕╨╖╤Г╤О╤В╤Б╤П (╨╢╨┤╤Г╤В, ╨╜╨╡ ╨┐╨░╨┤╨░╤О╤В); ╨╝╤Г╤В╨╡╨║╤Б ╤В╨╡╨┐╨╡╤А╤М ╨░╤А╨▒╨╕╤В╤А╨╕╤А╤Г╨╡╤В ╤В╨╛╨╗╤М╨║╨╛ ╨╝╨╡╨╢╨┤╤Г ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░╨╝╨╕.
+- **Guard:** `tests/test_graph_lock_threadsafe.py` (╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╨╢╨┤╤С╤В ╨╕ acquires ╨┐╨╛╤Б╨╗╨╡ release, `A-out` < `B-in`); 121 graph-related passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (live-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ ╤В╤А╨╡╨▒╤Г╨╡╤В reload MCP тАФ ╨┐╤А╨╛╤Ж╨╡╤Б╤Б ╨╜╨╡╤Б╤С╤В ╤Б╤В╨░╤А╤Л╨╣ `graph.py`).
+
+## 2026-09-25 тАФ Chain-map: 8 ╨╜╨╡╨╖╨░╤Й╨╕╤Й╤С╨╜╨╜╤Л╤Е ╨╜╨░╤В╨╕╨▓╨╜╤Л╤Е ╨╖╨▓╨╡╨╜╤М╨╡╨▓ ╨╕╨╜╨┤╨╡╨║╤Б╨░╤В╨╛╤А╨░ ╨╖╨░╨║╤А╤Л╤В╤Л `run_bounded` (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** `docs/research/indexer_chain_map_2026-09-25.md`, `tests/test_reindex_link_bounds.py`
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╨║╨░╤А╤В╨░ ╤Ж╨╡╨┐╨╛╤З╨║╨╕ `run()` (╤В╤А╨╕╨│╨│╨╡╤АтЖТ╨║╨╛╨╜╨╡╤Ж) ╨╜╨░╤И╨╗╨░ **8 ╨╖╨▓╨╡╨╜╤М╨╡╨▓ ╤В╨╛╨│╨╛ ╨╢╨╡ ╨║╨╗╨░╤Б╤Б╨░**, ╤З╤В╨╛ `_safe_optimize`: `_verify_and_repair_table_integrity`, known_hashes `to_lance()`, `embed_batch`, `bulk_write`, prune, BM25 `searcher.reindex`, `summarizer.save_cache`, `save_symbol_index`. ╨Ы╤О╨▒╨╛╨╡ ╨╖╨░╨▓╨╕╤Б╨░╨╜╨╕╨╡ ╨╜╨░╤В╨╕╨▓╨╜╨╛╨│╨╛ ╨▓╤Л╨╖╨╛╨▓╨░ = ╨▓╨╡╤З╨╜╨░╤П ╤Д╨░╨╖╨░ (0 CPU, ╨▒╨╡╨╖ ╤Б╨╕╨│╨╜╨░╨╗╨░).
+- **Fix:** `_bounded_link(fn, label, fatal=)` (╨╛╨▒╤С╤А╤В╨║╨░ ╨╜╨░╨┤ `run_bounded`, ╤В╨░╨╣╨╝╨░╤Г╤В `MSCODEBASE_LINK_TIMEOUT_SEC`, default 300): non-fatal (verify/known_hashes/prune/BM25/summarizer/symbol) тЖТ skip+log; **fatal** (`embed_batch`/`bulk_write`) тЖТ `RuntimeError` (resume-safe: ╨╕╨╜╨║╤А╨╡╨╝╨╡╨╜╤В╨░╨╗╤М╨╜╤Л╨╡ ╤З╨╡╨║╨┐╨╛╨╣╨╜╤В╤Л). ╨Ю╨▒╤С╤А╨╜╤Г╤В╤Л ╨▓╤Б╨╡ 8.
+- **Guard:** `tests/test_reindex_link_bounds.py` (4: value/╨┐╤А╨╛╨┐╤Г╤Б╨║/fatal-raise/propagate) + 18 ╤Б╨▓╤П╨╖╨░╨╜╨╜╤Л╤Е + 78 indexer/search passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed.
+
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
+
+- **Источник:** AGENT_DIARY.md 2026-09-11 + EXPERIMENTS_LOG 1-B/1-C/RT
+- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-7232a6e2ba34 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (e661861f = D+R083 в одном коммите).
+- **Статус:** 🔬 открыт — решение не принято (вопрос владельцу: body-hash carry против стоимости)
+
+## 2026-09-06 — [P-001 рецидив] cmd-окна при запуске/открытии проекта: powershell/nvidia-smi БЕЗ CREATE_NO_WINDOW (fixed)
+
+- **Источник:** AGENT_DIARY.md#2026-09-06-2200
+- **Описание:** Повтор P-001 (фикс 2026-08-14 пропустил сайты): `resource_monitor.py:303` (powershell Get-CimInstance RAM) и `:503` (nvidia-smi) БЕЗ creationflags; `llama_runner.py:1338/1366/1394` (powershell Get-NetTCPConnection/Get-CimInstance/taskkill в kill_process_on_port) БЕЗ флага. Дочерние консольные процессы (git/netstat) защищены, а powershell/nvidia-smi из фоновых сервисов — открывали видимое окно cmd при каждом открытии/запуске проекта (pythonw не подавляет создание консоли).
+- **Fix:** CREATE_NO_WINDOW добавлен во все 5 сайтов (3 файла: resource_monitor.py ×2, llama_runner.py ×3). Guard: `tests/test_subprocess_windows.py` — из placeholder'ов превращён в реальный статический тест (grep по всем src/**/*.py за консоль-спавнами powershell/wsl/wmic/netstat/taskkill/nvidia-smi без флага → fail) + тест daemon-потоки без capture_output. Прогон: 2 passed.
+- **Статус:** ✅ Fixed
+
+## 2026-09-19 тАФ ╨Я╤А╨╛╨┤-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В: ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨║╨╛╨╗╨╛╨╜╨╛╨║ lanceDB ╨╝╨╛╨╗╤З╨░ ╨╜╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╗╨░╤Б╤М + db_writer ╤А╨░╨╖╤А╤Г╤И╨░╨╗ ╨С╨Ф ╨┐╤А╨╕ schema-mismatch (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-19
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╨┤╨▓╨░ ╨▒╨░╨│╨░, ╨╜╨░╨╣╨┤╨╡╨╜╨╜╤Л╨╡ ╨┐╤А╨╕ E10-╨╕╤Б╤Б╨╗╨╡╨┤╨╛╨▓╨░╨╜╨╕╨╕ ╨┐╨╛╨╕╤Б╨║╨░ (╨╕╨╜╨┤╨╡╨║╤Б ╤Б╤В╤А╨╛╨╕╨╗╤Б╤П ╨╜╨░ ╤Б╨▓╨╡╨╢╨╡╨╣ ╨С╨Ф, ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨╝╨╛╨╗╤З╨░ ╨╜╨╡ ╤Б╤А╨░╨▒╨░╤В╤Л╨▓╨░╨╗╨░):
+  1. ╨б╤В╨░╤А╤Л╨╣ `db_manager` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╨╗ `_migrate_text_full_inplace` / `_migrate_add_metadata_columns` ╨╕╨╖ `indexer_table.py` ╨║╨░╨║ module-level ╤Д╤Г╨╜╨║╤Ж╨╕╨╕, ╨░ ╤Н╤В╨╛ ╨╝╨╡╤В╨╛╨┤╤Л ╨║╨╗╨░╤Б╤Б╨░ `IndexerTableMixin` (indexer_table.py:17,66,94) тЖТ ImportError тЖТ ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨Э╨Х ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╗╨░╤Б╤М.
+  2. `db_writer.is_table_missing` ╤В╤А╨░╨║╤В╨╛╨▓╨░╨╗ `"in table schema"` (schema-mismatch) ╨║╨░╨║ ┬л╤В╨░╨▒╨╗╨╕╤Ж╨░ ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В┬╗ тЖТ ╨Я╨Ю╨Ы╨Э╨л╨Щ rebuild (drop + re-embed ~13 ╨╝╨╕╨╜) ╨▓╨╝╨╡╤Б╤В╨╛ soft-╨╝╨╕╨│╤А╨░╤Ж╨╕╨╕.
+- **Fix:** `db_manager` тАФ ╨╗╨╛╨║╨░╨╗╤М╨╜╤Л╨╡ `_migrate_text_full_inplace(table)` / `_migrate_add_metadata_columns(existing_fields, table)` ╤Б `pa.field(name, field.type)` ╨╕╨╖ `self.schema`; `db_writer` тАФ `is_table_missing` ╨╕╤Б╨║╨╗╤О╤З╨░╨╡╤В `"in table schema"` (recreate ╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╕ ╤А╨╡╨░╨╗╤М╨╜╨╛╨╝ ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╨╕╨╕ ╤В╨░╨▒╨╗╨╕╤Ж╤Л). +200 ╤Б╤В╤А╨╛╨║ ╤В╨╡╤Б╤В╨╛╨▓ (`tests/test_lancedb_recreate.py`): ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П legacyтЖТfile_mtime_ns/file_size, ╨╕╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛╤Б╤В╤М, ┬л╨Э╨Х ╨┐╨╡╤А╨╡╤Б╨╛╨╖╨┤╨░╨▓╨░╤В╤М ╨┐╤А╨╕ schema-mismatch┬╗.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (╨┐╨╛╨┤╨│╨╛╤В╨╛╨▓╨╗╨╡╨╜ ╨║ PR ╨▓ ╤Н╤В╨╛╨╝ ╨║╨╛╨╝╨╝╨╕╤В╨╡). ╨в╨╡╤Б╤В╤Л: test_lancedb_recreate 12 passed, ╤Д╨╛╨║╤Г╤Б-╨│╤А╤Г╨┐╨┐╨░ 43 passed.
+
+## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** повтор инцидента 2026-08-14 (P-001, «чёрные окна CMD»). Фикс 2026-08-14 добавил CREATE_NO_WINDOW для git/netstat/wmic/taskkill в runtime, но ПОЗВОЛИЛ дыру: `resou...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 20:51 тАФ drift_gate ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╗ ╨║╨╛╨╝╨╝╨╕╤В: ╨║╨╛╨╜╤В╤А╨╛╨╗╤М ╨╛╤Б╤В╨░╨╜╨╛╨▓╨╕╨╗ ╤Б╨░╨╝╨╛╨│╨╛ ╨░╨▓╤В╨╛╤А╨░
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** ? Fixed (╨║╨╛╨╝╨╝╨╕╤В A 08281f37 ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П; B тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨░╤П ╨╜╨╡╨╖╨░╨║╨╛╨╝╨╝╨╕╤З╨╡╨╜╨╜╨░╤П ╨║╨▓╨╕╤В╨░╨╜╤Ж╨╕╤П)
+**Root Cause:** ╨┐╤А╨╡╨┤╤Б╤Г╤Й╨╡╤Б╤В╨▓╤Г╤О╤Й╨╕╨╣ BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) ╨Э╨Х ╨▓ PATH ╨┐╤А╨╛╤Ж╨╡...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-02 21:40 тАФ COMMIT B (head-freshness) ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П: cb88c961; + cp1251 encoding-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В B cb88c961; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╤А╨░╨▒╨╛╤З╨╡╨╡ ╨┤╨╡╤А╨╡╨▓╨╛ ╤З╨╕╤Б╤В╨╛╨╡)
+**Root Cause 1 (B):** ╨┐╨╛╤Б╨╗╨╡ A (fail-closed symbol, ╨╜╨╕╨║╨╛╨│╨┤╨░ REFUTED) ╤Б╨▓╨╡╨╢╨╡╤Б╤В╤М ╨╕╨╜╨┤╨╡╨║╤Б╨░ ╨╜╨╡ ╨┐╤А╨╛╨▓╨╡╤А╤П╨╗╨░╤Б╤М тАФ ╨╛╤В╤Б╤Г╤В╤Б...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-03 тАФ Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В 32f11662; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╨┐╨╛╨╗╨╜╤Л╨╣ pytest 1587 passed, 2 pre-existing env_extractor fail)
+**Root Cause 1:** `_enrich_job_response` тАФ ╨╝╤С╤А╤В╨▓╨░╤П ╨▓╨╡╤В╨║╨░ ╨╕╤Б╤В╨╛╤А╨╕╨╕ (job.project_size ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨┐╤А╨╕╤Б╨▓╨░╨╕╨▓╨░╨╡╤В╤Б╤П) + ╤Б╨╗╨╛╨╝╨░╨╜╨╜╨░╤П ╨╗╨╕╨╜╨╡╨╣╨╜╨░╤П ╤Н╨║╤Б╤В╤А╨░╨┐╨╛╨╗╤П╤Ж╨╕╤П ╨┐╨╡╤А╨▓╤Л╤Е 2╤Б тЖТ ╨╗╨╛╨╢╨╜╤Л╨╣ ETA ┬л~8╤Б┬╗. **Fix 1:** ╨╡╨┤╨╕╨╜╤Л╨╣ ╨┐╨░╤А╤Б╨╡╤А `_embed_progress_from_log` + ╤А╨╡╨░╨╗╤М╨╜╨░╤П ╤Б╨║╨╛╤А╨╛╤Б╤В╤М ╨╕╨╖ ╨╗╨╛╨│╨░ (remaining/speed), ╤З╨╡╤Б╤В╨╜╤Л╨╣ None ╨▒╨╡╨╖ ╨┤╨░╨╜╨╜╤Л╤Е.
+**Root Cause 2:** `_safe_ivf_index` ╨▒╨╡╨╖ ╨╡╨┤╨╕╨╜╨╛╨│╨╛ progress-╨║╨╛╨╗╨▒╤Н╨║╨░ тЖТ ╨▒╨░╤А ╨╖╨░╤Б╤В╤Л╨▓╨░╨╗ ╨╜╨░ 0.8, ╤З╨░╨╜╨║╨╕ ╨╜╨╡ ╤А╨╛╤Б╨╗╨╕. **Fix 2:** emission ┬лfinalizing┬╗ ╨║╨╛╨╗╨▒╤Н╨║╨░ ╨┤╨╛/╨┐╨╛╤Б╨╗╨╡ IVF, ╨╛╤В╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡ 0.8тЖТ0.95, ╤З╨╡╤Б╤В╨╜╨░╤П ╤Б╤В╤А╨╛╨║╨░ ╨▓ get_job_status.
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-03 19:30 тАФ CI RED: circular import layer тЖФ tools_reg (fixed f210ed7c)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-03-1930
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** My ETA refactor added `tools_reg тЖТ layer` import for `_embed_progress_from_log`, closing existing `layer тЖТ tools_reg` cycle. `architecture_linter.py` caught it as `[CIRCULAR]`. Fix: extracted parser into neutral `src/core/intelligence/embed_progress.py`. CI run 33796959353 all-jobs green (ubuntu+windows).
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-04 тАФ CI RED: ruff lint errors caught only after push (fixed 986c9be7)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** INC-A35A, CI runs 33847347263/33847972948
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (5a771789, b121ab19, 3dd79ba2).
+- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by bb05d9af that caused SyntaxError in generated hook.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-04 тАФ PRE-EXISTING: hook template SyntaxError (bb05d9af)
+
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled тАФ was installed via MCP after commits pushed, so never caught.
+- **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-05 тАФ stale_detector + predict_change ╤Б╤В╨░╨▒╨╕╨╗╤М╨╜╨╛ -32001 ╤З╨╡╤А╨╡╨╖ MCP (fixed code only)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-05-1230
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `error_boundary` ╨┐╤А╨╕╨╝╨╡╨╜╤П╨╡╤В `asyncio.wait_for(timeout_ms)`, ╨╜╨╛ ╨▓╨╜╤Г╤В╤А╨╕ `execute` ╨▓╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╜╤Л╨╣ ╨▒╨╗╨╛╨║╨╕╤А╤Г╤О╤Й╨╕╨╣ ╨║╨╛╨┤ (`stale_run` 10-29s, `static_predict` git-subprocess). ╨Э╨░ Windows wait_for ╨Э╨Х ╨╝╨╛╨╢╨╡╤В ╨╛╤В╨╝╨╡╨╜╨╕╤В╤М ╤А╨░╨▒╨╛╤В╨░╤О╤Й╨╕╨╣ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╜╤Л╨╣ ╨▒╨╗╨╛╨║ тЖТ event loop ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╜, ╨║╨╗╨╕╨╡╨╜╤В ╨╛╤В╨▓╨░╨╗╨╕╨▓╨░╨╡╤В╤Б╤П ╨┐╨╛ -32001 ╨┤╨╛ ╨╛╤В╨▓╨╡╤В╨░. ╨н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В: wait_for(10s) ╨▓╨╛╨║╤А╤Г╨│ sync stale_run ╨Э╨Х ╨┐╤А╨╡╤А╨▓╨░╨╗ (24.7s); `asyncio.to_thread` + wait_for(5s) тЖТ ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ ╤В╨░╨╣╨╝╨░╤Г╤В, loop ╨╢╨╕╨▓.
+- **Fix:** ╨╛╨▒╨░ ╨╕╨╜╤Б╤В╤А╤Г╨╝╨╡╨╜╤В╨░ ╨╛╨▒╤С╤А╨╜╤Г╤В╤Л ╨▓ `asyncio.to_thread` (doc_tools._scan_docs, predict_tools.static_predict/ChangePreview.run); ╤В╨░╨╣╨╝╨░╤Г╤В╤Л 10sтЖТ60s (stale), 60sтЖТ120s (predict). ╨Я╤А╤П╨╝╤Л╨╡ ╨▓╤Л╨╖╨╛╨▓╤Л: stale OK 13.0s, predict OK 1.4s; 62 ╤В╨╡╤Б╤В╨░ passed.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (code only, MCP reload ╤В╤А╨╡╨▒╤Г╨╡╤В╤Б╤П)
+
+## 2026-09-06 тАФ lock_guard acquire/release ╨┐╨░╨┤╨░╨╗ ThreadExpired: ╤В╨░╨╣╨╝╨░╤Г╤В 60s < pre-commit hook 5-10min (fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-06-2100
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `scripts/lock_guard.py` (`_run`) ╨╕╤Б╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╨╗ `timeout=60s` ╨┤╨╗╤П `git commit`, ╨╜╨╛ ╨╗╤О╨▒╨╛╨╣ commit ╨┐╤А╨╛╨│╨╛╨╜╤П╨╡╤В pre-commit hook (verify_diary тЖТ ╨┐╨╛╨╗╨╜╤Л╨╣ pytest), ╨╖╨░╨╜╨╕╨╝╨░╤О╤Й╨╕╨╣ 5-10 ╨╝╨╕╨╜ ╨╜╨░ Windows. 60s ╨┤╨░╨▓╨░╨╗ TimeoutExpired ╨┤╨░╨╢╨╡ ╨║╨╛╨│╨┤╨░ ╨║╨╛╨╝╨╝╨╕╤В ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╤Б╨╛╨╖╨┤╨░╨▓╨░╨╗╤Б╤П ╨▓ ╤Д╨╛╨╜╨╡ тЖТ ╨╗╨╛╨╢╨╜╨╛╨╡ ╨╛╤Й╤Г╤Й╨╡╨╜╨╕╨╡ ╨┐╤А╨╛╨▓╨░╨╗╨░ ╨┐╤А╨╛╤В╨╛╨║╨╛╨╗╨░ `.locks` ╨┐╤А╨╕ ╨┐╨░╤А╨░╨╗╨╗╨╡╨╗╤М╨╜╨╛╨╣ ╤А╨░╨▒╨╛╤В╨╡ ╨░╨│╨╡╨╜╤В╨╛╨▓.
+- **Fix:** `_run` timeout 60тЖТ900s. ╨Я╤А╨╛╨▓╨╡╤А╨╡╨╜╨╛ ╨┐╨╛╨╗╨╜╤Л╨╝ ╤Ж╨╕╨║╨╗╨╛╨╝ acquireтЖТstatusтЖТrelease ╨╜╨░ `README.md`, `scripts/lock_guard.py`, ╤В╨╡╤Б╤В╨╛╨▓╨╛╨╝ ╤А╨╡╤Б╤Г╤А╤Б╨╡: exit 0, ╨║╨╛╨╝╨╝╨╕╤В╤Л+push ╨┐╤А╨╛╤Е╨╛╨┤╤П╤В hook. INC-CD6E.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-06 тАФ [P] sync-subprocess ╨▓ async-MCP ╨▓╤Л╨╖╨╛╨▓╨╛╨▓ (context_tool, system_tools) тАФ fixed
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-06-2130; ╨║╨░╨╜╨┤╨╕╨┤╨░╤В╤Л: `context_tool.py:280` subprocess.run ╨▓ get_context (30s), `system_tools.py:370/408/446` (dual_arm, mutmut-WSL 180s).
+- **Fix:** `_section_git` ╤Б╤В╨░╨╗ async, `subprocess.run` ╨╛╨▒╤С╤А╨╜╤Г╤В ╨▓ `asyncio.to_thread` (context_tool.py); wsl_check/`_run_mutmut_in_wsl`/`_verify_mutmut_can_fail` тАФ ╤З╨╡╤А╨╡╨╖ `asyncio.to_thread` (system_tools.py). `git_tools._git_run` ╤Г╨╢╨╡ ╨▒╤Л╨╗ async (╤Н╤В╨░╨╗╨╛╨╜, ╨╜╨╡ ╤В╤А╨╛╨╜╤Г╤В). ╨Я╤А╨╛╨▓╨╡╤А╨╡╨╜╨╛: test_context_tool 2 passed, ruff clean, ╨╕╨╝╨┐╨╛╤А╤В╤Л OK, ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ `_section_git` ╨▓╨╛╨╖╨▓╤А╨░╤Й╨░╨╡╤В git-history.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (code only, MCP reload ╤В╤А╨╡╨▒╤Г╨╡╤В╤Б╤П)
+
+## 2026-09-08 тАФ B4: ╤Б╤В╨░╤В╨╕╤З╨╡╤Б╨║╨╕╨╣ ╤Ж╨╕╨║╨╗ parser тЗД language_imports (╨╛╤Б╨╛╨╖╨╜╨░╨╜╨╜╤Л╨╣ ╤В╨╡╤Е╨┤╨╛╨╗╨│, lazy, allowed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** `architecture_linter` (Invariant 3) ╨┐╨╛╤Б╨╗╨╡ ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╨╕ `LANGUAGE_IMPORT_NODES` ╨╕╨╖ `CodeParser.IMPORT_NODE_MAP` (B4).
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `src.core.language_imports` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В `src.core.indexing.parser` (╨┤╨╗╤П ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╨╕ ╨║╨░╤А╤В╤Л), ╨░ `parser._extract_fallback_imports` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В `language_imports` (fallback-╤А╨╡╨╢╨╕╨╝ 2). ╨б╤В╨░╤В╨╕╤З╨╡╤Б╨║╨╕ тАФ ╤Ж╨╕╨║╨╗; ╨▓ ╤А╨░╨╜╤В╨░╨╣╨╝╨╡ ╨╜╨╕ ╨╛╨┤╨╕╨╜ ╨╕╨╝╨┐╨╛╤А╤В ╨┐╤А╨╕ ╨╖╨░╨│╤А╤Г╨╖╨║╨╡ ╨╝╨╛╨┤╤Г╨╗╨╡╨╣ ╨╜╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╡╤В╤Б╤П: parser ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В language_imports ╤В╨╛╨╗╤М╨║╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛ ╨▓ ╤Д╤Г╨╜╨║╤Ж╨╕╨╕; language_imports ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В parser ╤В╨╛╨╗╤М╨║╨╛ ╨╗╨╡╨╜╨╕╨▓╨╛ (module `__getattr__` тЖТ `_derive_language_import_nodes`, PEP 562) ╨┐╤А╨╕ ╨┐╨╡╤А╨▓╨╛╨╝ ╨╛╨▒╤А╨░╤Й╨╡╨╜╨╕╨╕ ╨║ `LANGUAGE_IMPORT_NODES`.
+- **Fix:** ╨┐╨░╤А╨░ ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜╨░ ╨▓ `_ALLOWED_CORE_CYCLES` (scripts/architecture_linter.py) ╤Б ╨║╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╡╨╝; `LANGUAGE_IMPORT_NODES` ╨┐╨╡╤А╨╡╨▓╨╡╨┤╤С╨╜ ╨╜╨░ ╨╗╨╡╨╜╨╕╨▓╤Г╤О ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╤О (╨║╤Н╤И `_LANGUAGE_IMPORT_NODES_CACHE`, `__getattr__`), ╨┐╤А╤П╨╝╨╛╨╡ ╨╛╨▒╤А╨░╤Й╨╡╨╜╨╕╨╡ ╨║ ╨║╨░╤А╤В╨╡ ╨▓╨╜╤Г╤В╤А╨╕ ╨╝╨╛╨┤╤Г╨╗╤П ╨╖╨░╨╝╨╡╨╜╨╡╨╜╨╛ ╨╜╨░ `_get_language_import_nodes()`. ╨г╨┤╨░╨╗╨╕╤В╤М ╨╕╨╖ allowlist ╨┐╨╛╤Б╨╗╨╡ ╨▓╤Л╨╜╨╛╤Б╨░ `IMPORT_NODE_MAP` ╨▓ ╨╜╨╡╨╣╤В╤А╨░╨╗╤М╨╜╤Л╨╣ ╨╝╨╛╨┤╤Г╨╗╤М (╨╜╨╡ ╨╕╤Б╤В╨╛╤А╨╕╤О ╨║╨░╤А╤В ╨▓ parser) тАФ ╤В╨╛╨│╨┤╨░ language_imports ╤Б╨╝╨╛╨╢╨╡╤В ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╤В╤М parser ╨╛╨┤╨╜╨╛╤Б╤В╨╛╤А╨╛╨╜╨╜╨╡.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (allowed tech debt, deferred refactor; ╤Ж╨╡╨╗╨╡╨▓╤Л╨╡ 68 passed, architecture_linter 4/4 OK)
+- **╨Ф╨╡╨┤╨╗╨░╨╣╨╜ ╤А╨╡╤Д╨░╨║╤В╨╛╤А╨░:** 2026-10-01 ┬╖ **Owner:** ManSio
+
+## 2026-09-08 тАФ B3: grammar-╨║╨░╤А╤В╤Л parser.py (imports/calls/assigns/conditions) ╨▓╨╜╨╡╤Б╨╡╨╜╤Л + ╨╢╨╕╨▓╤Л╨╡ ╤Д╨╕╨║╤Б╤Л
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed / **Root Cause ╨╕ ╨╕╤В╨╛╨│:** ╨▓╨╜╨╡╤Б╨╡╨╜╤Л ╨╕╨╖ study 05 ╨║╨░╤А╤В╤Л CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (╨┐╨╡╤А-╤П╨╖╤Л╤З╨╜╤Л╨╡) ╨▓ `src/core/indexing/parser.py`. ╨Ц╨╕╨▓╤Л╨╡ tree-sit...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-08 12:35 тАФ B4: import-╤Н╨║╤Б╤В╤А╨░╨║╤Ж╨╕╤П ╤З╨╡╤А╨╡╨╖ language_imports (╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╤П ╨║╨░╤А╤В + ╤Д╨╗╨░╨│-╨│╨╡╨╣╤В)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed / **Root Cause:** ╨┤╨▓╨░ ╨╕╤Б╤В╨╛╤З╨╜╨╕╨║╨░ node-╤В╨╕╨┐╨╛╨▓ ╨╕╨╝╨┐╨╛╤А╤В╨╛╨▓ (parser.IMPORT_NODE_MAP ╨╕ ╨╗╨╕╤В╨╡╤А╨░╨╗ LANGUAGE_IMPORT_NODES) ╤А╨░╤Б╤Е╨╛╨┤╨╕╨╗╨╕╤Б╤М (kt/dart/php); ungated fallback-2 ╨▓ ╨╝╨╛╤Б╤В╨╡.
+**Fix:** LANGUAG...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-09 19:35 - .h ╨╖╨░╨│╨╛╨╗╨╛╨▓╨║╨╕ C ╨╜╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╤Г╤О╤В╤Б╤П (SUPPORTED_EXTENSIONS ╨▒╨╡╨╖ .h)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AutoCoder ╨░╤Г╨┤╨╕╤В/E-S1 live-╨┐╤А╨╛╨▒╨░ 2026-09-09 (╨▓╨╜╨╡╤И╨╜╤П╤П ╤Б╨╡╤Б╤Б╨╕╤П, ╤А╨╡╨┐╨╛ ╨╜╨╡ ╨╕╨╖╨╝╨╡╨╜╤П╨╗╨╛╤Б╤М ╨┤╨╛ ╤Н╤В╨╛╨╣ ╨╖╨░╨┐╨╕╤Б╨╕)
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (2026-09-09, commit 0301fa93). CodeParser.SUPPORTED_EXTENSIONS/parsers ╨╜╨╡ ╤Б╨╛╨┤╨╡╤А╨╢╨░╨╗╨╕ ".h" (╨╡╤Б╤В╤М .hpp/.cxx/.cpp) - ╨╖╨░╨│╨╛╨╗╨╛╨▓╨║╨╕ C-╨┐╤А╨╛╨╡╨║╤В╨╛╨▓ ╨▓╤Л╨┐╨░╨┤╨░╨╗╨╕ ╨╕╨╖ AST-╨╕╨╜╨┤╨╡╨║╤Б╨░╤Ж╨╕╨╕ (╨╕╨╝╨┐╨╛╤А╤В╤Л/╨▓╤Л╨╖╨╛╨▓╤Л/╨┐╤А╨╕╤Б╨▓╨░╨╕╨▓╨░╨╜╨╕╤П). ╨н╨╝╨┐╨╕╤А╨╕╨║╨░ E-S1 (shallow-╨║╨╗╨╛╨╜╤Л, ╨║╨░╨┐ 300 ╤Д╨░╨╣╨╗╨╛╨▓/╤П╨╖╤Л╨║): curl - 65/300 ╤Д╨░╨╣╨╗╨╛╨▓ ╤Б ╤П╨▓╨╜╤Л╨╝╨╕ #include ╨┤╨░╨╗╨╕ 0 ╤А╤С╨▒╨╡╤А (╨┐╤А╨╡╨╕╨╝╤Г╤Й╨╡╤Б╤В╨▓╨╡╨╜╨╜╨╛ .h), dart-http .c-╨┐╨░╨┐╨║╨░ 0/9. ╨С╨╛╨╜╤Г╤Б-╤А╨╡╨╖╤Г╨╗╤М╤В╨░╤В ╤В╨╛╨╣ ╨╢╨╡ ╨┐╤А╨╛╨▒╤Л: ╨╕╨╝╨┐╨╛╤А╤В-╨║╨░╤А╤В╤Л ╨╢╨╕╨▓╤Л╨╡ ╨╜╨░ 6 ╤П╨╖╤Л╨║╨░╤Е (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), ╨▓╤Л╨╖╨╛╨▓╤Л php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - ╤Б╨╕╨╜╤В╨╡╤В╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨┤╨╡╤Д╨╡╨║╤В "╨▓╤Л╨╖╨╛╨▓╤Л PHP/Ruby/C/Dart" ╤Б╨╜╤П╤В.
+- **Fix:** ".h" ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨▓ PARSE_EXTENSIONS (src/core/extensions.py) + C-╨┐╨░╤А╤Б╨╡╤А ╨┤╨╗╤П ".h" (parser.py) + ╨║╨░╤А╤В╤Л: env (".h":"c"), IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator/assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/... ╨║╨░╨║ ╤Г ".c"). ╨Я╨╛╤П╤Б╨╜╨╡╨╜╨╕╨╡: ".h" ╤Г╨╢╨╡ ╨▒╤Л╨╗ ╨▓ INDEX_EXTENSIONS (╨▓╨╡╨║╤В╨╛╤А ╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╨╛╨▓╨░╨╗╤Б╤П), ╨╜╨╡ ╤Е╨▓╨░╤В╨░╨╗╨╛ ╨╕╨╝╨╡╨╜╨╜╨╛ AST-╤Б╨╗╨╛╤П тЗТ map_lies. +1 ╤В╨╡╤Б╤В (test_h_header_preproc_include). ╨Я╨╛╨▓╤В╨╛╤А E-S1 ╨┐╤А╨╛╨▒╤Л ╨╜╨░ curl (╨╛╨╢╨╕╨┤╨░╨╜╨╕╨╡: map_lies .h -> ~0) тАФ ╨╛╤В╨╗╨╛╨╢╨╡╨╜, verified ╨╜╨░ ╤Г╤А╨╛╨▓╨╜╨╡unit-╤В╨╡╤Б╤В╨░ C-╨┐╨░╤А╤Б╨╡╤А╨░.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-11 тАФ Burst-rename: fail-closed VOR ╨╛╤В╨╖╤Л╨▓╨░╨╡╤В 100% ╨┐╤А╨╕ ONE rename-sweep (╨╛╤В╨▓╨╡╤В Statewave ╨╜╨░ dev.to)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** Closed (╤Н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В╤Л, ╨╛╤В╨▓╨╡╤В ╨╛╨┐╤Г╨▒╨╗╨╕╨║╨╛╨▓╨░╨╜)
+**Root Cause:** VOR (ADR-0003) ╨┐╤А╨╛╨▓╨╡╤А╤П╨╡╤В ╨Я╨г╨в╨м-╤П╨║╨╛╤А╤П ╨┐╤А╨╛╤В╨╕╨▓ ╤В╨╡╨║╤Г╤Й╨╡╨│╨╛ HEAD. Rename/move = ╤Б╤В╨░╤А╤Л╨╣ ╨┐╤Г╤В╤М ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В = SILENT_ABSENCE = ╨╛╤В╨╖╤Л╨▓, ╤Е╨╛╤В╤П ╤Д╨░╨╣╨╗...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛

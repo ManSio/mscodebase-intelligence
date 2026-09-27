@@ -6,7 +6,7 @@
 ---
 
 
-**20 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard).
+**21 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
 ## 2026-09-27 — Ранкер `bge-reranker-v2-m3` оценивает целевой файл ниже порога фильтра (Open)
 
@@ -69,19 +69,6 @@
 - **Описание:** `MagicMock().embedding_dim` truthy → `_target_dim = self.embedder.embedding_dim or 768` (db_writer.py:59) = MagicMock → вектор обрезается до zero → `Zero vector ... skipping` → все чанки пропущены → пустая таблица → 8/8 тестов FAIL. В CI не ловится: `pytestmark = slow`, addopts `-m "not slow"` → никогда не гоняется.
 - **Fix:** не внесён (выходит за рамки Фазы 1); мой тест `tests/test_freshness_checker.py` обходит через явный `embedding_dim=1024`. Типовое исправление для lsp_vfs: задать `embedding_dim` в mock.
 - **Статус:** 🔬 открыт (P2, низкий приоритет)
-
-## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
-
-- **Источник:** AGENT_DIARY.md 2026-09-11 + EXPERIMENTS_LOG 1-B/1-C/RT
-- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-7232a6e2ba34 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (e661861f = D+R083 в одном коммите).
-- **Статус:** 🔬 открыт — решение не принято (вопрос владельцу: body-hash carry против стоимости)
-
-## 2026-09-06 — [P-001 рецидив] cmd-окна при запуске/открытии проекта: powershell/nvidia-smi БЕЗ CREATE_NO_WINDOW (fixed)
-
-- **Источник:** AGENT_DIARY.md#2026-09-06-2200
-- **Описание:** Повтор P-001 (фикс 2026-08-14 пропустил сайты): `resource_monitor.py:303` (powershell Get-CimInstance RAM) и `:503` (nvidia-smi) БЕЗ creationflags; `llama_runner.py:1338/1366/1394` (powershell Get-NetTCPConnection/Get-CimInstance/taskkill в kill_process_on_port) БЕЗ флага. Дочерние консольные процессы (git/netstat) защищены, а powershell/nvidia-smi из фоновых сервисов — открывали видимое окно cmd при каждом открытии/запуске проекта (pythonw не подавляет создание консоли).
-- **Fix:** CREATE_NO_WINDOW добавлен во все 5 сайтов (3 файла: resource_monitor.py ×2, llama_runner.py ×3). Guard: `tests/test_subprocess_windows.py` — из placeholder'ов превращён в реальный статический тест (grep по всем src/**/*.py за консоль-спавнами powershell/wsl/wmic/netstat/taskkill/nvidia-smi без флага → fail) + тест daemon-потоки без capture_output. Прогон: 2 passed.
-- **Статус:** ✅ Fixed
 
 ## 2026-09-07 — Cypher-движок ломается на анонимных узлах/рёбрах (fixed) + Receipts не писались из write-пути (fixed) + collect() некорректно заявлен (open)
 
@@ -158,6 +145,13 @@
 - **Статус:** автоматически синхронизировано
 
 
+## 2026-09-19 тАФ E10 (search quality): full-text-╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│ + e5-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л + ╨┐╤Г╨╗ reranker 50 тЖТ REFUTED (N=10)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** EXPERIMENTS_LOG.md#2026-09-19
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╤В╤А╨╕ ┬л╨▓╤Л╨║╨╗╤О╤З╨░╤В╨╡╨╗╤П┬╗ ╨║╨░╤З╨╡╤Б╤В╨▓╨░ (E10a full-text ╤З╨░╨╜╨║╨░ ╨▓ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│, e5 `query:`/`passage:`-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л ╨▓ llama.cpp-╨▓╨╡╤В╨║╨╡ тАФ ONNX/OpenVINO ╤Г╨╢╨╡ ╨╕╨╝╨╡╨╗╨╕ `_ensure_prefix`, E10c ╨┐╤Г╨╗ reranker 30тЖТ50) ╨╜╨╡ ╨┤╨░╨╗╨╕ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨░╨╡╨╝╨╛╨│╨╛ ╤Б╨┤╨▓╨╕╨│╨░. ╨з╨╕╤Б╤В╤Л╨╣ ╨┐╤А╨╛╨│╨╛╨╜ (599 ╤Д╨░╨╣╨╗╨╛╨▓ / 9514 ╤З╨░╨╜╨║╨╛╨▓, 799.9s): fast hit@1=0% hit@5=50%; quality hit@1=20% hit@5=40%; baseline ╨░╨▓╤В╨╛╤А╨░ 0/50% ╨╕ 30/30%. ╨Ф╨╡╨╗╤М╤В╨░ тАФ ╨▓ ╨┐╤А╨╡╨┤╨╡╨╗╨░╤Е ╤И╤Г╨╝╨░ N=10.
+- **Fix (╨┐╤А╨╡╨┤╨╛╤В╨▓╤А╨░╤Й╨╡╨╜╨╕╨╡):** ╨╕╨╖╨╝╨╡╨╜╤С╨╜╨╜╤Л╨╣ ╨║╨╛╨┤ ╨╛╤В╨║╨░╨╗╨╡╨╜ ╨║ HEAD (╨┐╨╛╨▓╨╡╨┤╨╡╨╜╨╕╨╡ ╨║╨╗╨╕╨╡╨╜╤В╨░ = ╨┐╤А╨╛╨┤); ╨╛╤Б╤В╨░╤В╨╛╨║ тАФ env-╤В╤Г╨╝╨▒╨╗╨╡╤А `MAX_RERANKER_INPUT` ╤Б default=30 (╨╜╨╡╨╣╤В╤А╨░╨╗╨╡╨╜). ╨Я╨╗╨░╤Вo ┬лpure-vector┬╗ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╛ ╨┐╨╛╨▓╤В╨╛╤А╨╜╨╛ (╤Б╤А. Exp-29 ceiling ~0.23).
+- **╨б╤В╨░╤В╤Г╤Б:** тЭМ REFUTED (╨╖╨░╨║╤А╤Л╤В, ╨╖╨░╨┐╨╕╤Б╨░╨╜ ╨▓ lab exp-43). ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤Е╨╛╨┤ тАФ AST/Graph-hybrid re-ranking, ╨╜╨╡ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│╨╛╨▓╤Л╨╡ ╤В╨▓╨╕╨║╨╕.
+
 ## 2026-09-18 — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
 
 - **Источник:** AGENT_DIARY.md
@@ -173,13 +167,6 @@
 - **Статус:** автоматически синхронизировано
 
 
-## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
-
-- **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed / **Root Cause:** повтор инцидента 2026-08-14 (P-001, «чёрные окна CMD»). Фикс 2026-08-14 добавил CREATE_NO_WINDOW для git/netstat/wmic/taskkill в runtime, но ПОЗВОЛИЛ дыру: `resou...
-- **Статус:** автоматически синхронизировано
-
-
 ## 2026-09-09 — Аудит «Active MSCodeBase» (Exhibit #23: MCP tool available but never invoked)
 
 - **Источник:** AGENT_DIARY.md
@@ -188,6 +175,26 @@
 - **Статус:** автоматически синхронизировано
 
 
+## 2026-09-05 тАФ Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (code only, ╨╜╨╡ ╨╖╨░╨┐╤Г╤И╨╡╨╜╨╛) тАФ verify_diary.py + git_hooks_installer.py
+**Root Cause:** `check_commit_exists` (verify_diary.py:361): `proc.communicate(timeout=30)` ╨╜╨░ ╤В╨░╨╣╨╝╨░╤Г╤В╨╡ ╨Э╨Х ╤Г╨▒╨╕╨▓╨░╨╡╤В ╨┐╤А╨╛╤Ж╨╡╤Б╤Б, `except: pass` ╨│╨╗╨╛╤В╨░╨╡╤В TimeoutExpired тЖТ Popen ╤Г╤В╨╡╨║╨░╨╡╤В ╨╜╨░╨▓╤Б╨╡╨│╨┤╨░. Git for Windows re-exec (git тЖТ git.exe) ╤В╨╡╤А╤П╨╡╤В DETACHED_PROCESS тЖТ ╨║╨░╨╢╨┤╤Л╨╣ ╨╖╨░╨▓╨╕╤Б╤И╨╕╨╣ `cat-file` = 3 ╨▓╨╡╤З╨╜╤Л╤Е ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░ (git + git.exe + conhost); ╤Б╤В╨░╤А╤В╨╛╨▓╨░╤П Contradiction Ledger-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ ╨┐╤А╨╕ CPU/Defender contention.
+**Fix:** `_kill_git_tree()` (`taskkill /F /T /PID`) ╨╜╨░ TimeoutExpired ╨▓ check_commit_exists + ╤В╨╛ ╨╢╨╡ ╨▓ run_script (git_hooks_installer.py:93). ╨б╨╜╤П╤В╨╛ ╨╜╨░ ╨╢╨╕╨▓╨╛╨╣ ╤Ж╨╡╨┐╨╛╤З╨║╨╡ 9660тЖТ24156тЖТ24428. ╨в╨╡╤Б╤В╤Л: 9 passed (5 commit_guard + 2 subprocess_windows + 2 ledger slow); ruff clean ╨┐╨╛ ╨╜╨╛╨▓╤Л╨╝ ╤Б╤В╤А╨╛╨║╨░╨╝.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-11 тАФ VOR read-path fix (PR #34) + ┬л8-╨╝╨╕╨╜╤Г╤В╨╜╤Л╨╣ ╨║╨╛╨╝╨╝╨╕╤В┬╗ = ╨Э╨Х ╨▒╨░╨│ (╤А╨╡╤И╨╡╨╜╨╕╨╡ ╨▓╨╗╨░╨┤╨╡╨╗╤М╤Ж╨░)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ PR #34 ╤Б╨╛╨╖╨┤╨░╨╜, hooks green; ╤Б╨║╨╛╤А╨╛╤Б╤В╤М ╤В╨╡╤Б╤В╨╛╨▓ тАФ ╨╛╤Б╨╛╨╖╨╜╨░╨╜╨╜╨╛╨╡ ╤А╨╡╤И╨╡╨╜╨╕╨╡, ╨║╨╛╨┤ ╨Э╨Х ╨╝╨╡╨╜╤П╨╗╤Б╤П.
+**Root Cause:** (1) read-path VOR ╤А╨╡-╤Б╨║╨░╨╜╨╕╤А╨╛╨▓╨░╨╗ prose ╤В╨╡╨╗╨░ ADR ╤З╨╡╤А╨╡╨╖ `_PATH_RE`, ╤Е╨╛╤В╤П ╤П╨▓╨╜╤Л╨╡ `data.anchor...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-10 тАФ Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR ╨╝╨░╤Б╤И╤В╨░╨▒╨╕╤А╨╛╨▓╨░╨╜╨╕╨╡ ╨╕ ╨▓╨╜╨╡╤И╨╜╨╕╨╣ ╨┤╤А╨╕╤Д╤В
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fix (╨╖╨░╨╝╨╡╤А╤Л, ╨║╨╛╨┤╨░ ╨╜╨╡ ╨╝╨╡╨╜╤П╨╗╨╛╤Б╤М). **Root Cause (KNOW ISSUES ┬лLazy-only ╨▓╨╡╤А╨╕╤Д╨╕╨║╨░╤Ж╨╕╤П┬╗):** ╨▓╨╛╨┐╤А╨╛╤Б, ╤Г╤Б╨┐╨╡╨▓╨░╨╡╤В ╨╗╨╕ VOR ╨┐╤А╨╛╨▓╨╡╤А╨╕╤В╤М ACTIVE-╤Г╨╖╨╗╤Л ╨▓ ╤А╨░╨╝╨║╨░╤Е budget_ms=50 (read-path) / 250 (background id...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
 ## 2026-09-20 — Поисковое качество / E13: исследовательские задачи (6 пунктов)
 
 - **Источник:** AGENT_DIARY.md
