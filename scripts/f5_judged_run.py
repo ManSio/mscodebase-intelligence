@@ -34,11 +34,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXT = Path(os.getenv("EXT_ROOT", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
-for _p in (str(EXT), str(ROOT)):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
-os.environ.setdefault("PYTHONPATH", str(EXT))
-os.environ["PROJECT_PATH"] = str(ROOT)
+
+
+def _ensure_importable() -> None:
+    """sys.path/env setup for SCRIPT runs only (never on import).
+
+    Import-time os.environ mutation (PYTHONPATH) leaked into the whole
+    pytest-xdist worker and broke plugin subprocess tests (their
+    setdefault(PYTHONPATH) became a no-op with a garbage value).
+    """
+    for _p in (str(EXT), str(ROOT)):
+        if _p not in sys.path:
+            sys.path.insert(0, _p)
+    os.environ.setdefault("PYTHONPATH", str(EXT))
+    os.environ["PROJECT_PATH"] = str(ROOT)
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 BUILD_MODEL = re.compile(r"build\s*[·>\-:]+\s*([A-Za-z0-9._/\-]+)")
 FROZEN = ROOT / "experiments" / "4A_unit_of_return" / "frozen" / "f5" / "queries.jsonl"
@@ -406,6 +415,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _ensure_importable()
     try:
         raise SystemExit(main())
     except Exception:  # noqa: BLE001 - one bad file must not kill the run  # noqa: BLE001
