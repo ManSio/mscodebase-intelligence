@@ -2,6 +2,7 @@
 
 **Дата:** 2026-09-26. **Вход:** `frozen/f5/queries.jsonl` (16 = 8 code + 8 prose, sha256 `e048aa12…`).
 **Harness:** `scripts/f5_judged_run.py` (opencode CLI, 4–8 потоков). **Сырьё:** `results/f5judged/{judged_raw.json,judged_aggregate.json}` (+ снапшот trials=5: `*_t5.json`).
+**Judge-CoT backfill (2026-09-27):** `results/f5judged/judged_cot_backfill.json` (sha256 `834ae07a…`, скрипт `scripts/reconstruct_judge_cot.py`) — 1014 судейских сессий `qwen3.7-plus` восстановлены из `opencode.db` (ro) на уровне qid (trial-джойн невозможен: opaque-токены потеряны). Колебаний (`has_flip`, ≥2 distinct verdict-слов в reasoning при финальном из них): **61/1014 (6.0%)**, пик — F5S-10: 25/60 при сплите вердиктов 30/30. Финальные тексты всегда single-verdict (0 multi).
 
 ## Referent
 
