@@ -444,8 +444,13 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         # cores — measured 197s -> 71s locally. Falls back to serial when xdist
         # is not installed (minimal env), so the gate never breaks on a missing
         # optional tool.
+        pytest_exe = sys.executable
+        if sys.platform == "win32":
+            _pythonw = Path(sys.executable).parent / "pythonw.exe"
+            if _pythonw.exists():
+                pytest_exe = str(_pythonw)
         pytest_cmd = [
-            sys.executable, "-m", "pytest", "tests/",
+            pytest_exe, "-m", "pytest", "tests/",
             "-q", "--tb=line", "--no-header",
         ]
         try:
