@@ -8,8 +8,15 @@
 
 **21 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
-## 2026-09-27 — F5 judge verdict parsing takes first regex match (Open)
+## 2026-09-27 — Import-time os.environ mutation in scripts breaks xdist workers (Fixed)
 
+- **Симптом:** 6 plugin-тестов (`test_plugins_subprocess/registry`) падали под `-n auto` с `ModuleNotFoundError: No module named 'src'` в runner-subprocess, серийно (`-n0`) — зелёные.
+- **Root Cause (Verified, бисекцией до чанка из 24 файлов):** `scripts/f5_judged_run.py` делал `os.environ.setdefault("PYTHONPATH", <EXT>)` на уровне импорта; импорт модуля в `tests/test_f5_judged_verdict.py` загрязнял весь xdist-воркер, и `setdefault(PYTHONPATH)` в `proxy.py` становился no-op с мусорным значением.
+- **Fix:** side effects переехали в `_ensure_importable()`, вызываемую только из `if __name__ == "__main__"`. T3: аналогичный паттерн есть в `benchmark_search_stages.py`, `f5_retrieve_arms.py`, `live_search_audit.py` — ни один не импортируется тестами, не трогали.
+- **Правило-ловушка:** скрипты с import-time мутацией `os.environ`/`sys.path` нельзя импортировать в тестах — только через `__main__`-guard.
+- **Статус:** ✅ Fixed.
+
+## 2026-09-27 — F5 judge verdict parsing takes first regex match (Open)
 - **Локация:** `scripts/f5_judged_run.py:238-246` (`_parse_verdict`): сначала первый regex-матч `"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?`, иначе первое вхождение в порядке (incorrect, correct, uncertain).
 - **Симптом / риск:** Haiku-style самокоррекция судьи («incorrect… actually correct, final answer: correct») оценивается по ПЕРВОМУ слову — вердикт инвертируется. Fallback-порядок (incorrect перед correct) корректен как подстрока-защита, но не как семантика: первое упоминание ≠ финальное решение. Ошибка тихая (verdict всегда парсится, `uncertain` по умолчанию недостижим при любом упоминании).
 - **Аудит (2026-09-27, выполнено при записи):** `experiments/4A_unit_of_return/results/f5judged/judged_raw.json` (sha256 `4be6d79d2012a5c5…`, 16 запросов × 4 плеча × 10 trials = 640 answers): ответов с ≥2 verdict-словами (correct/incorrect/uncertain, границы слов, case-insensitive) — **0**; с ≥1 — **0** (reader-ответы: «I don't know» / код, verdict-слов не содержат). Латентный риск на текущих данных не сработал, но сырого текста судьи в judged_raw.json НЕТ (только reader answers + распарсенные verdicts) — самокоррекцию судьи задним числом проверить нечем.
