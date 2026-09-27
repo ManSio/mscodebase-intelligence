@@ -65,6 +65,6 @@ def _run_discriminator(command: str, *, project_root: Optional[Path] = None) -> 
     except subprocess.TimeoutExpired:
         logger.warning("Discriminator timed out after %ss: %s", DISCRIMINATOR_TIMEOUT, command)
         return -1
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError, ValueError) as e:
         logger.warning("Discriminator failed to run: %s — %s", command, e)
         return -1
