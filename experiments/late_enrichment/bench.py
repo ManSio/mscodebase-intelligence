@@ -30,7 +30,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 EXT = Path(
     os.getenv(
         "EXT_ROOT",
-        r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence",
+        r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence",
     )
 )
 # ВАЖНО: EXT вставляем первым, PROJECT_ROOT — ПОСЛЕДНИМ, чтобы исходники

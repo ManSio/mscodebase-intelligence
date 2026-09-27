@@ -1,0 +1,5 @@
+Контекст не содержит единого полного ответа на вопрос. Из фрагментов видно, что MCP использует несколько механизмов: наследует CWD от процесса Zed (`ZED_WINDOWS_QUIRKS.md:98-100`), читает `settings.json` через `parse_jsonc` (`zed_config.py:35-41`), проверяет `multi_workspace_state.active_workspace_id` (`results_tasks_v3.json:182-184`), а путь к базе Zed ищет в `%LOCALAPPDATA%` (`check_lsp_health.py:28`).
+
+
+> build · longcat-2.0
+

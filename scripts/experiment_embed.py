@@ -7,7 +7,7 @@ from pathlib import Path
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-EXT_DIR = Path(os.environ.get("EXT_DIR", r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"))
+EXT_DIR = Path(os.environ.get("EXT_DIR", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
 MODEL_DIR = EXT_DIR / ".codebase_models" / "onnx" / "multilingual-e5-small-int8"
 MODEL_FILE = MODEL_DIR / "model_quantized.onnx"
 

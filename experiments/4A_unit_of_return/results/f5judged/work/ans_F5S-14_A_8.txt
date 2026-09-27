@@ -1,0 +1,5 @@
+MCP-сервер определяет проект через CWD (рабочую директорию), унаследованную от процесса Zed — на Windows `current_dir` в `settings.json` не резолвит `$ZED_WORKTREE_ROOT`, поэтому CWD MCP-сервера равна CWD процесса Zed. Также при `source="ACTIVE_WORKSPACE"` используется `multi_workspace_state.active_workspace_id` — явно активное окно Zed.
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,5 @@
+При недоступном PropertyGraph (`pg is None`) или несуществующем пути к БД графа `run_quiet_break_gate` возвращает `_empty("unavailable", "PropertyGraph not available")` — то есть пустой dict с findings, и функция «никогда не бросает наружу» (src/core/quiet_break_gate.py:10-16). Поведение при сбое именно git в контексте не показано — `_git` с try/except относится к scripts/revision_gate.py, а не к quiet-break gate.
+
+
+> build · longcat-2.0
+

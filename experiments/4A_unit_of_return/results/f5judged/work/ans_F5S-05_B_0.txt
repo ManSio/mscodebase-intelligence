@@ -1,0 +1,5 @@
+Модуль обязан никогда не выбрасывать исключения — он "глотает" все ошибки по дизайну, потому что канал записи не может ломать индексацию. Это явно указано в docstring: "MUST NOT raise, ever (a recording channel cannot break indexing)".
+
+
+> build · longcat-2.0
+

@@ -1,0 +1,135 @@
+### src/core/quiet_break_gate.py
+// Scope: function_part | giant_function_part | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+// [Part 1]
+def run_quiet_break_gate(
+    project_root: Path,
+    pg: Optional[PropertyGraph],
+    diff_text: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Главная точка. Возвращает dict с findings; никогда не бросает наружу."""
+    root = Path(project_root).resolve()
+    if pg is None:
+        return _empty("unavailable", "PropertyGraph not available")
+    db_path = getattr(pg, "_db_path", None) or getattr(pg, "path", None)
+    if not db_path or not Path(str(db_path)).exists():
+        return _empty("u
+...
+
+### src/core/quiet_break_gate.py
+// Scope: function | function_definition | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+def _rel_posix(path: str, root: Path) -> str:
+    if not path:
+        return ""
+    try:
+
+
+### src/core/quiet_break_gate.py
+// Scope: function | function_definition | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+def _incoming_callers(pg: PropertyGraph, qname: str) -> List[Any]:
+    callers: List[Any] = []
+    for et in (EdgeType.CALLS, EdgeType.ASYNC_CALLS):
+        try:
+
+
+### src/core/quiet_break_gate.py
+// Scope: function_part | giant_function_part | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+// [Part 2]
+continue  # уже был без вызывающих — не наш дельта-сигнал
+            alive = False
+            for c in callers:
+                cf = getattr(c, "file_path", "") or ""
+                if not cf:
+                    alive = True
+                    break
+                rel = _rel_posix(cf, root)
+                if rel not in changed:
+                    alive = True
+                    break
+                fp = root / rel
+                try:
+                    content = fp.read_text(encoding
+...
+
+### src/core/graph.py
+// Scope: function | function_definition | core.graph
+// File: src\core\graph.py | Context: PropertyGraph
+def add_node(
+
+        self,
+
+        name: str,
+
+        label: str = NodeLabel.FILE,
+
+
+
+### src/core/quiet_break_gate.py
+// Scope: function | function_definition | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+def is_whitelisted(name: str, decorated: bool = False) -> bool:
+    """True — имя является entry point / тест-хелпером / регистрантом (не «сирота»)."""
+    if decorated:
+        return True
+
+
+### scripts/revision_gate.py
+// Scope: function | function_definition | revision_gate
+// File: scripts\revision_gate.py
+def _git(args: list[str], cwd: Path) -> tuple[int, str]:
+
+    """git через subprocess (main-поток, §5.16 не применим)."""
+
+    try:
+
+        p = subprocess.run(
+
+
+
+### src/core/graph.py
+// Scope: function | function_definition | core.graph
+// File: src\core\graph.py | Context: PropertyGraph
+def _init_schema(self):
+
+        """Инициализация схемы БД."""
+
+        conn = self._conn
+
+        conn.executescript("""
+
+
+
+### src/core/quiet_break_gate.py
+// Scope: function_part | giant_function_part | core.quiet_break_gate
+// File: src\core\quiet_break_gate.py
+// [Part 1]
+def parse_diff(diff_text: str) -> Dict[str, Any]:
+    """Разбирает unified-diff на дельта-сигналы.
+
+    Returns dict:
+      removed_calls: {name: [file, ...]}
+      removed_defs:  {name, ...}   (def-строки, УДАЛЁННЫЕ этим diff — guard A)
+      new_defs:      [{name, file, decorated}, ...]
+      changed_files: [rel-posix, ...]
+    """
+    removed_calls: Dict[str, List[str]] = {}
+    removed_defs: Set[str] = set()
+    new_defs: List[Dict[str, Any]] = []
+    changed_files: List[str] = []
+    seen_f
+...
+
+### src/core/graph_rag.py
+// Scope: function | function_definition | core.graph_rag
+// File: src\core\graph_rag.py | Context: GraphRAGQueryEngine
+def __init__(self, project_path: Path, symbol_index=None, commit_memory=None):
+
+        self.project_path = project_path
+
+        self.symbol_index = symbol_index
+
+        self.commit_memory = commit_memory
+

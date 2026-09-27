@@ -1,0 +1,257 @@
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
+
+### src/mcp/server_tools.py
+// Scope: function_part | giant_function_part | mcp.server_tools
+// File: src\mcp\server_tools.py
+// [Part 4]
+# ─── 3. intel_explain_project_state ───────────
+
+    @mcp.tool("intel_explain_project_state")
+
+    async def intel_explain_project_state(project_root: str = "") -> str:
+
+        """Человекочитаемый диагноз состояния проекта.
+
+
+
+        Args:
+
+            project_root: путь к проекту (по умолчанию — текущий).
+
+
+
+        Returns:
+
+            Текстовый диагноз с состоянием каждого слоя.
+
+        """
+
+        from src.core.intelligence.project_context import ProjectContext
+
+        from src.core.p
+...
+
+### docs/ru/SEARCH_PIPELINE.md
+// Scope: section | markdown_section | ru.search_pipeline
+From docs\ru\SEARCH_PIPELINE.md, section '### 4. RRF Fusion (Reciprocal Rank Fusion)':
+### 4. RRF Fusion (Reciprocal Rank Fusion)
+
+> ⚠️ **Важно:** Ранги считаются **раздельно** для каждого канала, начиная с 1.
+> Объединённый `enumerate(bm25 + dense)` дал бы неверные скоры.
+
+```python
+def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
+    """Слияние результатов BM25 + dense по формуле RRF.
+    
+    Ранги считаются отдельно для каждого канала (начиная с 1),
+    как того требует математически корректная RRF.
+    """
+    scores = {}
+    results_map = {}
+    
+    # BM25 ранги (отдельный enumerate с start=1)
+    for ra
+...
+
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
+### experiments/bootstrap/e17_shards/shard_12.answers.json
+// Scope: fallback | shard_12.answers.json
+[
+  {
+    "id": 30,
+    "mode": "A_baseline",
+    "answer": "I cannot determine this from the information given. The prompt provides only the source code and docstring of `RemoteEmbedder._shadow_compare`; no test files, test names, imports, or repository layout are included. The function calls `self.embed_batch`, the module-level helper `_vectors_collapsed`, and the constant `_ABS_MIN_QUALITY`, and it is invoked during provider switching, so relevant tests could live anywhere in the repo. Naming specific test functions would be a guess and therefore misleading. Explicit statement: cannot determine which tests exercise this function. To answer reliably one would have to search the repository for `_shadow_compare`, `shadow_compare`, canary fixtures, and `_ABS_MIN_QUALITY`, then inspect each hit. A developer should run those located tests before changing the fail-closed logic described here."
+  },
+  {
+    "id": 30,
+    "mode": "B_runtime",
+    "answer": "The tests shown that exercise `Rem
+
+### docs/zh/SEARCH_PIPELINE.md
+// Scope: section | markdown_section | zh.search_pipeline
+From docs\zh\SEARCH_PIPELINE.md, section '### 4. RRF 融合（倒数排序融合 Reciprocal Rank Fusion）':
+### 4. RRF 融合（倒数排序融合 Reciprocal Rank Fusion）
+
+> ⚠️ **重要：** 排名**分别**为每个通道计算，从 1 开始。
+> 使用合并的 `enumerate(bm25 + dense)` 会得出不正确的分数。
+
+```python
+def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
+    """Merge BM25 + dense results using RRF formula.
+    
+    Ранги считаются отдельно для каждого канала (начиная с 1),
+    как того требует математически корректная RRF.
+    """
+    scores = {}
+    results_map = {}
+    
+    # BM25 ранги (отдельный enumerate с start=1)
+    for rank, doc in enumerate(bm25, 1):
+        key = f"{doc['metadata'][
+...
+
+### src/core/bootstrap_entities.py
+// Scope: function | function_definition | core.bootstrap_entities
+// File: src\core\bootstrap_entities.py
+def _is_dataclass_decorator(node: ast.expr) -> bool:
+
+    """Декоратор — dataclass в формах Name (@dataclass), Call (@dataclass(k=...)),
+
+    Attribute (@dataclasses.dataclass / dataclasses.dataclass(k=...))."""
+
+    target = node.func if isinstance(node, ast.Call) else node
+
+
+
+### src/core/doc_generator.py
+// Scope: function | function_definition | core.doc_generator
+// File: src\core\doc_generator.py | Context: DocGenerator
+def _get_callees_for_file(self, file_path: Path) -> Dict[str, List[str]]:
+
+        """Извлекает callees для каждого символа в файле."""
+
+        parser = self._get_parser()
+
+        try:
+
+
+
+### src/core/action_receipt.py
+// Scope: function | function_definition | core.action_receipt
+// File: src\core\action_receipt.py
+def _is_inconclusive_result(result: Dict[str, Any]) -> bool:
+
+    """Шаг не удалось выполнить (среда), а не провалился (содержимое)?"""
+
+    for err in result.get("errors", []) or []:
+
+        low = str(err).lower()
+
+
+
+### AGENT_DIARY.md
+// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md
+From AGENT_DIARY.md, section '## [2026-09-17] Bootstrap Pipeline: Шаг 1 (Data structures) реализован — детектор сущностей':
+## [2026-09-17] Bootstrap Pipeline: Шаг 1 (Data structures) реализован — детектор сущностей
+
+**Status:** Implemented (src/core/bootstrap_entities.py + 8 unit-тестов)
+**Задача:** найти чистые data structures нового проекта через AST-сигналы `@dataclass`/`NamedTuple`, НЕ регекс — последний даёт 90% шума `Table(` (это вызовы `db.open_table(...)`, LanceDB), а AST-детектор по классам их априори не видит.
+**Fix:** `detect_entities(project_root, src_dir, ignore_dirs)` — обход src/*.py через `ast.parse`, детект декоратора dataclass в 3 формах (Name/Call/Attribute, покрывает `@dataclass` со скоб
+...

@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 _HERE = Path(__file__).resolve().parent.parent
-_INSTALL = Path(r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence")
+_INSTALL = Path(r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence")
 _PYTHONPATH = str(_INSTALL if _INSTALL.exists() else _HERE)
 
 pytestmark = pytest.mark.slow

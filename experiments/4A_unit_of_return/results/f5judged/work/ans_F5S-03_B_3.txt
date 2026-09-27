@@ -1,0 +1,5 @@
+Потому что `'gitwildmatch'` считается устаревшим (deprecated). В коде прямо указано: `Uses 'gitignore' format (not deprecated 'gitwildmatch').` (строка 28 и комментарий на строке 53).
+
+
+> build · longcat-2.0
+

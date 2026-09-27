@@ -31,7 +31,7 @@ if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
 # Используем ТОТ ЖЕ venv, что и MCP (LanceDB 0.34.0)
-VENV = Path(r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\venv\Scripts\python.exe")
+VENV = Path(r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence\venv\Scripts\python.exe")
 SANDBOX = Path(r"D:\Project\MSCodeBase\.sandbox_lancedb_race")
 
 import lancedb

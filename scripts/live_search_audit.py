@@ -21,7 +21,7 @@ from pathlib import Path
 
 # --- bootstrap env (same as src/main.py:_load_env) -------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-EXT = Path(os.getenv("EXT_ROOT", r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence"))
+EXT = Path(os.getenv("EXT_ROOT", r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence"))
 if str(EXT) not in sys.path:
     sys.path.insert(0, str(EXT))
 

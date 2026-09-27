@@ -1,0 +1,162 @@
+### experiments/root_cause_eval/incident_dataset_full.json
+// Scope: fallback | incident_dataset_full.json
+ "** Внешний скрипт дропнул таблицу. Indexer держал stale\nRust-backed handle. `_migrate_add_metadata_columns` не обрабатывал\nслучай повреждённой таблицы (to_pandas падал → migration выходил\nбез создания таблицы). `health_score` мигрировался как `0.0` (float value)\nвместо `\"float64\"` (type string).",
+
+    "fix": "P0 — Table recreation + Graceful Degradation + Schema migration fix"
+
+  },
+
+  {
+
+    "title": "2026-07-05",
+
+    "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
+
+    "root_cause": "** `await self._flush()` вызывался внутри `threading.Lock`.\n`threading.Lock` не reentrant — второй захват блокирует поток навсегда.",
+
+    "fix": "`should_flush` под lock, сам `await` — после lock."
+
+  },
+
+  {
+
+    "title": "2026-07-05",
+
+    "symptom": "2026-07-05",
+
+    "root_cause": "`mscodebase-lsp` не регистрируется\nв `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать\nновый LSP — только override пути для уже существующего.\nТреб
+
+### experiments/root_cause_eval/incident_dataset.json
+// Scope: fallback | incident_dataset.json
+ },
+
+  {
+
+    "title": "2026-07-05",
+
+    "symptom": "** MCP-сервер зависал через ~5 секунд после пачки `notify_change`.",
+
+    "root_cause": "** `await self._flush()` вызывался внутри `threading.Lock`.\n`threading.Lock` не reentrant — второй захват блокирует поток навсегда.",
+
+    "fix": "`should_flush` под lock, сам `await` — после lock.",
+
+    "files": ""
+
+  },
+
+  {
+
+    "title": "2026-07-05",
+
+    "symptom": "2026-07-05",
+
+    "root_cause": "`mscodebase-lsp` не регистрируется\nв `LanguageRegistry` Zed на Windows. `settings.json` не может зарегистрировать\nновый LSP — только override пути для уже существующего.\nТребуется Rust/WASM-адаптер для полноценной поддержки.\nMCP-сервер (43 инструмента) работает полноценно и без LSP.",
+
+    "fix": "",
+
+    "files": ""
+
+  },
+
+  {
+
+    "title": "2026-07-04",
+
+    "symptom": "** `intel_trigger_reindex` → `intel_get_job_status` всегда возвращал `progress: 0.5`.\nJob висел в статусе \"running\" бесконечно.",
+
+    "root_cause": "** `trigger_async_
+
+### src/core/search/engine.py
+// Scope: function | function_definition | core.search.engine
+// File: src\core\search\engine.py | Context: Searcher
+def _reindex_fast_fail(self) -> bool:
+
+        """True, если идёт переиндексация — поиск обязан мгновенно вернуть пусто,
+
+        а не висеть на lock'ах БД/FTS5 (инцидент 2026-08-13: search_code таймаутил
+
+        во время full reindex; паттерн hybrid_search fast-fail / chunkhound guard)."""
+
+
+
+### experiments/lock_zombie/orphan_holder.py
+// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.lock_zombie.orphan_holder.py
+// File: experiments\lock_zombie\orphan_holder.py
+"""Эксперимент C: симуляция зомби-holder'а PID-lock (осиротевший процесс).
+
+Процесс-holder: захватывает DatabaseLock на tmp-путь, держит 60s.
+Запускается DETACHED, чтобы его родитель умер сразу -> holder остаётся
+живым процессом с мёртвым parent'ом (Windows не убивает детей).
+
+Использование:
+    python orphan_holder.py <lock_path>
+"""
+import json
+import sys
+import time
+from pathlib import Path
+
+from src.core.indexing.database_lock import DatabaseLock
+
+lock_path = Path(sys.argv[1])
+lock = Databas
+...
+
+### src/core/indexing/database_lock.py
+// Scope: function | function_definition | core.indexing.database_lock
+// File: src\core\indexing\database_lock.py | Context: DatabaseLock
+def is_held(self) -> bool:
+
+        """True если lock захвачен ЭТИМ экземпляром."""
+
+        return self._acquired
+
+### src/core/indexing/database_lock.py
+// Scope: function | function_definition | core.indexing.database_lock
+// File: src\core\indexing\database_lock.py | Context: DatabaseLock
+def _make_default_inspector() -> ProcessInspector:
+
+        if sys.platform == "win32":
+
+            return WindowsProcessInspector()
+
+        return ProcessInspector()
+
+### src/core/indexing/index_project_runner.py
+// Scope: function | function_definition | core.indexing.index_project_runner
+// File: src\core\indexing\index_project_runner.py | Context: IndexProjectRunner
+def _reset_table_if_not_found(self, error: Exception, context: str, attempt: int) -> bool:
+
+        """Проверяет, является ли ошибка 'Not found' (LanceDB race),
+
+        и если да — пытается восстановить таблицу через reset_connection.
+
+        Возвращает True, если восстановление выполнено и можно retry.
+
+
+
+### scripts/lock_guard.py
+// Scope: function | function_definition | lock_guard
+// File: scripts\lock_guard.py
+def purpose_short(data: Dict) -> str:
+
+    return str(data.get("purpose", ""))[:60] or "done"
+
+### scripts/monitor.py
+// Scope: function | function_definition | monitor
+// File: scripts\monitor.py
+def parse_indexing_complete(line):
+
+    """Indexing complete: 100 new/changed, 0 removed, total 3857 chunks"""
+
+    m = re.search(r'Indexing complete.*?total\s+(\d+)\s+chunks', line)
+
+    return int(m.group(1)) if m else None
+
+### src/core/intelligence/store.py
+// Scope: function | function_definition | core.intelligence.store
+// File: src\core\intelligence\store.py | Context: JobHistoryStore
+def load_history(self) -> List[Dict[str, Any]]:
+        """Загружает историю. Возвращает [] при ошибке/отсутствии."""
+        if self.history_file.exists():
+            try:

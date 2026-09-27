@@ -1,0 +1,5 @@
+threading.Lock используется вместо asyncio.Lock, потому что asyncio.Lock привязывается к event loop первого await и вызывает дедлок в cross-loop сценариях между LSP и MCP. Это исправление связано с инцидентом INC-53EC / REFC-03 (комментарии в коде: «см. INC-53EC / REFC-03»). threading.Lock шарится между разными event-loop-ами без deadlock-а.
+
+
+> build · longcat-2.0
+

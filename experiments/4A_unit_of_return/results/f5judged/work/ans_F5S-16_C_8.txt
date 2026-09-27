@@ -1,0 +1,5 @@
+Переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом на **88%** — с ~1,931 МБ (ONNX in-process, 2026-07-09) до 213–252 МБ (Qwen3 + BGE-M3, 2026-07-10). Это указано в разделе «Historical comparison» и резюмировано в «Key insight» файла `docs/en/SYSTEM_REQUIREMENTS.md`.
+
+
+> build · longcat-2.0
+

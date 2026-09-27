@@ -1,0 +1,5 @@
+Согласно контексту, `run_quiet_break_gate` при сбое графа (pg is None или нет db_path) возвращает `_empty("unavailable", "PropertyGraph not available")`. В докстроке функции явно указано: «Возвращает dict с findings; никогда не бросает наружу». Поведение при сбое git в предоставленном фрагменте не раскрыто.
+
+
+> build · longcat-2.0
+

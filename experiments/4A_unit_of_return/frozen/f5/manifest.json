@@ -1,0 +1,27 @@
+{
+  "experiment": "F5 4-arm unit-of-return — frozen fresh query set",
+  "date": "2026-09-26",
+  "author": "context-clean subagent (did not read 4A unit_of_return / benchmark2 tasks / crystal catalogue)",
+  "gate": "scripts/frozen_overlap_check.py v2 -> OVERLAP: PASS",
+  "max_token_overlap_vs_benchmark2": 2,
+  "queries_sha256": "e048aa12d36d95fb6d252de015d0ae807cbbce718e9c78effcd334f7c3ce83cb",
+  "n": 16,
+  "populations": {
+    "code": 8,
+    "prose": 8
+  },
+  "retriever": "Searcher.search_with_mode(mode=quality, limit=10)",
+  "arms": {
+    "A": "top-k chunks",
+    "B": "top-1 whole doc",
+    "C": "oracle gold file",
+    "D": "closed book"
+  },
+  "index_snapshot": {
+    "chunks": 10106,
+    "files": 716,
+    "symbols": 14099,
+    "captured": "2026-09-26"
+  },
+  "validation": "16/16 files exist, evidence_span literal in gold file, 8 code + 8 prose, unique files"
+}

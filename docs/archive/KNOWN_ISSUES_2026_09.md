@@ -351,182 +351,709 @@
 ---
 
 ## Archived 2026-09-26 (auto-synced tail, moved to satisfy <=300-line check)
-## 2026-09-22 вЂ” Exp E16: РїРµСЂРµРЅРѕСЃРёРјРѕСЃС‚СЊ bootstrap trace РЅР° С‡СѓР¶РёРµ РїСЂРѕРµРєС‚С‹ (СЃС‚Р°С‚СЊСЏ CoderLegion)
+## 2026-09-22 — Exp E16: переносимость bootstrap trace на чужие проекты (статья CoderLegion)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Measured (hypothesis CONFIRMED)
-**Hypothesis:** РґРёРЅР°РјРёС‡РµСЃРєРёР№ С‚СЂРµР№СЃ (sys.settrace, `src/core/bootstrap_trace_plugin.py`) РІРѕСЃРїСЂРѕРёР·РІРѕРґРёС‚СЃСЏ РЅР° С‡СѓР¶РёС… Python-СЂРµРїРѕР·РёС‚РѕСЂРёСЏС… Р±РµР· РїСЂР°РІРѕРє РїР»Р°РіРёРЅР°; lin...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** Measured (hypothesis CONFIRMED)
+**Hypothesis:** динамический трейс (sys.settrace, `src/core/bootstrap_trace_plugin.py`) воспроизводится на чужих Python-репозиториях без правок плагина; lin...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-22 вЂ” Exp E14: Embedder A/B вЂ” EmbeddingGemma 300M vs e5-small (production)
+## 2026-09-22 — Exp E14: Embedder A/B — EmbeddingGemma 300M vs e5-small (production)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Measured (hypothesis CONFIRMED)
-**Hypothesis:** gemma 300M (768-dim, ctx 2048) Р·РЅР°С‡РёС‚РµР»СЊРЅРѕ СЃРёР»СЊРЅРµРµ e5-small (384-dim, ctx 512) РЅР° РєРѕРґРѕРІРѕРј СЂРµС‚СЂРёРІР°Р»Рµ РїСЂРё С†РµРЅРµ 3-4Г— РјРµРґР»РµРЅРЅРµРµ РЅР° CPU.
+- **Описание:** **Status:** Measured (hypothesis CONFIRMED)
+**Hypothesis:** gemma 300M (768-dim, ctx 2048) значительно сильнее e5-small (384-dim, ctx 512) на кодовом ретривале при цене 3-4× медленнее на CPU.
 **Method...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-20 вЂ” Exp E13: С‚РµРєСЃС‚РѕРІС‹Р№ RAG (doc-chunks) vs РєРѕРґРѕРІС‹Р№ baseline (E10/E11)
+## 2026-09-20 — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Measured (refuted hypothesis)
+- **Описание:** **Status:** Measured (refuted hypothesis)
 **Hypothesis:** doc-chunks (README + docs/en/ + docstrings) retrieve as well as code-chunks via search_with_mode quality.
 **Method:** 16 EN doc-queries, live ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-18 вЂ” Р¤Р°Р·Р° 1: Incremental Hot-Reload (FreshnessChecker РѕР¶РёРІР»С‘РЅ + hot-reload + KI-109)
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** - **Evidence Ladder (2026-08-15, Exp 2-E E1-E3):** С„РѕСЂРјР° evidence вЂ” РїРµСЂРµРјРµРЅРЅР°СЏ; file_content = Р»СѓС‡С€РёР№ recall (qwen 0.92), graph = Р·Р°РєСЂС‹С‚РёРµ present-trap РўРћР›Р¬РљРћ Сѓ evidence-С‡РµСЃС‚РЅС‹С… РјРѕРґРµР»РµР№ (qwen3.7 FA tr...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-18 вЂ” Р¤Р°Р·Р° 1: Incremental Hot-Reload (FreshnessChecker РѕР¶РёРІР»С‘РЅ + hot-reload + KI-109)
+## 2026-09-18 — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (7 С‚РµСЃС‚РѕРІ СЃРІРµР¶РµСЃС‚Рё РІРєР»СЋС‡Р°СЏ concurrency-СЃС‚СЂРµСЃСЃ N=16 + 1748 РїРѕР»РЅС‹Р№ pytest green; РІРµС‚РєР° РІРЅРµ PR вЂ” Р»РѕРєР°Р»СЊРЅРѕ)
-**Root Cause:** FreshnessChecker (freshness.py) Р±С‹Р» РјС‘СЂС‚РІ (0 РІС‹Р·РѕРІРѕРІ) Рё РЎР›РћРњРђРќ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** - **Evidence Ladder (2026-08-15, Exp 2-E E1-E3):** форма evidence — переменная; file_content = лучший recall (qwen 0.92), graph = закрытие present-trap ТОЛЬКО у evidence-честных моделей (qwen3.7 FA tr...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-07 вЂ” Lazy-only РІРµСЂРёС„РёРєР°С†РёСЏ: VOR РІС‹Р·С‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РёР· intel_get_project_memory, РЅРµС‚ TTL/С„РѕРЅР°
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Open вЂ” Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅРѕ РєР°Рє РїСЂРѕР±Р»РµРјР° + РїР»Р°РЅ СЌРєСЃРїРµСЂРёРјРµРЅС‚Р° (10-continuous-verification.md)
-**Root Cause:** РџРѕ РґРёР·Р°Р№РЅСѓ (ADR-0003) VOR Р»РµРЅРёРІС‹Р№, РЅРѕ С‚РѕС‡РєРё РІС‹Р·РѕРІР° РІСЃРµРіРѕ РѕРґРЅР° (layer.py:1097); IdleSch...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-09 вЂ” H1: С„РѕРЅРѕРІС‹Р№ VOR-РїСЂРѕС…РѕРґ (IdleScheduler) вЂ” РїР°РјСЏС‚СЊ РїРµСЂРµРїСЂРѕРІРµСЂСЏРµС‚СЃСЏ Р±РµР· РІС‹Р·РѕРІР° Р°РіРµРЅС‚Р°
+## 2026-09-18 — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (6 РЅРѕРІС‹С… С‚РµСЃС‚РѕРІ + 1674 РїРѕР»РЅС‹Р№ pytest green; РІРµС‚РєР° chore/experiments-es1-es2-0909)
-**Root Cause:** VOR РІС‹Р·С‹РІР°Р»СЃСЏ СЂРѕРІРЅРѕ РёР· 1 РјРµСЃС‚Р° (intel_get_project_memory, layer.py:1097); idle-Р·Р°РґР°С‡...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** Fixed (7 тестов свежести включая concurrency-стресс N=16 + 1748 полный pytest green; ветка вне PR — локально)
+**Root Cause:** FreshnessChecker (freshness.py) был мёртв (0 вызовов) и СЛОМАН...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-09 вЂ” H2: .h Р·Р°РіРѕР»РѕРІРєРё C РІРєР»СЋС‡РµРЅС‹ РІ AST-РёРЅРґРµРєСЃР°С†РёСЋ (PARSE_EXTENSIONS + C-РїР°СЂСЃРµСЂ)
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 Р·Р°РєСЂС‹С‚)
-**Root Cause:** ".h" Р±С‹Р» РІ INDEX_EXTENSIONS (РІРµРєС‚РѕСЂ-С‡Р°РЅРєРёРЅРі С€С‘Р»), РЅРѕ РќР• РІ PARSE_EXTENSIONS в†’ CodeParser.parse_file РІРѕР·РІСЂР°С‰Р°Р» [...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-07 вЂ” Cypher-РґРІРёР¶РѕРє: Р°РЅРѕРЅРёРјРЅС‹Рµ СѓР·Р»С‹/СЂС‘Р±СЂР° Р»РѕРјР°Р»Рё MATCH; ActionReceipt РЅРµ РїРёСЃР°Р»СЃСЏ РёР· write-РїСѓС‚Рё
+## 2026-09-07 — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (РѕР±Р° Р±Р»РѕРєР° Р·Р°РєСЂС‹С‚С‹, С‚РµСЃС‚С‹ Р·РµР»С‘РЅС‹Рµ)
-**Root Cause:** (1) Cypher: `from_node_alias` РґРµС„РѕР»С‚РёР» РІ `n1`, Р° РіРµРЅРµСЂР°С‚РѕСЂ СЃРѕР·РґР°РІР°Р» `n{path_idx*2}` РґР»СЏ Р°РЅРѕРЅРёРјРЅРѕРіРѕ СѓР·Р»Р° в†’ `no such column: n0.id`; ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** Open — зафиксировано как проблема + план эксперимента (10-continuous-verification.md)
+**Root Cause:** По дизайну (ADR-0003) VOR ленивый, но точки вызова всего одна (layer.py:1097); IdleSch...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-03 вЂ” Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
+## 2026-09-09 — H1: фоновый VOR-проход (IdleScheduler) — память перепроверяется без вызова агента
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+- **Описание:** **Status:** Fixed (6 новых тестов + 1674 полный pytest green; ветка chore/experiments-es1-es2-0909)
+**Root Cause:** VOR вызывался ровно из 1 места (intel_get_project_memory, layer.py:1097); idle-задач...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-09 — H2: .h заголовки C включены в AST-индексацию (PARSE_EXTENSIONS + C-парсер)
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
+**Root Cause:** ".h" был в INDEX_EXTENSIONS (вектор-чанкинг шёл), но НЕ в PARSE_EXTENSIONS → CodeParser.parse_file возвращал [...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-07 — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (оба блока закрыты, тесты зелёные)
+**Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
 **Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-03 19:30 вЂ” CI RED: circular import layer в†” tools_reg (architecture_linter)
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
 **Root Cause:** My ETA refactor added `tools_reg в†’ layer` import for `_embed_progress_from_log`, closing an existing `layer в†’...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-04 11:15 вЂ” CI RED: ruff lint errors caught only after push (3 commits)
+## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed (commit 986c9be7)
+- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
 **Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-05 12:30 вЂ” FIX: stale_detector + predict_change СЃС‚Р°Р±РёР»СЊРЅРѕ С‚Р°Р№РјР°СѓС‚РёР»Рё С‡РµСЂРµР· MCP (-32001): Р±Р»РѕРєРёСЂСѓСЋС‰РёР№ sync-РєРѕРґ РІ async-РєРѕРЅС‚РµРєСЃС‚Рµ
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed (code only, РЅРµ Р·Р°РїСѓС€РµРЅРѕ) вЂ” src/mcp/tools/doc_tools.py + predict_tools.py
-**Root Cause:** `error_boundary` РїСЂРёРјРµРЅСЏРµС‚ `asyncio.wait_for(timeout_ms)` РІРѕРєСЂСѓРі `execute`, РЅРѕ РІРЅСѓС‚СЂРё `exec...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-06 21:00 вЂ” РџРѕС‡РёРЅРєР° lock_guard: С‚Р°Р№РјР°СѓС‚ 60s Р»РѕРјР°Р» РІРµСЃСЊ .locks-РїСЂРѕС‚РѕРєРѕР»
+## 2026-09-05 12:30 — FIX: stale_detector + predict_change стабильно таймаутили через MCP (-32001): блокирующий sync-код в async-контексте
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed / **Root Cause:** `scripts/lock_guard.py` `_run` default timeout=60s вЂ” Р»СЋР±РѕР№ `git commit` РїСЂРѕРіРѕРЅСЏРµС‚ pre-commit hook (verify_diary в†’ РїРѕР»РЅС‹Р№ pytest 5-10 РјРёРЅ РЅР° Windows), РїРѕСЌС‚РѕРјСѓ acqu...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** ✅ Fixed (code only, не запушено) — src/mcp/tools/doc_tools.py + predict_tools.py
+**Root Cause:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)` вокруг `execute`, но внутри `exec...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-06 21:30 вЂ” sync-subprocess РІ async-MCP (context_tool, system_tools) вЂ” fixed
+## 2026-09-06 21:00 — Починка lock_guard: таймаут 60s ломал весь .locks-протокол
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed (code only) / **Root Cause:** СЃРёСЃС‚РµРјРЅР°СЏ РїСЂРѕРІРµСЂРєР° РїРѕСЃР»Рµ С„РёРєСЃР° stale/predict: РЅР°С€Р»РёСЃСЊ РµС‰С‘ sync `subprocess.run` РІРЅСѓС‚СЂРё async `execute`. `GetContextTool._section_git` (git log С‡РµСЂРµР· s...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** `scripts/lock_guard.py` `_run` default timeout=60s — любой `git commit` прогоняет pre-commit hook (verify_diary → полный pytest 5-10 мин на Windows), поэтому acqu...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-06 22:00 вЂ” P-001 СЂРµС†РёРґРёРІ: cmd-РѕРєРЅР° РїСЂРё Р·Р°РїСѓСЃРєРµ/РѕС‚РєСЂС‹С‚РёРё РїСЂРѕРµРєС‚Р° (powershell/nvidia-smi Р±РµР· CREATE_NO_WINDOW) вЂ” FIXED
+## 2026-09-06 21:30 — sync-subprocess в async-MCP (context_tool, system_tools) — fixed
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only) / **Root Cause:** системная проверка после фикса stale/predict: нашлись ещё sync `subprocess.run` внутри async `execute`. `GetContextTool._section_git` (git log через s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
 - **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed / **Root Cause:** РїРѕРІС‚РѕСЂ РёРЅС†РёРґРµРЅС‚Р° 2026-08-14 (P-001, В«С‡С‘СЂРЅС‹Рµ РѕРєРЅР° CMDВ»). Р¤РёРєСЃ 2026-08-14 РґРѕР±Р°РІРёР» CREATE_NO_WINDOW РґР»СЏ git/netstat/wmic/taskkill РІ runtime, РЅРѕ РџРћР—Р’РћР›РР› РґС‹СЂСѓ: `resou...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-08 19:40 вЂ” collect() РІ Cypher: json_group_array + С‚РёРїРёР·РёСЂРѕРІР°РЅРЅС‹Р№ РґРµРєРѕРґ (fixed)
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 вЏі вЂ” `_translate_return_expr` Р·Р°СЏРІР»СЏР» `collect` РєР°Рє Supported, РЅРѕ SQLite РЅРµ РёРјРµРµС‚ С„СѓРЅРєС†РёРё COLLECT (В«no such functionВ»); РЅРё РѕРґРЅРѕРіРѕ С‚РµСЃС‚Р° РЅР°...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-09 вЂ” РђСѓРґРёС‚ В«Active MSCodeBaseВ» (Exhibit #23: MCP tool available but never invoked)
+## 2026-09-08 19:40 — collect() в Cypher: json_group_array + типизированный декод (fixed)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Open вЂ” Р·Р°С„РёРєСЃРёСЂРѕРІР°РЅ РіСЌРї (РёСЃСЃР»РµРґРѕРІР°РЅРёРµ + РїР»Р°РЅ, РєРѕРґ РќР• РІРЅРѕСЃРёР»СЃСЏ)
-**Root Cause:** С„СѓРЅРґР°РјРµРЅС‚ (VOR / DebounceBatch / ConsistencyTracker / IdleScheduler / PropagationEngine) СЃСѓС‰РµСЃС‚РІСѓРµС‚, РЅРѕ РєРѕРјРїРѕ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** ✅ Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 ⏳ — `_translate_return_expr` заявлял `collect` как Supported, но SQLite не имеет функции COLLECT («no such function»); ни одного теста на...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-10 вЂ” H1 idle-VOR + system_alerts (С†РµРїСЊ В«С„Р°Р№Р» РёР·РјРµРЅС‘РЅ в†’ STALE в†’ VOR в†’ alert Р°РіРµРЅС‚Р°В» СЃРѕР±СЂР°РЅР°)
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed / **Root Cause (Exhibit #23, 2026-09-09):** РєРѕРјРїРѕРЅРµРЅС‚С‹ С†РµРїРё СЃСѓС‰РµСЃС‚РІРѕРІР°Р»Рё РїРѕ РѕС‚РґРµР»СЊРЅРѕСЃС‚Рё, РЅРѕ VOR РІС‹Р·С‹РІР°Р»СЃСЏ СЂРѕРІРЅРѕ РёР· 1 РјРµСЃС‚Р° (layer.py:intel_get_project_memory), mark_stale("memory")...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-10 вЂ” Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
+## 2026-09-09 — Аудит «Active MSCodeBase» (Exhibit #23: MCP tool available but never invoked)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** вњ… Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient вЂ” agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; s...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** Open — зафиксирован гэп (исследование + план, код НЕ вносился)
+**Root Cause:** фундамент (VOR / DebounceBatch / ConsistencyTracker / IdleScheduler / PropagationEngine) существует, но компо...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-11 вЂ” H3 TTL-РіРЅРёРµРЅРёРµ: last_checked РґР»СЏ РІСЃРµС… РїСЂРѕРІРµСЂРµРЅРЅС‹С… + label stale_ttl (doc 10 closed)
-
-- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (9 РЅРѕРІС‹С… С‚РµСЃС‚РѕРІ + 1725 РїРѕР»РЅС‹Р№ pytest green; doc 10-continuous-verification H1+H2+H3 done)
-**Root Cause:** INCONCLUSIVE/РЅРµРїСЂРѕРІРµСЂРµРЅРЅС‹Рµ СѓР·Р»С‹ В«РІРёСЃСЏС‚ РІРµС‡РЅРѕВ» Р±РµР· СЃР»РµРґР° РїСЂРѕРІРµСЂРєРё: live-СЃСЂРµР· ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
-
-
-## 2026-09-13 вЂ” H4: agent-memory lifecycle РІ РјР°СЃС€С‚Р°Р±Рµ dev.to KB вЂ” Р±СѓС‚С‹Р»РѕС‡РЅРѕРµ РіРѕСЂР»С‹С€РєРѕ = СЃРµС‚РµРІРѕР№ capture, РЅРµ РіСЂР°С„
+## 2026-09-10 — H1 idle-VOR + system_alerts (цепь «файл изменён → STALE → VOR → alert агента» собрана)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Fixed (СЌРєСЃРїРµСЂРёРјРµРЅС‚ РїРѕРґС‚РІРµСЂР¶РґС‘РЅ; СЃРѕРїСЂРѕРІРѕР¶РґРµРЅРёРµ Р·Р°РґР°С‡Рё closed)
-**Root Cause:** РїСЂРё СЂРѕСЃС‚Рµ Р±Р°Р·С‹ 3,989 в†’ 13,519 СЃС‚Р°С‚РµР№ (3.4x), refresh own Р·Р°РЅСЏР» 10Рј38СЃ РЅР° 13.5k СЃС‚Р°С‚РµР№/82.5k РєРѕРјРјРµРЅС‚РѕРІ (134 СЃРµС‚Рµ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** ✅ Fixed / **Root Cause (Exhibit #23, 2026-09-09):** компоненты цепи существовали по отдельности, но VOR вызывался ровно из 1 места (layer.py:intel_get_project_memory), mark_stale("memory")...
+- **Статус:** автоматически синхронизировано
 
 
-## 2026-09-20 вЂ” РџРѕРёСЃРєРѕРІРѕРµ РєР°С‡РµСЃС‚РІРѕ / E13: РёСЃСЃР»РµРґРѕРІР°С‚РµР»СЊСЃРєРёРµ Р·Р°РґР°С‡Рё (6 РїСѓРЅРєС‚РѕРІ)
+## 2026-09-10 — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
 
 - **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
-- **РћРїРёСЃР°РЅРёРµ:** **Status:** Plan (Р·Р°РґР°С‡Рё Р·Р°РЅРµСЃРµРЅС‹ РІ ISSUE.md KI-R1..R6, РєРѕРґ РЅРµ С‚СЂРѕРЅСѓС‚)
-**РљРѕРЅС‚РµРєСЃС‚:** РёСЃСЃР»РµРґРѕРІР°РЅРёРµ РїРѕРёСЃРєР°/RAG вЂ” С‡С‚Рѕ РёРјРµРЅРЅРѕ РёР·РјРµСЂСЏС‚СЊ, РїСЂРµР¶РґРµ С‡РµРј СѓС‚РІРµСЂР¶РґР°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚.
-**Р РµС€РµРЅРёРµ (РїСЂРёРѕСЂРёС‚РµС‚):** KI-R1 (РїРµСЂ...
-- **РЎС‚Р°С‚СѓСЃ:** Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРёРЅС…СЂРѕРЅРёР·РёСЂРѕРІР°РЅРѕ
+- **Описание:** **Status:** ✅ Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient — agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; s...
+- **Статус:** автоматически синхронизировано
 
+
+## 2026-09-11 — H3 TTL-гниение: last_checked для всех проверенных + label stale_ttl (doc 10 closed)
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (9 новых тестов + 1725 полный pytest green; doc 10-continuous-verification H1+H2+H3 done)
+**Root Cause:** INCONCLUSIVE/непроверенные узлы «висят вечно» без следа проверки: live-срез ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-13 — H4: agent-memory lifecycle в масштабе dev.to KB — бутылочное горлышко = сетевой capture, не граф
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (эксперимент подтверждён; сопровождение задачи closed)
+**Root Cause:** при росте базы 3,989 → 13,519 статей (3.4x), refresh own занял 10м38с на 13.5k статей/82.5k комментов (134 сете...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-20 — Поисковое качество / E13: исследовательские задачи (6 пунктов)
+
+- **РСЃС‚РѕС‡РЅРёРє:** AGENT_DIARY.md
+- **Описание:** **Status:** Plan (задачи занесены в ISSUE.md KI-R1..R6, код не тронут)
+**Контекст:** исследование поиска/RAG — что именно измерять, прежде чем утверждать результат.
+**Решение (приоритет):** KI-R1 (пер...
+- **Статус:** автоматически синхронизировано
+
+---
+
+## Archived 2026-09-27 (R1 size guard: live file > 300 lines)
+
+Moved 48 closed entries from KNOWN_ISSUES.md verbatim; open/unmarked entries stay live.
+
+## 2026-09-26 — G6 gate blind to paraphrase twins of index phrases (Fixed)
+- **Источник/Описание:** F4b (22 runs, `results/f4b/RED_TEAM.md` R1). must-hit `#3` — морф. двойник arrival-фразы каталога; G6 `PASS`, но symptom-условие 3/11. Чекер не видит табличные строки и не стеммит.
+- **Fix:** `frozen_overlap_check.py` v2 — numbered-пробы + arrival-фразы каталога + лёгкий стемминг; `--selftest` + `tests/test_frozen_overlap_check.py`. **Статус:** ✅ Fixed.
+
+## 2026-09-25 — Reindex deadlock: `_bounded_link` ran `bulk_write` on a new thread while the caller held the write RLock (Fixed)
+
+- **Источник:** live job `090149f1` (stuck 52% "running", 0 CPU); `py-spy dump 6780` → поток `bounded-bulk_write` idle на `db_writer.py:336` (`with self._table_write_lock:`), поток `asyncio_1` ждёт его в `_bounded_link`; `reindex_ledger.jsonl` записал `RuntimeError: bulk_write exceeded 300s`.
+- **Root Cause:** `run()` держит глобальный RLock (`db_manager.begin_write()`) весь reindex на своём потоке; `_bounded_link` (timeout-фикс 2026-09-25) запускал `bulk_write` в НОВОМ daemon-потоке, а `bulk_write` берёт ТОТ ЖЕ RLock → дедлок. Тот же класс для `prune`/`verify` (`recreate_table_physical`).
+- **Fix:** `_bounded_link` оборачивает bounded-вызов в `_suspend_write_lock()` (уже применённый для `_safe_ivf_index`) — единая точка, покрывает все звенья.
+- **Fix (итог):** разделены два мьютекса — `run()` держит отдельный `begin_run()` (non-reentrant, взаимное исключение запусков), а `_table_write_lock` берётся только на операцию. `_bounded_link` больше не освобождает write-lock. Это закрыло и дедлок, и параллельные индексаторы (auto-index + manual trigger) — они теперь сериализуются.
+- **Guard:** `tests/test_bounded_link_deadlock.py` (write-lock на другом потоке не дедлочит + структурный контракт), `tests/test_run_singleflight.py` (begin_run ≠ begin_write; второй run блокируется).
+- **LIVE verified (2026-09-25):** full reindex job `c09c2e22` → **completed за 858.5с** (ledger: parsing→embedding→finalizing→complete→end). Индекс: **19653 → 10103**, path-duplication **668 → 0**, dup(file_path,chunk_index) **144 → 0**.
+- **Статус:** ✅ Fixed + live-verified.
+
+## 2026-09-25 — Раздувание индекса ~×2: full-reindex писал `\`, incremental — `/` (один файл = две строки) (Fixed)
+
+- **Источник:** снимок индекса (`experiments/misc_probes/exp_index_dedup_probe.py`): `file_path` distinct raw=**1378** vs normalized=**710** (path-duplication **668**); код: `index_project_runner._parse_worker` (`str(relative_to)` → `\`), `freshness.py:96` (`.replace(os.sep,"/")`), `db_writer` id=`md5(rel_path)_i`, `indexer._parse_file_only` (`known_hashes.get(rel_path_str)`).
+- **Root Cause:** полный reindex писал пути с `\`, hot-reload/freshness — с `/`. `known_hashes` и id строки строятся по **буквальному** `file_path` → формы не совпадали → incremental **пере-добавлял** уже проиндексированные файлы каждый прогон → рост ~×2. Измерено: `9991 → 19653` чанков.
+- **Вторая причина:** data-JSON — **5272 чанка (27%)**, крупные `results_*.json` (до 1002 чанков на файл).
+- **Fix:** канонический POSIX через `src/core/relpath.py::normalize_rel_path`, применён в `indexer._parse_file_only` (choke: rel + известные хэши), `db_writer.write_records`/`prepare_records`, `index_project_runner` (known_hashes load), `indexing_tools.notify_change`. **T3-свип (обобщение) нашёл ещё 2 критичных индекс-питающих места:** `indexer.index_file` (`:837`) и `index_project_runner._parse_worker` → `current_files_on_disk` (вход prune) — без нормализации prune-множество (`\`) не совпало бы с БД (`/`) (спасал safety-guard >50%); нормализованы. Прочие `str(relative_to)` — doc/display (не индекс), к ревизии отдельно.
+- **Guard:** `tests/test_relpath.py` (5); resume-тест обновлён под канонический путь; 27 passed; ruff clean.
+- **Статус:** ✅ Fixed + **live-verified collapse**: full reindex → 19653 → **10103** rows, path-duplication **668 → 0**, dup(file_path,chunk_index) **144 → 0**. Исключение data-JSON (5272 чанка) — отдельно.
+
+## 2026-09-25 — graph.db lock заваливал reindex: named mutex владеется ПОТОКОМ, внутрипроцессного lock не было (Fixed)
+
+- **Источник:** reindex `cb8305f7` failed «Could not acquire cross-process lock for graph.db within 30000ms»; `src/core/graph.py:46-128`; `experiments/misc_probes/exp_graph_mutex_cross_thread.py`; `tests/test_graph_lock_threadsafe.py`
+- **Root Cause:** `_cross_process_lock` использовал **только** Windows named mutex. Named mutex принадлежит **потоку-владельцу** и не реентерабелен между потоками → второй поток того же MCP-процесса (реиндекс-finalize vs живая graph-операция) не получает мутекс и падает ровно по таймауту. Эксперимент: при удержании 3с второй поток отказал на **0.80с** (=его таймаут). Значит любая graph-операция >30с заваливала реиндекс.
+- **Fix:** добавлен внутрипроцессный `threading.RLock` на `db_path` (`_local_graph_lock`) **ПЕРЕД** named mutex → потоки сериализуются (ждут, не падают); мутекс теперь арбитрирует только между процессами.
+- **Guard:** `tests/test_graph_lock_threadsafe.py` (второй поток ждёт и acquires после release, `A-out` < `B-in`); 121 graph-related passed; ruff clean.
+- **Статус:** ✅ Fixed (live-проверка требует reload MCP — процесс несёт старый `graph.py`).
+
+## 2026-09-25 — Chain-map: 8 незащищённых нативных звеньев индексатора закрыты `run_bounded` (Fixed)
+
+- **Источник:** `docs/research/indexer_chain_map_2026-09-25.md`, `tests/test_reindex_link_bounds.py`
+- **Описание:** карта цепочки `run()` (триггер→конец) нашла **8 звеньев того же класса**, что `_safe_optimize`: `_verify_and_repair_table_integrity`, known_hashes `to_lance()`, `embed_batch`, `bulk_write`, prune, BM25 `searcher.reindex`, `summarizer.save_cache`, `save_symbol_index`. Любое зависание нативного вызова = вечная фаза (0 CPU, без сигнала).
+- **Fix:** `_bounded_link(fn, label, fatal=)` (обёртка над `run_bounded`, таймаут `MSCODEBASE_LINK_TIMEOUT_SEC`, default 300): non-fatal (verify/known_hashes/prune/BM25/summarizer/symbol) → skip+log; **fatal** (`embed_batch`/`bulk_write`) → `RuntimeError` (resume-safe: инкрементальные чекпойнты). Обёрнуты все 8.
+- **Guard:** `tests/test_reindex_link_bounds.py` (4: value/пропуск/fatal-raise/propagate) + 18 связанных + 78 indexer/search passed; ruff clean.
+- **Статус:** ✅ Fixed.
+
+## 2026-09-19 — Прод-инцидент: миграция колонок lanceDB молча не выполнялась + db_writer разрушал БД при schema-mismatch (Fixed)
+
+- **Источник:** AGENT_DIARY.md#2026-09-19
+- **Описание:** два бага, найденные при E10-исследовании поиска (индекс строился на свежей БД, миграция молча не срабатывала):
+  1. Старый `db_manager` импортировал `_migrate_text_full_inplace` / `_migrate_add_metadata_columns` из `indexer_table.py` как module-level функции, а это методы класса `IndexerTableMixin` (indexer_table.py:17,66,94) → ImportError → миграция НЕ выполнялась.
+  2. `db_writer.is_table_missing` трактовал `"in table schema"` (schema-mismatch) как «таблица отсутствует» → ПОЛНЫЙ rebuild (drop + re-embed ~13 мин) вместо soft-миграции.
+- **Fix:** `db_manager` — локальные `_migrate_text_full_inplace(table)` / `_migrate_add_metadata_columns(existing_fields, table)` с `pa.field(name, field.type)` из `self.schema`; `db_writer` — `is_table_missing` исключает `"in table schema"` (recreate только при реальном отсутствии таблицы). +200 строк тестов (`tests/test_lancedb_recreate.py`): миграция legacy→file_mtime_ns/file_size, идемпотентность, «НЕ пересоздавать при schema-mismatch».
+- **Статус:** ✅ Fixed (подготовлен к PR в этом коммите). Тесты: test_lancedb_recreate 12 passed, фокус-группа 43 passed.
+
+## 2026-09-19 — E10 (search quality): full-text-эмбеддинг + e5-префиксы + пул reranker 50 → REFUTED (N=10)
+
+- **Источник:** EXPERIMENTS_LOG.md#2026-09-19
+- **Описание:** три «выключателя» качества (E10a full-text чанка в эмбеддинг, e5 `query:`/`passage:`-префиксы в llama.cpp-ветке — ONNX/OpenVINO уже имели `_ensure_prefix`, E10c пул reranker 30→50) не дали подтверждаемого сдвига. Чистый прогон (599 файлов / 9514 чанков, 799.9s): fast hit@1=0% hit@5=50%; quality hit@1=20% hit@5=40%; baseline автора 0/50% и 30/30%. Дельта — в пределах шума N=10.
+- **Fix (предотвращение):** изменённый код откален к HEAD (поведение клиента = прод); остаток — env-тумблер `MAX_RERANKER_INPUT` с default=30 (нейтрален). Платo «pure-vector» подтверждено повторно (ср. Exp-29 ceiling ~0.23).
+- **Статус:** ❌ REFUTED (закрыт, записан в lab exp-43). Следующий ход — AST/Graph-hybrid re-ranking, не эмбеддинговые твики.
+
+## 2026-09-18 — Фаза 1: Incremental Hot-Reload — FreshnessChecker оживлён, hot-reload зашит (AST+FTS5+граф)
+
+- **Источник:** AGENT_DIARY.md#2026-09-18
+- **Описание:** FreshnessChecker был мёртв (0 вызовов) и сломан: `to_pandas(columns=)` падает на lancedb 0.34 (рабочее — `to_lance().to_pandas`, 102.2ms/10366 напр.); пропускал НОВЫЕ файлы (KI-109 — файл без notify_change не попадал в индекс); передавал `project_path` вместо `rel` в `_index_single_file`. Хот-reload существовал, но оставлял 3 дыры: FTS5 (incremental_update_fts5 только добавляет), PropertyGraph (remove_file не вызывался), schema (не было mtime/size для stat-first).
+- **Fix:** schema + `file_mtime_ns`/`file_size` (db_manager/indexer_table/db_writer/index_pipeline/indexer); FreshnessChecker.verify переписан: stat-first (mtime+size → skip без hash), hash-подтверждение для несовпадений/legacy, новые файлы индексируются, debounce (`FRESHNESS_INTERVAL_SEC`, 0=выкл) + Lock + `is_reindexing`-гейт, фильтрация через real FileGuard; `_index_single_file`: +remove_file (граф) +remove_from_fts5 (FTS5) перед переиндексацией; search-хук `_maybe_hot_reload` (await `asyncio.to_thread`). Полный reindex остаётся fallback (срабатывает при пустом индексе). 6 новых тестов + 233 регресс-прохода.
+- **Статус:** ✅ Fixed локально (ветка не запушена, verified_from_clean_state не прогонялся). 7 новых тестов (включая concurrency-стресс N=16) + 1748 полный pytest green. Полный reindex-запуск после миграции существующих БД не выполнялся — запрос владельцу на live-check.
+
+## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+**Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+**Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит 32f11662; все 5 pre-commit hook'ов OK; полный pytest 1587 passed, 2 pre-existing env_extractor fail)
+**Root Cause 1:** `_enrich_job_response` — мёртвая ветка истории (job.project_size никогда не присваивается) + сломанная линейная экстраполяция первых 2с → ложный ETA «~8с». **Fix 1:** единый парсер `_embed_progress_from_log` + реальная скорость из лога (remaining/speed), честный None без данных.
+**Root Cause 2:** `_safe_ivf_index` без единого progress-колбэка → бар застывал на 0.8, чанки не росли. **Fix 2:** emission «finalizing» колбэка до/после IVF, отображение 0.8→0.95, честная строка в get_job_status.
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (fixed f210ed7c)
+
+- **Источник:** AGENT_DIARY.md#2026-09-03-1930
+- **Описание:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing existing `layer → tools_reg` cycle. `architecture_linter.py` caught it as `[CIRCULAR]`. Fix: extracted parser into neutral `src/core/intelligence/embed_progress.py`. CI run 33796959353 all-jobs green (ubuntu+windows).
+- **Статус:** ✅ Fixed
+
+## 2026-09-04 — CI RED: ruff lint errors caught only after push (fixed 986c9be7)
+
+- **Источник:** INC-A35A, CI runs 33847347263/33847972948
+- **Описание:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (5a771789, b121ab19, 3dd79ba2).
+- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by bb05d9af that caused SyntaxError in generated hook.
+- **Статус:** ✅ Fixed
+
+## 2026-09-04 — PRE-EXISTING: hook template SyntaxError (bb05d9af)
+
+- **Описание:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled — was installed via MCP after commits pushed, so never caught.
+- **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
+- **Статус:** ✅ Fixed
+
+## 2026-09-05 — Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only, не запушено) — verify_diary.py + git_hooks_installer.py
+**Root Cause:** `check_commit_exists` (verify_diary.py:361): `proc.communicate(timeout=30)` на таймауте НЕ убивает процесс, `except: pass` глотает TimeoutExpired → Popen утекает навсегда. Git for Windows re-exec (git → git.exe) теряет DETACHED_PROCESS → каждый зависший `cat-file` = 3 вечных процесса (git + git.exe + conhost); стартовая Contradiction Ledger-проверка при CPU/Defender contention.
+**Fix:** `_kill_git_tree()` (`taskkill /F /T /PID`) на TimeoutExpired в check_commit_exists + то же в run_script (git_hooks_installer.py:93). Снято на живой цепочке 9660→24156→24428. Тесты: 9 passed (5 commit_guard + 2 subprocess_windows + 2 ledger slow); ruff clean по новым строкам.
+- **Статус:** ✅ Fixed
+
+## 2026-09-05 — stale_detector + predict_change стабильно -32001 через MCP (fixed code only)
+
+- **Источник:** AGENT_DIARY.md#2026-09-05-1230
+- **Описание:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)`, но внутри `execute` вызывается синхронный блокирующий код (`stale_run` 10-29s, `static_predict` git-subprocess). На Windows wait_for НЕ может отменить работающий синхронный блок → event loop заблокирован, клиент отваливается по -32001 до ответа. Эксперимент: wait_for(10s) вокруг sync stale_run НЕ прервал (24.7s); `asyncio.to_thread` + wait_for(5s) → реальный таймаут, loop жив.
+- **Fix:** оба инструмента обёрнуты в `asyncio.to_thread` (doc_tools._scan_docs, predict_tools.static_predict/ChangePreview.run); таймауты 10s→60s (stale), 60s→120s (predict). Прямые вызовы: stale OK 13.0s, predict OK 1.4s; 62 теста passed.
+- **Статус:** ✅ Fixed (code only, MCP reload требуется)
+
+## 2026-09-06 — lock_guard acquire/release падал ThreadExpired: таймаут 60s < pre-commit hook 5-10min (fixed)
+
+- **Источник:** AGENT_DIARY.md#2026-09-06-2100
+- **Описание:** `scripts/lock_guard.py` (`_run`) использовал `timeout=60s` для `git commit`, но любой commit прогоняет pre-commit hook (verify_diary → полный pytest), занимающий 5-10 мин на Windows. 60s давал TimeoutExpired даже когда коммит успешно создавался в фоне → ложное ощущение провала протокола `.locks` при параллельной работе агентов.
+- **Fix:** `_run` timeout 60→900s. Проверено полным циклом acquire→status→release на `README.md`, `scripts/lock_guard.py`, тестовом ресурсе: exit 0, коммиты+push проходят hook. INC-CD6E.
+- **Статус:** ✅ Fixed
+
+## 2026-09-06 — [P] sync-subprocess в async-MCP вызовов (context_tool, system_tools) — fixed
+
+- **Источник:** AGENT_DIARY.md#2026-09-06-2130; кандидаты: `context_tool.py:280` subprocess.run в get_context (30s), `system_tools.py:370/408/446` (dual_arm, mutmut-WSL 180s).
+- **Fix:** `_section_git` стал async, `subprocess.run` обёрнут в `asyncio.to_thread` (context_tool.py); wsl_check/`_run_mutmut_in_wsl`/`_verify_mutmut_can_fail` — через `asyncio.to_thread` (system_tools.py). `git_tools._git_run` уже был async (эталон, не тронут). Проверено: test_context_tool 2 passed, ruff clean, импорты OK, реальный `_section_git` возвращает git-history.
+- **Статус:** ✅ Fixed (code only, MCP reload требуется)
+
+## 2026-09-08 — B4: статический цикл parser ⇄ language_imports (осознанный техдолг, lazy, allowed)
+
+- **Источник:** `architecture_linter` (Invariant 3) после деривации `LANGUAGE_IMPORT_NODES` из `CodeParser.IMPORT_NODE_MAP` (B4).
+- **Описание:** `src.core.language_imports` импортирует `src.core.indexing.parser` (для деривации карты), а `parser._extract_fallback_imports` импортирует `language_imports` (fallback-режим 2). Статически — цикл; в рантайме ни один импорт при загрузке модулей не выполняется: parser импортирует language_imports только локально в функции; language_imports импортирует parser только лениво (module `__getattr__` → `_derive_language_import_nodes`, PEP 562) при первом обращении к `LANGUAGE_IMPORT_NODES`.
+- **Fix:** пара добавлена в `_ALLOWED_CORE_CYCLES` (scripts/architecture_linter.py) с комментарием; `LANGUAGE_IMPORT_NODES` переведён на ленивую деривацию (кэш `_LANGUAGE_IMPORT_NODES_CACHE`, `__getattr__`), прямое обращение к карте внутри модуля заменено на `_get_language_import_nodes()`. Удалить из allowlist после выноса `IMPORT_NODE_MAP` в нейтральный модуль (не историю карт в parser) — тогда language_imports сможет импортировать parser односторонне.
+- **Статус:** ✅ Fixed (allowed tech debt, deferred refactor; целевые 68 passed, architecture_linter 4/4 OK)
+- **Дедлайн рефактора:** 2026-10-01 · **Owner:** ManSio
+
+## 2026-09-08 — B3: grammar-карты parser.py (imports/calls/assigns/conditions) внесены + живые фиксы
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause и итог:** внесены из study 05 карты CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (пер-язычные) в `src/core/indexing/parser.py`. Живые tree-sit...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-08 12:35 — B4: import-экстракция через language_imports (деривация карт + флаг-гейт)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** два источника node-типов импортов (parser.IMPORT_NODE_MAP и литерал LANGUAGE_IMPORT_NODES) расходились (kt/dart/php); ungated fallback-2 в мосте.
+**Fix:** LANGUAG...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-09 19:35 - .h заголовки C не индексируются (SUPPORTED_EXTENSIONS без .h)
+
+- **Источник:** AutoCoder аудит/E-S1 live-проба 2026-09-09 (внешняя сессия, репо не изменялось до этой записи)
+- **Описание:** **Status:** ✅ Fixed (2026-09-09, commit 0301fa93). CodeParser.SUPPORTED_EXTENSIONS/parsers не содержали ".h" (есть .hpp/.cxx/.cpp) - заголовки C-проектов выпадали из AST-индексации (импорты/вызовы/присваивания). Эмпирика E-S1 (shallow-клоны, кап 300 файлов/язык): curl - 65/300 файлов с явными #include дали 0 рёбер (преимущественно .h), dart-http .c-папка 0/9. Бонус-результат той же пробы: импорт-карты живые на 6 языках (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), вызовы php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - синтетический дефект "вызовы PHP/Ruby/C/Dart" снят.
+- **Fix:** ".h" добавлен в PARSE_EXTENSIONS (src/core/extensions.py) + C-парсер для ".h" (parser.py) + карты: env (".h":"c"), IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator/assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/... как у ".c"). Пояснение: ".h" уже был в INDEX_EXTENSIONS (вектор индексировался), не хватало именно AST-слоя ⇒ map_lies. +1 тест (test_h_header_preproc_include). Повтор E-S1 пробы на curl (ожидание: map_lies .h -> ~0) — отложен, verified на уровнеunit-теста C-парсера.
+- **Статус:** ✅ Fixed
+
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает 100% при ONE rename-sweep (ответ Statewave на dev.to)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Closed (эксперименты, ответ опубликован)
+**Root Cause:** VOR (ADR-0003) проверяет ПУТЬ-якоря против текущего HEAD. Rename/move = старый путь отсутствует = SILENT_ABSENCE = отзыв, хотя файл...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-11 — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ PR #34 создан, hooks green; скорость тестов — осознанное решение, код НЕ менялся.
+**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchor...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-10 — Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR масштабирование и внешний дрифт
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fix (замеры, кода не менялось). **Root Cause (KNOW ISSUES «Lazy-only верификация»):** вопрос, успевает ли VOR проверить ACTIVE-узлы в рамках budget_ms=50 (read-path) / 250 (background id...
+- **Статус:** автоматически синхронизировано
+
+## 2026-09-20 — Exp E13: текстовый RAG (doc-chunks) vs кодовый baseline (E10/E11)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Measured (refuted hypothesis)
+**Hypothesis:** doc-chunks (README + docs/en/ + docstrings) retrieve as well as code-chunks via search_with_mode quality.
+**Method:** 16 EN doc-queries, live ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-18 — Фаза 1: Incremental Hot-Reload (FreshnessChecker оживлён + hot-reload + KI-109)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (7 тестов свежести включая concurrency-стресс N=16 + 1748 полный pytest green; ветка вне PR — локально)
+**Root Cause:** FreshnessChecker (freshness.py) был мёртв (0 вызовов) и СЛОМАН...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает 100% при ONE rename-sweep (ответ Statewave на dev.to)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Closed (эксперименты, ответ опубликован)
+**Root Cause:** VOR (ADR-0003) проверяет ПУТЬ-якоря против текущего HEAD. Rename/move = старый путь отсутствует = SILENT_ABSENCE = отзыв, хотя файл...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-09 — H1: фоновый VOR-проход (IdleScheduler) — память перепроверяется без вызова агента
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (6 новых тестов + 1674 полный pytest green; ветка chore/experiments-es1-es2-0909)
+**Root Cause:** VOR вызывался ровно из 1 места (intel_get_project_memory, layer.py:1097); idle-задач...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-09 — H2: .h заголовки C включены в AST-индексацию (PARSE_EXTENSIONS + C-парсер)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
+**Root Cause:** ".h" был в INDEX_EXTENSIONS (вектор-чанкинг шёл), но НЕ в PARSE_EXTENSIONS → CodeParser.parse_file возвращал [...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-07 — Cypher-движок: анонимные узлы/рёбра ломали MATCH; ActionReceipt не писался из write-пути
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (оба блока закрыты, тесты зелёные)
+**Root Cause:** (1) Cypher: `from_node_alias` дефолтил в `n1`, а генератор создавал `n{path_idx*2}` для анонимного узла → `no such column: n0.id`; ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+**Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+**Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+**Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+**Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-05 12:30 — FIX: stale_detector + predict_change стабильно таймаутили через MCP (-32001): блокирующий sync-код в async-контексте
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only, не запушено) — src/mcp/tools/doc_tools.py + predict_tools.py
+**Root Cause:** `error_boundary` применяет `asyncio.wait_for(timeout_ms)` вокруг `execute`, но внутри `exec...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:00 — Починка lock_guard: таймаут 60s ломал весь .locks-протокол
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** `scripts/lock_guard.py` `_run` default timeout=60s — любой `git commit` прогоняет pre-commit hook (verify_diary → полный pytest 5-10 мин на Windows), поэтому acqu...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-06 21:30 — sync-subprocess в async-MCP (context_tool, system_tools) — fixed
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed (code only) / **Root Cause:** системная проверка после фикса stale/predict: нашлись ещё sync `subprocess.run` внутри async `execute`. `GetContextTool._section_git` (git log через s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 — B3: grammar-карты parser.py (imports/calls/assigns/conditions) внесены + живые фиксы
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause и итог:** внесены из study 05 карты CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (пер-язычные) в `src/core/indexing/parser.py`. Живые tree-sit...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 12:35 — B4: import-экстракция через language_imports (деривация карт + флаг-гейт)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** два источника node-типов импортов (parser.IMPORT_NODE_MAP и литерал LANGUAGE_IMPORT_NODES) расходились (kt/dart/php); ungated fallback-2 в мосте.
+**Fix:** LANGUAG...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-08 19:40 — collect() в Cypher: json_group_array + типизированный декод (fixed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed. / **Root Cause:** KNOWN_ISSUES 2026-09-07 ⏳ — `_translate_return_expr` заявлял `collect` как Supported, но SQLite не имеет функции COLLECT («no such function»); ни одного теста на...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-10 — H1 idle-VOR + system_alerts (цепь «файл изменён → STALE → VOR → alert агента» собрана)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause (Exhibit #23, 2026-09-09):** компоненты цепи существовали по отдельности, но VOR вызывался ровно из 1 места (layer.py:intel_get_project_memory), mark_stale("memory")...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-11 — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ PR #34 создан, hooks green; скорость тестов — осознанное решение, код НЕ менялся.
+**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchor...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-10 — Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR масштабирование и внешний дрифт
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fix (замеры, кода не менялось). **Root Cause (KNOW ISSUES «Lazy-only верификация»):** вопрос, успевает ли VOR проверить ACTIVE-узлы в рамках budget_ms=50 (read-path) / 250 (background id...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-10 — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed. **Root Cause (Exhibit #23, 2026-09-09):** inform-the-agent approach insufficient — agent can ignore STALE alerts; PlanFence 30/30 failures confirms action-validation unreliable; s...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-11 — H3 TTL-гниение: last_checked для всех проверенных + label stale_ttl (doc 10 closed)
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (9 новых тестов + 1725 полный pytest green; doc 10-continuous-verification H1+H2+H3 done)
+**Root Cause:** INCONCLUSIVE/непроверенные узлы «висят вечно» без следа проверки: live-срез ...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-13 — H4: agent-memory lifecycle в масштабе dev.to KB — бутылочное горлышко = сетевой capture, не граф
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** Fixed (эксперимент подтверждён; сопровождение задачи closed)
+**Root Cause:** при росте базы 3,989 → 13,519 статей (3.4x), refresh own занял 10м38с на 13.5k статей/82.5k комментов (134 сете...
+- **Статус:** автоматически синхронизировано
+
+---
+
+## Archived 2026-09-27 (R1 size guard: experiment/4a-unit-of-return merge, closed-only batch)
+
+Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixed/resolved AND NOT open/unresolved); open/unmarked entries stay live. Mojibake duplicates removed in the same session (clean copies kept live or archived).
+
+## 2026-09-25 тАФ Reindex deadlock: `_bounded_link` ran `bulk_write` on a new thread while the caller held the write RLock (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** live job `090149f1` (stuck 52% "running", 0 CPU); `py-spy dump 6780` тЖТ ╨┐╨╛╤В╨╛╨║ `bounded-bulk_write` idle ╨╜╨░ `db_writer.py:336` (`with self._table_write_lock:`), ╨┐╨╛╤В╨╛╨║ `asyncio_1` ╨╢╨┤╤С╤В ╨╡╨│╨╛ ╨▓ `_bounded_link`; `reindex_ledger.jsonl` ╨╖╨░╨┐╨╕╤Б╨░╨╗ `RuntimeError: bulk_write exceeded 300s`.
+- **Root Cause:** `run()` ╨┤╨╡╤А╨╢╨╕╤В ╨│╨╗╨╛╨▒╨░╨╗╤М╨╜╤Л╨╣ RLock (`db_manager.begin_write()`) ╨▓╨╡╤Б╤М reindex ╨╜╨░ ╤Б╨▓╨╛╤С╨╝ ╨┐╨╛╤В╨╛╨║╨╡; `_bounded_link` (timeout-╤Д╨╕╨║╤Б 2026-09-25) ╨╖╨░╨┐╤Г╤Б╨║╨░╨╗ `bulk_write` ╨▓ ╨Э╨Ю╨Т╨Ю╨Ь daemon-╨┐╨╛╤В╨╛╨║╨╡, ╨░ `bulk_write` ╨▒╨╡╤А╤С╤В ╨в╨Ю╨в ╨Ц╨Х RLock тЖТ ╨┤╨╡╨┤╨╗╨╛╨║. ╨в╨╛╤В ╨╢╨╡ ╨║╨╗╨░╤Б╤Б ╨┤╨╗╤П `prune`/`verify` (`recreate_table_physical`).
+- **Fix:** `_bounded_link` ╨╛╨▒╨╛╤А╨░╤З╨╕╨▓╨░╨╡╤В bounded-╨▓╤Л╨╖╨╛╨▓ ╨▓ `_suspend_write_lock()` (╤Г╨╢╨╡ ╨┐╤А╨╕╨╝╨╡╨╜╤С╨╜╨╜╤Л╨╣ ╨┤╨╗╤П `_safe_ivf_index`) тАФ ╨╡╨┤╨╕╨╜╨░╤П ╤В╨╛╤З╨║╨░, ╨┐╨╛╨║╤А╤Л╨▓╨░╨╡╤В ╨▓╤Б╨╡ ╨╖╨▓╨╡╨╜╤М╤П.
+- **Fix (╨╕╤В╨╛╨│):** ╤А╨░╨╖╨┤╨╡╨╗╨╡╨╜╤Л ╨┤╨▓╨░ ╨╝╤М╤О╤В╨╡╨║╤Б╨░ тАФ `run()` ╨┤╨╡╤А╨╢╨╕╤В ╨╛╤В╨┤╨╡╨╗╤М╨╜╤Л╨╣ `begin_run()` (non-reentrant, ╨▓╨╖╨░╨╕╨╝╨╜╨╛╨╡ ╨╕╤Б╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨╖╨░╨┐╤Г╤Б╨║╨╛╨▓), ╨░ `_table_write_lock` ╨▒╨╡╤А╤С╤В╤Б╤П ╤В╨╛╨╗╤М╨║╨╛ ╨╜╨░ ╨╛╨┐╨╡╤А╨░╤Ж╨╕╤О. `_bounded_link` ╨▒╨╛╨╗╤М╤И╨╡ ╨╜╨╡ ╨╛╤Б╨▓╨╛╨▒╨╛╨╢╨┤╨░╨╡╤В write-lock. ╨н╤В╨╛ ╨╖╨░╨║╤А╤Л╨╗╨╛ ╨╕ ╨┤╨╡╨┤╨╗╨╛╨║, ╨╕ ╨┐╨░╤А╨░╨╗╨╗╨╡╨╗╤М╨╜╤Л╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨░╤В╨╛╤А╤Л (auto-index + manual trigger) тАФ ╨╛╨╜╨╕ ╤В╨╡╨┐╨╡╤А╤М ╤Б╨╡╤А╨╕╨░╨╗╨╕╨╖╤Г╤О╤В╤Б╤П.
+- **Guard:** `tests/test_bounded_link_deadlock.py` (write-lock ╨╜╨░ ╨┤╤А╤Г╨│╨╛╨╝ ╨┐╨╛╤В╨╛╨║╨╡ ╨╜╨╡ ╨┤╨╡╨┤╨╗╨╛╤З╨╕╤В + ╤Б╤В╤А╤Г╨║╤В╤Г╤А╨╜╤Л╨╣ ╨║╨╛╨╜╤В╤А╨░╨║╤В), `tests/test_run_singleflight.py` (begin_run тЙа begin_write; ╨▓╤В╨╛╤А╨╛╨╣ run ╨▒╨╗╨╛╨║╨╕╤А╤Г╨╡╤В╤Б╤П).
+- **LIVE verified (2026-09-25):** full reindex job `c09c2e22` тЖТ **completed ╨╖╨░ 858.5╤Б** (ledger: parsingтЖТembeddingтЖТfinalizingтЖТcompleteтЖТend). ╨Ш╨╜╨┤╨╡╨║╤Б: **19653 тЖТ 10103**, path-duplication **668 тЖТ 0**, dup(file_path,chunk_index) **144 тЖТ 0**.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed + live-verified.
+
+## 2026-09-25 тАФ ╨а╨░╨╖╨┤╤Г╨▓╨░╨╜╨╕╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨░ ~├Ч2: full-reindex ╨┐╨╕╤Б╨░╨╗ `\`, incremental тАФ `/` (╨╛╨┤╨╕╨╜ ╤Д╨░╨╣╨╗ = ╨┤╨▓╨╡ ╤Б╤В╤А╨╛╨║╨╕) (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** ╤Б╨╜╨╕╨╝╨╛╨║ ╨╕╨╜╨┤╨╡╨║╤Б╨░ (`experiments/misc_probes/exp_index_dedup_probe.py`): `file_path` distinct raw=**1378** vs normalized=**710** (path-duplication **668**); ╨║╨╛╨┤: `index_project_runner._parse_worker` (`str(relative_to)` тЖТ `\`), `freshness.py:96` (`.replace(os.sep,"/")`), `db_writer` id=`md5(rel_path)_i`, `indexer._parse_file_only` (`known_hashes.get(rel_path_str)`).
+- **Root Cause:** ╨┐╨╛╨╗╨╜╤Л╨╣ reindex ╨┐╨╕╤Б╨░╨╗ ╨┐╤Г╤В╨╕ ╤Б `\`, hot-reload/freshness тАФ ╤Б `/`. `known_hashes` ╨╕ id ╤Б╤В╤А╨╛╨║╨╕ ╤Б╤В╤А╨╛╤П╤В╤Б╤П ╨┐╨╛ **╨▒╤Г╨║╨▓╨░╨╗╤М╨╜╨╛╨╝╤Г** `file_path` тЖТ ╤Д╨╛╤А╨╝╤Л ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨┤╨░╨╗╨╕ тЖТ incremental **╨┐╨╡╤А╨╡-╨┤╨╛╨▒╨░╨▓╨╗╤П╨╗** ╤Г╨╢╨╡ ╨┐╤А╨╛╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╨╛╨▓╨░╨╜╨╜╤Л╨╡ ╤Д╨░╨╣╨╗╤Л ╨║╨░╨╢╨┤╤Л╨╣ ╨┐╤А╨╛╨│╨╛╨╜ тЖТ ╤А╨╛╤Б╤В ~├Ч2. ╨Ш╨╖╨╝╨╡╤А╨╡╨╜╨╛: `9991 тЖТ 19653` ╤З╨░╨╜╨║╨╛╨▓.
+- **╨Т╤В╨╛╤А╨░╤П ╨┐╤А╨╕╤З╨╕╨╜╨░:** data-JSON тАФ **5272 ╤З╨░╨╜╨║╨░ (27%)**, ╨║╤А╤Г╨┐╨╜╤Л╨╡ `results_*.json` (╨┤╨╛ 1002 ╤З╨░╨╜╨║╨╛╨▓ ╨╜╨░ ╤Д╨░╨╣╨╗).
+- **Fix:** ╨║╨░╨╜╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╣ POSIX ╤З╨╡╤А╨╡╨╖ `src/core/relpath.py::normalize_rel_path`, ╨┐╤А╨╕╨╝╨╡╨╜╤С╨╜ ╨▓ `indexer._parse_file_only` (choke: rel + ╨╕╨╖╨▓╨╡╤Б╤В╨╜╤Л╨╡ ╤Е╤Н╤И╨╕), `db_writer.write_records`/`prepare_records`, `index_project_runner` (known_hashes load), `indexing_tools.notify_change`. **T3-╤Б╨▓╨╕╨┐ (╨╛╨▒╨╛╨▒╤Й╨╡╨╜╨╕╨╡) ╨╜╨░╤И╤С╨╗ ╨╡╤Й╤С 2 ╨║╤А╨╕╤В╨╕╤З╨╜╤Л╤Е ╨╕╨╜╨┤╨╡╨║╤Б-╨┐╨╕╤В╨░╤О╤Й╨╕╤Е ╨╝╨╡╤Б╤В╨░:** `indexer.index_file` (`:837`) ╨╕ `index_project_runner._parse_worker` тЖТ `current_files_on_disk` (╨▓╤Е╨╛╨┤ prune) тАФ ╨▒╨╡╨╖ ╨╜╨╛╤А╨╝╨░╨╗╨╕╨╖╨░╤Ж╨╕╨╕ prune-╨╝╨╜╨╛╨╢╨╡╤Б╤В╨▓╨╛ (`\`) ╨╜╨╡ ╤Б╨╛╨▓╨┐╨░╨╗╨╛ ╨▒╤Л ╤Б ╨С╨Ф (`/`) (╤Б╨┐╨░╤Б╨░╨╗ safety-guard >50%); ╨╜╨╛╤А╨╝╨░╨╗╨╕╨╖╨╛╨▓╨░╨╜╤Л. ╨Я╤А╨╛╤З╨╕╨╡ `str(relative_to)` тАФ doc/display (╨╜╨╡ ╨╕╨╜╨┤╨╡╨║╤Б), ╨║ ╤А╨╡╨▓╨╕╨╖╨╕╨╕ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨╛.
+- **Guard:** `tests/test_relpath.py` (5); resume-╤В╨╡╤Б╤В ╨╛╨▒╨╜╨╛╨▓╨╗╤С╨╜ ╨┐╨╛╨┤ ╨║╨░╨╜╨╛╨╜╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨┐╤Г╤В╤М; 27 passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed + **live-verified collapse**: full reindex тЖТ 19653 тЖТ **10103** rows, path-duplication **668 тЖТ 0**, dup(file_path,chunk_index) **144 тЖТ 0**. ╨Ш╤Б╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ data-JSON (5272 ╤З╨░╨╜╨║╨░) тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨╛.
+
+## 2026-09-25 тАФ graph.db lock ╨╖╨░╨▓╨░╨╗╨╕╨▓╨░╨╗ reindex: named mutex ╨▓╨╗╨░╨┤╨╡╨╡╤В╤Б╤П ╨Я╨Ю╨в╨Ю╨Ъ╨Ю╨Ь, ╨▓╨╜╤Г╤В╤А╨╕╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╜╨╛╨│╨╛ lock ╨╜╨╡ ╨▒╤Л╨╗╨╛ (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** reindex `cb8305f7` failed ┬лCould not acquire cross-process lock for graph.db within 30000ms┬╗; `src/core/graph.py:46-128`; `experiments/misc_probes/exp_graph_mutex_cross_thread.py`; `tests/test_graph_lock_threadsafe.py`
+- **Root Cause:** `_cross_process_lock` ╨╕╤Б╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╨╗ **╤В╨╛╨╗╤М╨║╨╛** Windows named mutex. Named mutex ╨┐╤А╨╕╨╜╨░╨┤╨╗╨╡╨╢╨╕╤В **╨┐╨╛╤В╨╛╨║╤Г-╨▓╨╗╨░╨┤╨╡╨╗╤М╤Ж╤Г** ╨╕ ╨╜╨╡ ╤А╨╡╨╡╨╜╤В╨╡╤А╨░╨▒╨╡╨╗╨╡╨╜ ╨╝╨╡╨╢╨┤╤Г ╨┐╨╛╤В╨╛╨║╨░╨╝╨╕ тЖТ ╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╤В╨╛╨│╨╛ ╨╢╨╡ MCP-╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░ (╤А╨╡╨╕╨╜╨┤╨╡╨║╤Б-finalize vs ╨╢╨╕╨▓╨░╤П graph-╨╛╨┐╨╡╤А╨░╤Ж╨╕╤П) ╨╜╨╡ ╨┐╨╛╨╗╤Г╤З╨░╨╡╤В ╨╝╤Г╤В╨╡╨║╤Б ╨╕ ╨┐╨░╨┤╨░╨╡╤В ╤А╨╛╨▓╨╜╨╛ ╨┐╨╛ ╤В╨░╨╣╨╝╨░╤Г╤В╤Г. ╨н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В: ╨┐╤А╨╕ ╤Г╨┤╨╡╤А╨╢╨░╨╜╨╕╨╕ 3╤Б ╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╨╛╤В╨║╨░╨╖╨░╨╗ ╨╜╨░ **0.80╤Б** (=╨╡╨│╨╛ ╤В╨░╨╣╨╝╨░╤Г╤В). ╨Ч╨╜╨░╤З╨╕╤В ╨╗╤О╨▒╨░╤П graph-╨╛╨┐╨╡╤А╨░╤Ж╨╕╤П >30╤Б ╨╖╨░╨▓╨░╨╗╨╕╨▓╨░╨╗╨░ ╤А╨╡╨╕╨╜╨┤╨╡╨║╤Б.
+- **Fix:** ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨▓╨╜╤Г╤В╤А╨╕╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨╜╤Л╨╣ `threading.RLock` ╨╜╨░ `db_path` (`_local_graph_lock`) **╨Я╨Х╨а╨Х╨Ф** named mutex тЖТ ╨┐╨╛╤В╨╛╨║╨╕ ╤Б╨╡╤А╨╕╨░╨╗╨╕╨╖╤Г╤О╤В╤Б╤П (╨╢╨┤╤Г╤В, ╨╜╨╡ ╨┐╨░╨┤╨░╤О╤В); ╨╝╤Г╤В╨╡╨║╤Б ╤В╨╡╨┐╨╡╤А╤М ╨░╤А╨▒╨╕╤В╤А╨╕╤А╤Г╨╡╤В ╤В╨╛╨╗╤М╨║╨╛ ╨╝╨╡╨╢╨┤╤Г ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░╨╝╨╕.
+- **Guard:** `tests/test_graph_lock_threadsafe.py` (╨▓╤В╨╛╤А╨╛╨╣ ╨┐╨╛╤В╨╛╨║ ╨╢╨┤╤С╤В ╨╕ acquires ╨┐╨╛╤Б╨╗╨╡ release, `A-out` < `B-in`); 121 graph-related passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (live-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ ╤В╤А╨╡╨▒╤Г╨╡╤В reload MCP тАФ ╨┐╤А╨╛╤Ж╨╡╤Б╤Б ╨╜╨╡╤Б╤С╤В ╤Б╤В╨░╤А╤Л╨╣ `graph.py`).
+
+## 2026-09-25 тАФ Chain-map: 8 ╨╜╨╡╨╖╨░╤Й╨╕╤Й╤С╨╜╨╜╤Л╤Е ╨╜╨░╤В╨╕╨▓╨╜╤Л╤Е ╨╖╨▓╨╡╨╜╤М╨╡╨▓ ╨╕╨╜╨┤╨╡╨║╤Б╨░╤В╨╛╤А╨░ ╨╖╨░╨║╤А╤Л╤В╤Л `run_bounded` (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** `docs/research/indexer_chain_map_2026-09-25.md`, `tests/test_reindex_link_bounds.py`
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╨║╨░╤А╤В╨░ ╤Ж╨╡╨┐╨╛╤З╨║╨╕ `run()` (╤В╤А╨╕╨│╨│╨╡╤АтЖТ╨║╨╛╨╜╨╡╤Ж) ╨╜╨░╤И╨╗╨░ **8 ╨╖╨▓╨╡╨╜╤М╨╡╨▓ ╤В╨╛╨│╨╛ ╨╢╨╡ ╨║╨╗╨░╤Б╤Б╨░**, ╤З╤В╨╛ `_safe_optimize`: `_verify_and_repair_table_integrity`, known_hashes `to_lance()`, `embed_batch`, `bulk_write`, prune, BM25 `searcher.reindex`, `summarizer.save_cache`, `save_symbol_index`. ╨Ы╤О╨▒╨╛╨╡ ╨╖╨░╨▓╨╕╤Б╨░╨╜╨╕╨╡ ╨╜╨░╤В╨╕╨▓╨╜╨╛╨│╨╛ ╨▓╤Л╨╖╨╛╨▓╨░ = ╨▓╨╡╤З╨╜╨░╤П ╤Д╨░╨╖╨░ (0 CPU, ╨▒╨╡╨╖ ╤Б╨╕╨│╨╜╨░╨╗╨░).
+- **Fix:** `_bounded_link(fn, label, fatal=)` (╨╛╨▒╤С╤А╤В╨║╨░ ╨╜╨░╨┤ `run_bounded`, ╤В╨░╨╣╨╝╨░╤Г╤В `MSCODEBASE_LINK_TIMEOUT_SEC`, default 300): non-fatal (verify/known_hashes/prune/BM25/summarizer/symbol) тЖТ skip+log; **fatal** (`embed_batch`/`bulk_write`) тЖТ `RuntimeError` (resume-safe: ╨╕╨╜╨║╤А╨╡╨╝╨╡╨╜╤В╨░╨╗╤М╨╜╤Л╨╡ ╤З╨╡╨║╨┐╨╛╨╣╨╜╤В╤Л). ╨Ю╨▒╤С╤А╨╜╤Г╤В╤Л ╨▓╤Б╨╡ 8.
+- **Guard:** `tests/test_reindex_link_bounds.py` (4: value/╨┐╤А╨╛╨┐╤Г╤Б╨║/fatal-raise/propagate) + 18 ╤Б╨▓╤П╨╖╨░╨╜╨╜╤Л╤Е + 78 indexer/search passed; ruff clean.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed.
+
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
+
+- **Источник:** AGENT_DIARY.md 2026-09-11 + EXPERIMENTS_LOG 1-B/1-C/RT
+- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-7232a6e2ba34 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (e661861f = D+R083 в одном коммите).
+- **Статус:** 🔬 открыт — решение не принято (вопрос владельцу: body-hash carry против стоимости)
+
+## 2026-09-06 — [P-001 рецидив] cmd-окна при запуске/открытии проекта: powershell/nvidia-smi БЕЗ CREATE_NO_WINDOW (fixed)
+
+- **Источник:** AGENT_DIARY.md#2026-09-06-2200
+- **Описание:** Повтор P-001 (фикс 2026-08-14 пропустил сайты): `resource_monitor.py:303` (powershell Get-CimInstance RAM) и `:503` (nvidia-smi) БЕЗ creationflags; `llama_runner.py:1338/1366/1394` (powershell Get-NetTCPConnection/Get-CimInstance/taskkill в kill_process_on_port) БЕЗ флага. Дочерние консольные процессы (git/netstat) защищены, а powershell/nvidia-smi из фоновых сервисов — открывали видимое окно cmd при каждом открытии/запуске проекта (pythonw не подавляет создание консоли).
+- **Fix:** CREATE_NO_WINDOW добавлен во все 5 сайтов (3 файла: resource_monitor.py ×2, llama_runner.py ×3). Guard: `tests/test_subprocess_windows.py` — из placeholder'ов превращён в реальный статический тест (grep по всем src/**/*.py за консоль-спавнами powershell/wsl/wmic/netstat/taskkill/nvidia-smi без флага → fail) + тест daemon-потоки без capture_output. Прогон: 2 passed.
+- **Статус:** ✅ Fixed
+
+## 2026-09-19 тАФ ╨Я╤А╨╛╨┤-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В: ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨║╨╛╨╗╨╛╨╜╨╛╨║ lanceDB ╨╝╨╛╨╗╤З╨░ ╨╜╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╗╨░╤Б╤М + db_writer ╤А╨░╨╖╤А╤Г╤И╨░╨╗ ╨С╨Ф ╨┐╤А╨╕ schema-mismatch (Fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-19
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╨┤╨▓╨░ ╨▒╨░╨│╨░, ╨╜╨░╨╣╨┤╨╡╨╜╨╜╤Л╨╡ ╨┐╤А╨╕ E10-╨╕╤Б╤Б╨╗╨╡╨┤╨╛╨▓╨░╨╜╨╕╨╕ ╨┐╨╛╨╕╤Б╨║╨░ (╨╕╨╜╨┤╨╡╨║╤Б ╤Б╤В╤А╨╛╨╕╨╗╤Б╤П ╨╜╨░ ╤Б╨▓╨╡╨╢╨╡╨╣ ╨С╨Ф, ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨╝╨╛╨╗╤З╨░ ╨╜╨╡ ╤Б╤А╨░╨▒╨░╤В╤Л╨▓╨░╨╗╨░):
+  1. ╨б╤В╨░╤А╤Л╨╣ `db_manager` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╨╗ `_migrate_text_full_inplace` / `_migrate_add_metadata_columns` ╨╕╨╖ `indexer_table.py` ╨║╨░╨║ module-level ╤Д╤Г╨╜╨║╤Ж╨╕╨╕, ╨░ ╤Н╤В╨╛ ╨╝╨╡╤В╨╛╨┤╤Л ╨║╨╗╨░╤Б╤Б╨░ `IndexerTableMixin` (indexer_table.py:17,66,94) тЖТ ImportError тЖТ ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П ╨Э╨Х ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╗╨░╤Б╤М.
+  2. `db_writer.is_table_missing` ╤В╤А╨░╨║╤В╨╛╨▓╨░╨╗ `"in table schema"` (schema-mismatch) ╨║╨░╨║ ┬л╤В╨░╨▒╨╗╨╕╤Ж╨░ ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В┬╗ тЖТ ╨Я╨Ю╨Ы╨Э╨л╨Щ rebuild (drop + re-embed ~13 ╨╝╨╕╨╜) ╨▓╨╝╨╡╤Б╤В╨╛ soft-╨╝╨╕╨│╤А╨░╤Ж╨╕╨╕.
+- **Fix:** `db_manager` тАФ ╨╗╨╛╨║╨░╨╗╤М╨╜╤Л╨╡ `_migrate_text_full_inplace(table)` / `_migrate_add_metadata_columns(existing_fields, table)` ╤Б `pa.field(name, field.type)` ╨╕╨╖ `self.schema`; `db_writer` тАФ `is_table_missing` ╨╕╤Б╨║╨╗╤О╤З╨░╨╡╤В `"in table schema"` (recreate ╤В╨╛╨╗╤М╨║╨╛ ╨┐╤А╨╕ ╤А╨╡╨░╨╗╤М╨╜╨╛╨╝ ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╨╕╨╕ ╤В╨░╨▒╨╗╨╕╤Ж╤Л). +200 ╤Б╤В╤А╨╛╨║ ╤В╨╡╤Б╤В╨╛╨▓ (`tests/test_lancedb_recreate.py`): ╨╝╨╕╨│╤А╨░╤Ж╨╕╤П legacyтЖТfile_mtime_ns/file_size, ╨╕╨┤╨╡╨╝╨┐╨╛╤В╨╡╨╜╤В╨╜╨╛╤Б╤В╤М, ┬л╨Э╨Х ╨┐╨╡╤А╨╡╤Б╨╛╨╖╨┤╨░╨▓╨░╤В╤М ╨┐╤А╨╕ schema-mismatch┬╗.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (╨┐╨╛╨┤╨│╨╛╤В╨╛╨▓╨╗╨╡╨╜ ╨║ PR ╨▓ ╤Н╤В╨╛╨╝ ╨║╨╛╨╝╨╝╨╕╤В╨╡). ╨в╨╡╤Б╤В╤Л: test_lancedb_recreate 12 passed, ╤Д╨╛╨║╤Г╤Б-╨│╤А╤Г╨┐╨┐╨░ 43 passed.
+
+## 2026-09-06 22:00 — P-001 рецидив: cmd-окна при запуске/открытии проекта (powershell/nvidia-smi без CREATE_NO_WINDOW) — FIXED
+
+- **Источник:** AGENT_DIARY.md
+- **Описание:** **Status:** ✅ Fixed / **Root Cause:** повтор инцидента 2026-08-14 (P-001, «чёрные окна CMD»). Фикс 2026-08-14 добавил CREATE_NO_WINDOW для git/netstat/wmic/taskkill в runtime, но ПОЗВОЛИЛ дыру: `resou...
+- **Статус:** автоматически синхронизировано
+
+
+## 2026-09-02 20:51 тАФ drift_gate ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╗ ╨║╨╛╨╝╨╝╨╕╤В: ╨║╨╛╨╜╤В╤А╨╛╨╗╤М ╨╛╤Б╤В╨░╨╜╨╛╨▓╨╕╨╗ ╤Б╨░╨╝╨╛╨│╨╛ ╨░╨▓╤В╨╛╤А╨░
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** ? Fixed (╨║╨╛╨╝╨╝╨╕╤В A 08281f37 ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П; B тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨░╤П ╨╜╨╡╨╖╨░╨║╨╛╨╝╨╝╨╕╤З╨╡╨╜╨╜╨░╤П ╨║╨▓╨╕╤В╨░╨╜╤Ж╨╕╤П)
+**Root Cause:** ╨┐╤А╨╡╨┤╤Б╤Г╤Й╨╡╤Б╤В╨▓╤Г╤О╤Й╨╕╨╣ BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) ╨Э╨Х ╨▓ PATH ╨┐╤А╨╛╤Ж╨╡...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-02 21:40 тАФ COMMIT B (head-freshness) ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П: cb88c961; + cp1251 encoding-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В B cb88c961; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╤А╨░╨▒╨╛╤З╨╡╨╡ ╨┤╨╡╤А╨╡╨▓╨╛ ╤З╨╕╤Б╤В╨╛╨╡)
+**Root Cause 1 (B):** ╨┐╨╛╤Б╨╗╨╡ A (fail-closed symbol, ╨╜╨╕╨║╨╛╨│╨┤╨░ REFUTED) ╤Б╨▓╨╡╨╢╨╡╤Б╤В╤М ╨╕╨╜╨┤╨╡╨║╤Б╨░ ╨╜╨╡ ╨┐╤А╨╛╨▓╨╡╤А╤П╨╗╨░╤Б╤М тАФ ╨╛╤В╤Б╤Г╤В╤Б...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-03 тАФ Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В 32f11662; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╨┐╨╛╨╗╨╜╤Л╨╣ pytest 1587 passed, 2 pre-existing env_extractor fail)
+**Root Cause 1:** `_enrich_job_response` тАФ ╨╝╤С╤А╤В╨▓╨░╤П ╨▓╨╡╤В╨║╨░ ╨╕╤Б╤В╨╛╤А╨╕╨╕ (job.project_size ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨┐╤А╨╕╤Б╨▓╨░╨╕╨▓╨░╨╡╤В╤Б╤П) + ╤Б╨╗╨╛╨╝╨░╨╜╨╜╨░╤П ╨╗╨╕╨╜╨╡╨╣╨╜╨░╤П ╤Н╨║╤Б╤В╤А╨░╨┐╨╛╨╗╤П╤Ж╨╕╤П ╨┐╨╡╤А╨▓╤Л╤Е 2╤Б тЖТ ╨╗╨╛╨╢╨╜╤Л╨╣ ETA ┬л~8╤Б┬╗. **Fix 1:** ╨╡╨┤╨╕╨╜╤Л╨╣ ╨┐╨░╤А╤Б╨╡╤А `_embed_progress_from_log` + ╤А╨╡╨░╨╗╤М╨╜╨░╤П ╤Б╨║╨╛╤А╨╛╤Б╤В╤М ╨╕╨╖ ╨╗╨╛╨│╨░ (remaining/speed), ╤З╨╡╤Б╤В╨╜╤Л╨╣ None ╨▒╨╡╨╖ ╨┤╨░╨╜╨╜╤Л╤Е.
+**Root Cause 2:** `_safe_ivf_index` ╨▒╨╡╨╖ ╨╡╨┤╨╕╨╜╨╛╨│╨╛ progress-╨║╨╛╨╗╨▒╤Н╨║╨░ тЖТ ╨▒╨░╤А ╨╖╨░╤Б╤В╤Л╨▓╨░╨╗ ╨╜╨░ 0.8, ╤З╨░╨╜╨║╨╕ ╨╜╨╡ ╤А╨╛╤Б╨╗╨╕. **Fix 2:** emission ┬лfinalizing┬╗ ╨║╨╛╨╗╨▒╤Н╨║╨░ ╨┤╨╛/╨┐╨╛╤Б╨╗╨╡ IVF, ╨╛╤В╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡ 0.8тЖТ0.95, ╤З╨╡╤Б╤В╨╜╨░╤П ╤Б╤В╤А╨╛╨║╨░ ╨▓ get_job_status.
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-03 19:30 тАФ CI RED: circular import layer тЖФ tools_reg (fixed f210ed7c)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-03-1930
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** My ETA refactor added `tools_reg тЖТ layer` import for `_embed_progress_from_log`, closing existing `layer тЖТ tools_reg` cycle. `architecture_linter.py` caught it as `[CIRCULAR]`. Fix: extracted parser into neutral `src/core/intelligence/embed_progress.py`. CI run 33796959353 all-jobs green (ubuntu+windows).
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-04 тАФ CI RED: ruff lint errors caught only after push (fixed 986c9be7)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** INC-A35A, CI runs 33847347263/33847972948
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (5a771789, b121ab19, 3dd79ba2).
+- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by bb05d9af that caused SyntaxError in generated hook.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-04 тАФ PRE-EXISTING: hook template SyntaxError (bb05d9af)
+
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled тАФ was installed via MCP after commits pushed, so never caught.
+- **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-05 тАФ stale_detector + predict_change ╤Б╤В╨░╨▒╨╕╨╗╤М╨╜╨╛ -32001 ╤З╨╡╤А╨╡╨╖ MCP (fixed code only)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-05-1230
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `error_boundary` ╨┐╤А╨╕╨╝╨╡╨╜╤П╨╡╤В `asyncio.wait_for(timeout_ms)`, ╨╜╨╛ ╨▓╨╜╤Г╤В╤А╨╕ `execute` ╨▓╤Л╨╖╤Л╨▓╨░╨╡╤В╤Б╤П ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╜╤Л╨╣ ╨▒╨╗╨╛╨║╨╕╤А╤Г╤О╤Й╨╕╨╣ ╨║╨╛╨┤ (`stale_run` 10-29s, `static_predict` git-subprocess). ╨Э╨░ Windows wait_for ╨Э╨Х ╨╝╨╛╨╢╨╡╤В ╨╛╤В╨╝╨╡╨╜╨╕╤В╤М ╤А╨░╨▒╨╛╤В╨░╤О╤Й╨╕╨╣ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╜╤Л╨╣ ╨▒╨╗╨╛╨║ тЖТ event loop ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╜, ╨║╨╗╨╕╨╡╨╜╤В ╨╛╤В╨▓╨░╨╗╨╕╨▓╨░╨╡╤В╤Б╤П ╨┐╨╛ -32001 ╨┤╨╛ ╨╛╤В╨▓╨╡╤В╨░. ╨н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В: wait_for(10s) ╨▓╨╛╨║╤А╤Г╨│ sync stale_run ╨Э╨Х ╨┐╤А╨╡╤А╨▓╨░╨╗ (24.7s); `asyncio.to_thread` + wait_for(5s) тЖТ ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ ╤В╨░╨╣╨╝╨░╤Г╤В, loop ╨╢╨╕╨▓.
+- **Fix:** ╨╛╨▒╨░ ╨╕╨╜╤Б╤В╤А╤Г╨╝╨╡╨╜╤В╨░ ╨╛╨▒╤С╤А╨╜╤Г╤В╤Л ╨▓ `asyncio.to_thread` (doc_tools._scan_docs, predict_tools.static_predict/ChangePreview.run); ╤В╨░╨╣╨╝╨░╤Г╤В╤Л 10sтЖТ60s (stale), 60sтЖТ120s (predict). ╨Я╤А╤П╨╝╤Л╨╡ ╨▓╤Л╨╖╨╛╨▓╤Л: stale OK 13.0s, predict OK 1.4s; 62 ╤В╨╡╤Б╤В╨░ passed.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (code only, MCP reload ╤В╤А╨╡╨▒╤Г╨╡╤В╤Б╤П)
+
+## 2026-09-06 тАФ lock_guard acquire/release ╨┐╨░╨┤╨░╨╗ ThreadExpired: ╤В╨░╨╣╨╝╨░╤Г╤В 60s < pre-commit hook 5-10min (fixed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-06-2100
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `scripts/lock_guard.py` (`_run`) ╨╕╤Б╨┐╨╛╨╗╤М╨╖╨╛╨▓╨░╨╗ `timeout=60s` ╨┤╨╗╤П `git commit`, ╨╜╨╛ ╨╗╤О╨▒╨╛╨╣ commit ╨┐╤А╨╛╨│╨╛╨╜╤П╨╡╤В pre-commit hook (verify_diary тЖТ ╨┐╨╛╨╗╨╜╤Л╨╣ pytest), ╨╖╨░╨╜╨╕╨╝╨░╤О╤Й╨╕╨╣ 5-10 ╨╝╨╕╨╜ ╨╜╨░ Windows. 60s ╨┤╨░╨▓╨░╨╗ TimeoutExpired ╨┤╨░╨╢╨╡ ╨║╨╛╨│╨┤╨░ ╨║╨╛╨╝╨╝╨╕╤В ╤Г╤Б╨┐╨╡╤И╨╜╨╛ ╤Б╨╛╨╖╨┤╨░╨▓╨░╨╗╤Б╤П ╨▓ ╤Д╨╛╨╜╨╡ тЖТ ╨╗╨╛╨╢╨╜╨╛╨╡ ╨╛╤Й╤Г╤Й╨╡╨╜╨╕╨╡ ╨┐╤А╨╛╨▓╨░╨╗╨░ ╨┐╤А╨╛╤В╨╛╨║╨╛╨╗╨░ `.locks` ╨┐╤А╨╕ ╨┐╨░╤А╨░╨╗╨╗╨╡╨╗╤М╨╜╨╛╨╣ ╤А╨░╨▒╨╛╤В╨╡ ╨░╨│╨╡╨╜╤В╨╛╨▓.
+- **Fix:** `_run` timeout 60тЖТ900s. ╨Я╤А╨╛╨▓╨╡╤А╨╡╨╜╨╛ ╨┐╨╛╨╗╨╜╤Л╨╝ ╤Ж╨╕╨║╨╗╨╛╨╝ acquireтЖТstatusтЖТrelease ╨╜╨░ `README.md`, `scripts/lock_guard.py`, ╤В╨╡╤Б╤В╨╛╨▓╨╛╨╝ ╤А╨╡╤Б╤Г╤А╤Б╨╡: exit 0, ╨║╨╛╨╝╨╝╨╕╤В╤Л+push ╨┐╤А╨╛╤Е╨╛╨┤╤П╤В hook. INC-CD6E.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-06 тАФ [P] sync-subprocess ╨▓ async-MCP ╨▓╤Л╨╖╨╛╨▓╨╛╨▓ (context_tool, system_tools) тАФ fixed
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-06-2130; ╨║╨░╨╜╨┤╨╕╨┤╨░╤В╤Л: `context_tool.py:280` subprocess.run ╨▓ get_context (30s), `system_tools.py:370/408/446` (dual_arm, mutmut-WSL 180s).
+- **Fix:** `_section_git` ╤Б╤В╨░╨╗ async, `subprocess.run` ╨╛╨▒╤С╤А╨╜╤Г╤В ╨▓ `asyncio.to_thread` (context_tool.py); wsl_check/`_run_mutmut_in_wsl`/`_verify_mutmut_can_fail` тАФ ╤З╨╡╤А╨╡╨╖ `asyncio.to_thread` (system_tools.py). `git_tools._git_run` ╤Г╨╢╨╡ ╨▒╤Л╨╗ async (╤Н╤В╨░╨╗╨╛╨╜, ╨╜╨╡ ╤В╤А╨╛╨╜╤Г╤В). ╨Я╤А╨╛╨▓╨╡╤А╨╡╨╜╨╛: test_context_tool 2 passed, ruff clean, ╨╕╨╝╨┐╨╛╤А╤В╤Л OK, ╤А╨╡╨░╨╗╤М╨╜╤Л╨╣ `_section_git` ╨▓╨╛╨╖╨▓╤А╨░╤Й╨░╨╡╤В git-history.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (code only, MCP reload ╤В╤А╨╡╨▒╤Г╨╡╤В╤Б╤П)
+
+## 2026-09-08 тАФ B4: ╤Б╤В╨░╤В╨╕╤З╨╡╤Б╨║╨╕╨╣ ╤Ж╨╕╨║╨╗ parser тЗД language_imports (╨╛╤Б╨╛╨╖╨╜╨░╨╜╨╜╤Л╨╣ ╤В╨╡╤Е╨┤╨╛╨╗╨│, lazy, allowed)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** `architecture_linter` (Invariant 3) ╨┐╨╛╤Б╨╗╨╡ ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╨╕ `LANGUAGE_IMPORT_NODES` ╨╕╨╖ `CodeParser.IMPORT_NODE_MAP` (B4).
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** `src.core.language_imports` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В `src.core.indexing.parser` (╨┤╨╗╤П ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╨╕ ╨║╨░╤А╤В╤Л), ╨░ `parser._extract_fallback_imports` ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В `language_imports` (fallback-╤А╨╡╨╢╨╕╨╝ 2). ╨б╤В╨░╤В╨╕╤З╨╡╤Б╨║╨╕ тАФ ╤Ж╨╕╨║╨╗; ╨▓ ╤А╨░╨╜╤В╨░╨╣╨╝╨╡ ╨╜╨╕ ╨╛╨┤╨╕╨╜ ╨╕╨╝╨┐╨╛╤А╤В ╨┐╤А╨╕ ╨╖╨░╨│╤А╤Г╨╖╨║╨╡ ╨╝╨╛╨┤╤Г╨╗╨╡╨╣ ╨╜╨╡ ╨▓╤Л╨┐╨╛╨╗╨╜╤П╨╡╤В╤Б╤П: parser ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В language_imports ╤В╨╛╨╗╤М╨║╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛ ╨▓ ╤Д╤Г╨╜╨║╤Ж╨╕╨╕; language_imports ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╤Г╨╡╤В parser ╤В╨╛╨╗╤М╨║╨╛ ╨╗╨╡╨╜╨╕╨▓╨╛ (module `__getattr__` тЖТ `_derive_language_import_nodes`, PEP 562) ╨┐╤А╨╕ ╨┐╨╡╤А╨▓╨╛╨╝ ╨╛╨▒╤А╨░╤Й╨╡╨╜╨╕╨╕ ╨║ `LANGUAGE_IMPORT_NODES`.
+- **Fix:** ╨┐╨░╤А╨░ ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜╨░ ╨▓ `_ALLOWED_CORE_CYCLES` (scripts/architecture_linter.py) ╤Б ╨║╨╛╨╝╨╝╨╡╨╜╤В╨░╤А╨╕╨╡╨╝; `LANGUAGE_IMPORT_NODES` ╨┐╨╡╤А╨╡╨▓╨╡╨┤╤С╨╜ ╨╜╨░ ╨╗╨╡╨╜╨╕╨▓╤Г╤О ╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╤О (╨║╤Н╤И `_LANGUAGE_IMPORT_NODES_CACHE`, `__getattr__`), ╨┐╤А╤П╨╝╨╛╨╡ ╨╛╨▒╤А╨░╤Й╨╡╨╜╨╕╨╡ ╨║ ╨║╨░╤А╤В╨╡ ╨▓╨╜╤Г╤В╤А╨╕ ╨╝╨╛╨┤╤Г╨╗╤П ╨╖╨░╨╝╨╡╨╜╨╡╨╜╨╛ ╨╜╨░ `_get_language_import_nodes()`. ╨г╨┤╨░╨╗╨╕╤В╤М ╨╕╨╖ allowlist ╨┐╨╛╤Б╨╗╨╡ ╨▓╤Л╨╜╨╛╤Б╨░ `IMPORT_NODE_MAP` ╨▓ ╨╜╨╡╨╣╤В╤А╨░╨╗╤М╨╜╤Л╨╣ ╨╝╨╛╨┤╤Г╨╗╤М (╨╜╨╡ ╨╕╤Б╤В╨╛╤А╨╕╤О ╨║╨░╤А╤В ╨▓ parser) тАФ ╤В╨╛╨│╨┤╨░ language_imports ╤Б╨╝╨╛╨╢╨╡╤В ╨╕╨╝╨┐╨╛╤А╤В╨╕╤А╨╛╨▓╨░╤В╤М parser ╨╛╨┤╨╜╨╛╤Б╤В╨╛╤А╨╛╨╜╨╜╨╡.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed (allowed tech debt, deferred refactor; ╤Ж╨╡╨╗╨╡╨▓╤Л╨╡ 68 passed, architecture_linter 4/4 OK)
+- **╨Ф╨╡╨┤╨╗╨░╨╣╨╜ ╤А╨╡╤Д╨░╨║╤В╨╛╤А╨░:** 2026-10-01 ┬╖ **Owner:** ManSio
+
+## 2026-09-08 тАФ B3: grammar-╨║╨░╤А╤В╤Л parser.py (imports/calls/assigns/conditions) ╨▓╨╜╨╡╤Б╨╡╨╜╤Л + ╨╢╨╕╨▓╤Л╨╡ ╤Д╨╕╨║╤Б╤Л
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed / **Root Cause ╨╕ ╨╕╤В╨╛╨│:** ╨▓╨╜╨╡╤Б╨╡╨╜╤Л ╨╕╨╖ study 05 ╨║╨░╤А╤В╤Л CALL_NODES/IMPORT_NODE_MAP/ASSIGNMENT_NODE_MAP/CONDITIONAL_NODE_MAP (╨┐╨╡╤А-╤П╨╖╤Л╤З╨╜╤Л╨╡) ╨▓ `src/core/indexing/parser.py`. ╨Ц╨╕╨▓╤Л╨╡ tree-sit...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-08 12:35 тАФ B4: import-╤Н╨║╤Б╤В╤А╨░╨║╤Ж╨╕╤П ╤З╨╡╤А╨╡╨╖ language_imports (╨┤╨╡╤А╨╕╨▓╨░╤Ж╨╕╤П ╨║╨░╤А╤В + ╤Д╨╗╨░╨│-╨│╨╡╨╣╤В)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed / **Root Cause:** ╨┤╨▓╨░ ╨╕╤Б╤В╨╛╤З╨╜╨╕╨║╨░ node-╤В╨╕╨┐╨╛╨▓ ╨╕╨╝╨┐╨╛╤А╤В╨╛╨▓ (parser.IMPORT_NODE_MAP ╨╕ ╨╗╨╕╤В╨╡╤А╨░╨╗ LANGUAGE_IMPORT_NODES) ╤А╨░╤Б╤Е╨╛╨┤╨╕╨╗╨╕╤Б╤М (kt/dart/php); ungated fallback-2 ╨▓ ╨╝╨╛╤Б╤В╨╡.
+**Fix:** LANGUAG...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-09 19:35 - .h ╨╖╨░╨│╨╛╨╗╨╛╨▓╨║╨╕ C ╨╜╨╡ ╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╤Г╤О╤В╤Б╤П (SUPPORTED_EXTENSIONS ╨▒╨╡╨╖ .h)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AutoCoder ╨░╤Г╨┤╨╕╤В/E-S1 live-╨┐╤А╨╛╨▒╨░ 2026-09-09 (╨▓╨╜╨╡╤И╨╜╤П╤П ╤Б╨╡╤Б╤Б╨╕╤П, ╤А╨╡╨┐╨╛ ╨╜╨╡ ╨╕╨╖╨╝╨╡╨╜╤П╨╗╨╛╤Б╤М ╨┤╨╛ ╤Н╤В╨╛╨╣ ╨╖╨░╨┐╨╕╤Б╨╕)
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (2026-09-09, commit 0301fa93). CodeParser.SUPPORTED_EXTENSIONS/parsers ╨╜╨╡ ╤Б╨╛╨┤╨╡╤А╨╢╨░╨╗╨╕ ".h" (╨╡╤Б╤В╤М .hpp/.cxx/.cpp) - ╨╖╨░╨│╨╛╨╗╨╛╨▓╨║╨╕ C-╨┐╤А╨╛╨╡╨║╤В╨╛╨▓ ╨▓╤Л╨┐╨░╨┤╨░╨╗╨╕ ╨╕╨╖ AST-╨╕╨╜╨┤╨╡╨║╤Б╨░╤Ж╨╕╨╕ (╨╕╨╝╨┐╨╛╤А╤В╤Л/╨▓╤Л╨╖╨╛╨▓╤Л/╨┐╤А╨╕╤Б╨▓╨░╨╕╨▓╨░╨╜╨╕╤П). ╨н╨╝╨┐╨╕╤А╨╕╨║╨░ E-S1 (shallow-╨║╨╗╨╛╨╜╤Л, ╨║╨░╨┐ 300 ╤Д╨░╨╣╨╗╨╛╨▓/╤П╨╖╤Л╨║): curl - 65/300 ╤Д╨░╨╣╨╗╨╛╨▓ ╤Б ╤П╨▓╨╜╤Л╨╝╨╕ #include ╨┤╨░╨╗╨╕ 0 ╤А╤С╨▒╨╡╤А (╨┐╤А╨╡╨╕╨╝╤Г╤Й╨╡╤Б╤В╨▓╨╡╨╜╨╜╨╛ .h), dart-http .c-╨┐╨░╨┐╨║╨░ 0/9. ╨С╨╛╨╜╤Г╤Б-╤А╨╡╨╖╤Г╨╗╤М╤В╨░╤В ╤В╨╛╨╣ ╨╢╨╡ ╨┐╤А╨╛╨▒╤Л: ╨╕╨╝╨┐╨╛╤А╤В-╨║╨░╤А╤В╤Л ╨╢╨╕╨▓╤Л╨╡ ╨╜╨░ 6 ╤П╨╖╤Л╨║╨░╤Е (java 0.867 / php 0.797 / c 0.680 / kotlin 0.853 / dart 0.940 / ruby 0.618), ╨▓╤Л╨╖╨╛╨▓╤Л php 0.813 / ruby 0.562 / c 0.250 / dart 0.080 - ╤Б╨╕╨╜╤В╨╡╤В╨╕╤З╨╡╤Б╨║╨╕╨╣ ╨┤╨╡╤Д╨╡╨║╤В "╨▓╤Л╨╖╨╛╨▓╤Л PHP/Ruby/C/Dart" ╤Б╨╜╤П╤В.
+- **Fix:** ".h" ╨┤╨╛╨▒╨░╨▓╨╗╨╡╨╜ ╨▓ PARSE_EXTENSIONS (src/core/extensions.py) + C-╨┐╨░╤А╤Б╨╡╤А ╨┤╨╗╤П ".h" (parser.py) + ╨║╨░╤А╤В╤Л: env (".h":"c"), IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator/assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/... ╨║╨░╨║ ╤Г ".c"). ╨Я╨╛╤П╤Б╨╜╨╡╨╜╨╕╨╡: ".h" ╤Г╨╢╨╡ ╨▒╤Л╨╗ ╨▓ INDEX_EXTENSIONS (╨▓╨╡╨║╤В╨╛╤А ╨╕╨╜╨┤╨╡╨║╤Б╨╕╤А╨╛╨▓╨░╨╗╤Б╤П), ╨╜╨╡ ╤Е╨▓╨░╤В╨░╨╗╨╛ ╨╕╨╝╨╡╨╜╨╜╨╛ AST-╤Б╨╗╨╛╤П тЗТ map_lies. +1 ╤В╨╡╤Б╤В (test_h_header_preproc_include). ╨Я╨╛╨▓╤В╨╛╤А E-S1 ╨┐╤А╨╛╨▒╤Л ╨╜╨░ curl (╨╛╨╢╨╕╨┤╨░╨╜╨╕╨╡: map_lies .h -> ~0) тАФ ╨╛╤В╨╗╨╛╨╢╨╡╨╜, verified ╨╜╨░ ╤Г╤А╨╛╨▓╨╜╨╡unit-╤В╨╡╤Б╤В╨░ C-╨┐╨░╤А╤Б╨╡╤А╨░.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-11 тАФ Burst-rename: fail-closed VOR ╨╛╤В╨╖╤Л╨▓╨░╨╡╤В 100% ╨┐╤А╨╕ ONE rename-sweep (╨╛╤В╨▓╨╡╤В Statewave ╨╜╨░ dev.to)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** Closed (╤Н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В╤Л, ╨╛╤В╨▓╨╡╤В ╨╛╨┐╤Г╨▒╨╗╨╕╨║╨╛╨▓╨░╨╜)
+**Root Cause:** VOR (ADR-0003) ╨┐╤А╨╛╨▓╨╡╤А╤П╨╡╤В ╨Я╨г╨в╨м-╤П╨║╨╛╤А╤П ╨┐╤А╨╛╤В╨╕╨▓ ╤В╨╡╨║╤Г╤Й╨╡╨│╨╛ HEAD. Rename/move = ╤Б╤В╨░╤А╤Л╨╣ ╨┐╤Г╤В╤М ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В = SILENT_ABSENCE = ╨╛╤В╨╖╤Л╨▓, ╤Е╨╛╤В╤П ╤Д╨░╨╣╨╗...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛

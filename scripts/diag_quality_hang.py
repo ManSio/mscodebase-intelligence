@@ -17,10 +17,10 @@ logging.basicConfig(
 for noisy in ("httpx", "httpcore", "lancedb", "urllib3"):
     logging.getLogger(noisy).setLevel(logging.WARNING)
 
-sys.path.insert(0, r"D:\Project\MSCodeBase")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pathlib import Path
 
-DB_PATH = r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
+DB_PATH = r"<user>AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
 EMBED_URL = "http://127.0.0.1:8080/v1/embeddings"
 RERANK_URL = "http://127.0.0.1:8081"
 
@@ -34,7 +34,7 @@ class FakeIndexer:
     def __init__(self, db_path: str):
         self.db = lancedb.connect(db_path)
         self.table = self.db.open_table("codebase_chunks")
-        self.project_path = Path(r"D:\Project\MSCodeBase")
+        self.project_path = Path(__file__).resolve().parent.parent
         self.db_manager = None
 
     async def search_async(self, query_vector, limit=5, filter_expr=""):
@@ -93,7 +93,7 @@ class AsyncTableIndexer:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self.project_path = Path(r"D:\Project\MSCodeBase")
+        self.project_path = Path(__file__).resolve().parent.parent
         self.db_manager = None
         self._async_table = None
         self._async_lock = None

@@ -1,0 +1,299 @@
+{
+  "experiment": "token_reduction_v1",
+  "date": "2026-09-27",
+  "frozen_rules_sha256": "8657a7e3949b5a3eed8f025b8086dcf539cdafacd0cd335f28e607fcf0e44f9a",
+  "arms": {
+    "A_baseline_full": {
+      "hits": 9,
+      "total": 10,
+      "rate": 0.9,
+      "tokens": 2970
+    },
+    "B_exit_filter": {
+      "hits": 9,
+      "total": 10,
+      "rate": 0.9,
+      "tokens": 2218
+    },
+    "C_pooling_30": {
+      "hits": 9,
+      "total": 10,
+      "rate": 0.9,
+      "tokens": 1138
+    },
+    "D_hybrid": {
+      "hits": 9,
+      "total": 10,
+      "rate": 0.9,
+      "tokens": 3545
+    }
+  },
+  "controls": {
+    "positive": {
+      "A": {
+        "hits": 3,
+        "total": 3,
+        "rate": 1.0,
+        "tokens": 884
+      },
+      "B": {
+        "hits": 3,
+        "total": 3,
+        "rate": 1.0,
+        "tokens": 784
+      },
+      "C": {
+        "hits": 3,
+        "total": 3,
+        "rate": 1.0,
+        "tokens": 379
+      },
+      "D": {
+        "hits": 3,
+        "total": 3,
+        "rate": 1.0,
+        "tokens": 1542
+      }
+    },
+    "none": {
+      "A": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 960
+      },
+      "B": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 736
+      },
+      "C": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 203
+      },
+      "D": {
+        "hits": 0,
+        "total": 3,
+        "rate": 0.0,
+        "tokens": 736
+      }
+    }
+  },
+  "per_rule": [
+    {
+      "id": "R1",
+      "control": null,
+      "target_file": "src/core/indexing/db_writer.py",
+      "A_found": false,
+      "A_tokens": 364,
+      "B_found": false,
+      "B_tokens": 220,
+      "C_found": false,
+      "C_tokens": 141,
+      "D_found": false,
+      "D_tokens": 289
+    },
+    {
+      "id": "R2",
+      "control": null,
+      "target_file": "src/core/artifact_gc.py",
+      "A_found": true,
+      "A_tokens": 246,
+      "B_found": true,
+      "B_tokens": 193,
+      "C_found": true,
+      "C_tokens": 105,
+      "D_found": true,
+      "D_tokens": 213
+    },
+    {
+      "id": "R3",
+      "control": null,
+      "target_file": "src/providers/reranker/llama_install.py",
+      "A_found": true,
+      "A_tokens": 296,
+      "B_found": true,
+      "B_tokens": 246,
+      "C_found": true,
+      "C_tokens": 82,
+      "D_found": true,
+      "D_tokens": 254
+    },
+    {
+      "id": "R4",
+      "control": null,
+      "target_file": "src/providers/reranker/llama_runner.py",
+      "A_found": true,
+      "A_tokens": 281,
+      "B_found": true,
+      "B_tokens": 243,
+      "C_found": true,
+      "C_tokens": 118,
+      "D_found": true,
+      "D_tokens": 247
+    },
+    {
+      "id": "R5",
+      "control": null,
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "A_found": true,
+      "A_tokens": 281,
+      "B_found": true,
+      "B_tokens": 221,
+      "C_found": true,
+      "C_tokens": 160,
+      "D_found": true,
+      "D_tokens": 695
+    },
+    {
+      "id": "R6",
+      "control": null,
+      "target_file": "src/core/graph.py",
+      "A_found": true,
+      "A_tokens": 336,
+      "B_found": true,
+      "B_tokens": 207,
+      "C_found": true,
+      "C_tokens": 183,
+      "D_found": true,
+      "D_tokens": 888
+    },
+    {
+      "id": "R7",
+      "control": null,
+      "target_file": "src/providers/embedder/remote_embedder.py",
+      "A_found": true,
+      "A_tokens": 264,
+      "B_found": true,
+      "B_tokens": 203,
+      "C_found": true,
+      "C_tokens": 101,
+      "D_found": true,
+      "D_tokens": 210
+    },
+    {
+      "id": "R8",
+      "control": null,
+      "target_file": "src/core/search/cypher_sql.py",
+      "A_found": true,
+      "A_tokens": 284,
+      "B_found": true,
+      "B_tokens": 208,
+      "C_found": true,
+      "C_tokens": 89,
+      "D_found": true,
+      "D_tokens": 228
+    },
+    {
+      "id": "R9",
+      "control": null,
+      "target_file": "src/core/bootstrap_tests.py",
+      "A_found": true,
+      "A_tokens": 332,
+      "B_found": true,
+      "B_tokens": 297,
+      "C_found": true,
+      "C_tokens": 31,
+      "D_found": true,
+      "D_tokens": 301
+    },
+    {
+      "id": "R10",
+      "control": null,
+      "target_file": "src/core/indexing/freshness.py",
+      "A_found": true,
+      "A_tokens": 286,
+      "B_found": true,
+      "B_tokens": 180,
+      "C_found": true,
+      "C_tokens": 128,
+      "D_found": true,
+      "D_tokens": 220
+    },
+    {
+      "id": "P1",
+      "control": "positive",
+      "target_file": "src/core/indexing/parser.py",
+      "A_found": true,
+      "A_tokens": 332,
+      "B_found": true,
+      "B_tokens": 303,
+      "C_found": true,
+      "C_tokens": 121,
+      "D_found": true,
+      "D_tokens": 1034
+    },
+    {
+      "id": "P2",
+      "control": "positive",
+      "target_file": "src/core/search/engine.py",
+      "A_found": true,
+      "A_tokens": 301,
+      "B_found": true,
+      "B_tokens": 254,
+      "C_found": true,
+      "C_tokens": 116,
+      "D_found": true,
+      "D_tokens": 267
+    },
+    {
+      "id": "P3",
+      "control": "positive",
+      "target_file": "src/core/artifact_gc.py",
+      "A_found": true,
+      "A_tokens": 251,
+      "B_found": true,
+      "B_tokens": 227,
+      "C_found": true,
+      "C_tokens": 142,
+      "D_found": true,
+      "D_tokens": 241
+    },
+    {
+      "id": "N1",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 321,
+      "B_found": false,
+      "B_tokens": 249,
+      "C_found": false,
+      "C_tokens": 59,
+      "D_found": false,
+      "D_tokens": 249
+    },
+    {
+      "id": "N2",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 321,
+      "B_found": false,
+      "B_tokens": 249,
+      "C_found": false,
+      "C_tokens": 59,
+      "D_found": false,
+      "D_tokens": 249
+    },
+    {
+      "id": "N3",
+      "control": "none",
+      "target_file": null,
+      "A_found": false,
+      "A_tokens": 318,
+      "B_found": false,
+      "B_tokens": 238,
+      "C_found": false,
+      "C_tokens": 85,
+      "D_found": false,
+      "D_tokens": 238
+    }
+  ],
+  "redteam": {
+    "attacks": [],
+    "clean": true
+  }
+}

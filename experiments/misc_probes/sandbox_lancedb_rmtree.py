@@ -25,7 +25,7 @@ from pathlib import Path
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-VENV_PY = r"C:\Users\misha\AppData\Local\Zed\extensions\mscodebase-intelligence\venv\Scripts\python.exe"
+VENV_PY = r"<user>AppData\Local\Zed\extensions\mscodebase-intelligence\venv\Scripts\python.exe"
 SANDBOX = Path(r"D:\Project\MSCodeBase\.sandbox_lancedb_rmtree")
 
 WORKER = r'''

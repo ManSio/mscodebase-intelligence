@@ -1,0 +1,277 @@
+### experiments/bootstrap/e17_smoke_answers.json
+// Scope: fallback | e17_smoke_answers.json
+[
+  {
+    "id": 13,
+    "mode": "A_baseline",
+    "answer": "`tokenize` converts the Cypher query string into a list of `Token` objects. It takes no explicit arguments, reads `self._query`, and walks it character by character using index `i`, appending `Token(type, text, position)` entries; it returns `List[Token]`. It skips whitespace, discards `//` line comments (jumping to the next newline), and recognizes quoted strings in single or double quotes, handling backslash escapes. Unterminated strings raise `SyntaxError`. Numbers are scanned as digits plus dots, including a leading-dot decimal. Identifiers, keywords, and backtick-escaped identifiers are recognized starting with a letter, underscore, or backtick. Edge cases: a comment without a trailing newline stops tokenization via `break`; an escaped character inside a string is skipped by advancing twice; number scanning accepts multiple dots because it only tests `isdigit()` or membership in `.`; backtick handling searches for the cl
+
+### experiments/bootstrap/e17_judge/mapping.json
+// Scope: fallback | mapping.json
+{
+
+  "T01": {
+
+    "id": 26,
+
+    "mode": "D_shuffled",
+
+    "name": "_match_gitignore_pattern"
+
+  },
+
+  "T02": {
+
+    "id": 1,
+
+    "mode": "A_baseline",
+
+    "name": "IndexProjectRunner.run"
+
+  },
+
+  "T03": {
+
+    "id": 15,
+
+    "mode": "D_shuffled",
+
+    "name": "_extract_yarn_lock"
+
+  },
+
+  "T04": {
+
+    "id": 3,
+
+    "mode": "A_baseline",
+
+    "name": "CypherLexer.tokenize"
+
+  },
+
+  "T05": {
+
+    "id": 11,
+
+    "mode": "D_shuffled",
+
+    "name": "decorator"
+
+  },
+
+  "T06": {
+
+    "id": 7,
+
+    "mode": "B_runtime",
+
+    "name": "resolve_project_root"
+
+  },
+
+  "T07": {
+
+    "id": 6,
+
+    "mode": "A_baseline",
+
+    "name": "extract_anchors"
+
+  },
+
+  "T08": {
+
+    "id": 11,
+
+    "mode": "B_runtime",
+
+    "name": "decorator"
+
+  },
+
+  "T09": {
+
+    "id": 8,
+
+    "mode": "A_baseline",
+
+    "name": "SymbolIndex.build_call_graph"
+
+  },
+
+  "T10": {
+
+    "id": 27,
+
+    "mode": "D_shuffled",
+
+    "name": "_Fingerprint.__init__"
+
+  },
+
+  "T11": {
+
+    "id": 10,
+
+    "mode": "A_baseline",
+
+    
+
+### src/main.py
+// Scope: function_part | giant_function_part | main
+// File: src\main.py
+// [Part 1]
+def main():
+
+    """Главная функция запуска MCP-сервера."""
+
+    original_stdout = setup_logging()
+
+    logger = logging.getLogger("MSCodebase")
+
+    logger.info("MSCodebase Intelligence MCP Server запускается...")
+
+    logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
+
+
+
+    # ─── CLI --project-path: явный выбор целевого проекта ───
+
+    # Устанавливаем MSCODEBASE_PROJECT_PATH (приоритет над CWD, см.
+
+    # resolve_project_root). PROJECT_ROOT (корень установки/расширения) НЕ
+
+    # трогаем — он не я
+...
+
+### src/config/settings.py
+// Scope: function | function_definition | config.settings
+// File: src\config\settings.py
+def get_mcp_port() -> int:
+
+    """Возвращает порт MCP сервера"""
+
+    return config.server.mcp_port
+
+### src/core/task_queue.py
+// Scope: function | function_definition | core.task_queue
+// File: src\core\task_queue.py
+def _cpu_available() -> bool:
+
+    """Проверяет, можно ли запустить фоновую задачу по ресурсам."""
+
+    try:
+
+        from src.core.indexing.resource_monitor import get_global_resource_monitor
+
+
+
+### experiments/embed_real_path_vs_raw/exp_real_path.py
+// Scope: function | function_definition | d:.project.mscodebase.experiments.embed_real_path_vs_raw.exp_real_path.py
+// File: experiments\embed_real_path_vs_raw\exp_real_path.py
+def run_arm(client, texts, label):
+    """Прокачивает ВСЕ N_CHUNKS пачками по BATCH, возвращает ch/s и метрики."""
+    t0 = time.time()
+    batch_times = []
+
+
+### experiments/root_cause_eval/incident_dataset_full.json
+// Scope: fallback | incident_dataset_full.json
+[
+
+  {
+
+    "title": "2026-07-21 08:05",
+
+    "symptom": "2026-07-21 08:05",
+
+    "root_cause": "|\n|------|-------|--------|\n| 15 ✅ / 96 ❌ (14%) | 85 ✅ / 39 ❌ (68%) | SymbolCache + backtick-парсер + date-filter |\n| timeout (grep -r ×600) | 15 сек | Один проход .py → set lookup |\n| 351 false-positive \"функция\" | 66 | Только из backtick-кода + stdlib stoplist |\n\n### pyproject.toml\n- Добавлен `ruff>=0.5.0` в `[project.optional-dependencies] dev`",
+
+    "fix": "**Что сделано:**\n\n### CI (`.github/workflows/ci.yml`)\n| Было | Стало |\n|------|-------|\n| Только ubuntu-latest | + windows-latest (основная платформа) |\n| Python 3.11, 3.12, 3.13 | 3.11, 3.12 (актуальные) |\n| `ruff` не установлен | Добавлен `ruff>=0.5.0` в `[dev]` |\n| `openvino>=2026.0.0` без lock |"
+
+  },
+
+  {
+
+    "title": "2026-07-20 19:45",
+
+    "symptom": "(от пользователя):** `intel_trigger_reindex(mode=\"full\")` часто падает,\njob висит в `Finalizing`, поиск возвращает пустышку. Лог:\n```\nWrite complete: 30
+
+### src/providers/reranker/llama_runner.py
+// Scope: function_part | giant_function_part | providers.reranker.llama_runner
+// File: src\providers\reranker\llama_runner.py | Context: LlamaRunner
+// [Part 1]
+async def start_reranker(self) -> bool:
+
+        """Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).
+
+
+
+        Сначала проверяет, отвечает ли порт /health — если да, используем
+
+        существующий процесс. Иначе запускаем новый.
+
+
+
+        Использует interprocess lock (Named Mutex + PID-файл) чтобы
+
+        предотвратить гонку между MCP-процессами.
+
+        """
+
+        if self._reranker_process is not None:
+
+            poll = self._reranker_process.poll()
+
+            if 
+...
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+{
+
+  "tasks_file": "tasks_v3.json",
+
+  "n": 30,
+
+  "rows": [
+
+    {
+
+      "task": "T1",
+
+      "klass": "find_bug_cause",
+
+      "symbol": "build_call_graph",
+
+      "arms": {
+
+        "A": {
+
+          "round_trips": 4,
+
+          "agent_latency_ms": 2008.0,
+
+          "server_latency_ms": 2008.0,
+
+          "tokens": 322,
+
+          "full": "🔍 build_call_graph — 1 defs, 11 callers, 10 callees. Definition: experiments/run_experiment_pagerank.py line 40 (НЕВЕРНОЕ: тень эксперимента, реальное — symbol_index.py:480). Called from: main (run_experiment_pagerank.py:216), SymbolIndex.get_impact_analysis (symbol_index.py:640), SymbolIndex.get_callees (symbol_index.py:789), ProjectIntelligenceLayer.intel_code_topology (layer.py:231). Calls: DiGraph, list, rglob, print, len\n✅ Completed (394ms) — message: Symbol 'build_call_graph' not found in index\ndef build_call_graph(self, symbol: str, depth: int = 2) -> Dict: \"\"\"Строит двунаправленный граф вызовов с заданной глуби
+
+### docs/ru/README.md
+// Scope: section | markdown_section | ru.readme
+From docs\ru\README.md, section '## 📁 Структура проекта':
+## 📁 Структура проекта
+
+```
+mscodebase-intelligence/
+├── src/
+│   ├── main.py                   # Точка входа MCP-сервера (~200 строк)
+│   ├── lsp_main.py               # LSP-сервер (на DI, для индексации при didSave)
+│   ├── mcp/
+│   │   ├── server.py               # Создание MCP-сервера (~597 строк)
+│   │   ├── server_factory.py       # DI setup + жизненный цикл сервера (~478 строк)
+│   │   ├── server_tools.py         # Регистрация инструментов + 13 inline (~607 строк)
+│   │   └── tools/                  # 13 модулей
+...

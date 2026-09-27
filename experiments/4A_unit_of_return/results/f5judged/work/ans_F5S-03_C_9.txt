@@ -1,0 +1,5 @@
+Потому что `'gitwildmatch'` объявлен **deprecated** (Deprecated) — это явно указано в docstring функции и комментарии в коде. Использование устаревшего формата также генерировало 1740 GitWildMatchPattern deprecation warnings в тестах.
+
+
+> build · longcat-2.0
+

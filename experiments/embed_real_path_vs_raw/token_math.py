@@ -7,7 +7,7 @@ import statistics
 import httpx
 import lancedb
 
-DB = r"C:\Users\misha\AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
+DB = r"<user>AppData\Local\mscodebase\projects\bfe9644b\lancedb_v2\index_mscodebase_bfe9644b.db"
 TOK_URL = "http://127.0.0.1:8080/tokenize"
 
 db = lancedb.connect(DB)

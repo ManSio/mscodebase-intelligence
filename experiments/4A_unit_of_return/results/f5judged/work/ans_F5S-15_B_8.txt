@@ -1,0 +1,5 @@
+На Windows переменная `ZED_WORKTREE_ROOT` всегда `<unset>` (баг Zed #36019, закрыт без исправления): в `settings.json` нельзя использовать `$ZED_WORKTREE_ROOT` — любая попытка обратиться к ней вернёт `None`. На Linux/macOS переменная устанавливается корректно.
+
+
+> build · longcat-2.0
+

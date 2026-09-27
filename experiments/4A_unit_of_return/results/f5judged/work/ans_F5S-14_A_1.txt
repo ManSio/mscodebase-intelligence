@@ -1,0 +1,5 @@
+I don't know. The context only states that CWD is inherited from Zed and mentions `ACTIVE_WORKSPACE` / `multi_workspace_state.active_workspace_id` in a fragmented snippet, but does not specify the complete project-detection mechanism when environment variables are absent.
+
+
+> build · longcat-2.0
+

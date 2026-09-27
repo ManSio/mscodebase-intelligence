@@ -1,0 +1,107 @@
+### tests/conftest.py
+// Scope: function | function_definition | conftest
+// File: tests\conftest.py
+def _popen_no_window(*args, **kwargs):
+
+        if "creationflags" not in kwargs:
+
+            kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+        return _orig_popen(*args, **kwargs)
+
+### src/core/platform_utils.py
+// Scope: function | function_definition | core.platform_utils
+// File: src\core\platform_utils.py
+def is_windows() -> bool:
+    """True на Windows."""
+    return sys.platform == "win32"
+
+### scripts/check_lsp_health.py
+// Scope: function | function_definition | check_lsp_health
+// File: scripts\check_lsp_health.py
+def _get_zed_db_path() -> Path:
+
+    """Возвращает путь к базе данных Zed (для проверки active windows)."""
+
+    if platform.system() == "Windows":
+
+        base = Path(os.environ.get("LOCALAPPDATA", ""))
+
+
+
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def parse_jsonc(text: str) -> dict:
+
+    """Parse Zed settings.json (JSONC) into a dict. Raises on invalid JSON."""
+
+    cleaned = _strip_trailing_commas(_strip_jsonc_comments(text))
+
+    return json.loads(cleaned)
+
+### experiments/context_engine/results_tasks_v3.json
+// Scope: fallback | results_tasks_v3.json
+ `D:\\\\Project\\\\MSCodeBase`). Это может случиться, если\n170:      пользователь открывает исходники расширения как проект в Zed.\n171:    - Zed install dir (см. is_zed_install_dir в lsp_project_bridge).\n172:\n173:    РАНЬШЕ здесь была проверка `(p / \"src/lsp_main.py\").exists()` — она\n174:    была ошибочной, потому что исходники расширения РЕАЛЬНО содержали\n175:    `src/lsp_main.py`, и guard блокировал легитимный dev-сценарий\n176:    (\"открыть репо расширения как проект в Zed, чтобы индексировать\n177:    свой же код\"). Теперь вместо маркера-файла используется явный\n178:    ext_root-equality + is_zed_install_dir (Zed install markers\n179:    специфичны, ложных срабатываний на обычных проектах не дают).\n180:\n181:    IMPORTANT: когда source=\"ACTIVE_WORKSPACE\" — это ЯВНО активное\n182:    окно Zed (multi_workspace_state.active_workspace_id). Пользователь\n183:    ЯВНО открыл этот проект в Zed, поэтому доверяем ему даже если это\n184:    ext_root. Блокируем ext_root только д
+
+### src/sources/local_fs/windows.py
+// Scope: function | function_definition | sources.local_fs.windows
+// File: src\sources\local_fs\windows.py | Context: SafePathManager
+def _finalize_tempdir(path: Optional[Path]) -> None:
+
+        """Static finalizer для weakref.finalize (не держит self)."""
+
+        if path and path.exists():
+
+            try:
+
+
+
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def _strip_jsonc_comments(text: str) -> str:
+
+    """Remove // and /* */ comments while respecting string literals."""
+
+    out: list[str] = []
+
+    i, n = 0, len(text)
+
+
+
+### src/core/platform_utils.py
+// Scope: function | function_definition | core.platform_utils
+// File: src\core\platform_utils.py
+def get_zed_config_path() -> Path:
+    """Путь к settings.json Zed."""
+    return _get_zed_config_base() / "settings.json"
+
+### adapters/zed/zed_config.py
+// Scope: function | function_definition | d:.project.mscodebase.adapters.zed.zed_config.py
+// File: adapters\zed\zed_config.py
+def _set_top_level(text: str, key: str, value_json: str) -> str:
+
+    """Replace (or insert) the top-level `"key": value` with `value_json`."""
+
+    span = _find_value_span(text, key)
+
+    if span:
+
+
+
+### docs/ru/ZED_WINDOWS_QUIRKS.md
+// Scope: section | markdown_section | ru.zed_windows_quirks
+From docs\ru\ZED_WINDOWS_QUIRKS.md, section '## 📁 CWD = откуда был запущен Zed':
+## 📁 CWD = откуда был запущен Zed
+
+**Важно:** CWD (рабочая директория) MCP-процесса наследуется от самого Zed.
+На Windows `current_dir` в `settings.json` не резолвит `$ZED_WORKTREE_ROOT`,
+поэтому CWD MCP-сервера = CWD процесса Zed.
+
+Если Zed был запущен из:
+- `cmd` или `powershell` → CWD будет папка, из которой запустили
+- Ярлык / меню Пуск → CWD обычно директория с `zed.exe`
+- `D:\AI\Zed` (как у вас) → CWD = `D:\AI\Zed`
+
+---
