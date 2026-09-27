@@ -11,7 +11,7 @@
 | судья | `opencode-go/qwen3.7-plus` (≠ читатель; слепой, opaque-токен, reference одинаков) |
 | trials | **10** (majority); пилот trials=5 сохранён как снапшот |
 | плечи | A top-k чанков · B top-1 целого документа · C oracle · D closed book |
-| контроль подмены модели | guard: `[MODEL-MISMATCH]`/`[ERROR]` → `invalid` (**0 invalid** в обоих прогонах) |
+| контроль подмены модели | guard: `[MODEL-MISMATCH]`/`[ERROR]` → `invalid` (0 invalid in the trials=10 run, one invalid in the t5 pilot, F5S-03/B) |
 
 ## Общие метрики (n=160/плечо = 16 запросов × 10 trials)
 
@@ -34,9 +34,11 @@
 | плечо | code | prose | ALL |
 |---|---|---|---|
 | A | 0/8 | 2/8 | 2/16 (0.125) |
-| B | 4/8 | 2/8 | 6/16 (0.375) |
+| B | 4/8 | 1/8 | 5/16 (0.313) |
 | C | 8/8 | 8/8 | 16/16 (1.000) |
 | D | 0/8 | 0/8 | 0/16 (0.000) |
+
+Majority rule is strict >50%; the second B prose point is a 5/5 tie (F5S-13/B), counted out.
 
 ## Стабильность судьи
 

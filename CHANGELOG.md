@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-09-27
+
+### Added
+- **F5 4-arm judged run** (4A unit-of-return): 16 frozen queries (8 code + 8 prose), 10 trials/arm, reader `opencode-go/longcat-2.0`, judge `opencode-go/qwen3.7-plus` (blind, disjoint from reader).
+- Overall correct: A top-k chunks 16.3% (26/160), B top-1 full-doc 34.4% (55/160), C oracle 97.5% (156/160), D closed-book 0%.
+- Code split: B 50.0% (40/80) vs A 6.3% (5/80), non-overlapping CIs; unit of return affects the reader, not gold-file hit.
+- Prose split: A 26.3% (21/80) vs B 18.8% (15/80), overlapping CIs — fragile, no claim.
+- Majority (strict >50% per query-arm): B 5/16 (F5S-13/B 5/10 tie counted out); guard: 0 `invalid` in trials=10 run (1 in t5 pilot, F5S-03/B).
+- NodeRAG refuted on the same bench: TF-IDF baseline 80% vs graph BFS 70% — graph adds cost without gain here.
+- Caveats: n=16 pilot scale; index snapshot not hard-frozen; raw answers path-normalized before commit, verdicts unchanged.
+
 ## [3.5.0] - 2026-09-22
 
 ### Added
