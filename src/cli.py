@@ -44,8 +44,6 @@ def core_tool_allowlist() -> dict:
         "check_staleness": "inline",
     }
 
-    allowlist["check_staleness"] = "inline"
-
 
 def _load_arguments(cli_text: str) -> dict:
     text = cli_text.strip() if cli_text else "{}"

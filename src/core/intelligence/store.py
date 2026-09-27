@@ -222,7 +222,7 @@ def _staleness_detail(staleness: str, note: Dict[str, Any]) -> str:
     if staleness == "STALE":
         return f"stale_after date {note.get('stale_after')} has passed"
     if staleness == "EXPIRED":
-        return f"discriminator command exited non-zero"
+        return "discriminator command exited non-zero"
     return "active"
 
 
