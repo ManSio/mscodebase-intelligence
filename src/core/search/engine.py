@@ -43,6 +43,7 @@ from .utils import (
     _extract_key_terms,
     _extract_symbol_name,
     _filter_by_time,
+    _tokenize,
 )
 
 _sync_executor = concurrent.futures.ThreadPoolExecutor(
@@ -133,6 +134,112 @@ def _boost_exact_name_matches(results: List[dict], query: str) -> List[dict]:
     # в fast-mode скор = distance (меньше = лучше), у RRF/rerank — больше = лучше.
     results.sort(key=lambda r: 0 if r.get("exact_name_boost") else 1)
     return results
+
+
+# O1 (2026-09-28): identifier boost for MULTI-token queries at pre-rerank pool.
+# Single-identifier queries are served by _boost_exact_name_matches (+ graph
+# short-circuit); multi-token queries ("hybrid_search_async reciprocal_rank_fusion
+# FTS5 BM25") never reach it (_IDENTIFIER_QUERY_RE rejects spaces), so a rare
+# identifier inside them drowned in multi-tier RRF noise. Red-team defenses
+# (mandatory acceptance criteria):
+#   D1 rarity gate — candidate only if it is the STRICTLY rarest query term
+#      (df from existing BM25 stats, no new index structures); a common-term
+#      collision (H2-style: `BM25` frequent in index) never boosts.
+#   D2 exact gate — full-token equality token == symbol_name, never substring;
+#      _is_doc_chunk exclusion inherited (docs never boosted).
+#   D3 pre-rerank application — runs on the pre-rerank pool (before
+#      _apply_multi_reranker_async), never post-cut; the x100 only guarantees
+#      pool survival past the reranker's top_n cut (reranker re-sorts itself).
+# Shape classes mirror CodeJury _identifiers: --flag, UPPER, _ in name, CamelCase.
+_IDENTIFIER_TOKEN_RES = (
+    re.compile(r"^--[A-Za-z][A-Za-z0-9_-]*$"),  # --flag
+    re.compile(r"^[A-Z][A-Z0-9_]{1,63}$"),  # CONSTANT / BM25 / FTS5
+    re.compile(r"^[A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]+$"),  # snake_case
+    re.compile(r"^[a-z]+[A-Z][A-Za-z0-9]*$"),  # camelCase
+    re.compile(r"^[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*$"),  # PascalCase
+)
+
+# Proven x100 factor convention (cf. _boost_exact_name_matches).
+_O1_BOOST_FACTOR = 100.0
+
+# Same split pattern as Searcher._tokenizer_re: BM25 terms and O1 query terms
+# must share tokenization, otherwise df comparison is meaningless.
+_O1_TOKENIZER_RE = re.compile(r"\W+")
+
+
+def _extract_identifier_tokens(query: str) -> List[str]:
+    """Identifier-shaped raw tokens of the query (O1/D1 shape classes)."""
+    toks = re.findall(
+        r"--[A-Za-z][A-Za-z0-9_-]*|[A-Za-z_][A-Za-z0-9_]*", query or ""
+    )
+    return [t for t in toks if any(rx.match(t) for rx in _IDENTIFIER_TOKEN_RES)]
+
+
+def _identifier_norm(tok: str) -> str:
+    """Normalized form comparable with BM25 terms (lowercase, no leading dashes)."""
+    return tok.lower().lstrip("-")
+
+
+def _pick_rare_identifier(query: str, df_of) -> Optional[str]:
+    """O1 candidate: identifier-shaped token that is the STRICTLY rarest query term.
+
+    Args:
+        query: raw multi-token query.
+        df_of: callable term -> int, document frequency from existing BM25 stats.
+
+    Returns:
+        Normalized candidate or None. None covers: no identifier-shaped token,
+        single-term query (served by _boost_exact_name_matches), tie for rarest,
+        and H2-style collision (identifier-shaped but common term).
+    """
+    idents = _extract_identifier_tokens(query)
+    if not idents:
+        return None
+    qtokens = _tokenize(query, _O1_TOKENIZER_RE)
+    uniq = set(qtokens)
+    if len(uniq) < 2:
+        return None
+    df_cache: Dict[str, int] = {}
+
+    def df(t: str) -> int:
+        if t not in df_cache:
+            try:
+                df_cache[t] = int(df_of(t) or 0)
+            except Exception:  # noqa: BLE001 — broken stats never break search
+                df_cache[t] = 0
+        return df_cache[t]
+
+    for raw in idents:
+        norm = _identifier_norm(raw)
+        others = uniq - {norm}
+        if not others:
+            continue
+        if df(norm) < min(df(t) for t in others):
+            return norm
+    return None
+
+
+def _identifier_exact_match(r: Dict, candidate_norm: str) -> bool:
+    """True only on full-token equality symbol == candidate (O1/D2, never substring)."""
+    if _is_doc_chunk(r.get("metadata") or {}):
+        return False
+    meta = r.get("metadata") or {}
+    text = str(r.get("text", "") or "")
+    sym = str(meta.get("symbol_name", "") or "")
+    if not sym:
+        sym = _extract_symbol_name(text)
+    return bool(sym) and sym.lower() == candidate_norm
+
+
+def _boost_rare_identifier(pool: List[dict], candidate_norm: str) -> List[dict]:
+    """Applies the O1 x100 boost to exact symbol matches inside the pool."""
+    for r in pool:
+        if _identifier_exact_match(r, candidate_norm):
+            r["final_score"] = (r.get("final_score", 0) or 0) * _O1_BOOST_FACTOR
+            r["identifier_boost"] = True
+    # Stable: boosted first (input order), rest follow (input order).
+    pool.sort(key=lambda r: 0 if r.get("identifier_boost") else 1)
+    return pool
 
 
 def _prepend_code_name_matches(
@@ -517,6 +624,38 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 )
             )
 
+    def _apply_o1_identifier_boost(
+        self, pool: List[dict], query: str
+    ) -> List[dict]:
+        """O1: rare-identifier x100 boost on the pre-rerank pool (defenses D1-D3).
+
+        Builds df from the EXISTING BM25 stats (no new index structures),
+        picks the strictly-rarest identifier-shaped query token and boosts
+        exact symbol matches. Any failure degrades to unboosted pool.
+        """
+        if not pool:
+            return pool
+        try:
+            self._build_bm25_index()
+        except Exception:  # noqa: BLE001 — degraded BM25 never breaks search
+            return pool
+        bm25 = getattr(self, "_bm25", None) or {}
+        if not bm25:
+            return pool
+
+        def df_of(term: str) -> int:
+            n = 0
+            for doc_terms in bm25.values():
+                if term in doc_terms:
+                    n += 1
+            return n
+
+        candidate = _pick_rare_identifier(query, df_of)
+        if not candidate:
+            return pool
+        logger.debug(f"[O1] rare-identifier boost: '{candidate}' x{_O1_BOOST_FACTOR:g}")
+        return _boost_rare_identifier(pool, candidate)
+
     async def hybrid_search_async(
         self,
         query: str,
@@ -756,6 +895,15 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         )
         if tracer and _mmr_before:
             tracer.record_mmr(_mmr_before, pre_rerank_results, lambda_param=0.6)
+
+        # === O1 (2026-09-28): rare-identifier boost at PRE-RERANK pool (D3) ===
+        # Runs here — after sort+cut/MMR, before the reranker — never post-cut:
+        # the x100 guarantees a rare exact symbol match survives the reranker's
+        # top_n cut; the reranker itself still re-sorts by its own scores.
+        # (On PR52 this site hosts anchor_tier_winners; O1 composes after it.)
+        pre_rerank_results = self._apply_o1_identifier_boost(
+            pre_rerank_results, query
+        )
 
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
