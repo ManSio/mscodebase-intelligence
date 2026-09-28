@@ -38,6 +38,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+# Per-query cap: one hung hybrid_search_async must fail its row, never the gate.
+QUERY_TIMEOUT = 120
+
 P2 = {"id": "P2", "query": "hybrid_search_async reciprocal_rank_fusion FTS5 BM25",
       "target": "src/core/search/engine.py", "expect_rank": 1}
 
@@ -119,6 +122,8 @@ def main() -> int:
             fails.append(f"{row['id']} reranker-cache void (wall<2s, no timing)")
         if row["degraded"]:
             fails.append(f"{row['id']} reranker degraded (reranker_ms=0, passthrough)")
+        if row["timed_out"]:
+            fails.append(f"{row['id']} query timed out (>{QUERY_TIMEOUT}s)")
     if fails:
         print("GATE FAIL: " + "; ".join(fails))
         return 1
@@ -132,11 +137,22 @@ async def _run_all(searcher):
     # on main and would silently drop the FTS tier for the FIRST measured query
     # (known issue, PR52 territory). Warm-up uses a disjoint query -> no
     # reranker-cache contamination (cache key includes the query text).
-    await searcher.hybrid_search_async("warmup cold start primer", limit=3)
+    await asyncio.wait_for(
+        searcher.hybrid_search_async("warmup cold start primer", limit=3),
+        timeout=QUERY_TIMEOUT,
+    )
     rows = []
     for case in [P2, *HOLDOUT]:
         t0 = time.perf_counter()
-        results = await searcher.hybrid_search_async(case["query"], limit=5)
+        try:
+            results = await asyncio.wait_for(
+                searcher.hybrid_search_async(case["query"], limit=5),
+                timeout=QUERY_TIMEOUT,
+            )
+            timed_out = False
+        except asyncio.TimeoutError:
+            results = []
+            timed_out = True
         wall = time.perf_counter() - t0
         boosted = [r for r in results if r.get("identifier_boost")]
         doc_boosted = [r for r in boosted
@@ -149,7 +165,7 @@ async def _run_all(searcher):
         rows.append({"id": case["id"], "rank": rank, "target": case.get("target"),
                      "n_boost": len(boosted), "n_doc_boost": len(doc_boosted),
                      "n": len(results), "wall": round(wall, 2),
-                     "void": void, "degraded": degraded})
+                     "void": void, "degraded": degraded, "timed_out": timed_out})
         print(f"{case['id']:>3} rank={rank} n={len(results)} target={case.get('target')} "
               f"boost={len(boosted)} doc_boost={len(doc_boosted)} wall={wall:.2f}s "
               f"rerank_ms={timing.get('reranker_ms')} model={timing.get('model')}")
