@@ -8,6 +8,14 @@ Each query runs hybrid_search_async(limit=5) in THIS fresh process
 (reranker cache starts empty -> no cache-hit void measurements).
 Prints a result table; exit 1 on gate failure (see PASS RULES below).
 
+HARNESS RULE (2026-09-28, verified): all queries run inside ONE event loop
+(`asyncio.run(_run_all(...))` once). The old per-query `asyncio.run()` pattern
+silently degrades every even-positioned query to reranker passthrough
+(provider-None, reranker_ms=0): asyncio primitives (locks/semaphores/client)
+bound to the first, now-closed loop misbehave on alternating fresh loops.
+A degraded row (reranker_ms falsy) fails loudly instead of judging rank on
+passthrough order.
+
 Holdout set note: no canonical H1-H12 exists on main (verified 2026-09-28:
 grep finds only unrelated H-labels in diary/archive). H1-H12 below are
 O1-holdout-v1, defined HERE (multi-token identifier queries with known
@@ -95,27 +103,7 @@ def main() -> int:
         rev = "unknown"
     print(f"O1 holdout gate | rev={rev} | project={project} | fresh process")
     searcher = build_searcher(project)
-    # Warm-up (discarded): cold FTS5 to_pandas build exceeds the 2s tier budget
-    # on main and would silently drop the FTS tier for the FIRST measured query
-    # (known issue, PR52 territory). Warm-up uses a disjoint query -> no
-    # reranker-cache contamination (cache key includes the query text).
-    asyncio.run(searcher.hybrid_search_async("warmup cold start primer", limit=3))
-    rows = []
-    for case in [P2, *HOLDOUT]:
-        t0 = time.perf_counter()
-        results = asyncio.run(searcher.hybrid_search_async(case["query"], limit=5))
-        wall = time.perf_counter() - t0
-        boosted = [r for r in results if r.get("identifier_boost")]
-        doc_boosted = [r for r in boosted
-                       if str((r.get("metadata") or {}).get("file", ""))
-                       .lower().endswith((".md", ".markdown", ".rst", ".txt", ".ipynb"))]
-        rank = rank_of(results, case["target"]) if case.get("target") else None
-        void = wall < 2.0 and bool(getattr(searcher, "_last_rerank_timing", None) == {})
-        rows.append({"id": case["id"], "rank": rank, "target": case.get("target"),
-                     "n_boost": len(boosted), "n_doc_boost": len(doc_boosted),
-                     "wall": round(wall, 2), "void": void})
-        print(f"{case['id']:>3} rank={rank} target={case.get('target')} "
-              f"boost={len(boosted)} doc_boost={len(doc_boosted)} wall={wall:.2f}s")
+    rows = asyncio.run(_run_all(searcher))
     print("---")
     fails = []
     p2 = rows[0]
@@ -129,11 +117,43 @@ def main() -> int:
             fails.append(f"{row['id']} doc chunk boosted")
         if row["void"]:
             fails.append(f"{row['id']} reranker-cache void (wall<2s, no timing)")
+        if row["degraded"]:
+            fails.append(f"{row['id']} reranker degraded (reranker_ms=0, passthrough)")
     if fails:
         print("GATE FAIL: " + "; ".join(fails))
         return 1
     print("GATE PASS")
     return 0
+
+
+async def _run_all(searcher):
+    """Whole sequence on ONE event loop (see HARNESS RULE above)."""
+    # Warm-up (discarded): cold FTS5 to_pandas build exceeds the 2s tier budget
+    # on main and would silently drop the FTS tier for the FIRST measured query
+    # (known issue, PR52 territory). Warm-up uses a disjoint query -> no
+    # reranker-cache contamination (cache key includes the query text).
+    await searcher.hybrid_search_async("warmup cold start primer", limit=3)
+    rows = []
+    for case in [P2, *HOLDOUT]:
+        t0 = time.perf_counter()
+        results = await searcher.hybrid_search_async(case["query"], limit=5)
+        wall = time.perf_counter() - t0
+        boosted = [r for r in results if r.get("identifier_boost")]
+        doc_boosted = [r for r in boosted
+                       if str((r.get("metadata") or {}).get("file", ""))
+                       .lower().endswith((".md", ".markdown", ".rst", ".txt", ".ipynb"))]
+        rank = rank_of(results, case["target"]) if case.get("target") else None
+        timing = dict(getattr(searcher, "_last_rerank_timing", None) or {})
+        void = wall < 2.0 and timing == {}
+        degraded = not timing.get("reranker_ms")
+        rows.append({"id": case["id"], "rank": rank, "target": case.get("target"),
+                     "n_boost": len(boosted), "n_doc_boost": len(doc_boosted),
+                     "n": len(results), "wall": round(wall, 2),
+                     "void": void, "degraded": degraded})
+        print(f"{case['id']:>3} rank={rank} n={len(results)} target={case.get('target')} "
+              f"boost={len(boosted)} doc_boost={len(doc_boosted)} wall={wall:.2f}s "
+              f"rerank_ms={timing.get('reranker_ms')} model={timing.get('model')}")
+    return rows
 
 
 if __name__ == "__main__":
