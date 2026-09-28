@@ -28,24 +28,26 @@ if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 
-def find_project_root() -> Path:
+def find_project_root() -> Path | None:
     """Resolve repo root by marker walk (works from any hook home).
 
     Ascends from the hook file until a directory containing .git or
-    KNOWN_ISSUES.md is found. Falls back to the legacy depth
-    (parent.parent.parent, correct for .git/hooks/ home) if no
-    marker is found.
+    KNOWN_ISSUES.md is found. Returns None when no marker is found
+    (fail-closed: the caller must refuse to pass, never silently skip).
     """
     start = Path(__file__).resolve().parent
     for candidate in [start, *start.parents]:
         if (candidate / ".git").exists() or (candidate / "KNOWN_ISSUES.md").is_file():
             return candidate
-    return Path(__file__).resolve().parent.parent.parent
+    return None
 
 
 def run_script(script_path: str, label: str) -> bool:
     """Запускает скрипт и возвращает True если успешно."""
     project_root = find_project_root()
+    if project_root is None:
+        print(f"  ❌ {label}: project root not found (no .git / KNOWN_ISSUES.md markers)")
+        return False
     script = project_root / script_path
 
     if not script.exists():
