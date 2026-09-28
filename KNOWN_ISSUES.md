@@ -5,6 +5,11 @@
 
 ---
 
+## 2026-09-28 — Ретриевер-замеры без сброса реранкер-кэша недействительны (Open)
+
+- **Правило:** все retriever-замеры и A/B-тесты — только в свежем процессе либо с явным сбросом реранкер-кэша (`Searcher._reranker_cache.clear()`). Ключ кэша включает текст запроса (engine.py:1646): повтор того же запроса в том же процессе отдаёт закэшированные скоры, а не измеряет код.
+- **Эвристика void-замера:** wall <2s на `hybrid_search_async` при ожидании полного пайплайна (embed+BM25+FTS+rerank) = подозрение на cache hit; сверяться с `Searcher._last_rerank_timing` (пусто = реранкер не работал). Холодный FTS-билд (~2.5s) — обратная ловушка: ПЕРВЫЙ замер в свежем процессе молча теряет FTS-тир (2s `wait_for`), нужен discarded warm-up на чужом запросе.
+- **Статус:** 🟡 Open (процедурное правило; guard-скрипт `scripts/o1_holdout_gate.py` — fresh-process + warm-up + void-флаг).
 
 **21 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
