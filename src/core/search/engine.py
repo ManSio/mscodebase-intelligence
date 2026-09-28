@@ -962,10 +962,12 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 except Exception as e:
                     logger.warning(f"Не удалось выполнить dense поиск: {e}")
 
-        # FTS5 (full-text) — параллельно, с защитой от таймаута.
-        # _fts5_search делает lazy build (to_pandas на весь индекс, ~0.5s на
-        # первом вызове). Чтобы не усугублять 15s-лимит search_code, оборачиваем
-        # в wait_for(2s): при превышении — degraded ([]), основной поиск жив.
+        # FTS5 (full-text) — build вне таймаута, поиск под wait_for(2s).
+        # Замер 2026-09-28: холодный build (to_pandas всего индекса) = 2.47s >
+        # 2.0s — первый поиск в свежем процессе МОЛЧА терял FTS-тир
+        # (flaky A/B: пилот 18/20 vs 8/20 на тех же запросах). Build идемпотентен
+        # (double-checked lock в _build_fts5_index), поиск — быстрый (~0.05s).
+        await asyncio.to_thread(self._build_fts5_index)
         try:
             fts5_raw = await asyncio.wait_for(
                 self._fts5_search_async(query, limit=raw_limit * 2),

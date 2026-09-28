@@ -37,6 +37,13 @@
 
 **24 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
+## 2026-09-28 — Холодный FTS-билд превышал 2s-бюджет и молча выпадал (Fixed) + _get_ext_dir указывал в src/ (Fixed)
+
+- **FTS (c, flaky A/B):** замер — холодный `to_pandas`-билд всего индекса = **2.47s > 2.0s** `wait_for` в `engine.py:671`. Первый поиск в свежем процессе молча терял FTS-тир → пилот 18/20 vs 8/20 на тех же запросах. **Fix:** build вынесен из-под таймаута (идемпотентен, double-checked lock), 2s остались только на сам поиск (~0.05s). Guard `test_fts5_timeout_does_not_break_search` зелёный.
+- **llama-пути (b):** `llama_install.py:_get_ext_dir` брал 3 `parent` от `__file__` вместо 4 → указывал в `src/`, ветка «режим разработки» была мёртвой, модели резолвились в пустой `%LOCALAPPDATA%/mscodebase/models`. На вопрос «падает или не успевает»: после простоя restart **пытается** (`idle-unload recovery`), но падал по отсутствию файлов, не по таймингу. **Fix:** off-by-one исправлен + `multilingual-e5-small-Q8_0.gguf` (132MB) докопирован из расширения в `models/` (git-ignored). Live-check `smoke_e2e.py`: **SMOKE E2E PASSED** (embed dim=384, rerank top=1, поиск по индексу).
+- **Побочно (Verified, не чинено — решение владельца):** холодный топ захламлён артефактами (`judged_raw*.json`, `work/ctx_*.txt` в выдаче) — живое подтверждение индексного мусора (P2-смежное). Чистка индекса сменит ретрив-базисы.
+- **Статус:** ✅ Fixed (пути + FTS-холод).
+
 ## 2026-09-27 — Import-time os.environ mutation in scripts breaks xdist workers (Fixed)
 
 - **Симптом:** 6 plugin-тестов (`test_plugins_subprocess/registry`) падали под `-n auto` с `ModuleNotFoundError: No module named 'src'` в runner-subprocess, серийно (`-n0`) — зелёные.
