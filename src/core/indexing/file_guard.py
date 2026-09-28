@@ -138,6 +138,12 @@ class FileGuard:
             logger.debug(f"[FILEGUARD SKIP] System directory: {file_path}")
             return False
 
+        # Выводы экспериментов (experiments/**/results|work) — в индекс не берём.
+        # Git-трекинг не трогаем: frozen/results обязаны жить в репо (§17).
+        if SystemArtifacts.is_experiment_output(file_path):
+            logger.debug(f"[FILEGUARD SKIP] Experiment output: {file_path}")
+            return False
+
         # Проверка .gitignore (Требует POSIX путей)
         if self._gitignore_patterns:
             try:
