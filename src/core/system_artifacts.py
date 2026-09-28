@@ -101,8 +101,19 @@ _FEEDBACK_PATTERNS: Set[str] = {
 
 
 # ══════════════════════════════════════════════════════════════
-# Public API
+# Layer 4: Experiment Output Guard — выводы экспериментов
 # ══════════════════════════════════════════════════════════════
+
+# Замер 2026-09-28: 3127/15426 чанков индекса (20.3%) — мусор из
+# experiments/**/results|work (ctx-дампы по 329 чанков, judged_raw.json —
+# 249). Душит лексику (кейс P2) и раздувает холодный FTS-билд (2.47s).
+# Git-трекинг НЕ трогаем (§17: frozen/results обязаны жить в репо) —
+# исключаем только из ИНДЕКСА. Исходники экспериментов (*.py) индексируются.
+_EXPERIMENT_ROOT = "experiments"
+_EXPERIMENT_OUTPUT_DIRS = frozenset({"results", "work"})
+
+
+# ─── Public API ─────────────────────────────────────────────
 
 
 class SystemArtifacts:
@@ -197,7 +208,24 @@ class SystemArtifacts:
         name = path.name.lower()
         return name in _FEEDBACK_PATTERNS
 
-    # ─── Layer 4: Unified Check ─────────────────────────────
+    # ─── Layer 4: Experiment Output Guard ────────────────
+
+    @classmethod
+    def is_experiment_output(cls, path: Path) -> bool:
+        """Проверяет, является ли файл выводом эксперимента.
+
+        experiments/**/results/** и experiments/**/work/** — сырьё прогонов
+        (ctx-дампы, judged_raw.json, work-файлы). В индекс не берём;
+        frozen/-входы и *.py-исходники — берём.
+        """
+        parts = [p.lower() for p in Path(path).parts]
+        try:
+            i = parts.index(_EXPERIMENT_ROOT)
+        except ValueError:
+            return False
+        return any(p in _EXPERIMENT_OUTPUT_DIRS for p in parts[i + 1 :])
+
+    # ─── Layer 5: Unified Check ─────────────────────────────
 
     @classmethod
     def is_system_path(cls, path: Path) -> bool:
