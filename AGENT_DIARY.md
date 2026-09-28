@@ -693,3 +693,11 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 **P-003 — правка не в той ветке.** Сигмоида попала в ONNX-блок вместо `llama_cpp` (oldString оказался уникальным, но не тем), ветка ONNX осиротела, `if scores:` выехал из `try`. Поймано `ast.parse` + просмотром diff. **Правило:** после правки в много-ветвистом коде — `git diff` целиком, а не только «применилось».
 
 **P-004 — letter-vs-spirit instruction reading.** GPT-5.5 читает «never» буквально (jitter vs page_one_exit, Nishikanta 2026-09-27): perverse-compliant прочтение проходит фильтр, задуманный смысл — нет. Наш зеркальный кейс — qwen temporal-hint (E4b): БЕЗ хинта 'NOT FOUND AT HEAD' ни одна модель не робастна, т.е. правило работает только в дух-прочтении, буква его не несёт. **Guard:** тестировать граничные прочтения каждого правила (perverse-compliant кейс), а не только задуманное.
+
+## [2026-09-28] P2 — gold не входит в пул: якоря идентификаторов
+**Status:** ✅ Код+тесты+live (ветка `fix/p2-pool-contains-gold`, PR следует).
+**Root Cause (числа, fresh-process):** срез `rrf_results[:limit]`, raw_limit=min(limit*2,30); цель P2: BM25#126, FTS#74, dense вне @200. Пул 5→1.7с/10→4.0с/20→7.7с/50→22.9с реранка — глубина 126 (≈50с) отвергнута. O1 не спасает: кандидат `reciprocal_rank_fusion` (df=4), символ цели `hybrid_search_async` (df=100) — буст уходил в scoring.py.
+**Fix:** `_anchor_identifier_chunks_async` (single-token FTS, def-first, df-кап 120, docs/data ineligible, капы 2+3+MAX) → P2 rank 1 live (engine.py:18). Red-team: H2-коллизия (BM25 df=327 не якорится), doc-guard (docs/X.md, canary .json), caller-vs-def (live_search_audit vs engine).
+**Harness-находка:** `asyncio.run()` на запрос роняет чётные запросы в reranker-passthrough (ms=0) — детерминировано по паритету; гейт идёт одним loop + degraded-флаг. Void-флаг KI этот класс не ловил.
+**Guard:** `tests/test_p2_pool_anchors.py` (13) + `scripts/p2_holdout_gate.py` (GATE PASS 15/15); смежные 64 passed; ruff check чист. Формат-откат: `ruff format` давал +447 строк churn — откачен, diff +171/-0.
+**P-005 — n=5 не значит «пул был 5».** Passthrough реранкера режет `[:top_n]`, пряча сработавшие якоря (6–8-е места) — трижды неверно выводил «якоря не сработали». **Правило:** судить pool-этап только трейсом пула до реранкера, не финальным n.

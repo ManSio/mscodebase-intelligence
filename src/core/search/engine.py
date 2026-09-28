@@ -242,6 +242,89 @@ def _boost_rare_identifier(pool: List[dict], candidate_norm: str) -> List[dict]:
     return pool
 
 
+# P2 pool-entry fix (2026-09-28): identifier-token anchoring for the pre-rerank
+# pool. O1 boosts exact symbol matches INSIDE the pool, but for P2 the gold
+# chunk (src/core/search/engine.py#hybrid_search_async) never ENTERS the pool:
+# multi-term RRF buries it at BM25#126 / FTS#74 (measured live), while the cut
+# is rrf_results[:limit] with raw_limit=min(limit*2,30). Widening the pool to
+# depth 126 would cost ~126x0.4s rerank time — refuted by measurement.
+# Anchors instead resolve exact-symbol chunks DIRECTLY (single-token FTS fetch,
+# ~70ms warm) and append them pre-rerank, capped. Red-team defenses (inherited
+# from O1's D1/D2 + doc-guard e8ffb671 + H2-collision lesson):
+#   A1 rarity cap — token anchored only if df <= _O1_ANCHOR_MAX_DF (BM25 stats);
+#      H2-style ubiquitous terms (BM25 df=327, FTS5 df=140) never anchor.
+#   A2 exact gate — full-token equality symbol == token, never substring;
+#      _is_doc_chunk exclusion (docs never anchor, even when they cite symbols).
+#   A3 cost cap — per-token and total anchor caps + pool never exceeds
+#      MAX_RERANKER_INPUT; FTS failure degrades to unanchored pool (never breaks
+#      search). Per-tier top-1 anchoring (PR52-branch idea) was refuted live:
+#      tier tops are polluted-junk (experiments/*.txt), gold sits at #74-126.
+_O1_ANCHOR_MAX_DF = 120
+_O1_ANCHOR_FETCH_LIMIT = 30
+_O1_ANCHOR_PER_TOKEN = 2
+_O1_ANCHOR_TOTAL = 3
+
+
+# Anchor-eligible files are symbol definitions, which live in real code —
+# never in docs or data (canary_set.json carries a bogus `hybrid_search_async`
+# symbol from fallback scope-splitting; docs cite symbols without defining).
+_ANCHOR_BLOCKED_EXTS = frozenset(
+    {".md", ".markdown", ".rst", ".txt", ".log", ".ipynb",
+     ".json", ".jsonl", ".csv", ".toml", ".yaml", ".yml"}
+)
+
+
+def _is_anchor_eligible(r: Dict) -> bool:
+    """Code file whose extension can host a symbol definition (P2/A2)."""
+    if _is_doc_chunk(r.get("metadata") or {}):
+        return False
+    fname = str((r.get("metadata") or {}).get("file", "") or "")
+    ext = "." + fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+    return ext not in _ANCHOR_BLOCKED_EXTS
+
+
+def _is_symbol_definition(text: str, tok_norm: str) -> bool:
+    """True if the chunk text DEFINES the symbol (def/class line, P2/A2).
+
+    Distinguishes the defining chunk (engine.py#hybrid_search_async) from
+    caller chunks that merely reference it (live_search_audit.py) — both
+    carry the same symbol_name in FTS metadata.
+    """
+    try:
+        return bool(re.search(
+            rf"^\s*(?:async\s+def|def|class)\s+{re.escape(tok_norm)}\b",
+            text or "", re.MULTILINE | re.IGNORECASE,
+        ))
+    except re.error:  # noqa: BLE001 — bad token never breaks search
+        return False
+
+
+def _rare_identifier_tokens(query: str, df_of, max_df: int) -> List[str]:
+    """Identifier-shaped query tokens passing the rarity cap (P2/A1).
+
+    Multi-token queries only (single identifiers are served by
+    _boost_exact_name_matches). Order-preserving, deduplicated, normalized.
+    """
+    idents = _extract_identifier_tokens(query)
+    if not idents:
+        return []
+    qtokens = _tokenize(query, _O1_TOKENIZER_RE)
+    if len(set(qtokens)) < 2:
+        return []
+    out: List[str] = []
+    for raw in idents:
+        norm = _identifier_norm(raw)
+        if norm in out:
+            continue
+        try:
+            df = int(df_of(norm) or 0)
+        except Exception:  # noqa: BLE001 — broken stats never break search
+            continue
+        if df <= max_df:
+            out.append(norm)
+    return out
+
+
 def _prepend_code_name_matches(
     results: List[dict], pool: Optional[List[dict]], query: str, limit: int
 ) -> List[dict]:
@@ -656,6 +739,85 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         logger.debug(f"[O1] rare-identifier boost: '{candidate}' x{_O1_BOOST_FACTOR:g}")
         return _boost_rare_identifier(pool, candidate)
 
+    def _df_of(self):
+        """Document-frequency callable over EXISTING BM25 stats (shared O1/anchors)."""
+        try:
+            self._build_bm25_index()
+        except Exception:  # noqa: BLE001 — degraded BM25 never breaks search
+            return None
+        bm25 = getattr(self, "_bm25", None) or {}
+        if not bm25:
+            return None
+
+        def df_of(term: str) -> int:
+            n = 0
+            for doc_terms in bm25.values():
+                if term in doc_terms:
+                    n += 1
+            return n
+
+        return df_of
+
+    async def _anchor_identifier_chunks_async(
+        self, pool: List[dict], query: str, limit: int
+    ) -> List[dict]:
+        """P2: anchor exact-symbol chunks for rare identifier tokens (defenses A1-A3).
+
+        For each identifier-shaped query token with df <= _O1_ANCHOR_MAX_DF, a
+        single-token FTS fetch retrieves exact symbol matches that multi-term
+        RRF buried (P2 gold at FTS#74). Definition chunks outrank caller chunks
+        sharing the symbol_name; non-code files are ineligible. Matches are
+        appended pre-rerank (tail, no re-sort — the reranker re-sorts by its own
+        scores), deduplicated by file:chunk_index, capped at _O1_ANCHOR_TOTAL
+        and MAX_RERANKER_INPUT. Any failure degrades to the unanchored pool.
+        limit<=0 keeps the empty contract (no anchors on a zero pool).
+        """
+        if limit <= 0:
+            return pool
+        df_of = self._df_of()
+        if df_of is None:
+            return pool
+        tokens = _rare_identifier_tokens(query, df_of, _O1_ANCHOR_MAX_DF)
+        if not tokens:
+            return pool
+        have = set()
+        for r in pool:
+            meta = r.get("metadata") or {}
+            have.add(f"{meta.get('file', '?')}:{meta.get('chunk_index', 0)}")
+        added = 0
+        for tok in tokens:
+            if added >= _O1_ANCHOR_TOTAL or len(pool) >= MAX_RERANKER_INPUT:
+                break
+            try:
+                fetched = await self._fts5_search_async(tok, limit=_O1_ANCHOR_FETCH_LIMIT)
+            except Exception:  # noqa: BLE001 — degraded FTS never breaks search
+                continue
+            per = 0
+            # Definition-first ordering: the defining chunk (def/class line in
+            # code) outranks caller chunks sharing the same symbol_name and
+            # FTS order; non-code files (docs/data with bogus or citing
+            # symbols) are ineligible outright.
+            exact = [r for r in fetched
+                     if _identifier_exact_match(r, tok) and _is_anchor_eligible(r)]
+            exact.sort(key=lambda r: (not _is_symbol_definition(
+                str(r.get("text", "") or ""), tok),))
+            for r in exact:
+                if added >= _O1_ANCHOR_TOTAL or len(pool) >= MAX_RERANKER_INPUT:
+                    break
+                if per >= _O1_ANCHOR_PER_TOKEN:
+                    break
+                meta = r.get("metadata") or {}
+                key = f"{meta.get('file', '?')}:{meta.get('chunk_index', 0)}"
+                if key in have:
+                    continue
+                pool.append(r)
+                have.add(key)
+                added += 1
+                per += 1
+        if added:
+            logger.debug(f"[P2-anchor] +{added} exact-symbol chunks for {tokens}")
+        return pool
+
     async def hybrid_search_async(
         self,
         query: str,
@@ -895,6 +1057,15 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         )
         if tracer and _mmr_before:
             tracer.record_mmr(_mmr_before, pre_rerank_results, lambda_param=0.6)
+
+        # === P2 (2026-09-28): identifier-token anchors at PRE-RERANK pool ===
+        # O1 boosts exact matches inside the pool but cannot rescue chunks that
+        # never enter it (P2 gold at BM25#126/FTS#74 vs [:limit] cut). Anchors
+        # resolve exact-symbol chunks directly (single-token FTS, ~70ms warm)
+        # and append them pre-rerank; O1 then boosts exact matches as usual.
+        pre_rerank_results = await self._anchor_identifier_chunks_async(
+            pre_rerank_results, query, limit
+        )
 
         # === O1 (2026-09-28): rare-identifier boost at PRE-RERANK pool (D3) ===
         # Runs here — after sort+cut/MMR, before the reranker — never post-cut:
