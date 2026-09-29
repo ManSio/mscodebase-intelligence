@@ -264,6 +264,17 @@ class PerformanceConfig:
         default_factory=lambda: float(os.getenv("DOCS_BUCKET_WEIGHT", "0.5"))
     )
 
+    # Reranker top-N recall floor (adopt/reranker-threshold-and-pool):
+    # сколько лучших по скору чанков переживают MIN_RERANK_SCORE-фильтр
+    # безусловно (union с прошедшими порог). 0 = выключено (текущее поведение:
+    # фильтр + fallback "вернуть всё", если не прошёл никто).
+    # P3-прецедент: цель 0.271<0.3 отсекалась при 2 прошедших; top_n_keep>=3
+    # вернул бы её как 3-ю по скору. Калибровка значения — только на holdout
+    # (см. src/providers/reranker/threshold_calibration.py), default 0.
+    reranker_topn_keep: int = field(
+        default_factory=lambda: int(os.getenv("MAX_RERANKER_TOPN", "0"))
+    )
+
     # SYSTEM PROFILE (v2.6.0+)
     system_profile: str = os.getenv("SYSTEM_PROFILE", "light")
 
