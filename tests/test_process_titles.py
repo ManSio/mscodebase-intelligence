@@ -89,3 +89,69 @@ def test_ensure_role_hardlink_non_win_no_link(tmp_path):
     with patch.object(sys, "platform", "linux"):
         with patch("os.link", side_effect=AssertionError("must not be called")):
             assert pt.ensure_role_hardlink(src, "embed") == src
+
+
+def test_mcp_exe_name_win():
+    from src.core import process_titles as pt
+
+    with patch.object(sys, "platform", "win32"):
+        assert pt.mcp_exe_name() == "mscodebase-mcp.exe"
+
+
+def test_mcp_exe_name_non_win_fallback():
+    from src.core import process_titles as pt
+
+    with patch.object(sys, "platform", "linux"):
+        assert pt.mcp_exe_name() == "pythonw.exe"
+        assert pt.mcp_exe_name("python3") == "python3"
+
+
+def test_ensure_mcp_hardlink_mock_link(tmp_path):
+    from src.core import process_titles as pt
+
+    src = tmp_path / "pythonw.exe"
+    src.write_bytes(b"x")
+    with patch.object(sys, "platform", "win32"):
+        created = []
+
+        def fake_link(a, b):
+            created.append((a, b))
+            Path(b).write_bytes(b"x")
+
+        with patch("os.link", side_effect=fake_link):
+            out = pt.ensure_mcp_hardlink(src)
+        assert out == tmp_path / "mscodebase-mcp.exe"
+        assert out.exists()
+        assert created == [(str(src), str(tmp_path / "mscodebase-mcp.exe"))]
+
+
+def test_ensure_mcp_hardlink_fallback_on_error(tmp_path):
+    from src.core import process_titles as pt
+
+    src = tmp_path / "pythonw.exe"
+    src.write_bytes(b"x")
+    with patch.object(sys, "platform", "win32"):
+        with patch("os.link", side_effect=OSError("denied")):
+            assert pt.ensure_mcp_hardlink(src) == src
+
+
+def test_resolve_mcp_exe_fallback_when_link_missing(tmp_path):
+    from src.core import process_titles as pt
+
+    src = tmp_path / "pythonw.exe"
+    src.write_bytes(b"x")
+    with patch.object(sys, "platform", "win32"):
+        with patch("os.link", side_effect=OSError("denied")):
+            assert pt.resolve_mcp_exe(src) == str(src)
+
+
+def test_resolve_mcp_exe_reuses_existing(tmp_path):
+    from src.core import process_titles as pt
+
+    src = tmp_path / "pythonw.exe"
+    src.write_bytes(b"x")
+    link = tmp_path / "mscodebase-mcp.exe"
+    link.write_bytes(b"x")
+    with patch.object(sys, "platform", "win32"):
+        with patch("os.link", side_effect=AssertionError("must not be called")):
+            assert pt.resolve_mcp_exe(src) == str(link)
