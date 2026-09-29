@@ -61,7 +61,11 @@ VENV_DIR = ZED_EXT_DIR / "venv"
 IS_WINDOWS = sys.platform == "win32"
 PYTHON_EXE = VENV_DIR / "Scripts" / "python.exe" if IS_WINDOWS else VENV_DIR / "bin" / "python3"
 # Запуск MCP из расширения без окна консоли (pythonw, инцидент 2026-08-14)
+# Task Manager показывает имя exe (у pythonw нет консоли для title, PR #59),
+# поэтому MCP запускается через NTFS-хардлинк mscodebase-mcp.exe → pythonw.exe
+# (тот же приём, что llama-embed/llama-rerank; см. src/core/process_titles.py).
 MCP_PYTHON = VENV_DIR / "Scripts" / "pythonw.exe" if IS_WINDOWS else PYTHON_EXE
+MCP_EXE = VENV_DIR / "Scripts" / "mscodebase-mcp.exe" if IS_WINDOWS else PYTHON_EXE
 VENV_SITE_PACKAGES = (
     VENV_DIR / "Lib" / "site-packages"
     if IS_WINDOWS
@@ -295,6 +299,28 @@ def _fix_ghosts() -> int:
     return len(candidates)
 
 
+def _ensure_mcp_hardlink() -> Path:
+    """Создаёт (once) NTFS-хардлинк mscodebase-mcp.exe → pythonw.exe.
+
+    Тот же приём, что llama-embed/llama-rerank: os.link (та же inode,
+    без копии). Молча пропускает при любой ошибке — вызовы падают
+    назад на plain pythonw.exe и установка не роняется.
+    """
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from src.core.process_titles import ensure_mcp_hardlink
+
+        return ensure_mcp_hardlink(MCP_PYTHON)
+    except Exception as e:
+        logger.debug("_ensure_mcp_hardlink failed: %s", e)
+        return MCP_PYTHON
+    finally:
+        try:
+            sys.path.remove(str(PROJECT_ROOT))
+        except ValueError:
+            pass
+
+
 # ─── Process cleanup (cross-platform, wmic-free) ───────────
 def _kill_by_cmdline_windows(pattern: str) -> int:
     """Убивает процессы, чья командная строка содержит pattern.
@@ -526,6 +552,7 @@ def step_venv(lines, lang):
     if VENV_DIR.exists() and PYTHON_EXE.exists():
         r = _run(f'"{PYTHON_EXE}" --version', timeout=10)
         if r and r.returncode == 0:
+            _ensure_mcp_hardlink()
             lines.append((C.GRN, f"✓ {VENV_DIR}"))
             return
         lines.append((C.YEL, "⚠ venv found but broken, recreating"))
@@ -533,6 +560,7 @@ def step_venv(lines, lang):
 
     r = _run(f'"{sys.executable}" -m venv "{VENV_DIR}"', timeout=60)
     if r and r.returncode == 0 and PYTHON_EXE.exists():
+        _ensure_mcp_hardlink()
         lines.append((C.GRN, f"✓ {VENV_DIR}"))
     else:
         raise RuntimeError("venv creation failed")
@@ -803,7 +831,11 @@ def step_zedcfg(lines, lang):
     # install.py НАСТРАИВАЕТ MCP в settings.json Zed через patch_zed_settings().
     # Явный путь к venv РАСШИРЕНИЯ (не command=None — get_python_path вернул бы
     # venv проекта) + pythonw.exe без окна консоли. Инцидент 2026-08-14.
-    cmd = f"{MCP_PYTHON} -u -m src.main"
+    # Имя exe — то, что показывает Task Manager (у pythonw нет консоли для
+    # title): запускаемся через mscodebase-mcp.exe-хардлинк → pythonw.exe,
+    # fallback — plain pythonw при ошибке создания линка.
+    mcp_exe = str(_ensure_mcp_hardlink()) if IS_WINDOWS else str(MCP_PYTHON)
+    cmd = f"{mcp_exe} -u -m src.main"
     if patch_zed_settings(
         cmd,
         mode="global",
