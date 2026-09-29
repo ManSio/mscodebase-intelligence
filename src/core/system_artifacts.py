@@ -5,11 +5,12 @@ SystemArtifacts — единый модуль для идентификации 
 пользовательским кодом. Предотвращает feedback loop (индексирование собственных
 описаний чанков) и защищает служебные данные от случайного попадания в индекс.
 
-Архитектура (4 уровня защиты):
+Архитектура (5 уровней защиты):
   Layer 1 — Directory Guard:   системные директории (.mscodebase/, .codebase_indices/)
   Layer 2 — Artifact Guard:    известные служебные файлы по имени/расширению
   Layer 3 — Feedback Guard:    файлы, созданные самим индексатором
   Layer 4 — Embedding Guard:   финальная проверка перед эмбеддингом
+  Layer 5 — Measurement Hygiene: собственные замеры (probe/result JSON, experiments/**/results|work)
 
 Использование:
     if SystemArtifacts.is_system_path(path):
@@ -97,6 +98,24 @@ _FEEDBACK_PATTERNS: Set[str] = {
     "commits.json",
     # Guard-файл состояния индекса
     ".index_guard.json",
+}
+
+
+# ══════════════════════════════════════════════════════════════
+# Layer 5: Measurement Hygiene — собственные замеры вне индекса
+# ══════════════════════════════════════════════════════════════
+# Probe/result JSON-дампы содержат дословный текст запросов — попадая в
+# индекс, они доминируют в BM25 и отравляют замеры (gate RED по вине
+# измерительного стенда, а не кода). Тот же эффект у файлов под
+# experiments/**/results и experiments/**/work.
+_MEASUREMENT_RESULTS_DIRS: Set[str] = {
+    "results",
+    "work",
+}
+
+_MEASUREMENT_JSON_STEMS: Set[str] = {
+    "probe",
+    "result",
 }
 
 
@@ -197,16 +216,44 @@ class SystemArtifacts:
         name = path.name.lower()
         return name in _FEEDBACK_PATTERNS
 
-    # ─── Layer 4: Unified Check ─────────────────────────────
+    # ─── Layer 5: Measurement Hygiene ───────────────────────
+
+    @classmethod
+    def is_measurement_artifact(cls, path: Path) -> bool:
+        """Проверяет, является ли файл артефактом собственных замеров.
+
+        Два критерия (достаточно одного):
+        1. Файл лежит под ``experiments/**/results`` или ``experiments/**/work``
+           (любое расширение — дампы, логи, скрипты прогонов).
+        2. Имя — probe/result JSON-дамп (``*probe*.json``, ``*result*.json``,
+           регистронезависимо) в любом месте дерева.
+
+        Такие файлы содержат дословный текст проб-запросов и при индексации
+        доминируют в BM25 — измерительный стенд отравляет измерение.
+        """
+        parts = [p.lower() for p in path.parts]
+        if "experiments" in parts:
+            tail = parts[parts.index("experiments") + 1:]
+            if any(d in tail for d in _MEASUREMENT_RESULTS_DIRS):
+                return True
+        name = path.name.lower()
+        if name.endswith(".json"):
+            stem = name[:-len(".json")]
+            if any(s in stem for s in _MEASUREMENT_JSON_STEMS):
+                return True
+        return False
+
+    # ─── Unified Check ────────────────────────────────────────
 
     @classmethod
     def is_system_path(cls, path: Path) -> bool:
         """Единая проверка: является ли файл системным (финальный guard).
 
-        Объединяет все 3 уровня:
+        Объединяет все уровни:
         1. Находится в системной директории (Directory Guard).
         2. Является известным артефактом (Artifact Guard).
         3. Создан индексатором (Feedback Guard).
+        4. Артефакт собственных замеров (Measurement Hygiene).
 
         Returns:
             True — файл системный, не должен индексироваться.
@@ -216,5 +263,7 @@ class SystemArtifacts:
         if cls.is_artifact(path):
             return True
         if cls.is_feedback_risk(path):
+            return True
+        if cls.is_measurement_artifact(path):
             return True
         return False
