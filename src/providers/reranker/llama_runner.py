@@ -297,7 +297,12 @@ class _InterProcessLock:
                 if kernel32.QueryFullProcessImageNameW(
                     handle, 0, name_buf, ctypes.byref(size)
                 ):
-                    return "llama-server" in Path(name_buf.value).name.lower()
+                    _lname = Path(name_buf.value).name.lower()
+                    return (
+                        "llama-server" in _lname
+                        or "llama-embed" in _lname
+                        or "llama-rerank" in _lname
+                    )
                 return False
             finally:
                 kernel32.CloseHandle(handle)
@@ -1058,10 +1063,20 @@ class LlamaRunner:
 
         flags = ["--embedding", "--pooling", GGUF_MODELS.get(model_key,{}).get("pooling","cls")] if model_key in GGUF_MODELS and model_key != DEFAULT_RERANKER_MODEL else ["--reranking"]
 
+        # Role hardlink: spawn via llama-embed.exe so Task Manager shows the
+        # role (NTFS hardlink, same inode — no binary copy; fallback = plain).
+        try:
+            from src.core.process_titles import resolve_llama_role_bin
+
+            _base = _llama_bin_vulkan() if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else _llama_bin()
+            _spawn_bin = resolve_llama_role_bin(_base, "embed")
+        except Exception:
+            _spawn_bin = str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin())
+
         try:
             self._process = _popen_with_job(
                 [
-                    str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
+                    _spawn_bin,
                     "--host", self._host,
                     "--port", str(self._port),
                     "-m", str(gguf_path),
@@ -1157,9 +1172,19 @@ class LlamaRunner:
 
         log_fh = None
         try:
+            from src.core.process_titles import resolve_llama_role_bin as _resolve_rerank_bin
+
+            _base_r = _llama_bin_vulkan() if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else _llama_bin()
+            try:
+                _spawn_r = _resolve_rerank_bin(_base_r, "rerank")
+            except Exception:
+                _spawn_r = str(_base_r)
+        except Exception:
+            _spawn_r = str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin())
+        try:
             self._reranker_process = _popen_with_job(
                 [
-                    str(_llama_bin_vulkan()) if os.getenv("LLAMA_BACKEND","msvc").lower()=="vulkan" else str(_llama_bin()),
+                    _spawn_r,
                     "--host", self._host,
                     "--port", str(self.RERANK_PORT),
                     "-m", str(gguf_path),
@@ -1402,7 +1427,7 @@ class LlamaRunner:
 
                     ).decode().strip().lower()
 
-                    if 'llama-server' not in cmd and 'ggml-rpc-server' not in cmd:
+                    if 'llama-server' not in cmd and 'llama-embed' not in cmd and 'llama-rerank' not in cmd and 'ggml-rpc-server' not in cmd:
 
                         logger.warning(f'⏭️ Порт {port} занят процессом PID {pid} (не llama-server), пропускаем')
 
