@@ -5,6 +5,13 @@
 
 ---
 
+## 2026-09-29 — Индекс вычищен от мусора + relang: эффекта языка нет (Fixed/Closed)
+
+- **Purge (Fixed):** 772 файла / 2152 чанка (`experiments/**/results|work`, было 20.3% индекса) удалены one-time скриптом `scripts/purge_experiment_outputs.py` (штатный prune отказал бы: 52.4% файлов > safety-guard 50%). Проверка: 0 осталось. Guard на будущее — PR #62 (`SystemArtifacts.is_experiment_output`).
+- **Relang (Closed):** B×5 на чистом стеке — RU 26/80=32.5% vs EN 30/80=37.5%, CI пересекаются → эффекта языка нет. 6/16 запросов флипаются all-or-nothing (язык меняет какие, не сколько). Старый EN-замер на сломанном стеке невалиден. Артефакты: `results/f5relang/`, `f5/RESULTS_RELANG.md`.
+- **PR #52 (Closed как superseded):** tier-anchor пропущен (P2 закрыт #54 в той же точке); спасены сигмоида/top-N/holdout-калибровка → PR #63. FTS-hoist+guard → PR #62.
+- **Open:** objective-база (`f5_retrieve_arms`) протухла вместе с мусором — нужен перемер на чистом индексе.
+
 ## 2026-09-28 — Pre-commit hook fail-open при потере маркеров (Fixed)
 
 - **Локация:** `.githooks/pre-commit:31-53` (`find_project_root` + `run_script`).
