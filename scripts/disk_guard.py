@@ -40,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEMP_TRASH_PATTERNS = (
     "backup_*",
     "tool-output*",
+    "pytest-*",  # stale `pytest-of-user` / `pytest-*/` xdist worker dirs (2026-09-29: 847MB)
     "*.log",
     "*.log.*",
     "*.err*",
@@ -115,10 +116,9 @@ def sweep_temp_opencode(
                         f"{size_mb:.1f}MB {entry} (not allowlisted — owner decision)"
                     )
             elif entry.is_dir():
-                if any(
-                    fnmatch.fnmatch(entry.name, pat)
-                    for pat in ("backup_*", "tool-output*")
-                ) and _older_than(entry, ttl_days, now):
+                if any(fnmatch.fnmatch(entry.name, pat) for pat in TEMP_TRASH_PATTERNS) and _older_than(
+                    entry, ttl_days, now
+                ):
                     _rmtree_or_file(entry, stats, dry_run)
         except OSError as exc:
             stats.errors.append(f"{entry}: {exc}")
