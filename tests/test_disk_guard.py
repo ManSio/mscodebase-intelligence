@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from disk_guard import (  # noqa: E402
     SweepStats,
+    default_temp_root,
+    main,
     rotate_repo_logs,
     sweep_experiment_work,
     sweep_temp_opencode,
@@ -125,3 +127,32 @@ def test_work_ttl_respects_frozen_and_results(tmp_path: Path) -> None:
     assert not stale.exists()
     assert frozen.exists()
     assert results.exists()
+
+
+def test_check_skips_missing_temp_anchor(tmp_path: Path, capsys) -> None:
+    missing = tmp_path / "no-such-temp" / "opencode"
+    rc = main(
+        ["--check", "--repo", str(tmp_path), "--temp-root", str(missing),
+         "--min-free-gb", "0"]
+    )
+    assert rc == 0  # skip, not raise
+    out = capsys.readouterr().out
+    assert "SKIP [temp]" in out
+
+
+def test_check_skips_missing_repo_anchor(tmp_path: Path, capsys) -> None:
+    missing_repo = tmp_path / "no-such-repo"
+    rc = main(
+        ["--check", "--repo", str(missing_repo), "--temp-root", str(tmp_path),
+         "--min-free-gb", "0"]
+    )
+    assert rc == 0  # skip, not raise
+    out = capsys.readouterr().out
+    assert "SKIP [repo]" in out
+
+
+def test_default_temp_root_uses_gettempdir(tmp_path: Path, monkeypatch) -> None:
+    import disk_guard
+
+    monkeypatch.setattr(disk_guard.tempfile, "gettempdir", lambda: str(tmp_path))
+    assert default_temp_root() == tmp_path / "opencode"
