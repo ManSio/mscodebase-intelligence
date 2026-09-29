@@ -1,0 +1,676 @@
+{
+  "config": {
+    "outdir": "experiments/4A_unit_of_return/results/f5relang/ru",
+    "n": 16,
+    "ids": "",
+    "arms": "B",
+    "trials": 5,
+    "judge_repeats": 1,
+    "parallel": 4,
+    "reader_model": "opencode-go/longcat-2.0",
+    "judge_model": "opencode-go/qwen3.7-plus",
+    "timeout": 400,
+    "seed": 42,
+    "reader_instr_file": null,
+    "queries_file": null,
+    "dry_run": false
+  },
+  "records": [
+    {
+      "id": "F5S-01",
+      "population": "code",
+      "gold_file": "src/core/rate_limiter.py",
+      "reference": "Защита от race conditions: threading.Lock (НЕ asyncio.Lock) —",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-02",
+      "population": "code",
+      "gold_file": "src/core/redact.py",
+      "reference": "Ловит только ИЗВЕСТНЫЕ ФОРМЫ по структурному префиксу.",
+      "arms": {
+        "B": {
+          "answers": [
+            "Модуль не является надёжной границей безопасности — он ловит только известные формы по структурному префиксу, а новый формат, секрет разбитый по строкам или записанный словами, проходит. Принцип — prefix-anchored (якоря на префикс, а не на энтропию/слово «key»), чтобы не резать легитимные hex-дайджесты, хеши коммитов и пути. Снижает цену случайности, но не делает канал безопасным для секретов.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит только известные формы по структурному префиксу (prefix-anchored, не по энтропии), снижая цену случайности, но не являясь границей безопасности — новый формат, секрет по строкам или записанный словами, пройдёт.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ненадёжен как граница безопасности — он ловит только известные формы по структурному префиксу (prefix-anchored), а новый формат или секрет, записанный иначе, пройдёт. Принцип: якорение на префикс (AKIA, sk-ant-, `Bearer` и т.п.), а не на энтропию или слово «key», чтобы не резать легитимные hex-дайджесты, хеши и пути. Для присваивания (`KEY=value`) — режет только если значение похоже на кред (длинное, не путь/число/плейсхолдер).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит credential-строки **только по структурному префиксу** (anchor на известные префиксы вроде `AKIA`, `sk-ant-`, `-----BEGIN...PRIVATE KEY-----`), а не по энтропии или слову «key» — чтобы не резать легитимные hex-дайджесты и пути. **Это не граница безопасности:** новый формат, секрет, разбитый по строкам или записанный словами — проходит. Модуль снижает цену случайности, но не делает канал доставки безопасным для секретов (строки 11–14).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль ловит секреты по **структурному префиксу** (prefix-anchored), а не по энтропии — он не является границей безопасности и вырезает только известные форматы; новый формат, секрет по строкам или записанный словами — пройдёт.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-03",
+      "population": "code",
+      "gold_file": "src/core/gitignore_parser.py",
+      "reference": "# Используем 'gitignore' вместо 'gitwildmatch' (deprecated)",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-04",
+      "population": "code",
+      "gold_file": "src/core/embedder_lease.py",
+      "reference": "Fix: an indexing process creates a short-lived *lease* file refreshed on every",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-05",
+      "population": "code",
+      "gold_file": "src/core/reindex_ledger.py",
+      "reference": "- MUST NOT raise, ever (a recording channel cannot break indexing).",
+      "arms": {
+        "B": {
+          "answers": [
+            "Модуль **никогда не выбрасывает исключения** — все ошибки проглотатываются по дизайну (`except Exception: pass`), потому что канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключения** — он поглощает все ошибки по дизайну (строка 12: \"MUST NOT raise, ever\"), потому что канал записи не может ломать индексацию. Функция `record` перехватывает любое исключение и ничего не пробрасывает наружу.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключения** — все ошибки проглатываются намеренно (swallowed by design), потому что канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключение** — он поглощает все ошибки по дизайну (строка 12: \"MUST NOT raise, ever\"), потому что канал записи не может ломать индексацию.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Модуль **никогда не должен выбрасывать исключения** — он перехватывает и подавляет все ошибки по дизайну (строка 12: \"MUST NOT raise, ever\"; строка 65-66: `except Exception: pass`). Это гарантирует, что канал записи не сломает индексацию при любом сбое.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"correct\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-06",
+      "population": "code",
+      "gold_file": "src/core/quiet_break_gate.py",
+      "reference": "(fail-open, причина логируется): инфраструктурный сбой не должен блокировать коммит.",
+      "arms": {
+        "B": {
+          "answers": [
+            "При сбое git или графа гейт возвращает статус `unavailable` (или `empty` при отсутствии изменений), findings остаются пустыми, и гейт **не срабатывает** по принципу fail-open — причина логируется, но инфраструктурный сбой не блокирует коммит.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое (git недоступен, граф отсутствует или пуст) гейт ведёт себя **fail-open**: возвращает статус `\"unavailable\"`, пустой список `findings` и **не блокирует коммит** — причина логируется, поскольку инфраструктурный отказ не должен останавливать разработку.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое (git недоступен, граф не найден или изменений нет) гейт возвращает статус `\"unavailable\"` или `\"empty\"` с пустым списком findings и **не срабатывает** — это fail-open поведение: инфраструктурный сбой не должен блокировать коммит, а причина логируется.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "Gate ведёт себя **fail-open**: при недоступности git или графа возвращает статус `\"unavailable\"` с пустым списком findings и **не блокирует коммит**. Причина сбоя логируется (строка 17-18, 232-241).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "При инфраструктурном сбое тихий гейт ведёт себя как **fail-open**: возвращает статус `\"unavailable\"` или `\"empty\"` с пустым `findings` и **не блокирует коммиты**. Причина сбоя логируется, но gate не срабатывает — принцип «сбой инфраструктуры не должен останавливать коммит».\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\n  \"verdict\": \"correct\"\n}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-07",
+      "population": "code",
+      "gold_file": "src/providers/reranker/reranker_scoring.py",
+      "reference": "score: конечное число. NaN/Inf отбрасываются",
+      "arms": {
+        "B": {
+          "answers": [
+            "`validate_scores` отбрасывает элементы с `NaN`Inf-скорами, пропуская их через `continue`, — это трактуется как отсутствие оценки (а не «высокий скор»).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает элементы с NaN/Inf (`math.isfinite` → `continue`), так как это рассматривается как отсутствие оценки, а не низкий скор — иначе clamp молча превратил бы NaN в 1.0 и неоценённый чанк получил бы максимальный скор.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает элементы с NaN/Inf score (не добавляет их в validated-список), потому что это отсутствие оценки, а не максимальный скор.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает элементы с NaN/Inf (`if not math.isfinite(score): continue`) — такие чанки не получают скор вообще, а не clamp'ятся к 1.0 или 0.0. Это fail-safe: раньше NaN молча превращался в максимальный скор 1.0, что давало неоценённому чанку незаслуженное преимущество при сортировке.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`validate_scores` отбрасывает элементы с `NaN`/`Inf` (строка 70–71: `if not math.isfinite(score): continue`), не включая их в результат — это fail-safe, чтобы неоценённый чанк не получил максимальный скор 1.0 после clamp.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\n  \"verdict\": \"correct\"\n}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-08",
+      "population": "code",
+      "gold_file": "src/core/error_envelope.py",
+      "reference": "``next_action`` hint so an agent can branch and recover without guessing",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\n\nКонтекст содержит только скрипт `check_lsp_health.py` для диагностики LSP-сервера — в нём нет информации об MCP-инструментах, конверте ошибок или поле `next_action`.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\n  \"verdict\": \"incorrect\"\n}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-09",
+      "population": "prose",
+      "gold_file": "docs/en/GRACEFUL_DEGRADATION.md",
+      "reference": "it **degrades gracefully** through 6 levels,",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-10",
+      "population": "prose",
+      "gold_file": "docs/en/SEARCH_PIPELINE.md",
+      "reference": "Ranks are computed **separately** for each channel, starting from 1.",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-11",
+      "population": "prose",
+      "gold_file": "docs/TRUST_BOUNDARY.md",
+      "reference": "**Принцип: содержимое репозитория — это ДАННЫЕ, а не код.**",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-12",
+      "population": "prose",
+      "gold_file": "docs/en/TELEMETRY.md",
+      "reference": "Metrics persist across MCP server restarts — `load_metrics()` reads the saved JSON on startup.",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-13",
+      "population": "prose",
+      "gold_file": "docs/adr/0003-verify-on-read.md",
+      "reference": "вердикт **INCONCLUSIVE, никогда VERIFIED** (fail-closed:",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "**INCONCLUSIVE**. Согласно контексту, если шаг не удалось выполнить (нет окружения/таймаут/нет доступа), вердикт — **INCONCLUSIVE**, а не REFUTED — недостаточно наблюдений ≠ отрицательный результат (`src/core/action_receipt.py:12-13`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "correct",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"correct\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-14",
+      "population": "prose",
+      "gold_file": "docs/en/HANDFOFF.md",
+      "reference": "**Solution:** read Zed's SQLite database directly:",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-15",
+      "population": "prose",
+      "gold_file": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "reference": "**Status:** ⚠️ Always `<unset>` on Windows (Zed bug #36019)",
+      "arms": {
+        "B": {
+          "answers": [
+            "На Windows переменная `ZED_WORKTREE_ROOT` всегда не установлена (`<unset>`) из-за известного бага Zed #36019, закрытого без исправления. Полагаться на неё в `settings.json` нельзя, так как она вернёт `None`, в отличие от Linux/macOS, где она работает корректно. Из-за этого MCP-сервер не может определить проект по этой переменной и использует другие механизмы (SQLite DB, `.env`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "На Windows переменная `ZED_WORKTREE_ROOT` **всегда не установлена** (`<unset>`) — это известный баг Zed #36019, закрытый без исправления. Любая попытка использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` даст `None`. На Linux/macOS переменная устанавливается корректно, на Windows MSCodeBase компенсирует это цепочкой fallback'ов (SQLite DB, PROJECT_PATH из `.env`).\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "На Windows переменная `ZED_WORKTREE_ROOT` **всегда `<unset>`** — это известный баг Zed (issue #36019), закрытый без исправления. Из-за этого в `settings.json` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env` — любая попытка обратиться к ней вернёт `None`. MSCodeBase обходит это через fallback-цепочку (SQLite DB → PROJECT_PATH → CWD), которая работает без этой переменной.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`ZED_WORKTREE_ROOT` на Windows **всегда `<unset>`** — это известный баг Zed #36019, закрытый без исправления. Из-за этого в `settings.json` нельзя использовать `$ZED_WORKTREE_ROOT` в `current_dir` или `env`. MSCodeBase компенсирует это через цепочку fallback'ов: SQLite DB → `PROJECT_PATH` из `.env` → CWD.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "`ZED_WORKTREE_ROOT` на Windows всегда `<unset>` — это известный баг Zed #36019, закрытый без исправления. Переменная окружения не устанавливается, поэтому полагаться на неё нельзя (`$ZED_WORKTREE_ROOT` в `settings.json` даст `None`). MSCodeBase компенсирует это через цепочку fallback'ов (SQLite DB → PROJECT_PATH → CWD).\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "correct",
+            "correct",
+            "correct",
+            "correct",
+            "correct"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"correct\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"correct\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "F5S-16",
+      "population": "prose",
+      "gold_file": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "reference": "Moving to llama.cpp GGUF reduced MCP memory by 88% and total by 60%.",
+      "arms": {
+        "B": {
+          "answers": [
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n",
+            "I don't know.\r\n\n\r\n> build · longcat-2.0\r\n\r\n"
+          ],
+          "verdicts": [
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect",
+            "incorrect"
+          ],
+          "judge_texts": [
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "```json\n{\"verdict\": \"incorrect\"}\n```\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ],
+            [
+              "{\"verdict\": \"incorrect\"}\r\n\n\r\n> build · qwen3.7-plus\r\n\r\n"
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}

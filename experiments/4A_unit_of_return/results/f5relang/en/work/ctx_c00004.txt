@@ -1,0 +1,946 @@
+### src/core/intelligence/verify_on_read.py
+"""
+ADR-0003 Verify-On-Read — Lazy Validation Layer для Project Memory.
+
+Ленивая проверка узлов при ИЗВЛЕЧЕНИИ (retrieval), до формирования системного
+промпта. Вектор проверки смещён с момента отклика/записи на момент чтения:
+`intel_get_project_memory` (хук в layer.py) пропускает узлы через этот слой.
+
+Правила (ADR-0003, решения владельца 2026-08-11):
+- Узлы с checkable-якорями (`file:`/`import:`/`env:`/`pkg:`) сверяются с кодовой базой:
+  * все якоря найдены -> VERIFIED (persist);
+  * прямое отрицательное тестирование якоря (указан, но не существует)
+    -> REFUTED с причиной SILENT_ABSENCE_ON_READ (persist, retract_source);
+  * якорей нет (внешнее окружение/предпочтения) -> INCONCLUSIVE, статус
+    сохраняется (ACTIVE/VERIFIED) — предохранитель от ложных отзывов
+    истинных фактов, не оставляющих следов в рабочей директории.
+- Кэш вердиктов: ключ = hash(node_id + commit_sha) (git rev-parse HEAD;
+  fallback — максимальный mtime src-дерева). Неизменившийся репозиторий
+  не перепроверяется (cache hit ~0ms); смена HEAD естественно инвалидирует
+  ТОЛЬКО свои записи (per-node keying, без TTL) -> повторная проверка узла
+  при следующем чтении (исключает stale-VERIFIED).
+- Guard проза-«import X» (ADR-0005, 2026-08-14): частотное англ. слово без
+  src-импорта (напр. «import path») якорем не становится — ни на write-path
+  (не сохраняется), ни на read-path (не отзывает узел). Редкие слова
+  (grafana/celery) сохраняются — SILENT-детекция и smoke-негатив живы.
+  Явные data.anchors (намеренные) не фильтруются.
+- Бюджет латентности: <= budget_ms на весь проход; при превышении
+  необработанные узлы остаются как есть (INCONCLUSIVE-семантика) и передаются
+  в контекст без отзыва (graceful degradation).
+- Счётчики MATCHED/DELIVERED (Том, 2026-08-16): per-node накопительные
+  счётчики в verify_cache.json (ключ node_id, переживают HEAD). matched —
+  сколько раз узел был виден в проходе, delivered — сколько раз вердикт
+  реально разрешён (свежая проверка или cache-hit). matched>=2 && delivered==0
+  -> starved (систематическое голодание по бюджету), в отличие от бага
+  якорей/парсера. Ресипт несёт starved_nodes.
+- Отпечаток кодовой базы (импорты/файлы/env-ключи) строится один раз на HEAD
+  и переиспользуется между процессами через verify_cache.json. Первое чтение
+  после смены кода платит rebuild (~<=500ms); steady-state — cache hit ~0ms.
+
+Аудит: авто-отзывы пишутся тем же путём, что ручные (retract_reason,
+retracted_at) + маркер retract_source="verify_on_read" и имя проваленного
+якоря в причине.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import re
+import subprocess
+import time
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+
+if os.name == "nt":
+    import subprocess as _sp
+
+    _CREATE_NO_WINDOW = getattr(_sp, "CREATE_NO_WINDOW", 0)
+else:
+    _CREATE_NO_WINDOW = 0
+
+logger = logging.getLogger("MSCodeBase.Intelligence.VerifyOnRead")
+
+REASON_SILENT_ABSENCE = "SILENT_ABSENCE_ON_READ"
+RETRACT_SOURCE = "verify_on_read"
+
+VERDICT_FOUND = "FOUND"
+VERDICT_NOT_FOUND = "NOT_FOUND"
+VERDICT_INCONCLUSIVE = "INCONCLUSIVE"
+
+STATUS_ACTIVE = "ACTIVE"
+STATUS_VERIFIED = "VERIFIED"
+STATUS_REFUTED = "REFUTED"
+STATUS_SUPERSEDED = "SUPERSEDED"
+
+DEFAULT_BUDGET_MS = 50.0
+CACHE_FILENAME = "verify_cache.json"
+HEAD_TTL_SEC = 30.0  # пере-резолв HEAD не чаще раза в 30с на инстанс (git ~50-100ms)
+
+# H3 TTL-гниение (doc 10-continuous-verification): узел, НЕ проверенный в проходе,
+# чей след проверки (verified_at/last_checked) старше TTL_STALE_DAYS → метка
+# stale_ttl «не подтверждён за N дней». N из распределения verified_at live-памяти
+# (медиана 22, потолок 31 день) — мерено 2026-09-11, плюс коммитовый ритм ежедневный.
+TTL_STALE_DAYS = int(os.getenv("VOR_TTL_DAYS", "30"))
+# Физическую запись last_checked rate-limit'им (H1 idle гоняет каждый тик; без
+# порога каждый тик переписывал бы project_memory.json). Порог — возраст следа.
+LAST_CHECKED_MIN_INTERVAL = float(os.getenv("VOR_LAST_CHECKED_INTERVAL_SEC", str(6 * 3600)))
+_TS_FMT = "%Y-%m-%d %H:%M:%S"
+
+MANIFEST_CACHE_TTL_S = 5.0  # write-path зовёт extract_anchors per-node; полный скан манифестов (B-1) дороже 3 файлов старого парсера
+
+# ── Лёгкие regex-якоря (без LLM) ──
+# Для сканирования исходников: импорты на строке (реальный код).
+_IMPORT_RE = re.compile(r"^\s*(?:import|from)\s+([a-zA-Z_][a-zA-Z0-9_]*)", re.MULTILINE)
+# Для текста claim: "import X" в любой позиции, "from X import Y" целиком.
+_TEXT_IMPORT_RE = re.compile(r"\bimport\s+([a-zA-Z_][a-zA-Z0-9_.]*)")
+_TEXT_FROM_RE = re.compile(r"\bfrom\s+([a-zA-Z_][a-zA-Z0-9_.]*)\s+import\b")
+_ENV_PREFIX_RE = re.compile(r"(?:env:|\$)([A-Z][A-Z0-9_]{2,})")
+_FILE_PREFIX_RE = re.compile(r"file:([^\s`'\";,]+)")
+_PATH_RE = re.compile(r"\b(?:src/)?([\w.-]+[/\\\\][\w./\\\\-]+)\.(?:py|toml|json|md|yaml|yml|ini|cfg|env|db)\b")
+# ADR-0005: явный синтаксис pkg:name и прозa-слово-кандидат (write-path capture).
+_PKG_PREFIX_RE = re.compile(r"\bpkg:([A-Za-z0-9_.-]+)")
+_PKG_WORD_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.-]*")
+
+
+def _norm_pkg(name: str) -> str:
+    """PEP 503 нормализация имени пакета: lowercase, `-_.` -> `-`, срез extras."""
+    name = name.split("[", 1)[0].strip()
+    return re.sub(r"[-_.]+", "-", name.lower())
+
+
+def _pkg_in_pool(pool: Set[str], name: str) -> bool:
+    """Членство pkg:-имени в пуле манифеста: точное (npm/go имена с точками
+    и слэшами: `lodash.get`, `gopkg.in/yaml.v3`) ИЛИ PEP 503-нормализованное
+    (legacy python-имена, `PyYAML` -> `pyyaml`). Только PEP 503 давал бы ложный
+    NOT_FOUND -> REFUTED после B-1 wiring (мульти-экосистемные имена)."""
+    n = (name or "").strip().lower()
+    return n in pool or _norm_pkg(n) in pool
+
+
+_MANIFEST_CACHE: Dict[str, Tuple[float, Set[str]]] = {}
+
+
+def _load_manifest_packages(root: Path) -> Set[str]:
+    """Множество зависимостей проекта (ADR-0005, closed world).
+
+    Делегирует мульти-экосистемному парсеру src.sources.manifest (Backlog B-1):
+    python/npm/go/cargo/maven/nuget/composer/gem + lockfile'ы (uv/yarn/bun/pnpm/...).
+    Lazy-import: экстракторы не грузятся при импорте VOR. TTL-кэш: write-path
+    вызывает extract_anchors на узел; устаревший кэш = пропуск пакета ->
+    INCONCLUSIVE (fail-open), не ложный REFUTED.
+    """
+    key = str(Path(root).resolve())
+    now = time.monotonic()
+    hit = _MANIFEST_CACHE.get(key)
+    if hit is not None and now - hit[0] < MANIFEST_CACHE_TTL_S:
+        return hit[1]
+    try:
+        from src.sources.manifest import manifest_packages
+
+        pool = manifest_packages(Path(key))
+    except Exception as exc:  # noqa: BLE001 - сломанный экстрактор не валит write-path
+        logger.debug("verify_on_read: manifest_packages failed for %s: %s", key, exc)
+        pool = set()
+    _MANIFEST_CACHE[key] = (now, pool)
+    return pool
+
+
+# ADR-0005 guard (C-гибрид): частые англ. слова, которые в прозе могут стоять
+# после «import» как фразы («import path» = «путь импорта»), а не как команда
+# импорта. Реальные stdlib-имена (time/os/json) тоже здесь: якорь сохраняется,
+# если имя реально импортировано в src (см. _add_import_anchor).
+_COMMON_WORDS = frozenset({
+    "path", "data", "time", "file", "name", "value", "state", "type", "list",
+    "order", "work", "part", "form", "line", "code", "key", "user", "group",
+    "page", "view", "model", "class", "source", "target", "main", "status",
+    "error", "result", "input", "output", "config", "build", "release",
+    "version", "update", "change", "create", "delete", "add", "remove",
+    "open", "close", "save", "load", "read", "write", "print", "send",
+    "receive", "test", "debug", "log", "access", "process", "thread", "task",
+    "job", "event", "loop", "queue", "cache", "stack", "heap", "index",
+    "query", "search", "request", "response", "session", "token", "secret",
+    "auth", "login", "password", "admin", "role", "field", "column", "row",
+    "table", "schema", "network", "protocol", "format", "content", "header",
+    "body", "message", "channel", "stream", "batch", "graph", "node", "edge",
+    "size", "level", "count", "total", "average", "sum", "scope", "system",
+    "service", "client", "server", "runtime", "step", "run", "start", "end",
+    "case", "point", "module", "package", "function", "global", "local",
+    "public", "private", "static", "final", "active", "ready", "os", "io",
+    "re", "sys", "json", "csv", "xml", "yaml", "toml", "url", "http", "api",
+    "db", "ui", "cli", "ml", "ai", "sql", "dns", "ip", "tcp", "tls", "rest",
+})
+
+
+_FINGERPRINT_CACHE: Dict[str, "_Fingerprint"] = {}
+
+
+def _fingerprint_for(root: Path) -> "_Fingerprint":
+    """Кэш отпечатка для write-path guard (auto_collect_adrs вызывает часто).
+
+    Fail-open по стойкости: устаревший кэш даёт дроп лишнего якоря -> INCONCLUSIVE,
+    а не ложный REFUTED (бias поста: false negative дешевле false positive).
+    """
+    key = str(Path(root).resolve())
+    fp = _FINGERPRINT_CACHE.get(key)
+    if fp is None:
+        fp = _Fingerprint(root=root)
+        _FINGERPRINT_CACHE[key] = fp
+    return fp
+
+
+# ── Freshness для symbol-anchors (issue #21/#22, commit B) ──
+# A symbol anchor can only REFUTE honestly when the index it was verified
+# against provably reflects the current codebase. These two helpers gate that:
+#   * evaluate_freshness(build_head, current_head, dirty): pure decision — is the
+#     substrate fresh enough that "not found" is real evidence of absence?
+#   * resolve_head_dirty(root): (current_HEAD, dirty) or None when unresolvable.
+
+
+def evaluate_freshness(
+    build_head: Optional[str],
+    current_head: Optional[str],
+    dirty: bool,
+) -> bool:
+    """True only when the symbol index is provably fresh enough to REFUTE.
+
+    REFUTE (absent) requires: an index build_head that equals the live HEAD,
+    a resolvable current HEAD, and a clean working tree. Any other state
+    (mismatched HEAD, legacy index with no build_head, non-git repo
+    / unresolvable HEAD, or a dirty tree) means absence is UNVERIFIABLE ->
+    the resolver must return None (INCONCLUSIVE), never False (REFUTED).
+    """
+    if build_head is None:
+        return False            # legacy index / no freshness mark -> unknown
+    if current_head is None:
+        return False            # non-git / git failure -> unresolvable
+    if dirty:
+        return False            # uncommitted edits may redefine the symbol
+    return build_head == current_head
+
+
+def resolve_head_dirty(root: Union[str, Path]) -> Optional[Tuple[str, bool]]:
+    """Current HEAD plus dirty-flag for a git repo; None when unresolvable.
+
+    Returns (head, dirty): head is the bare 40-char rev-parse HEAD, dirty is
+    True when ``git status --porcelain`` is non-empty (uncommitted changes).
+    None when git is unavailable / not a repo / any error — caller must treat
+    that as INCONCLUSIVE. Both are resolved best-effort subprocess calls.
+    """
+    root_p = Path(root).resolve()
+    if (root_p / ".git").exists() is False and not _is_git_worktree(root_p):
+        return None  # no git metadata at all -> not resolvable
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        if proc.returncode != 0:
+            return None
+        head = out.decode("utf-8", "replace").strip()[:40]
+        if not head:
+            return None
+        sproc = subprocess.Popen(
+            ["git", "status", "--porcelain"],
+            cwd=str(root_p),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        sout, _ = sproc.communicate(timeout=5)
+        dirty = sproc.returncode == 0 and bool(sout.strip())
+        return head, dirty
+    except Exception as exc:  # noqa: BLE001 - любой сбой git -> не резолвится
+        logger.debug("resolve_head_dirty: git failed for %s: %s", root_p, exc)
+        return None
+
+
+def _is_git_worktree(root: Path) -> bool:
+    """A subdir of a git worktree may have no own .git file; check nearest root."""
+    try:
+        proc = subprocess.Popen(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=str(root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            creationflags=_CREATE_NO_WINDOW,
+        )
+        out, _ = proc.communicate(timeout=5)
+        return proc.returncode == 0 and out.decode("utf-8", "replace").strip() == "true"
+    except Exception:  # noqa: BLE001
+        return False
+
+
+class Anchor:
+    """Checkable-якорь узла: что именно проверяется в кодовой базе."""
+
+    __slots__ = ("kind", "value")
+
+    def __init__(self, kind: str, value: str):
+        self.kind = kind  # "file" | "import" | "env" | "pkg"
+        self.value = value
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"Anchor({self.kind}:{self.value})"
+
+    def to_dict(self) -> Dict[str, str]:
+        return {"kind": self.kind, "value": self.value}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Anchor":
+        return cls(str(d.get("kind", "")), str(d.get("value", "")))
+
+
+def extract_anchors(
+    node: Dict[str, Any],
+    project_root: Optional[Path] = None,
+    src_imports: Optional[Set[str]] = None,
+    read_path: bool = False,
+) -> List[Anchor]:
+    """Извлекает checkable-якоря из data/claim узла (лёгкий regex, без LLM).
+
+    Приоритет: явные `data.anchors` (пишутся при записи узла), затем синтаксис
+    в тексте claim/data: `file:path`, `import X` / `from X import y`,
+    `env:KEY` / `$KEY`, `pkg:name` (ADR-0005, закрытый мир манифеста),
+    пути с разделителями и расширением.
+
+    Write-path (project_root задан): file-якоря фильтруются по существованию;
+    слова прозы, совпадающие с зависимостями манифеста, становятся pkg:-якорями
+    (fail-closed — слова вне манифеста якорем не становятся).
+
+    project_root (write-path, P2-фикс): при передаче file-якоря, которых нет
+    относительно корня, отбрасываются — вольный текст коммитов даёт мусор
+    (слепленные пути «pyproject/extension.toml/__init__.py», относительные
+    «queries/__init__.py», завершающая пунктуация «__init__.py.»), а fail-closed
+    _classify превращает его в ЛОЖНЫЙ REFUTED. Read-path (None) — все якоря
+    классифицируются честно: удалённый файл = дрейф → REFUTED (фильтр не
+    отключает детекцию дрейфа).
+    """
+    anchors: List[Anchor] = []
+    seen: Set[Tuple[str, str]] = set()
+
+    def _add(kind: str, value: str) -> None:
+        value = value.strip().strip("`'\"")
+        # Обрезка завершающей пунктуации: "src/.../__init__.py." -> ".../__init__.py"
+        value = value.rstrip(".,;:!?)]}")
+        if not value:
+            return
+        # P2: write-path хранит только существующие файлы (мусор из текста — мимо)
+        if kind == "file" and project_root is not None:
+            if not (project_root / value).is_file():
+                return
+        key = (kind, value)
+        if key not in seen:
+            seen.add(key)
+            anchors.append(Anchor(kind, value))
+
+    # ADR-0005: write-path читает манифест для pkg:-capture (fail-closed).
+    pkg_pool: Optional[Set[str]] = None
+    if project_root is not None:
+        pkg_pool = _load_manifest_packages(project_root)
+
+    # ADR-0005 guard (C-гибрид): src-импорты для отсева проза-«import X».
+    # Read-path (run()) передаёт fp.imports (свежий на HEAD); write-path — кэш.
+    src_pool = src_imports if src_imports is not None else (
+        _fingerprint_for(project_root).imports if project_root is not None else None
+    )
+
+    def _add_import_anchor(value: str) -> None:
+        # Частотное англ. слово БЕЗ src-импорта = фраза («import path»), не якорь.
+        # Редкие слова (grafana/celery) сохраняются даже без src — SILENT-детекция
+        # и smoke-негативный контроль остаются рабочими. Явные data.anchors
+        # (намеренные) guard'ом не фильтруются.
+        if value in _COMMON_WORDS and src_pool is not None and value not in src_pool:
+            return
+        _add("import", value)
+
+    data = node.get("data") or {}
+    if isinstance(data, dict):
+        raw_anchors = data.get("anchors")
+        if isinstance(raw_anchors, list):
+            for a in raw_anchors:
+                if isinstance(a, dict) and a.get("kind") in ("file", "import", "env", "pkg", "symbol"):
+                    _add(str(a["kind"]), str(a.get("value", "")))
+        # Fix (2026-09-11, 1-B): явные якоря = write-time capture, проза тела —
+        # история («X -> Y» в ADR-body). При read_path=True и наличии явных
+        # якорей проза НЕ сканируется: исторический путь не должен отзывать
+        # живой узел (ложный REFUTED после rename-sweep).
+        if read_path and anchors:
+            return anchors
+        parts: List[str] = []
+        claim = data.get("claim") or ""
+        if claim:
+            parts.append(str(claim))
+        for v in data.values():
+            if isinstance(v, str) and v != claim:
+                parts.append(v)
+        text = "\n".join(parts)
+    elif isinstance(data, str):
+        text = data
+    else:
+        text = ""
+
+    for m in _FILE_PREFIX_RE.finditer(text):
+        _add("file", m.group(1))
+    for m in _PATH_RE.finditer(text):
+        value = m.group(0)
+        # Абсолютные/вложенные пути (drive-буква C:\, сегменты a\b\c, URL-схемы)
+        # — не проектные якоря: проверка идёт относительно корня проекта (ADR-0003).
+        if "://" in value or (m.start() > 0 and text[m.start() - 1] in (":", "\\", "/")):
+            continue
+        _add("file", value)
+    for m in _TEXT_IMPORT_RE.finditer(text):
+        _add_import_anchor(m.group(1))
+    for m in _TEXT_FROM_RE.finditer(text):
+        _add_import_anchor(m.group(1))
+    for m in _PKG_PREFIX_RE.finditer(text):
+        _add("pkg", m.group(1))
+    for m in _ENV_PREFIX_RE.finditer(text):
+        _add("env", m.group(1))
+    # Write-path (ADR-0005): слово прозы, чьё нормализованное имя есть в манифесте,
+    # становится pkg:-якорем. Fail-closed: слова НЕ в манифесте якорем не становятся
+    # (нет ложного REFUTED для исторических «мы перешли с X»). Read-path — только
+    # явный `pkg:` синтаксис (без present-trap).
+    if pkg_pool:
+        for m in _PKG_WORD_RE.finditer(text):
+            word = m.group(0)
+            if len(word) >= 2 and _pkg_in_pool(pkg_pool, word):
+                _add("pkg", word)
+    return anchors
+
+
+class _Fingerprint:
+    """Отпечаток кодовой базы: root-импорты, файлы, env-ключи (один раз на HEAD)."""
+
+    def __init__(self, root: Optional[Path] = None, data: Optional[Dict[str, Any]] = None):
+        if data is not None:
+            self.imports: Set[str] = set(data.get("imports", []))
+            self.files: Set[str] = set(data.get("files", []))
+            self.env_keys: Set[str] = set(data.get("env_keys", []))
+            # ADR-0005: старый кэш без "packages" пересобирается (schema guard в
+            # _ensure_fingerprint) — пустой набор здесь привёл бы к ложным REFUTED.
+            self.packages: Set[str] = set(data.get("packages", []))
+            self.build_ms: float = 0.0
+            return
+        if root is None:
+            root = Path()
+        t0 = time.perf_counter()
+        imports: Set[str] = set()
+        files: Set[str] = set()
+        src = root / "src"
+        if src.is_dir():
+            for p in src.rglob("*"):
+                if not p.is_file() or "__pycache__" in p.parts:
+                    continue
+                rel = p.relative_to(root).as_posix()
+                files.add(rel)
+                if p.suffix == ".py":
+                    try:
+                        text = p.read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        continue
+                    for m in _IMPORT_RE.finditer(text):
+                        imports.add(m.group(1).split(".")[0])
+        env_keys: Set[str] = set()
+        if root is not None:
+            for name in (".env", ".env.example"):
+                ep = root / name
+                if ep.is_file():
+                    try:
+                        for line in ep.read_text(encoding="utf-8", errors="replace").splitlines():
+                            line = line.strip()
+                            if line and not line.startswith("#") and "=" in line:
+                                env_keys.add(line.split("=", 1)[0].strip())
+                    except OSError:
+                        continue
+        self.imports = imports
+        self.files = files
+        self.env_keys = env_keys
+        # ADR-0005: закрытый мир зависимостей (pyproject/requirements[-lock]).
+        self.packages = _load_manifest_packages(root) if root is not None else set()
+        self.build_ms = (time.perf_counter() - t0) * 1000.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "imports": sorted(self.imports),
+            "files": sorted(self.files),
+            "env_keys": sorted(self.env_keys),
+            "packages": sorted(self.packages),
+            "build_ms": round(self.build_ms, 1),
+        }
+
+
+class VerifyOnRead:
+    """Lazy Validation Layer (ADR-0003): фильтрация + переходы статусов при чтении.
+
+    Один экземпляр на проект (см. `get_verifier`) — разделяет HEAD/отпечаток/кэш
+    между вызовами; переходы пишутся под тем же `write_lock`, что и ручные
+    операции памяти.
+    """
+
+    def __init__(
+        self,
+        project_root: Path,
+        store: Any,
+        write_lock: Any,
+        cache_file: Optional[Path] = None,
+        symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
+    ):
+        self.root = project_root
+        self.store = store
+        self.lock = write_lock
+        # symbol_resolver(qname) -> True (exists) | False (gone) | None (unknown).
+        # Optional: intel layer injects a SymbolIndex-backed resolver; when None,
+        # a `symbol` anchor is UNVERIFIABLE -> classify INCONCLUSIVE (never VERIFIED).
+        self.symbol_resolver = symbol_resolver
+        if cache_file is None:
+            from src.core.artifact_paths import get_intelligence_dir
+
+            cache_file = get_intelligence_dir(project_root) / CACHE_FILENAME
+        self.cache_file = cache_file
+        self._head: Optional[str] = None
+        self._fingerprint: Optional[_Fingerprint] = None
+        self._cache: Dict[str, Any] = {
+            "head": None,
+            "fingerprint": None,
+            "verdicts": {},
+            "counters": {},  # per-node MATCHED/DELIVERED (Том) — ключ node_id, не head
+        }
+        self._head_cache: Dict[str, Any] = {"head": None, "ts": 0.0}
+        self._dirty_cache: Dict[str, Any] = {"dirty": False, "ts": 0.0}
+        self._load_cache()
+
+    # ── HEAD и отпечаток ──
+
+    def _resolve_head(self) -> str:
+        """HEAD с TTL-кэшем: git-подпроцесс не вызывается на каждом чтении.
+
+        steady-state чтение (~0ms) — ключ не пересоздаётся; смена кода
+        детектится в пределах HEAD_TTL_SEC (пере-резолв), затем per-node
+        инвалидация по новому ключу.
+        """
+        now = time.monotonic()
+        cached_head = self._head_cache.get("head")
+        if cached_head and now - self._head_cache.get("ts", 0.0) < HEAD_TTL_SEC:
+            return str(cached_head)
+        head = self._resolve_head_impl()
+        self._head_cache = {"head": head, "ts": now}
+        return head
+
+    def _resolve_head_impl(self) -> str:
+        """git rev-parse HEAD (Popen+communicate, timeout); fallback — mtime src."""
+        try:
+            proc = subprocess.Popen(
+                ["git", "rev-parse", "HEAD"],
+                cwd=str(self.root),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                creationflags=_CREATE_NO_WINDOW,
+            )
+            out, _ = proc.communicate(timeout=5)
+            if proc.returncode == 0:
+                return out.decode("utf-8", "replace").strip()[:40]
+        except Exception as exc:  # noqa: BLE001 - любой сбой git — fallback
+            logger.debug("verify_on_read: git rev-parse failed: %s", exc)
+        max_m = 0
+        src = self.root / "src"
+        if src.is_dir():
+            for p in src.rglob("*"):
+                try:
+                    max_m = max(max_m, p.stat().st_mtime_ns)
+                except OSError:
+                    continue
+        return f"mtime:{max_m}"
+
+    def _is_dirty(self) -> bool:
+        """Dirty-флаг рабочего дерева с TTL-кэшем (git subprocess не на каждое чтение).
+
+        Dirty = незакоммиченные изменения (`git status --porcelain` непуст).
+        Non-git / нерезолвится -> False (fallback на mtime-head в _resolve_head
+        уже детектит правки файлов — dirty не нужен для инвалидации).
+        """
+        now = time.monotonic()
+        cached = self._dirty_cache.get("dirty")
+        if now - self._dirty_cache.get("ts", 0.0) < HEAD_TTL_SEC:
+            return bool(cached)
+        res = resolve_head_dirty(self.root)
+        dirty = False if res is None else res[1]
+        self._dirty_cache = {"dirty": dirty, "ts": now}
+        return dirty
+
+    def _ensure_fingerprint(self, head: str, dirty: bool = False) -> _Fingerprint:
+        # Dirty tree: незакоммиченные правки могут менять импорты/файлы — отпечаток
+        # строится заново КАЖДЫЙ проход (кэш по HEAD не действует: закоммиченный
+        # отпечаток лгал бы про живое дерево, а кэш отпечатка внутри dirty-интервала
+        # воспроизводил бы тот же toxic-interval, что чиним — внешняя правка без
+        # notify_change не была бы увидена). Дорого (~500ms), но dirty редок.
+        if dirty:
+            return _Fingerprint(root=self.root)
+        if self._fingerprint is not None and self._head == head:
+            return self._fingerprint
+        cached_fp = self._cache.get("fingerprint")
+        # ADR-0005 schema guard: кэш без "packages" (докэшовая версия) пересобирается,
+        # иначе пустой packages ложно REFUTED'ил бы все pkg:-якоря.
+        if self._cache.get("head") == head and isinstance(cached_fp, dict) and "packages" in cached_fp:
+            self._fingerprint = _Fingerprint(data=cached_fp)
+        else:
+            self._fingerprint = _Fingerprint(root=self.root)
+        self._head = head
+        self._cache["head"] = head
+        return self._fingerprint
+
+    # ── Кэш вердиктов ──
+
+    @staticmethod
+    def _cache_key(node_id: str, head: str, dirty: bool = False) -> str:
+        # Dirty-флаг в ключе: незакоммиченные правки не должны переиспользовать
+        # вердикты чистого HEAD (и наоборот) — dirty дерево = другая реальность.
+        return hashlib.sha256(
+            f"{node_id}|{head}|{int(bool(dirty))}".encode("utf-8")
+        ).hexdigest()[:16]
+
+    def _load_cache(self) -> None:
+        try:
+            data = json.loads(self.cache_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                self._cache = data
+                self._cache.setdefault("verdicts", {})
+                self._cache.setdefault("counters", {})
+        except (OSError, json.JSONDecodeError):
+            self._cache = {"head": None, "fingerprint": None, "verdicts": {}}
+
+    def _persist_cache(self) -> None:
+        try:
+            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+            head = self._cache.get("head")
+            verdicts = {
+                k: v for k, v in self._cache.get("verdicts", {}).items()
+                if v.get("head") == head  # per-node инвалидация по HEAD
+            }
+            payload = {
+                "head": head,
+                "fingerprint": self._fingerprint.to_dict() if self._fingerprint else None,
+                "verdicts": verdicts,
+                # per-node счётчики (Том): ключ node_id — переживают смену HEAD,
+                # в отличие от verdicts (per-head инвалидация выше).
+                "counters": self._cache.get("counters", {}),
+            }
+            self.cache_file.write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except OSError as exc:
+            logger.warning("verify_on_read: cache persist failed: %s", exc)
+
+    # ── Проверка якорей ──
+
+    def _check_anchor(self, anchor: Anchor, fp: _Fingerprint) -> Optional[bool]:
+        """Проверяет якорь против отпечатка.
+
+        Returns:
+            True (найден) | False (отсутствует/drift) | None (не проверяемо
+            — consumer обязан трактовать как INCONCLUSIVE, никогда VERIFIED).
+        """
+        if anchor.kind == "file":
+            target_is_file = (self.root / anchor.value).is_file() or anchor.value in fp.files
+            return target_is_file
+        if anchor.kind == "import":
+            return anchor.value.split(".")[0] in fp.imports
+        if anchor.kind == "env":
+            return anchor.value in fp.env_keys
+        if anchor.kind == "pkg":
+            # ADR-0005: closed-world — манифест это источник правды для зависимостей.
+            return _pkg_in_pool(fp.packages, anchor.value)
+        if anchor.kind == "symbol":
+            # Referent-identity check: the qname must still resolve. Without a
+            # resolver (graph unavailable/not built) -> None -> INCONCLUSIVE.
+            if self.symbol_resolver is None:
+                return None
+            return self.symbol_resolver(anchor.value)
+        return None
+
+    def _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:
+        """Вердикт: FOUND / NOT_FOUND(+проваленный якорь) / INCONCLUSIVE."""
+        if not anchors:
+            return VERDICT_INCONCLUSIVE, None
+        for a in anchors:
+            check = self._check_anchor(a, fp)
+            # TRI-STATE: None = unverifiable (e.g. graph unavailable, or the
+            # symbol resolver could not prove index freshness) -> INCONCLUSIVE,
+            # NEVER promoted to VERIFIED.
+            if check is None:
+                return VERDICT_INCONCLUSIVE, None
+            # Symbol anchors are freshness-gated in the RESOLVER (commit B): a
+            # False only arrives when the index build_head matches the live HEAD
+            # on a clean tree, so REFUTED here is honest — no stale-index hazard.
+            if not check:
+                return VERDICT_NOT_FOUND, f"{a.kind}:{a.value}"
+        return VERDICT_FOUND, None
+
+    # ── Применение переходов (общий write-путь, тот же lock) ──
+
+    def _persist_transitions(
+        self, transitions: List[Dict[str, Any]], last_checked_ids: Optional[Set[str]] = None
+    ) -> None:
+        """Применяет статус-переходы и/или освежает last_checked узлов.
+
+        last_checked_ids — узлы, реально проверенные в этом проходе (включая
+        INCONCLUSIVE и cache-hit): след «проверен в <time>» для H3 TTL-гниения,
+        чтобы узлы без якорей (INCONCLUSIVE) перестали «висеть вечно» без дат.
+        Запись rate-limited (LAST_CHECKED_MIN_INTERVAL): H1 idle гоняет каждый тик,
+        без порога первый же тик перетестирует последнюю дату у ВСЕХ узлов.
+        """
+        if not transitions and not last_checked_ids:
+            return
+        with self.lock:
+            nodes = self.store._load_json("project_memory.json")
+            now = datetime.now().strftime(_TS_FMT)
+            by_id = {n.get("node_id"): n for n in nodes if isinstance(n, dict)}
+            changed = False
+            for tr in transitions:
+                n = by_id.get(tr["node_id"])
+                if n is None:
+                    continue
+                # Терминальные статусы (REFUTED/SUPERSEDED) verify-on-read'ом не
+                # переписываются: отозванное/заменённое остаётся в истории.
+                # Без этого guard'а SUPERSEDED-узел с живыми якорями был бы
+                # молча откачен в VERIFIED (откат терминального статуса).
+                if n.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                    continue
+                if tr["status"] == STATUS_REFUTED:
+                    n["status"] = STATUS_REFUTED
+                    n["retract_reason"] = tr["reason"]
+                    n["retracted_at"] = now
+                    n["retract_source"] = RETRACT_SOURCE
+                    logger.info(
+                        "verify_on_read: REFUTED %s (%s)", tr["node_id"], tr["reason"]
+                    )
+                elif n.get("status") in (None, STATUS_ACTIVE):
+                    # VERIFIED-переход только для ACTIVE/без статуса — legacy-узлы
+                    # интерпретируются как ACTIVE (ADR-0002); прочие статусы не трогаем.
+                    n["status"] = STATUS_VERIFIED
+                    n["verified_at"] = now
+                changed = True
+            # H3: свежий след «проверен» для узлов этого прохода (INCONCLUSIVE —
+            # статус не меняется, но TTL-метрика обязана существовать).
+            if last_checked_ids:
+                min_int = datetime.strptime(
+                    (datetime.now() - timedelta(seconds=LAST_CHECKED_MIN_INTERVAL)).strftime(_TS_FMT),
+                    _TS_FMT,
+                )
+                for nid in last_checked_ids:
+                    n = by_id.get(nid)
+                    if n is None:
+                        continue
+                    if n.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                        continue
+                    prev = n.get("last_checked")
+                    if prev:
+                        try:
+                            if datetime.strptime(prev, _TS_FMT) > min_int:
+                                continue
+                        except ValueError:
+                            pass
+                    n["last_checked"] = now
+                    changed = True
+            if changed:
+                self.store._save_json("project_memory.json", nodes)
+
+    # ── Основной проход ──
+
+    def run(
+        self,
+        memory: Dict[str, List[Dict]],
+        budget_ms: float = DEFAULT_BUDGET_MS,
+    ) -> Tuple[Dict[str, List[Dict]], Dict[str, Any]]:
+        """Проверяет ACTIVE/VERIFIED узлы, применяет переходы, возвращает фильтры.
+
+        Returns:
+            (memory с исключёнными новыми REFUTED, stats).
+        stats: nodes_seen/checked/verified/refuted/inconclusive/latency_ms +
+            budget_exceeded (флаг) и budget_exceeded_nodes (id непроверенных из-за
+            бюджета) — потребитель видит checked/total, а не скрытый «пол».
+        starved_nodes (Том): id узлов с matched>=2 && delivered==0 — видимы
+            N циклов, но ни разу не проверены (систематическое голодание по
+            бюджету, а не разовый вылет). Счётчики — в verify_cache.json
+            (ключ node_id), переживают HEAD и перезапуск процесса.
+        """
+        t_start = time.perf_counter()
+        head = self._resolve_head()
+        dirty = self._is_dirty()
+        fp = self._ensure_fingerprint(head, dirty)
+        # Бюджет применяется к per-node циклу проверок, НЕ к одноразовой
+        # постройке отпечатка (HEAD change платит rebuild один раз, амортизируется).
+        t_check = time.perf_counter()
+        transitions: List[Dict[str, Any]] = []
+        newly_refuted: Set[str] = set()
+        stats: Dict[str, Any] = {
+            "head": head,
+            "dirty": dirty,
+            "fingerprint_build_ms": round(fp.build_ms, 1),
+            "nodes_seen": 0,
+            "cache_hits": 0,
+            "checked": 0,
+            "inconclusive": 0,
+            "refuted": 0,
+            "verified": 0,
+            "budget_exceeded": False,
+            "latency_ms": 0.0,
+        }
+
+        # Том (MATCHED/DELIVERED): накопительные per-node счётчики в кэше.
+        # matched — узел был виден в проходе; delivered — вердикт разрешён.
+        counters = self._cache.setdefault("counters", {})
+        seen_this_pass: Set[str] = set()
+        # H3: узлы, реально получившие вердикт в проходе (cache-hit или fresh
+        # check) — им обновляем last_checked; budget-exceeded в set не попадают.
+        touched_this_pass: Set[str] = set()
+
+        for section, nodes in memory.items():
+            for node in nodes:
+                if not isinstance(node, dict) or not node.get("node_id"):
+                    continue
+                node_id = str(node["node_id"])
+                stats["nodes_seen"] += 1
+                counter = counters.setdefault(node_id, {"matched": 0, "delivered": 0})
+                counter["matched"] += 1
+                seen_this_pass.add(node_id)
+                if stats["nodes_seen"] > 1 and (time.perf_counter() - t_check) * 1000.0 > budget_ms:
+                    # Бюджет исчерпан: необработанные узлы — INCONCLUSIVE-семантика,
+                    # остаются в контексте как есть (graceful degradation).
+                    # budget_exceeded_nodes даёт потребителю точный список непроверенных
+                    # узлов («пол»: checked/total виден, а не скрыт) для пометки
+                    # verification="budget_exceeded" на стороне слоя.
+                    stats["budget_exceeded"] = True
+                    stats["inconclusive"] += 1
+                    stats.setdefault("budget_exceeded_nodes", []).append(node_id)
+                    continue
+
+                # Dirty-интервал: вердикт-кэш НЕ читается и НЕ пишется вообще.
+                # Dirty-флаг в ключе отделил бы этот проход от чистого HEAD, но
+                # второй проход ВНУТРИ dirty получил бы cache-hit по первому —
+                # а дерево между ними могло измениться (правка в dirty не меняет
+                # HEAD, ключ тот же). Полный пересчёт каждый dirty-проход — честно.
+                if not dirty:
+                    key = self._cache_key(node_id, head, dirty)
+                    cached = self._cache.get("verdicts", {}).get(key)
+                    if cached and cached.get("verdict"):
+                        stats["cache_hits"] += 1
+                        # cache-hit = вердикт этого HEAD уже разрешён в прошлом проходе
+                        # -> узел доставлен (delivered), а не голодает.
+                        counters[node_id]["delivered"] += 1
+                        touched_this_pass.add(node_id)
+                        if cached["verdict"] == VERDICT_NOT_FOUND:
+                            newly_refuted.add(node_id)
+                        continue
+
+                stats["checked"] += 1
+                counters[node_id]["delivered"] += 1
+                touched_this_pass.add(node_id)
+                # ADR-0005 guard: read-path отсевает проза-«import X» (частотные
+                # слова без src-импорта) тем же правилом, что и write-path.
+                anchors = extract_anchors(node, src_imports=fp.imports, read_path=True)
+                verdict, failed = self._classify(anchors, fp)
+                if not dirty:
+                    self._cache.setdefault("verdicts", {})[key] = {
+                        "node_id": node_id,
+                        "head": head,
+                        "verdict": verdict,
+                        "failed": failed,
+                    }
+                if verdict == VERDICT_FOUND:
+                    stats["verified"] += 1
+                    transitions.append({"node_id": node_id, "status": STATUS_VERIFIED})
+                elif verdict == VERDICT_NOT_FOUND:
+                    stats["refuted"] += 1
+                    newly_refuted.add(node_id)
+                    transitions.append(
+                        {
+                            "node_id": node_id,
+                            "status": STATUS_REFUTED,
+                            "reason": f"{REASON_SILENT_ABSENCE}: {failed}",
+                        }
+                    )
+                else:
+                    stats["inconclusive"] += 1
+                    stats.setdefault("inconclusive_nodes", []).append(node_id)
+
+        # Том: starved = видим >=2 циклов, но ни разу не проверен (delivered=0).
+        # Сигнал — только по узлам текущего прохода (история остаётся в counters).
+        starved = sorted(
+            nid
+            for nid in seen_this_pass
+            if counters.get(nid, {}).get("matched", 0) >= 2
+            and counters.get(nid, {}).get("delivered", 0) == 0
+        )
+        if starved:
+            stats["starved_nodes"] = starved
+
+        self._persist_transitions(transitions, last_checked_ids=touched_this_pass)
+        self._persist_cache()
+
+        # H3 TTL-гниение (doc 10): узел жив (ACTIVE/VERIFIED), НЕ проверен в этом
+        # проходе (не в touched_this_pass — budget/пропущен) И его след проверки
+        # (last_checked/verified_at) отсутствует или старше TTL_STALE_DAYS ->
+        # stale_ttl «не подтверждён за N дней». Статус НЕ меняем (Red Team a2:
+        # INCONCLUSIVE неотзываем, ложный REFUTED бьёт по false_retraction).
+        stale_ttl: List[str] = []
+        now_dt = datetime.now()
+        for section, nodes in memory.items():
+            for node in nodes:
+                if not isinstance(node, dict) or not node.get("node_id"):
+                    continue
+                nid = str(node["node_id"])
+                if nid in touched_this_pass:
+                    continue
+                if node.get("status") in (STATUS_REFUTED, STATUS_SUPERSEDED):
+                    continue
+                last_ts = node.get("last_checked") or node.get("verified_at")
+                if not last_ts:
+                    continue  # нет следа вовсе (новый/never-checked) — не stale
+                try:
+                    age_days = (now_dt - datetime.strptime(last_ts, _TS_FMT)).days
+                except ValueError:
+                    continue  # неразбираемая дата — не флагаем
+                if age_days > TTL_STALE_DAYS:
+                    stale_ttl.append(nid)
+        if stale_ttl:
+            stats["stale_ttl_nodes"] = sorted(stale_ttl)
+
+        if newly_refuted:
+            memory = {
+                section: [n for n in nodes if n.get("node_id") not in newly_refuted]
+                for section, nodes in memory.items()
+            }
+        stats["latency_ms"] = round((time.perf_counter() - t_start) * 1000.0, 1)
+        return memory, stats
+
+
+# ── Реестр: один вердифайер на проект (разделяет HEAD/кэш между вызовами) ──
+
+_VERIFIERS: Dict[str, VerifyOnRead] = {}
+
+
+def get_verifier(
+    project_root: Path,
+    store: Any,
+    write_lock: Any,
+    symbol_resolver: Optional[Callable[[str], Optional[bool]]] = None,
+) -> VerifyOnRead:
+    """Возвращает (и кэширует) VerifyOnRead для проекта.
+
+    Store/lock берутся от первого создателя; в процессе слой интеллекта —
+    синглтон, поэтому lock един для всех вызовов.
+    symbol_resolver: qname -> True/False/None; инжектируется сервером при
+    наличии SymbolIndex. None => symbol-якоря UNVERIFIABLE -> INCONCLUSIVE.
+    """
+    key = str(Path(project_root).resolve())
+    if key not in _VERIFIERS:
+        _VERIFIERS[key] = VerifyOnRead(project_root, store, write_lock, symbol_resolver=symbol_resolver)
+    return _VERIFIERS[key]

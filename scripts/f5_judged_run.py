@@ -123,8 +123,9 @@ def _norm(p: str) -> str:
     return (p or "").replace("\\", "/").lstrip("./")
 
 
-def _load_queries() -> list[dict]:
-    lines = FROZEN.read_text(encoding="utf-8").splitlines()
+def _load_queries(path: Path | None = None) -> list[dict]:
+    src = path or FROZEN
+    lines = Path(src).read_text(encoding="utf-8").splitlines()
     return [json.loads(line) for line in lines if line.strip()]
 
 
@@ -279,6 +280,9 @@ def main() -> int:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--reader-instr-file", default=None,
                     help="path to file with reader instruction verbatim (default: built-in READER_INSTR)")
+    ap.add_argument("--queries-file", default=None,
+                    help="path to queries jsonl (default: frozen/f5/queries.jsonl). "
+                         "Use for language/population variants — never write into frozen/.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -288,7 +292,7 @@ def main() -> int:
         reader_instr = READER_INSTR
 
     arms = [a.strip().upper() for a in args.arms.split(",") if a.strip()]
-    queries = _load_queries()
+    queries = _load_queries(Path(args.queries_file) if args.queries_file else None)
     if args.ids:
         want = {i.strip() for i in args.ids.split(",") if i.strip()}
         queries = [q for q in queries if q["id"] in want]
