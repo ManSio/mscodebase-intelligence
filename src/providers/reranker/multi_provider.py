@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from typing import Any, Dict, List, Optional
 
@@ -86,6 +87,16 @@ def _truncate_rerank_pair(
 # Минимальный скор реранкера для фильтрации низкокачественных чанков
 # Chunk'и со скором ниже этого значения отсекаются из финальных результатов
 MIN_RERANK_SCORE = 0.3
+
+
+def _sigmoid(x: float) -> float:
+    """Нормализация raw logit в [0, 1].
+
+    llama.cpp /v1/rerank возвращает raw logits ≈[-11, +11], а не вероятности —
+    без нормализации фильтр MIN_RERANK_SCORE отсекает почти всё подряд.
+    Только для llama_cpp-ветки; threshold 0.3 откалиброван под [0, 1].
+    """
+    return 1.0 / (1.0 + math.exp(-x))
 
 
 class MultiProviderReranker(IReranker):
@@ -496,10 +507,11 @@ class MultiProviderReranker(IReranker):
                 results = data.get("results", [])
                 if results:
                     # Cohere format: results[i] = {"index": N, "relevance_score": F}
+                    # llama.cpp отдаёт raw logits ≈[-11, +11] → sigmoid в [0, 1]
                     scores = [0.0] * len(passages)
                     for r in results:
                         idx = r.get("index", 0)
-                        scores[idx] = r.get("relevance_score", 0.0)
+                        scores[idx] = _sigmoid(r.get("relevance_score", 0.0))
                     return scores
             logger.debug(f"llama.cpp rerank HTTP {resp.status_code}: {resp.text[:200]}")
             return None
