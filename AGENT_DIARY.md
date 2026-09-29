@@ -1,5 +1,7 @@
 ## Key Historical Decisions
 
+- **F5 relang clean-stack + purge + PR52-resolution (2026-09-29):** индекс был на 20.3% из мусора (3127/15426 чанков, `experiments/**/results|work`) → новый слой `SystemArtifacts.is_experiment_output` + purge 772 файлов/2152 чанков (штатный prune отказал бы: 52.4% файлов > safety-guard 50%), проверка — 0 осталось. Чистый замер B×5: **RU 26/80=32.5% vs EN 30/80=37.5%, CI пересекаются — эффекта языка нет**; 6/16 запросов флипаются all-or-nothing (язык меняет какие, не сколько). Конфликтный PR #52 закрыт как superseded: tier-anchor пропущен (P2 уже закрыт #54 в той же точке), спасены сигмоида/top-N/holdout-калибровка (PR #63); мои FTS-hoist+guard cherry-pick в PR #62. Артефакты: `results/f5relang/`, `scripts/purge_experiment_outputs.py`.
+
 - **stale_after + discriminator for memory notes (2026-09-27):** `src/core/intelligence/staleness.py` + `store.check_staleness()` + CLI. 17/17 tests. stale_after (date) → STALE; discriminator (command, exit≠0) → EXPIRED. Backward compat (no fields → ACTIVE). Implements final promise from hooks thread. Артефакты: `experiments/stale_after/`.
 
 - **redact.py: scrub personal paths (2026-09-27):** `scripts/redact.py` + `tests/test_redact.py` (5/5 pass). Drive paths → `<project>`, username → `<user>`, clean text unchanged. Implements "redact.py at delivery points + planted key test" promise. Артефакты: `scripts/redact.py`, `tests/test_redact.py`.
