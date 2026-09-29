@@ -818,6 +818,79 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             logger.debug(f"[P2-anchor] +{added} exact-symbol chunks for {tokens}")
         return pool
 
+    async def _anchor_module_head_chunks_async(
+        self, pool: List[dict], query: str, limit: int
+    ) -> List[dict]:
+        """P3: anchor each candidate file's module-head chunk pre-rerank.
+
+        The reranker scores module-head/docstring chunks highest (persisted
+        probes: experiments/reranker_p3/rerank_probe_run{1,2}.json — gold_doc
+        #1 on 6/6 holdout-style queries; the eval code-chunk logit is P3
+        -0.99 / R2 -2.60 per EXPERIMENTS_LOG.md:2809), but the head never
+        enters the pool when multi-term RRF surfaces only a code chunk of
+        the file. For each distinct pool file (pool order), the chunk_index-0
+        head is resolved from the cached BM25 DataFrame (no new index
+        structures) and appended pre-rerank (tail, no re-sort — the reranker
+        re-sorts by its own scores), deduplicated by file:chunk_index,
+        capped at _O1_ANCHOR_TOTAL and MAX_RERANKER_INPUT — same bounds as
+        the P2 anchor above. Doc/data files are ineligible (P2/A2 doc-guard:
+        docs cite symbols without defining them). Any failure degrades to
+        the unanchored pool. limit<=0 keeps the empty contract.
+        """
+        if limit <= 0:
+            return pool
+        try:
+            self._build_bm25_index()
+            df = self._bm25_df
+            if df is None or df.empty:
+                return pool
+        except Exception:  # noqa: BLE001 — degraded BM25 never breaks search
+            return pool
+        have = set()
+        for r in pool:
+            meta = r.get("metadata") or {}
+            have.add(f"{meta.get('file', '?')}:{meta.get('chunk_index', 0)}")
+        added = 0
+        seen_files = set()
+        for r in pool:
+            if added >= _O1_ANCHOR_TOTAL or len(pool) >= MAX_RERANKER_INPUT:
+                break
+            meta = r.get("metadata") or {}
+            fname = str(meta.get("file", "") or "")
+            if not fname or fname in seen_files:
+                continue
+            seen_files.add(fname)
+            if not _is_anchor_eligible(r):
+                continue
+            try:
+                match = df[(df["file_path"] == fname) & (df["chunk_index"] == 0)]
+                if match.empty:
+                    continue
+                row = match.iloc[0]
+            except Exception:  # noqa: BLE001 — one bad file never breaks search
+                continue
+            key = f"{row['file_path']}:{row['chunk_index']}"
+            if key in have:
+                continue
+            pool.append(
+                {
+                    "text": str(row["text"]),
+                    "text_full": str(row.get("text_full", row["text"])),
+                    "metadata": {
+                        "file": str(row["file_path"]),
+                        "chunk_index": int(row["chunk_index"]),
+                        "indexed_at": str(row.get("indexed_at", "")),
+                        "layer": str(row.get("layer", "")),
+                    },
+                    "module_head_anchor": True,
+                }
+            )
+            have.add(key)
+            added += 1
+        if added:
+            logger.debug(f"[P3-anchor] +{added} module-head chunks")
+        return pool
+
     async def hybrid_search_async(
         self,
         query: str,
@@ -1064,6 +1137,15 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # resolve exact-symbol chunks directly (single-token FTS, ~70ms warm)
         # and append them pre-rerank; O1 then boosts exact matches as usual.
         pre_rerank_results = await self._anchor_identifier_chunks_async(
+            pre_rerank_results, query, limit
+        )
+
+        # === P3 (2026-09-29): module-head anchors at PRE-RERANK pool ===
+        # The reranker scores docstring heads highest (probes in
+        # experiments/reranker_p3/), but RRF surfaces code chunks only —
+        # the head of each candidate file is anchored so it reaches the
+        # reranker; O1/doc-guard/caps conventions inherited from P2.
+        pre_rerank_results = await self._anchor_module_head_chunks_async(
             pre_rerank_results, query, limit
         )
 
