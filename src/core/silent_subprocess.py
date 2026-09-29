@@ -41,19 +41,26 @@ def apply() -> None:
 
     _orig_popen = subprocess.Popen
 
-    class _SilentPopen(_orig_popen):  # type: ignore[misc]
-        def __init__(self, *args, **kwargs):
-            kwargs.setdefault("creationflags", _CNW)
-            # CREATE_NO_WINDOW может быть скомбинирован — OR, не замена
-            try:
-                kwargs["creationflags"] |= _CNW
-            except TypeError:
-                pass
-            try:
-                kwargs.setdefault("startupinfo", _silent_startupinfo())
-            except (AttributeError, OSError, TypeError):
-                pass
-            super().__init__(*args, **kwargs)
+    try:
+
+        class _SilentPopen(_orig_popen):  # type: ignore[misc]
+            def __init__(self, *args, **kwargs):
+                kwargs.setdefault("creationflags", _CNW)
+                # CREATE_NO_WINDOW может быть скомбинирован — OR, не замена
+                try:
+                    kwargs["creationflags"] |= _CNW
+                except TypeError:
+                    pass
+                try:
+                    kwargs.setdefault("startupinfo", _silent_startupinfo())
+                except (AttributeError, OSError, TypeError):
+                    pass
+                super().__init__(*args, **kwargs)
+
+    except TypeError:
+        # Popen — не класс (тестовый шим/экзотика): патчить нечего,
+        # стартовый импорт не должен падать (ср. S1/S2-стиль выше).
+        return
 
     _orig_run = subprocess.run
     _orig_check_output = subprocess.check_output

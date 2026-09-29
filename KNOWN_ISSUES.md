@@ -5,28 +5,28 @@
 
 ---
 
-## 2026-09-28 — Pre-commit hook fail-open при потере маркеров (Open)
+## 2026-09-28 — Pre-commit hook fail-open при потере маркеров (Fixed)
 
 - **Локация:** `.githooks/pre-commit:31-53` (`find_project_root` + `run_script`).
 - **Симптом:** если ни `.git`, ни `KNOWN_ISSUES.md` не найдены (переименование, копия дерева, битый `.git`), fallback указывает мимо проекта; все 9 гейтов печатают ⏭️ «скрипт не найден» и возвращают True → «All pre-commit checks passed», exit 0, коммит идёт без единой проверки.
 - **Repro (Verified 2026-09-28):** копия хука в `%TEMP%` (без маркеров) → 9× «скрипт не найден», итог PASS.
 - **Guard:** fallback-ветвь обязана fail-closed (sys.exit(1) с явным «project root not found»), либо `run_script` считает missing-script провалом, когда пропущены ВСЕ скрипты; regression-тест: исполнение с `__file__` в markerless-tmpdir → exit ≠ 0.
-- **Статус:** 🟡 Fixed-pending-verification (branch `fix/redteam-open-triple`: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green + full suite 1940 passed).
+- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
 
-## 2026-09-28 — silent_subprocess: STARTUPINFO ctor outside narrowed try (Open)
+## 2026-09-28 — silent_subprocess: STARTUPINFO ctor outside narrowed try (Fixed)
 
 - **Локация:** `src/core/silent_subprocess.py:32-33` (S1), `:51` (S2 — unwrapped `setdefault`).
 - **Симптом:** `subprocess.STARTUPINFO()` на L33 вне `try`; на экзотическом win32-билде без `STARTUPINFO` — `AttributeError` из `apply()` на импорте (S2/L51 тот же путь без обёртки; S4/L67 в безопасности — вызов внутри try).
 - **Контекст:** на CPython/win32 `STARTUPINFO` всегда есть; все реальные `creationflags=`-вызывающие передают int — практический риск ≈ 0.
 - **Guard:** перенести конструирование внутрь try (S1) + обернуть L51 как L67; regression-тест: monkeypatch `subprocess.STARTUPINFO = <missing>` → `apply()` не бросает.
-- **Статус:** 🟡 Fixed-pending-verification (low; branch `fix/redteam-open-triple`: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green + full suite 1940 passed).
+- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green; PR #56 CI all green). Tails (branch `fix/redteam-tails`): модуль был INERT — заведён в entry point (`src/main.py` import + `apply()` at startup, как требует docstring модуля) + TypeError-guard на не-классовый `Popen` (тестовые шимы); liveness доказан `tests/test_silent_subprocess_wired.py` (fresh-процесс: импорт `src.main` → `_APPLIED=True`, на win32 `Popen=_SilentPopen`).
 
-## 2026-09-28 — o1_holdout_gate: hung query hangs whole gate, no timeout (Open)
+## 2026-09-28 — o1_holdout_gate: hung query hangs whole gate, no timeout (Fixed)
 
 - **Локация:** `scripts/o1_holdout_gate.py:129-156` (`_run_all`), вызов L106.
 - **Симптом:** 15 запросов идут последовательно в одном loop без `wait_for`/глобального капа; один зависший `hybrid_search_async` вешает весь гейт навсегда (единственный `timeout=10` — git-rev диагностика, L99-101).
 - **Guard:** per-query `asyncio.wait_for(..., timeout=120)` + timeout → fail-row (как `degraded`); regression — фейковый searcher с висящим запросом → гейт падает за ~120с, а не висит.
-- **Статус:** 🟡 Fixed-pending-verification (medium — CI-stall; branch `fix/redteam-open-triple`: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green + full suite 1940 passed).
+- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green incl. positive controls; PR #56 CI all green).
 
 ## 2026-09-28 — Ретриевер-замеры без сброса реранкер-кэша недействительны (Open)
 
