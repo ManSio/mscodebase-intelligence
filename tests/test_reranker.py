@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.providers.reranker.multi_provider import MultiProviderReranker
+from src.providers.reranker.multi_provider import MultiProviderReranker, _sigmoid
 from src.providers.reranker.reranker_scoring import (
     apply_scores,
     cosine_similarity,
@@ -708,3 +708,91 @@ def test_cosine_similarity_empty_vectors():
     """Cosine similarity пустых векторов = 0.0."""
     assert cosine_similarity([], []) == 0.0
     assert cosine_similarity([1.0], []) == 0.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Нормализация шкалы скора реранкера (регрессия от 2026-09-27)
+#
+# llama.cpp /v1/rerank позиционируется как Cohere-совместимый endpoint, где
+# контракт обещает relevance_score в [0,1], но фактически отдаёт СЫРЫЕ логиты
+# кросс-энкодера (собственный пример ggml-org/llama.cpp#9510: 5.97 и -11.03).
+# MIN_RERANK_SCORE откалиброван под [0,1], поэтому до нормализации фильтр
+# отбрасывал 70-97% выдачи. Здесь _llama_cpp_rerank замокан — проверяется
+# именно преобразование шкалы, а не HTTP-слой.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        (5.97, 0.99745),      # релевантный — пример из llama.cpp PR #9510
+        (-11.03, 0.0000162),  # мусор — тот же пример
+        (0.0, 0.5),           # точка перегиба
+        (-0.99, 0.27091),     # цель P3 из замера 2026-09-27
+    ],
+)
+def test_sigmoid_matches_reference_values(raw, expected):
+    """Сигмоида совпадает с эталонными значениями 1/(1+e^-x)."""
+    assert _sigmoid(raw) == pytest.approx(expected, rel=1e-3)
+
+
+def test_sigmoid_is_numerically_stable_at_extremes():
+    """exp(-x) не вызывает OverflowError на больших |x| (регрессия P-002)."""
+    assert _sigmoid(-1e4) == pytest.approx(0.0, abs=1e-12)
+    assert _sigmoid(1e4) == pytest.approx(1.0, abs=1e-12)
+    for x in (-800.0, -745.0, 0.0, 745.0, 800.0):
+        assert 0.0 <= _sigmoid(x) <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_llama_cpp_scores_normalized_to_unit_interval(sample_chunks):
+    """Сырые логиты llama.cpp попадают в reranker_score как [0,1], а не как есть.
+
+    Контроли:
+      * positive — релевантный чанк (логит +5.97) обязан выжить и быть первым;
+      * negative — мусорный чанк (логит -9.38) обязан быть отсечён фильтром;
+      * контракт — ни один выживший скор не выходит за [0,1].
+    """
+    reranker = MultiProviderReranker()
+    reranker.ollama_available = False
+    reranker.lm_studio_available = False
+    reranker.llama_cpp_available = True
+
+    # auth.py — релевантен, repo.py — умеренно, utils.py — мусор
+    reranker._llama_cpp_rerank = AsyncMock(return_value=[5.97, -0.99, -9.38])
+
+    result = await reranker.rerank("запрос", sample_chunks, top_n=3)
+
+    files = [c["metadata"]["file"] for c in result]
+    # positive control: релевантный чанк выжил и возглавил выдачу
+    assert files[0] == "auth.py"
+    # negative control: мусор отсечён (sigmoid(-9.38) ≈ 8e-5 << MIN_RERANK_SCORE)
+    assert "utils.py" not in files
+    # контракт шкалы соблюдён — именно это и было сломано
+    for chunk in result:
+        assert 0.0 <= chunk["reranker_score"] <= 1.0, chunk["reranker_score"]
+    assert result[0]["reranker_score"] == pytest.approx(0.99745, rel=1e-3)
+
+
+@pytest.mark.asyncio
+async def test_llama_cpp_negative_logit_does_not_leave_unit_interval(sample_chunks):
+    """Отрицательные логиты тоже нормализуются, а fallback не теряет чанки.
+
+    Без сигмоиды в reranker_score попадали бы сырые -0.99 / -2.60 — значения
+    вне [0,1], которые MIN_RERANK_SCORE сравнивает с 0.3 в бессмысленной шкале.
+    """
+    reranker = MultiProviderReranker()
+    reranker.ollama_available = False
+    reranker.lm_studio_available = False
+    reranker.llama_cpp_available = True
+
+    # все три логита отрицательны и после нормализации ниже MIN_RERANK_SCORE
+    reranker._llama_cpp_rerank = AsyncMock(return_value=[-0.99, -2.60, -9.38])
+
+    result = await reranker.rerank("запрос", sample_chunks, top_n=3)
+
+    for chunk in result:
+        assert 0.0 <= chunk["reranker_score"] <= 1.0, chunk["reranker_score"]
+    # -0.99 -> 0.271, -2.60 -> 0.069, -9.38 -> 0.00008: всё ниже 0.3,
+    # поэтому срабатывает fallback и возвращаются все три чанка.
+    assert [c["metadata"]["file"] for c in result] == ["auth.py", "repo.py", "utils.py"]
