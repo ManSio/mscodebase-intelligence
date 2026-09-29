@@ -1,5 +1,0 @@
-On infrastructural failure (missing git, absent PropertyGraph, or unreachable DB), the gate returns status `"unavailable"` with empty `findings` and does **not** block the commit — it fails open, logging the reason. This ensures an infrastructure outage never halts development.
-
-
-> build · longcat-2.0
-

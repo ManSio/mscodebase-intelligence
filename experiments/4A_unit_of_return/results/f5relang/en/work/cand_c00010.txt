@@ -1,5 +1,0 @@
-The server entry sets `env["PROJECT_PATH"] = "$ZED_WORKTREE_ROOT"` — Zed automatically injects this variable pointing to the open project's root, so the MCP server reads it at startup (see `_make_server_entry` at line 308).
-
-
-> build · longcat-2.0
-
