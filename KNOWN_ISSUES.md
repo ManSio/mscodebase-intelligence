@@ -5,6 +5,29 @@
 
 ---
 
+## 2026-09-28 — Pre-commit hook fail-open при потере маркеров (Open)
+
+- **Локация:** `.githooks/pre-commit:31-53` (`find_project_root` + `run_script`).
+- **Симптом:** если ни `.git`, ни `KNOWN_ISSUES.md` не найдены (переименование, копия дерева, битый `.git`), fallback указывает мимо проекта; все 9 гейтов печатают ⏭️ «скрипт не найден» и возвращают True → «All pre-commit checks passed», exit 0, коммит идёт без единой проверки.
+- **Repro (Verified 2026-09-28):** копия хука в `%TEMP%` (без маркеров) → 9× «скрипт не найден», итог PASS.
+- **Guard:** fallback-ветвь обязана fail-closed (sys.exit(1) с явным «project root not found»), либо `run_script` считает missing-script провалом, когда пропущены ВСЕ скрипты; regression-тест: исполнение с `__file__` в markerless-tmpdir → exit ≠ 0.
+- **Статус:** 🟡 Fixed-pending-verification (branch `fix/redteam-open-triple`: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green + full suite 1940 passed).
+
+## 2026-09-28 — silent_subprocess: STARTUPINFO ctor outside narrowed try (Open)
+
+- **Локация:** `src/core/silent_subprocess.py:32-33` (S1), `:51` (S2 — unwrapped `setdefault`).
+- **Симптом:** `subprocess.STARTUPINFO()` на L33 вне `try`; на экзотическом win32-билде без `STARTUPINFO` — `AttributeError` из `apply()` на импорте (S2/L51 тот же путь без обёртки; S4/L67 в безопасности — вызов внутри try).
+- **Контекст:** на CPython/win32 `STARTUPINFO` всегда есть; все реальные `creationflags=`-вызывающие передают int — практический риск ≈ 0.
+- **Guard:** перенести конструирование внутрь try (S1) + обернуть L51 как L67; regression-тест: monkeypatch `subprocess.STARTUPINFO = <missing>` → `apply()` не бросает.
+- **Статус:** 🟡 Fixed-pending-verification (low; branch `fix/redteam-open-triple`: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green + full suite 1940 passed).
+
+## 2026-09-28 — o1_holdout_gate: hung query hangs whole gate, no timeout (Open)
+
+- **Локация:** `scripts/o1_holdout_gate.py:129-156` (`_run_all`), вызов L106.
+- **Симптом:** 15 запросов идут последовательно в одном loop без `wait_for`/глобального капа; один зависший `hybrid_search_async` вешает весь гейт навсегда (единственный `timeout=10` — git-rev диагностика, L99-101).
+- **Guard:** per-query `asyncio.wait_for(..., timeout=120)` + timeout → fail-row (как `degraded`); regression — фейковый searcher с висящим запросом → гейт падает за ~120с, а не висит.
+- **Статус:** 🟡 Fixed-pending-verification (medium — CI-stall; branch `fix/redteam-open-triple`: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green + full suite 1940 passed).
+
 ## 2026-09-28 — Ретриевер-замеры без сброса реранкер-кэша недействительны (Open)
 
 - **Правило:** все retriever-замеры и A/B-тесты — только в свежем процессе либо с явным сбросом реранкер-кэша (`Searcher._reranker_cache.clear()`). Ключ кэша включает текст запроса (engine.py:1646): повтор того же запроса в том же процессе отдаёт закэшированные скоры, а не измеряет код.
@@ -12,7 +35,7 @@
 - **Harness-ловушка (2026-09-28, Verified):** `asyncio.run()` на КАЖДЫЙ запрос роняет чётные запросы в reranker-passthrough (`reranker_ms=0`, `model='-'`, возврат пула без скоринга) — детерминировано по паритету позиции, свежая/здоровая инфра, флаги провайдера в норме. Серия обязана идти в ОДНОМ event loop; плюс явный degraded-флаг (`not reranker_ms` → замер недействителен). Void-флаг (`timing=={}`) этот класс НЕ ловит (timing={ms:0,...} ≠ {}).
 - **Статус:** 🟡 Open (процедурное правило; guard-скрипт `scripts/o1_holdout_gate.py` — fresh-process + warm-up + void-флаг).
 
-**21 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
+**24 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
 
 ## 2026-09-27 — Import-time os.environ mutation in scripts breaks xdist workers (Fixed)
 
