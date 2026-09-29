@@ -1,0 +1,105 @@
+#!/usr/bin/env python
+"""
+MSCodeBase pre-commit hook — автоматическая проверка перед коммитом.
+
+Установлен: 3.4.0
+Дата установки: 2026-09-04 11:19:11
+
+Запускает:
+1. verify_diary — проверка AGENT_DIARY.md
+2. stale_detector — проверка дрейфа версий в доках
+3. check_tool_names — semantic-гейт имён MCP-тулов
+4. negative_controls — guard inventory (каждый guard умеет падать)
+5. check_layer_boundaries — гейт трёх осей (Universal Engine)
+6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
+7. lock_guard — активные git-локи (advisory, exit 0)
+8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
+"""
+
+import subprocess
+import sys
+from pathlib import Path
+
+
+# §9 п.9 (ENCODING SAFETY): при выводе emoji-строк из stdout скриптов
+# (например, «📊 Итог: 20 ✅ / 1 ❌») в cp1251-консоль падает
+# UnicodeEncodeError → hook фейлит коммит по ложной причине.
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+
+def find_project_root() -> Path | None:
+    """Resolve repo root by marker walk (works from any hook home).
+
+    Ascends from the hook file until a directory containing .git or
+    KNOWN_ISSUES.md is found. Returns None when no marker is found
+    (fail-closed: the caller must refuse to pass, never silently skip).
+    """
+    start = Path(__file__).resolve().parent
+    for candidate in [start, *start.parents]:
+        if (candidate / ".git").exists() or (candidate / "KNOWN_ISSUES.md").is_file():
+            return candidate
+    return None
+
+
+def run_script(script_path: str, label: str) -> bool:
+    """Запускает скрипт и возвращает True если успешно."""
+    project_root = find_project_root()
+    if project_root is None:
+        print(f"  ❌ {label}: project root not found (no .git / KNOWN_ISSUES.md markers)")
+        return False
+    script = project_root / script_path
+
+    if not script.exists():
+        print(f"  ⏭️  {label}: скрипт не найден ({script})")
+        return True
+
+    # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock
+    # в фоновых потоках; encoding="utf-8" — декодирование stdout в utf-8.
+    proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        cwd=str(project_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+    )
+    # Таймаут-запас: verify_diary гоняет gate-zero (полный pytest ~108-130s под
+    # нагрузкой) — кап 120s давал флаки TimeoutExpired на коммитах (2026-08-08);
+    # 300→900 (2026-08-24): сюита выросла (live-sync + predict-наборы), 300s
+    # начал флакать при параллельной нагрузке.
+    stdout, _ = proc.communicate(timeout=900)
+    if proc.returncode != 0:
+        print(f"  ❌ {label}: exit {proc.returncode}")
+        if stdout:
+            for line in stdout.splitlines()[-10:]:
+                print(f"    {line}")
+        return False
+    print(f"  ✅ {label}: OK")
+    return True
+
+
+def main():
+    print("🔍 MSCodeBase pre-commit checks:")
+    all_ok = True
+
+    all_ok &= run_script("scripts/verify_diary.py", "verify_diary")
+    all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
+    all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
+    all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
+    all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
+    all_ok &= run_script("scripts/architecture_linter.py", "architecture_linter")
+    all_ok &= run_script("scripts/lock_guard.py", "lock_guard (advisory)")
+    all_ok &= run_script("scripts/check_known_issues.py", "check_known_issues")
+    all_ok &= run_script("scripts/ruff_gate.py", "ruff_gate")
+
+    if not all_ok:
+        print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
+        sys.exit(1)
+    print("\n✅ All pre-commit checks passed.")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

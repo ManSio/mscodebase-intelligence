@@ -48,6 +48,7 @@ if str(ROOT) not in sys.path:
 from scripts.o1_holdout_gate import (  # noqa: E402 — imported for the case table
     HOLDOUT,
     P2,
+    QUERY_TIMEOUT,
     build_searcher,
     rank_of,
 )
@@ -91,6 +92,8 @@ def main() -> int:
             fails.append(f"{row['id']} reranker-cache void (wall<2s, no timing)")
         if row["degraded"]:
             fails.append(f"{row['id']} reranker degraded (reranker_ms=0, passthrough)")
+        if row["timed_out"]:
+            fails.append(f"{row['id']} query timed out (>{QUERY_TIMEOUT}s)")
     if fails:
         print("GATE FAIL: " + "; ".join(fails))
         return 1
@@ -105,12 +108,23 @@ async def _run_all(searcher):
     await asyncio.to_thread(searcher._build_fts5_index)
     print(f"FTS prebuild (discarded): {time.perf_counter() - t0:.2f}s")
     # Discarded warm-up on a disjoint query (cache key includes query text).
-    await searcher.hybrid_search_async("warmup cold start primer", limit=3)
+    await asyncio.wait_for(
+        searcher.hybrid_search_async("warmup cold start primer", limit=3),
+        timeout=QUERY_TIMEOUT,
+    )
     rows = []
     for case in [P2, *HOLDOUT]:
         searcher._reranker_cache.clear()
         t0 = time.perf_counter()
-        results = await searcher.hybrid_search_async(case["query"], limit=5)
+        try:
+            results = await asyncio.wait_for(
+                searcher.hybrid_search_async(case["query"], limit=5),
+                timeout=QUERY_TIMEOUT,
+            )
+            timed_out = False
+        except asyncio.TimeoutError:
+            results = []
+            timed_out = True
         wall = time.perf_counter() - t0
         boosted = [r for r in results if r.get("identifier_boost")]
         doc_boosted = [
@@ -135,6 +149,7 @@ async def _run_all(searcher):
                 "wall": round(wall, 2),
                 "void": void,
                 "degraded": degraded,
+                "timed_out": timed_out,
             }
         )
         print(
