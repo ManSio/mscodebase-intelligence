@@ -1,5 +1,0 @@
-The module **MUST NOT raise, ever** — it swallows every error by design so that the recording channel cannot break indexing.
-
-
-> build · longcat-2.0
-
