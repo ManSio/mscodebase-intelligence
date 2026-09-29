@@ -307,8 +307,11 @@ def _get_ext_dir() -> Path:
     p = Path(sys.executable).resolve().parent.parent.parent
     if (p / "src" / "main.py").exists() and (p / "__mscodebase_ext__.marker").exists():
         return p
-    # Режим разработки (исходники с маркером расширения в корне)
-    p = Path(__file__).resolve().parent.parent.parent
+    # Режим разработки (исходники с маркером расширения в корне).
+    # __file__ = <root>/src/providers/reranker/llama_install.py → 4 уровня
+    # до корня (было 3 — указывало на src/, ветка была мёртвой, и модели
+    # резолвились в пустой data_root; найдено 2026-09-28 по отсутствию GGUF).
+    p = Path(__file__).resolve().parent.parent.parent.parent
     if (p / "src" / "main.py").exists() and (p / "__mscodebase_ext__.marker").exists():
         return p
     # Установленный пакет (pip/uvx) или неизвестный контекст: единый data root
