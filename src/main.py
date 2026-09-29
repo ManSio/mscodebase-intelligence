@@ -214,6 +214,21 @@ def main():
     logger.info("MSCodebase Intelligence MCP Server запускается...")
     logger.info(f"PROJECT_ROOT: {PROJECT_ROOT}")
 
+    # ─── Process title (Windows Task Manager naming) ───
+    # SetConsoleTitleW so `tasklist /V` shows mscodebase-mcp:<name>-<hash8>.
+    # Guarded: win32-only, never raises (see src/core/process_titles.py).
+    try:
+        from src.core.process_titles import apply_mcp_process_title
+
+        _title_proj = os.environ.get("MSCODEBASE_PROJECT_PATH") or os.environ.get(
+            "PROJECT_PATH"
+        )
+        if not _title_proj:
+            _title_proj = _cli_project_path() or str(Path.cwd())
+        apply_mcp_process_title(_title_proj)
+    except Exception:
+        pass
+
     # ─── CLI --project-path: явный выбор целевого проекта ───
     # Устанавливаем MSCODEBASE_PROJECT_PATH (приоритет над CWD, см.
     # resolve_project_root). PROJECT_ROOT (корень установки/расширения) НЕ
