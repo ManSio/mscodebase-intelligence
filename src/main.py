@@ -2,6 +2,15 @@
 Главная точка входа в приложение.
 """
 
+# Guard от мигающих консолей на Windows: патчит subprocess до любых spawn'ов.
+# Идемпотентен (повторный apply() — no-op); на non-win32 — только флаг.
+try:
+    from src.core.silent_subprocess import apply as _apply_silent_subprocess
+
+    _apply_silent_subprocess()
+except Exception:
+    pass
+
 import logging
 import logging.handlers
 import os
