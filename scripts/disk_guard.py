@@ -27,6 +27,7 @@ import fnmatch
 import os
 import shutil
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -203,7 +204,7 @@ def top_hogs(root: Path, limit: int = 10) -> list[tuple[float, str]]:
 
 
 def default_temp_root() -> Path:
-    return Path(os.environ.get("TEMP", os.environ.get("TMP", r"C:\Temp"))) / "opencode"
+    return Path(tempfile.gettempdir()) / "opencode"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -227,7 +228,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.check or args.clean:
         anchors = {"repo": args.repo.resolve(), "temp": args.temp_root}
         for label, anchor in anchors.items():
-            free_gb = shutil.disk_usage(os.fspath(anchor)).free / (1024**3)
+            if not Path(anchor).exists():
+                print(f"SKIP [{label}] {anchor}: path does not exist (nothing to check)")
+                continue
+            try:
+                free_gb = shutil.disk_usage(os.fspath(anchor)).free / (1024**3)
+            except OSError as exc:
+                print(f"SKIP [{label}] {anchor}: cannot stat volume ({exc})")
+                continue
             print(f"Free [{label}] {anchor}: {free_gb:.2f}GB (min {args.min_free_gb}GB)")
             if free_gb < args.min_free_gb:
                 print(f"FAIL [{label}]: free space {free_gb:.2f}GB < {args.min_free_gb}GB minimum")
