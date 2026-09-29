@@ -1057,3 +1057,8 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** Closed (╤Н╨║╤Б╨┐╨╡╤А╨╕╨╝╨╡╨╜╤В╤Л, ╨╛╤В╨▓╨╡╤В ╨╛╨┐╤Г╨▒╨╗╨╕╨║╨╛╨▓╨░╨╜)
 **Root Cause:** VOR (ADR-0003) ╨┐╤А╨╛╨▓╨╡╤А╤П╨╡╤В ╨Я╨г╨в╨м-╤П╨║╨╛╤А╤П ╨┐╤А╨╛╤В╨╕╨▓ ╤В╨╡╨║╤Г╤Й╨╡╨│╨╛ HEAD. Rename/move = ╤Б╤В╨░╤А╤Л╨╣ ╨┐╤Г╤В╤М ╨╛╤В╤Б╤Г╤В╤Б╤В╨▓╤Г╨╡╤В = SILENT_ABSENCE = ╨╛╤В╨╖╤Л╨▓, ╤Е╨╛╤В╤П ╤Д╨░╨╣╨╗...
 - **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+
+---
+
+> Batch archived 2026-09-29 per S4.8 R4 (second batch; live file exceeded 300 lines).

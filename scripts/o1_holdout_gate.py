@@ -2,7 +2,7 @@
 """O1 holdout gate (live, fresh-process): P2 + H1-H12 + N/doc controls.
 
 Usage:
-    python scripts/o1_holdout_gate.py [--project D:/Project/MSCodeBase]
+    python scripts/o1_holdout_gate.py [--project <repo-root>]
 
 Each query runs hybrid_search_async(limit=5) in THIS fresh process
 (reranker cache starts empty -> no cache-hit void measurements).
