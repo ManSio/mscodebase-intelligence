@@ -63,6 +63,12 @@ jobs:
       - name: Check version consistency
         run: python scripts/bump_version.py --check
 
+      - name: Disk-space guard (C:-critical 2026-09-29)
+        # Fails if the runner disk has <1GB free — full disks cause
+        # silent truncations in lancedb/onnx caches. Local equivalent:
+        # python scripts/disk_guard.py --check
+        run: python scripts/disk_guard.py --check --min-free-gb 1
+
       - name: Audit dependencies (pip-audit)
         # Pinned: pip-audit 2.10.1 проверен 2026-08-08 (PYSEC-2026-3552).
         # Бамп — только после локального прогона `pip-audit -r requirements-lock.txt --no-deps --disable-pip`.
