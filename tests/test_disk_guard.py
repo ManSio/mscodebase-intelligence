@@ -66,6 +66,17 @@ def test_temp_reports_big_unknown_file(tmp_path: Path) -> None:
     assert len(stats.reported_big) == 1
 
 
+def test_temp_ttl_deletes_stale_pytest_worker_dir(tmp_path: Path) -> None:
+    worker = tmp_path / "pytest-of-misha"
+    worker.mkdir()
+    (worker / "tokenizer.json").write_bytes(b"\0" * 64)
+    _old(worker / "tokenizer.json", 10)
+    _old(worker, 10)
+    stats = SweepStats()
+    sweep_temp_opencode(tmp_path, 7, stats, dry_run=False)
+    assert not worker.exists()
+
+
 def test_temp_dry_run_deletes_nothing(tmp_path: Path) -> None:
     log = tmp_path / "stale.log"
     log.write_text("x")
