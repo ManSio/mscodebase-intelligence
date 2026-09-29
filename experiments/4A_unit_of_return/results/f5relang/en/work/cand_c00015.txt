@@ -1,0 +1,5 @@
+The fix uses a short-lived **lease file** that an indexing process refreshes on every progress tick. The idle watchdog is required to check this lease and must **NOT kill the embedder while any fresh lease exists** (its own reindex or another process's).
+
+
+> build · longcat-2.0
+

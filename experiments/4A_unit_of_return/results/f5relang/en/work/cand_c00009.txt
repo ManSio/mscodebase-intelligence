@@ -1,0 +1,5 @@
+The `'gitwildmatch'` format is deprecated. Using the `'gitignore'` format eliminates 1740 GitWildMatchPattern deprecation warnings and avoids re-parsing `.gitignore` on every file.
+
+
+> build · longcat-2.0
+

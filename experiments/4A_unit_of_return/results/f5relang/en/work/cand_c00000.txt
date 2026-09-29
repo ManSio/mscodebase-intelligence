@@ -1,0 +1,5 @@
+The `next_action` field exists so an agent can branch and recover from tool failures without guessing. Agents branch on the stable `code`, while humans and agents read the concrete, single-step `next_action` hint to know exactly what to do next.
+
+
+> build · longcat-2.0
+

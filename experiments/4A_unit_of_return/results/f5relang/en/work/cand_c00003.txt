@@ -1,0 +1,5 @@
+`validate_scores` discards items with NaN or Inf scores — they are filtered out via `math.isfinite(score)` check (line 70-71), not clamped. The comment explains NaN/Inf would otherwise pass `isinstance` checks and silently become 1.0/0.0.
+
+
+> build · longcat-2.0
+
