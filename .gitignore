@@ -231,3 +231,7 @@ _measure_*.py
 # E17 experiment: regenerable prompt shards (rebuild via e17_export_*.py)
 experiments/bootstrap/e17_shards/*.txt
 experiments/bootstrap/e17_judge/*.txt
+
+# Written by tests/test_planted_break_gate.py on every run; a tracked copy just
+# dirties git status and invites accidental commits of a timestamp.
+experiments/planted_break/results.json
