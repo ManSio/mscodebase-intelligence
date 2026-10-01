@@ -1,3 +1,132 @@
+﻿
+## [2026-09-30] protocol-triage + T10 fixes
+
+- **Триаж 8 findings (глобальные гейты, `scripts/triage_protocol_findings.py`):** ИЗМЕРЕНО
+  доля FP = **5/8 = 62.5% шум**. Вердикт: **2 TRUE_POSITIVE, 1 PARTIAL, 5 FALSE_POSITIVE**.
+  До триажа число «8» публиковать было нельзя (§19.5).
+- **Две попытки автоматизации отвергнуты** (записаны в файле, чтобы не повторить):
+  keyword-скан по «rate/%» → 3 false negative на защищённых файлах; regex на деление →
+  назвал rate-сайтом `full_path = REPO_ROOT / rel_path`. Ошибались в **противоположные** стороны.
+  Вывод: триаж вердиктов по эвристике по строкам не даёт ни precision, ни recall.
+- **T10 fix 1 (`scripts/e2e_quality_search.py:147`):** `100*h1/n` без гварда → ZeroDivisionError на
+  пустом наборе. Добавлен `exit(2)` с сообщением. Guard: `tests/test_t10_empty_population.py`.
+- **T10 fix 2 (`experiments/context_engine/compose_eval.py:64`):** `wrong/total if total else 0.0` —
+  деление защищено, но фолбэк **0.0 = идеальный балл**, то есть правдоподобный ложный PASS.
+  Заменено на `raise ValueError`. Это хуже падения.
+- **T10 fix 3 (README-бейдж):** заявлял 2053 теста, коллектор даёт **2005/2103 collected**.
+  Число не воспроизводится → **README откачен вместе с auto-sync**, запись в KNOWN_ISSUES (см. ниже).
+
+## [2026-09-30] ИНЦИДЕНТ: авто-синк KNOWN_ISSUES (+267 строк) откачен
+
+- **Симптом:** `intel_trigger_reindex(mode="full")` запустил `AutoDocUpdater` и **дописал 267 строк**
+  в отслеживаемый `KNOWN_ISSUES.md`. Никто не просил, никто не заметил; без `git status` это ушло бы в коммит.
+- **Root cause:** побочный эффект полного реиндекса, §19.9: операция, считающаяся «просто фоновой»,
+  обязана сама давать список из��енённых трекнутых файлов.
+- **Fix:** `git checkout -- KNOWN_ISSUES.md README.md experiments/planted_break/results.json`.
+  Контент не потерян — источник `AGENT_DIARY.md`.
+- **Guard:** перед коммитом всегда `git status` + `git diff --stat` по трекнутым файлам;
+  авто-генератор не должен быть единственной причиной изменения доски.
+
+## [2026-09-30] guard-comparison (Tirthahq/crystal-memory vs наш pitfalls-registry)
+
+- **Идея:** применить к чужому коду НАШ реестр ловушек как линзу, а не общие слова. Результат:
+  **5 его находок = наши собственные оплаченные уроки** (P-002/P-011/P-016/P-018/P-019).
+- **P-018 измерен:** 15 писателей относительного пути, **4 идиомы** (as_posix ×5, replace('\\','/') ×2,
+  replace(os.sep) ×2, НЕ нормализовано ×8), **общих хелперов 0**. Сравнений computed-rel с литералом:
+  2 с нормализацией / **5 без** (`librarian.py:203,236`, `node-health.py:142`,
+  `build-node-index.py:83`, `store_caps.py:16`). В ОДНОМ файле librarian.py нормализация применена
+  в :238 и НЕ применена в :203/:236 → «правило знаем, не применяем» (наш P-019), не незнание.
+- **Самокоррекция замера (T4):** первая версия скрипта дала «3 идиомы» (не распознала литеральную
+  форму `.replace('\\','/')`) и **завысила** счётчик сравнений до 43, включив строковые литералы
+  selftest-входов. Исправлено на 4 идиомы и 5 сравнений. **Завышать счётчик у чужого кода — ровно
+  тот класс, который ему предъявляем**; guard: авто-подсчёт всегда показывать сами сайты.
+- **Инфраструктура (Проверено Test-Path):** нет CI / pyproject / setup / Makefile / pre-commit /
+  CHANGELOG / CONTRIBUTING / SECURITY. Есть только LICENSE. Следствие измеримо: 3 падающих selftest
+  **невидимы** для проекта; у нас тот же класс ловится на первом коммите.
+- **Где ОН сильнее нас (честно):** (1) трёхсостояние pass/fail/inconclusive как КОНТРАКТ
+  инструмента, поймал на нём инверсию `test "$(aws ...)" != Online`; у нас CANNOT VERIFY разбросан
+  и не зашит в контракт. (2) дисциплина `n=44`, Fisher p=0.025 + честная оговорка «порог 8 выбран
+  после просмотра данных, Bonferroni не проходит» — у нас таких оговорок почти нет. (3) 20 кристаллов
+  против 731 строки дневника: **соотношение полезного к объёму лучше примерно в 10 раз**.
+- **Топ доработок (90% ценности в первых двух):** (1) один `_rel()` + контрактный тест с
+  негативным контролем — ~1 час, закрывает P-018 целиком; (2) CI на selftest ubuntu+windows — ~30 мин.
+  Далее: `python3`→`sys.executable` в 49 доктринальных строках; `encoding=` в 14 subprocess;
+  `os.replace` не терять состояние молча; `/dev/console`; ключ леджера `basename`→`relpath`;
+  `node-health.py:142`; одна строка в README про границу поддержки.
+- **Артефакты:** `experiments/foreign_repo_audit/{GUARD_COMPARISON.md,GUARD_AUDIT.txt,
+  audit_vs_our_guards.py}`.
+- **Границы:** macOS/Linux CANNOT TEST; большие файлы прочитаны выборочно; 45 находок ARCLUX не
+  разбирались (ложные на CLI-скриптах).
+
+## [2026-09-30] windows-portability (Tirthahq/crystal-memory) — Status: 8 CONFIRMED / 4 REFUTED
+
+- **Манифест заморожен ДО чтения кода:** `experiments/windows_portability/frozen/HYPOTHESES.md`
+  sha256 `380ba9ca` (14 гипотез, 5 заявленных ограничений L1-L5, 6 red-team атак R1-R6).
+- **X1 CONFIRMED (главное):** `node-health.py:142` не нормализует `os.sep`, `:151` (через 9 строк)
+  нормализует. На Windows `'wiki/schema' in rel` = False → файл-пример НЕ исключается, его
+  `[[link]]` попадает в отчёт как dangling. Автор ЗНАЕТ правило (нормализует в :113, :151,
+  отбрасывает ссылки с `\` в :145) — применено непоследовательно. Класс = его же
+  «wall and report can never disagree».
+- **X5b CONFIRMED:** `crystal_act._save` → `os.replace` при живом хэндле бросает PermissionError
+  (WinError 5), `except` проглатывает и удаляет tmp → **инкремент ротации теряется молча**.
+  Блокировок в репо НЕТ (свип: fcntl/flock/msvcrt = 0 мест), т.е. os.replace — единственная защита,
+  и на Windows она заменяется на «тихо выбросить состояние». Ровно тот вред, что комментарий
+  :240-244 описывает как причину атомарной записи.
+- **X2 CONFIRMED:** `crystal_inject.py:67` `os.path.getmtime("/dev/console")` → FileNotFoundError,
+  except → `nosession`. Канал доставляет, все сессии делят один id, счётчик ротации не растёт. Молча.
+- **X3 CONFIRMED (независимо от платформы):** ключ леджера = `os.path.basename` → две заметки
+  `memory/wiki/a.md` и `memory/design/a.md` дают ОДИН ключ `act-session:S:bash:a.md`.
+- **X12 CONFIRMED (для статьи):** `crystal_act.py:388-403` `match_specificity()` — измеренный
+  сигнал релевантности (n=44, ≥8 симв → 71.4% vs 33.3%, Fisher p=0.025, честная оговорка что
+  порог пост-хок и Bonferroni не проходит) — **не входит в ключ `order()`**. Его же докстринг:
+  «order() ranks by FAIRNESS … which is deliberate and is not relevance». Тезис follow-up
+  («the fix is order, not volume: rank the matched reminders») предлагает то, что его код уже
+  измерил и НЕ подключил. Возможно, их head-to-head «free word overlap» переизобретает
+  match_specificity, и tie-break на 42 метки поставлен не туда.
+- **REFUTED (харнесс умеет говорить «нет»):** X4 (сирота после таймаута — нет), X6 (зарезервированные
+  имена aux/con/nul/prn создаются нормально), X9 (Windows pathlib принимает `/` при конструировании —
+  риск только в строковом сравнении, это X1), C1=0 мест блокировок.
+- **CONFUTED-PASS:** X7 `st_mtime` на NTFS точен (0.0000 ч / 25.0000 ч) — ворота возраста целы.
+- **X10:** 33 строгих `open(encoding=utf-8)` против 9 tolerant в одном коде; валидный cp1251 →
+  UnicodeDecodeError. Место падения произвольно.
+- **X11:** установка только `install.sh`, нет `.ps1/.cmd/.bat`; ничто не сообщает «вне поддержки».
+  **Это и есть честный вывод, а не «баги»:** L1 — Windows вне заявленной поддержки, мы измеряем
+  НЕВИДИМОСТЬ границы, а не регрессию.
+- **Побочный эффект, который я вызвал:** `intel_trigger_reindex(mode=full)` на чужом проекте
+  запустил AutoDocUpdater и **дописал 241 строку** авто-синка в наш tracked `KNOWN_ISSUES.md`.
+  Не наш контент → кандидат на revert. Guard на будущее: смена проекта MCP + full reindex =
+  считать docs-грязь своим действием и проверять `git status` после.
+- **Артефакты:** `experiments/windows_portability/{RESULTS.md,STATIC_SWEEP.txt,EXPERIMENTS_RAW.txt,
+  X5B_RAW.txt,sweep_static.py,experiments.py,x5b_ledger_loss.py}`.
+- **R6:** эталонный клон не мутирован — 96/96 файлов, изменено 0.
+
+## [2026-09-30] claims-audit — Status: partial (11 CONFIRMED / 1 partial / 2 NOT REPRODUCED / 1 not runnable / 2 CANNOT VERIFY)
+
+- **Root Cause (зеркало поправки Тома 84->107):** freeze-before-look применялся к ВХОДАМ экспериментов,
+  но не к ЧИСЛАМ в публикациях. Аудит: манифест 14 претензий заморожен ДО прогона
+  (sha256 6bd0ab75, experiments/claims_audit/frozen/CLAIMS_MANIFEST.md), затем пересчёт из сырья.
+- **A10 NOT REPRODUCED (не регрессия):** `orphan 30s -> 120ms` недостижим по дизайну — ORPHAN
+  удалён из classify_holder намеренно (database_lock.py:81-84, R3TF 2026-08-26, commit 7974d981:
+  TerminateProcess убивал живые MCP). Остальные кейсы живы: healthy 1507ms, 20/20 тестов.
+  Публикация должна нести `SUPERSEDED`, а не переписываться.
+- **A11 silent no-op:** exp_vacuous_scan.py:20 зашит на несуществующий `experiments/tests` ->
+  отдаёт "0% вакуумных" и rc=0. Guard, который не умеет падать (тот же класс, что A14).
+  Перезамер (логика оригинала дословно, путь перенаправлен): 2053 total / 2032 proven / 6 vacuous;
+  3 опубликованных вакуумных воспроизвелись ДОСЛОВНО.
+- **A13 not runnable:** тот же off-by-one `parent.parent` -> FileNotFoundError.
+  **Класс:** A13 падает громко, A11 молча — молчащий отдаёт ложное "0%". Guard: добавить проверку
+  непустоты population в сканеры перед отчётом.
+- **A7 sha mismatch (CRLF):** записанный sha256 входа `8657a7e3` = хэш LF-нормализованного текста,
+  на диске CRLF -> `4fe95f2b`. Числа 80%/70% верны, провенанс байт-воспроизводим только после
+  нормализации. Правило: `sha256` считать от нормализованного текста ИЛИ `.replace(b'\\r\\n',b'\\n')`.
+- **A9 partial:** 100% (11/11) подтверждён; "8% до фикса" не перезапускаемо — кода до фикса нет.
+- **Guard на будущее:** число, которое нельзя воспроизвести сегодняшней командой, публикуется как
+  `measured on <commit>, superseded by <X>`, иначе через месяц оно мертво для всех.
+- **Артефакты:** experiments/claims_audit/{RESULTS.md,frozen/,reaggregate_a1.py,reaggregate_a4_a5.py,
+  a11_vacuous_repro.py,a14_verify_gate_posix.py}. B1/B2 (живые LLM) — CANNOT VERIFY.
+- **Побочно:** осьротевший holder pid=548 держит experiments/lock_zombie/bench_tmp/
+  (sleep 600s) — сам себя удалит; не убивать руками.
+
 ## Key Historical Decisions
 
 - **F0c-хвост + R1-ротация (2026-09-29):** `.local/` был в .gitignore, но оставался tracked (task state «untracked» — неверно, CONTRADICTION) → `git rm --cached` 7 файлов (диск+F0-интент сохранены, CI не ссылается). `reconstruct_judge_cot.DEFAULT_DB` → `Path.home()` (тот же резолв, портативно); WORKDIR оставлен (исторический фильтр БД). o1/p2 usage → `<repo-root>`. KNOWN_ISSUES 448→197: 33 closed-блока удалены, тела проверены в архиве (дедуп, потерь нет). Остаток: тесты/фикстуры с машинным префиксом пути (парные ассерты) + старые data-дампы + docs/archive — принято как остаток, не линкуется в ответе Тому. Gates: check_known_issues OK, personal/overlap/frozen 4 passed.
