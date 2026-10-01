@@ -48,6 +48,10 @@ STEPS = [
     ("G2: publishable-number controls", [PY, str(G / "heldout_g2_publishable.py")], 0),
     ("G5 denominator: no unregistered numbers", [PY, str(G / "g5_denominator.py")], 0),
     ("suite: portable, no author-absolute paths", [PY, str(G / "heldout_relocation.py")], 0),
+    # The command files (.opencode/command/) cite these exact invocations. If the CLI
+    # changes shape, the commands become prose that cannot be run, which is worse than
+    # having no command at all.
+    ("CLI: every documented invocation works", [PY, str(G / "heldout_cli_contract.py")], 0),
     ("protocol guards: can fail", [PY, str(REPO / "scripts" / "audit_protocol_guards.py"), "--selftest"], 0),
 ]
 
