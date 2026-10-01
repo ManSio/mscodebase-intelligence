@@ -61,7 +61,14 @@ def wrong_ratio(sections: list) -> float:
         else:
             wrong += t
     total = needed + wrong
-    return wrong / total if total else 0.0
+    # T10: 0.0 here is the PERFECT score, not an unknown. Returning it on an
+    # empty population produces a plausible false PASS. Refuse instead.
+    if total == 0:
+        raise ValueError(
+            f"wrong_ratio: population empty ({len(sections)} sections, 0 tokens) — "
+            "the fraction is undefined; it is not 0.0"
+        )
+    return wrong / total
 
 
 def main() -> None:
