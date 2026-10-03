@@ -25,6 +25,11 @@ from pathlib import Path
 # overridable only to make the timeout path testable without a 15-minute wait.
 GATE_TIMEOUT = int(os.environ.get("MSCB_PRECOMMIT_GATE_TIMEOUT", "900"))
 
+# Indirection so a test can stub THIS module's spawn without patching the
+# global `subprocess` module — a global patch leaks into every other test in
+# the same worker (CI: 14 unrelated failures).
+Popen = subprocess.Popen
+
 
 # §9 п.9 (ENCODING SAFETY): при выводе emoji-строк из stdout скриптов
 # (например, «📊 Итог: 20 ✅ / 1 ❌») в cp1251-консоль падает
@@ -64,7 +69,7 @@ def run_script(script_path: str, label: str, extra_args: list[str] | None = None
     print(f"  ⏳ {label}: выполняется (бюджет {GATE_TIMEOUT}s)…", flush=True)
     # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock
     # в фоновых потоках; encoding="utf-8" — декодирование stdout в utf-8.
-    proc = subprocess.Popen(
+    proc = Popen(
         [sys.executable, str(script), *(extra_args or [])],
         cwd=str(project_root),
         stdout=subprocess.PIPE,
