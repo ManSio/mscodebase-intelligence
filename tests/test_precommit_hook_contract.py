@@ -16,6 +16,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -100,34 +101,43 @@ class _FakeProc:
         self.killed = True
 
 
-def _old_hook_module():
-    """Load the committed (pre-fix) hook. Returns (module, holder_path)."""
-    holder = ROOT / "build" / f"hook-negative-control-{os.getpid()}"
-    holder.parent.mkdir(parents=True, exist_ok=True)
-    # P-14 live: the old hook is full of Cyrillic, and `text=True` would decode
-    # git's UTF-8 output through the cp1251 console codepage.
-    src = subprocess.run(["git", "-C", str(ROOT), "show", "HEAD:.githooks/pre-commit"],
-                         capture_output=True, encoding="utf-8", errors="replace",
-                         timeout=60)
-    assert src.returncode == 0, src.stderr
-    holder.write_text(src.stdout, encoding="utf-8")
-    mod = _load_hook(holder, None, "hook_prefix")
-    assert mod.find_project_root() == ROOT
-    return mod, holder
+def _old_run_script(script_path, label, _Popen=None):
+    """The pre-fix hook body, verbatim in behaviour.
 
-
-def test_prefix_hook_raises_on_timeout_negative_control(tmp_path):
-    """NEGATIVE CONTROL: the pre-fix hook could not answer a timeout at all.
-
-    Driven by a fake Popen rather than a real sleep, because the pre-fix hook
-    hardcodes its 900s budget and ignores the env override — a real sleep would
-    only prove that 60 < 900.
+    Kept inline on purpose. Two earlier versions of this control were worse:
+    one copied the old hook into the repo (tripped
+    `test_no_tracked_file_mutation`), the other read it back with `git show HEAD`
+    — which silently stopped being a control the moment the fix was committed.
     """
-    mod, holder = _old_hook_module()
-    try:
-        mod.subprocess.Popen = lambda *a, **k: _FakeProc()
-        with pytest.raises(subprocess.TimeoutExpired):
-            mod.run_script(_gate(tmp_path, "pass"), "slowgate")
-    finally:
-        holder.unlink(missing_ok=True)
-    assert not holder.exists(), "temp copy of the old hook left behind"
+    proc = (_Popen or subprocess.Popen)(
+        [sys.executable, script_path],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        encoding="utf-8", errors="replace",
+    )
+    stdout, _ = proc.communicate(timeout=900)   # no try/except — that was the bug
+    if proc.returncode != 0:
+        print(f"  ❌ {label}: exit {proc.returncode}")
+        if stdout:
+            for line in stdout.splitlines()[-10:]:
+                print(f"    {line}")
+        return False
+    print(f"  ✅ {label}: OK")
+    return True
+
+
+def test_prefix_hook_could_not_answer_a_timeout(tmp_path):
+    """NEGATIVE CONTROL: the pre-fix hook had no verdict for a slow gate."""
+    gate = _gate(tmp_path, "pass")
+    with pytest.raises(subprocess.TimeoutExpired):
+        _old_run_script(gate, "slowgate", _Popen=lambda *a, **k: _FakeProc())
+
+
+def test_fixed_hook_answers_the_same_timeout(tmp_path, capsys):
+    mod = _load_hook(HOOK, 2, "hook_fixed_timeout")
+    proc = _FakeProc()
+    mod.subprocess.Popen = lambda *a, **k: proc
+    assert mod.run_script(_gate(tmp_path, "pass"), "slowgate") is False
+    assert proc.killed, "the hung gate process was not killed"
+    out = capsys.readouterr().out
+    assert "TIMEOUT" in out and "slowgate" in out
+    assert "Traceback" not in out

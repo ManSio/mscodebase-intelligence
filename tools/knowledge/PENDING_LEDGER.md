@@ -126,7 +126,7 @@ CLAIM CHECK FAILED: 2 of 4 published numbers contradict reality
 >   36% за 600s, то есть ≈1670s против капа 900s → ни один коммит не мог пройти.
 > - **(3) `ruff_gate` был вечно красным и немым:** звал `python -m ruff`, а пакет ruff
 >   0.15.22 в venv **без `__main__`** → выход 1 с пустым выводом. Guard
->   `tests/test_ruff_gate_contract.py` (6).
+>   `tests/test_ruff_gate.py (+2 кейса).
 > - **Проверка:** `MSCB_PRECOMMIT_FAST=1 .githooks/pre-commit` → **10/10 ✅, exit 0, 12 с**.
 > - **Открыто:** почему сюита втрое медленнее исторических 108-130s; полный прогон без
 >   fast-режима (~28 мин) не делался.
