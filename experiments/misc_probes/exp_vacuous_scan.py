@@ -17,7 +17,14 @@ from pathlib import Path
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
-TESTS_DIR = Path(__file__).resolve().parent.parent / "tests"
+# FIX (2026-09-30, T-04, protocol §19.6 / T10). This pointed at experiments/../tests =
+# experiments/tests, which does not exist. Run today it found 0 tests, printed
+# "0 proven / 0 vacuous, доля 0.0%" and exited rc=0 -- a silent zero on an empty
+# population, which reads as "everything is provable" and is the exact failure mode
+# the guard below now prevents. Root cause of the bug: a relative path resolved from
+# the script's location, not the repo root (our P-012).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+TESTS_DIR = REPO_ROOT / "tests"
 SKIP_FILES = {"conftest.py"}
 
 # Конструкции, способные уронить тест
@@ -53,6 +60,12 @@ def is_skipped(node) -> bool:
 
 
 def main():
+    # REFUSE on an empty population. `max(total, 1)` further down only prevents a
+    # ZeroDivisionError; it still prints "доля 0.0%" and exits 0, which is a lie.
+    if not TESTS_DIR.is_dir():
+        print(f"REFUSING: tests directory does not exist: {TESTS_DIR}", file=sys.stderr)
+        sys.exit(2)
+
     total = 0
     proven = 0
     unproven = []
@@ -91,6 +104,11 @@ def main():
     print("EXP-2: Скан тестов на вакуумность (AST, синтаксический)")
     print(f"Каталог: {TESTS_DIR}")
     print("=" * 72)
+    if total == 0:
+        # A scan that found no tests has no verdict. Reporting 0% here is the bug.
+        print(f"REFUSING: scanned {TESTS_DIR} and found 0 test functions — "
+              "an empty population has no provability rate", file=sys.stderr)
+        sys.exit(2)
     print(f"Всего тестов (test_* функций и методов Test*): {total}")
     print(f"  proven (есть assert/raises/warns/fail/raise): {proven}")
     print(f"  вакуумных (не могут упасть):                  {len(unproven)}")

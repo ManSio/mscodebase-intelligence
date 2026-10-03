@@ -1,0 +1,74 @@
+{
+  "rederived": [
+    {
+      "run": "run_deepseek-v4.1-flash_1.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_deepseek-v4.1-flash_2.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_deepseek-v4.1-flash_3.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_longcat-2.0_1.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_longcat-2.0_2.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_longcat-2.0_3.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_longcat-2.0_4.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_longcat-2.0_5.txt",
+      "valid": false,
+      "fails": [
+        "must-NONE #11='an-instrument-that-answers-a-different-question-can-be-wrong-two-ways'"
+      ],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_qwen3.7-plus_1.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_qwen3.7-plus_2.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    },
+    {
+      "run": "run_qwen3.7-plus_3.txt",
+      "valid": true,
+      "fails": [],
+      "item16": "NONE"
+    }
+  ],
+  "recorded_valid_total": 10,
+  "mismatches": []
+}
