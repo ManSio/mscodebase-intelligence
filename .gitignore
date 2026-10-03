@@ -151,6 +151,7 @@ scripts/update_zed_models.py
 # Dev notes — не для publish
 DEV_EXP.md
 # Экспериментальные артефакты — не пушить
+.pr_work/
 experiments/__pycache__/
 experiments/*_results.json
 experiments/*_results.csv
@@ -231,3 +232,7 @@ _measure_*.py
 # E17 experiment: regenerable prompt shards (rebuild via e17_export_*.py)
 experiments/bootstrap/e17_shards/*.txt
 experiments/bootstrap/e17_judge/*.txt
+
+# Written by tests/test_planted_break_gate.py on every run (atomic, read by nobody).
+# Tracked, it dirties git status and invites committing a timestamp.
+experiments/planted_break/results.json
