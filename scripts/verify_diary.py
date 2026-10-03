@@ -445,10 +445,11 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         # is not installed (minimal env), so the gate never breaks on a missing
         # optional tool.
         pytest_exe = sys.executable
-        if sys.platform == "win32":
-            _pythonw = Path(sys.executable).parent / "pythonw.exe"
-            if _pythonw.exists():
-                pytest_exe = str(_pythonw)
+        # Раньше здесь на Windows выбирался pythonw.exe, чтобы не мигало окно консоли.
+        # Это ломало gate-zero: у pythonw нет консоли, поэтому subprocess с пайпами
+        # падает на каждом тесте, который зовёт git или другой процесс
+        # (72 failed + 6 errors, все OSError [WinError 50], 2026-10-03).
+        # От консольного окна спасает CREATE_NO_WINDOW ниже, а не pythonw.
         pytest_cmd = [
             pytest_exe, "-m", "pytest", "tests/",
             "-q", "--tb=line", "--no-header",
