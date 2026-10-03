@@ -1,10 +1,10 @@
-"""The pre-commit hook must return a verdict for every gate, including a timeout.
+﻿"""The pre-commit hook must return a verdict for every gate, including a timeout.
 
 Observed 2026-10-03: the hook produced no output at all and had to be bypassed
 with `--no-verify`. Two causes, both fixed here:
   1. nothing was printed before a gate ran, so a slow gate looked like a hang;
   2. `proc.communicate(timeout=...)` raised an UNHANDLED TimeoutExpired, so a
-     slow gate killed the hook with a traceback and no verdict — which reads
+     slow gate killed the hook with a traceback and no verdict вЂ” which reads
      exactly like "the gate is broken".
 
 The negative control at the bottom runs the pre-fix hook from git and asserts it
@@ -107,21 +107,21 @@ def _old_run_script(script_path, label, _Popen=None):
     Kept inline on purpose. Two earlier versions of this control were worse:
     one copied the old hook into the repo (tripped
     `test_no_tracked_file_mutation`), the other read it back with `git show HEAD`
-    — which silently stopped being a control the moment the fix was committed.
+    вЂ” which silently stopped being a control the moment the fix was committed.
     """
     proc = (_Popen or subprocess.Popen)(
         [sys.executable, script_path],
         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         encoding="utf-8", errors="replace",
     )
-    stdout, _ = proc.communicate(timeout=900)   # no try/except — that was the bug
+    stdout, _ = proc.communicate(timeout=900)   # no try/except вЂ” that was the bug
     if proc.returncode != 0:
-        print(f"  ❌ {label}: exit {proc.returncode}")
+        print(f"  вќЊ {label}: exit {proc.returncode}")
         if stdout:
             for line in stdout.splitlines()[-10:]:
                 print(f"    {line}")
         return False
-    print(f"  ✅ {label}: OK")
+    print(f"  вњ… {label}: OK")
     return True
 
 
@@ -135,9 +135,10 @@ def test_prefix_hook_could_not_answer_a_timeout(tmp_path):
 def test_fixed_hook_answers_the_same_timeout(tmp_path, capsys):
     mod = _load_hook(HOOK, 2, "hook_fixed_timeout")
     proc = _FakeProc()
-    mod.subprocess.Popen = lambda *a, **k: proc
+    mod.Popen = lambda *a, **k: proc
     assert mod.run_script(_gate(tmp_path, "pass"), "slowgate") is False
     assert proc.killed, "the hung gate process was not killed"
     out = capsys.readouterr().out
     assert "TIMEOUT" in out and "slowgate" in out
     assert "Traceback" not in out
+
