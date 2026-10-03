@@ -20,11 +20,20 @@ spec.loader.exec_module(mod)
 
 
 def test_selftest_passes():
-    """The guard's own negative control must be green."""
+    """The guard's own negative control must be green.
+
+    encoding/errors are explicit for the same reason as everywhere else in this
+    suite: the child prints Cyrillic, and on a Windows runner the console-less
+    session plus tests/conftest.py's CREATE_NO_WINDOW patch left p.stdout None
+    here, so the `in` test raised TypeError instead of reporting a real failure.
+    A control that crashes on the environment teaches people to ignore it.
+    """
     p = subprocess.run([sys.executable, str(SCRIPT), "--selftest"],
-                       capture_output=True, text=True, timeout=120)
-    assert p.returncode == 0, p.stdout + p.stderr
-    assert "SELFTEST PASSED" in p.stdout
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
+    out = p.stdout or ""
+    assert p.returncode == 0, (out or "") + (p.stderr or "")
+    assert "SELFTEST PASSED" in out, f"stdout was {out!r}"
 
 
 def test_falsifier_and_expected_fail_are_independent():
