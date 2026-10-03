@@ -16,9 +16,19 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+# Per-gate budget. 900s is the historical value (documented flakiness at 300s);
+# overridable only to make the timeout path testable without a 15-minute wait.
+GATE_TIMEOUT = int(os.environ.get("MSCB_PRECOMMIT_GATE_TIMEOUT", "900"))
+
+# Indirection so a test can stub THIS module's spawn without patching the
+# global `subprocess` module — a global patch leaks into every other test in
+# the same worker (CI: 14 unrelated failures).
+Popen = subprocess.Popen
 
 
 # §9 п.9 (ENCODING SAFETY): при выводе emoji-строк из stdout скриптов
@@ -42,7 +52,7 @@ def find_project_root() -> Path | None:
     return None
 
 
-def run_script(script_path: str, label: str) -> bool:
+def run_script(script_path: str, label: str, extra_args: list[str] | None = None) -> bool:
     """Запускает скрипт и возвращает True если успешно."""
     project_root = find_project_root()
     if project_root is None:
@@ -54,10 +64,13 @@ def run_script(script_path: str, label: str) -> bool:
         print(f"  ⏭️  {label}: скрипт не найден ({script})")
         return True
 
+    # Печатаем ДО запуска: гейт с большим бюджетом (verify_diary тянет полный
+    # pytest) иначе выглядит как зависание — и его обходят через --no-verify.
+    print(f"  ⏳ {label}: выполняется (бюджет {GATE_TIMEOUT}s)…", flush=True)
     # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock
     # в фоновых потоках; encoding="utf-8" — декодирование stdout в utf-8.
-    proc = subprocess.Popen(
-        [sys.executable, str(script)],
+    proc = Popen(
+        [sys.executable, str(script), *(extra_args or [])],
         cwd=str(project_root),
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -69,22 +82,43 @@ def run_script(script_path: str, label: str) -> bool:
     # нагрузкой) — кап 120s давал флаки TimeoutExpired на коммитах (2026-08-08);
     # 300→900 (2026-08-24): сюита выросла (live-sync + predict-наборы), 300s
     # начал флакать при параллельной нагрузке.
-    stdout, _ = proc.communicate(timeout=900)
+    try:
+        stdout, _ = proc.communicate(timeout=GATE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        # Раньше это было необработанное исключение: хук умирал с трейсбеком и
+        # БЕЗ вердикта — его путали с «гейт сломан» и обходили через --no-verify.
+        # Таймаут — это вердикт: называем гейт, который не ответил.
+        proc.kill()
+        proc.communicate()
+        print(f"  ❌ {label}: TIMEOUT >{GATE_TIMEOUT}s — гейт не ответил, вердикта нет",
+              flush=True)
+        return False
     if proc.returncode != 0:
-        print(f"  ❌ {label}: exit {proc.returncode}")
+        print(f"  ❌ {label}: exit {proc.returncode}", flush=True)
         if stdout:
             for line in stdout.splitlines()[-10:]:
                 print(f"    {line}")
         return False
-    print(f"  ✅ {label}: OK")
+    print(f"  ✅ {label}: OK", flush=True)
     return True
 
 
 def main():
-    print("🔍 MSCodeBase pre-commit checks:")
+    print("🔍 MSCodeBase pre-commit checks:", flush=True)
     all_ok = True
 
-    all_ok &= run_script("scripts/verify_diary.py", "verify_diary")
+    # gate-zero тянет полный `pytest tests/`. Измерено 2026-10-03 на этой машине:
+    # 36% за 600s, то есть ~1670s — бюджет гейта (900s) не выдерживает НИ ОДНОГО
+    # коммита. Раньше это выглядело как «хук висит», и коммиты уходили в
+    # --no-verify. Поэтому fast-режим: полный прогон остаётся за CI, а локальный
+    # коммит говорит ВСЛУХ, что именно пропущено.
+    fast = os.environ.get("MSCB_PRECOMMIT_FAST") == "1"
+    diary_args = ["--skip-gate-zero"] if fast else None
+    if fast:
+        print("  ⚠️  FAST: полный `pytest tests/` (gate-zero) ПРОПУЩЕН — "
+              "покрытие этого коммита обязана взять CI.", flush=True)
+
+    all_ok &= run_script("scripts/verify_diary.py", "verify_diary", diary_args)
     all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
@@ -97,9 +131,9 @@ def main():
     all_ok &= run_script("scripts/ruff_gate.py", "ruff_gate")
 
     if not all_ok:
-        print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.")
+        print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.", flush=True)
         sys.exit(1)
-    print("\n✅ All pre-commit checks passed.")
+    print("\n✅ All pre-commit checks passed.", flush=True)
     sys.exit(0)
 
 
