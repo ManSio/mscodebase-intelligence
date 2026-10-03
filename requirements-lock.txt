@@ -8,7 +8,7 @@ cffi==2.1.0
 click==8.4.2
 colorama==0.4.6
 # Bumped 2026-08-08: 49.0.0 -> 50.0.0 (PYSEC-2026-3552, fix 50.0.0).
-# Verified: pyjwt 2.13.0 + cryptography 50.0.0 RS256 roundtrip + import mcp ok.
+# Verified: pyjwt 2.15.0 + cryptography 50.0.0 RS256 roundtrip + import mcp ok.
 cryptography==50.0.0
 deprecation==2.1.0
 filelock==3.31.0
@@ -49,7 +49,7 @@ pylance==9.0.0
 basedpyright==1.39.10
 nodejs-wheel-binaries==24.19.0
 Pygments==2.20.0
-PyJWT==2.13.0
+PyJWT==2.15.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-multipart==0.0.32
@@ -96,5 +96,5 @@ typer==0.27.0
 typing-inspection==0.4.2
 typing_extensions==4.16.0
 tzdata==2026.3
-urllib3==2.7.0
+urllib3==2.8.0
 uvicorn==0.51.0
