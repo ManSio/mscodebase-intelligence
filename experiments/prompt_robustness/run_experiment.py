@@ -124,6 +124,12 @@ class CliTransport(Transport):
             proc.communicate()
             return Reply("", None, "timeout", f">{self.timeout}s")
         text = ANSI.sub("", ((out or b"") + b"\n" + (err or b"")).decode("utf-8", errors="replace"))
+        # КРИТИЧНО: ответ модели приходит в stdout, баннер "> build · model" — в stderr.
+        # Склейка out+err ставит баннер ПОСЛЕ ответа, и «всё, что после баннера» — пусто,
+        # т.е. прежний харнесс молча выбрасывал сам ответ: все 12 вызовов пилота пришли
+        # со статусом 'empty'. Тело ответа берём ТОЛЬКО из stdout.
+        out_text = ANSI.sub("", (out or b"").decode("utf-8", errors="replace"))
+        err_text = ANSI.sub("", (err or b"").decode("utf-8", errors="replace"))
 
         m = BUILD_MODEL.search(text)
         served = m.group(1) if m else None
@@ -133,9 +139,11 @@ class CliTransport(Transport):
         if "Cannot connect" in text or "Error:" in text:
             return Reply("", served, "error", text[:200])
 
-        body = self._strip_banner(text)
+        body = self._strip_banner(out_text)
         if not body.strip():
-            return Reply("", served, "empty", "no answer text after banner")
+            return Reply("", served, "empty",
+                        f"stdout empty after banner; stdout={out_text[:120]!r} "
+                        f"stderr={err_text[:120]!r}")
         return Reply(body, served, "ok")
 
     @staticmethod
@@ -293,12 +301,15 @@ def run_cell(transport: Transport, model: str, prompt: str, workdir: Path, fact:
     return Run(prompt, "ok", extract_fact(reply.text, fact), abst, reply.served_model, reply.text)
 
 
-def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 2,
+def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 3,
               timeout: int = 300) -> dict:
     stamp = datetime.now(timezone.utc).strftime("%H%M%S")
     served: set[str] = set()
     per_lang: dict[str, dict] = {}
     t0 = time.time()
+    # rows живут ВНЕ цикла по языкам: раньше список пересоздавался на каждой руке,
+    # и в отчёт попадал только последний язык — число для RU было недоказуемо.
+    rows: list[dict] = []
 
     for lang in LANGS:
         base_correct = 0
@@ -306,7 +317,6 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
         inv_num = inv_den = 0            # conditioned on base correct
         ovr_num = ovr_den = 0
         abst = invalid = total = 0
-        rows: list[dict] = []
 
         for case in data["aggregate"]:
             blk = case.prompts[lang]
@@ -317,23 +327,32 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                          f"{model.split('/')[-1]}_{lang}_{case.id}_base{i}", fact)
                 for i in range(base_repeats)
             ]
-            for r in base_runs:
+            for bi, r in enumerate(base_runs):
                 served.add(r.served_model or "?")
                 if r.status == "ok":
                     total += 1
                     abst += int(r.abstained)
                     if r.abstained:
                         r.matched = None
-                    else:
-                        seed_total += 1
-                        seed_same += int(bool(r.matched))
                 else:
                     invalid += 1
+                rows.append({
+                    "case": case.id, "axis": case.axis, "lang": lang,
+                    "which": f"base{bi}", "prompt": blk["base"],
+                    "status": "abstain" if (r.status == "ok" and r.abstained) else r.status,
+                    "matched": r.matched, "abstained": r.abstained,
+                    "text": r.text, "error": r.error,
+                })
 
             valid_base = [r for r in base_runs if r.status == "ok" and not r.abstained]
             base_ok = bool(valid_base) and all(r.matched for r in valid_base)
-            if valid_base:
-                base_correct += 1
+            base_correct += int(base_ok)
+            # seed_stability = СОГЛАСОВАННОСТЬ повторов, а не правильность.
+            # Стабильно-неверная модель обязана давать 1.0 при base_accuracy = 0.0;
+            # прежний код считал долю верных и путал две разные величины.
+            if len(valid_base) >= 2:
+                seed_total += 1
+                seed_same += int(len({bool(r.matched) for r in valid_base}) == 1)
 
             for j, para in enumerate(blk["paraphrases"]):
                 pr = run_cell(transport, model, para,
@@ -351,7 +370,7 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                 if pr.abstained:
                     rows.append({"case": case.id, "axis": case.axis, "lang": lang,
                                  "which": f"p{j}", "prompt": para, "status": "abstain",
-                                 "abstained": True, "text": pr.text[:400]})
+                                 "abstained": True, "text": pr.text, "error": pr.error})
                     continue
                 agree = bool(pr.matched) == base_ok
                 ovr_den += 1
@@ -362,7 +381,7 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                 rows.append({"case": case.id, "axis": case.axis, "lang": lang,
                              "which": f"p{j}", "prompt": para, "status": "ok",
                              "matched": pr.matched, "agrees_with_base": agree,
-                             "base_ok": base_ok, "text": pr.text[:400]})
+                             "base_ok": base_ok, "text": pr.text, "error": pr.error})
 
         per_lang[lang] = {
             "base_accuracy": round(base_correct / len(data["aggregate"]), 4),
@@ -395,38 +414,67 @@ def decide(report: dict, threshold: float = THRESHOLD, min_den: int = MIN_INVARI
     reasons: list[str] = []
     nums: list[float] = []
     unknown = False
+    per_lang = {}
     for lang, m in report["per_lang"].items():
         v = m["invariance_given_base_correct"]
-        if v is None or m["invariance_given_base_correct_den"] < min_den:
+        den = m["invariance_given_base_correct_den"]
+        per_lang[lang] = {"invariance": v, "den": den}
+        if v is None or den < min_den:
             unknown = True
-            reasons.append(f"{lang}: denominator {m['invariance_given_base_correct_den']} < {min_den} → UNKNOWN, not 0.0")
+            reasons.append(f"{lang}: denominator {den} < {min_den} → UNKNOWN, not 0.0")
             continue
         nums.append(v)
         if v < threshold:
             reasons.append(f"{lang}: invariance {v:.3f} < {threshold}")
     if unknown:
-        return {"verdict": "UNKNOWN", "reasons": reasons}
+        return {"verdict": "UNKNOWN", "per_lang": per_lang, "reasons": reasons}
     if not nums:
-        return {"verdict": "UNKNOWN", "reasons": ["no usable denominators"]}
-    mean = sum(nums) / len(nums)
-    verdict = "PASS" if mean >= threshold else "FAIL"
-    return {"verdict": verdict, "mean_invariance": round(mean, 4),
+        return {"verdict": "UNKNOWN", "per_lang": per_lang,
+                "reasons": ["no usable denominators"]}
+    # Вердикт по языкам НЕ усредняется: усреднение превращало RU=0.89 при EN=1.0
+    # в mean=0.945 → PASS, и вердикт противоречил собственному reasons (A1).
+    failed = [lg for lg, s in per_lang.items()
+              if s["invariance"] is not None and s["invariance"] < threshold]
+    verdict = "FAIL" if failed else "PASS"
+    return {"verdict": verdict, "per_lang": per_lang,
+            "mean_invariance_descriptive": round(sum(nums) / len(nums), 4),
+            "min_invariance": round(min(nums), 4),
+            "failed_langs": failed,
             "threshold": threshold, "reasons": reasons}
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
+def exit_code_for(verdicts: list[str]) -> int:
+    """Правило кодов возврата как ЧИСТАЯ функция (A4), чтобы его можно было
+    проверить без живых вызовов.
+
+    0 — успех (PASS) или контрольная рука (N/A)
+    1 — FAIL
+    2 — POPULATION ERROR (обрабатывается в main, сюда не попадает)
+    3 — UNKNOWN: «измерить не удалось», а не «провал»
+    """
+    if any(v == "FAIL" for v in verdicts):
+        return 1
+    if any(v == "UNKNOWN" for v in verdicts):
+        return 3
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="prompt-robustness harness")
     ap.add_argument("--transport", choices=["cli", "oracle", "planted"], default="cli")
     ap.add_argument("--models", default=",".join(MODELS))
     ap.add_argument("--case", default=None, help="substring filter (pilot)")
-    ap.add_argument("--repeats", type=int, default=2)
+    ap.add_argument("--dataset", default=None,
+                    help="path to dataset.json (default: frozen/dataset.json)")
+    ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     try:
-        data = load_dataset(case_filter=args.case)
+        ds_path = Path(args.dataset) if args.dataset else FROZEN
+        data = load_dataset(ds_path, case_filter=args.case)
     except PopulationError as e:
         print(f"POPULATION ERROR: {e}", file=sys.stderr)
         print("Метрика не вычисляется. Тихий ноль запрещён (§19.6).", file=sys.stderr)
@@ -480,11 +528,7 @@ def main() -> int:
     print(f"\nwritten: {out}")
 
     verdicts = [r["decision"]["verdict"] for r in reports]
-    if any(v == "FAIL" for v in verdicts):
-        return 1
-    if all(v in ("UNKNOWN", "N/A") for v in verdicts):
-        return 2
-    return 0
+    return exit_code_for(verdicts)
 
 
 if __name__ == "__main__":

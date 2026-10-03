@@ -183,6 +183,13 @@ experiments/compiler_concept*.json
 experiments/pagerank_out.txt
 experiments/exp_*.py
 experiments/research_internet_*.md
+# Сырые выгрузки чужих публикаций (дословный текст + личные данные авторов).
+# Хранить только ВНЕ репозитория: %LOCALAPPDATA%/mscodebase/audit-cache/.
+# В репозитории допустимы лишь свой вывод, sha256, URL и короткие цитаты.
+experiments/**/frozen/*_raw_fetch.*
+experiments/**/frozen/*.raw.*
+experiments/**/frozen/*_page_dump.*
+experiments/**/frozen/*_SCRAPED.*
 experiments/bootstrap/trace_result.json
 experiments/bootstrap/__pycache__/
 # Bootstrap Step 3: дефолтный trace_result.json в cwd (bootstrap_trace_plugin.py)
