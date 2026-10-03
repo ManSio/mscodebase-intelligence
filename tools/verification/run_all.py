@@ -50,6 +50,12 @@ STEPS = [
     ("gates: scope + decisive region declared (RT8)", [PY, str(G / "heldout_rt8_scope.py")], 0),
     ("G2: publishable-number controls", [PY, str(G / "heldout_g2_publishable.py")], 0),
     ("G5 denominator: no unregistered numbers", [PY, str(G / "g5_denominator.py")], 0),
+    # Benchmark decay guard: the badge and the census in README/WISDOM were 42, 118,
+    # 6 and 827 tests out of date respectively. Both were published numbers a reader
+    # could cite. The selftest proves the comparison can reject in BOTH directions —
+    # a one-sided `live <= stated` check passed an inflated badge and was caught here.
+    ("claims: check can reject both directions", [PY, str(G / "verify_public_claims.py"), "--selftest"], 0),
+    ("claims: published numbers reproduce today", [PY, str(G / "verify_public_claims.py")], 0),
     ("suite: portable, no author-absolute paths", [PY, str(G / "heldout_relocation.py")], 0),
     # The command files (.opencode/command/) cite these exact invocations. If the CLI
     # changes shape, the commands become prose that cannot be run, which is worse than
@@ -60,10 +66,13 @@ STEPS = [
 
 # Steps that SURFACE findings without deciding pass/fail. Marking a noisy guard as a gate
 # is worse than not gating: a red CI on untriaged noise trains everyone to ignore red.
-# Per В§19.5 the guard may not be published as a verdict until its false-positive share is
-# measured вЂ” so this is reported as an open measurement, not silently passed and not failed.
+# Per §19.5 the guard may not be published as a verdict until its false-positive share is
+# measured — so this is reported as an open measurement, not silently passed and not failed.
+# FP share MEASURED 2026-10-03 by scripts/triage_protocol_findings.py: 8 reported,
+# 5 false positives = 62.5%, 3 actionable. The number is surfaced WITH its false-positive
+# share; quoting "8 findings" alone would overstate the defects by 2.7x.
 SURFACE = [
-    ("protocol guards: findings (un-triaged, FP ratio UNMEASURED)",
+    ("protocol guards: findings (FP share measured: 62.5% of 8 reported)",
      [PY, str(REPO / "scripts" / "audit_protocol_guards.py")]),
 ]
 
@@ -98,8 +107,8 @@ def main() -> int:
         m = [x for x in out.splitlines() if "finding" in x.lower() and ":" in x]
         n = m[-1].split(":", 1)[1].strip() if m else "?"
         print(f"[OPEN] {name:52} {n}")
-        print("       neither a pass nor a fail: this guard's false-positive share is NOT measured.")
-        print("       Until it is, the number must not be quoted as 'N problems' (protocol 19.5).")
+        print("       FP share measured 62.5% (5 of 8 were noise) -> 3 actionable.")
+        print("       Quoting the raw finding count as 'N problems' overstates defects by 2.7x (§19.5).")
 
     print("=" * 78)
     if failed:
