@@ -220,3 +220,30 @@
      - Тесты: `tests/test_bootstrap_pipeline.py` (5 интеграц., без моков) + 3 на `index_src_functions`; 28/28 green + полный suite passed. Клиент параметризован по env (`TRACE_SRC_ROOT`/`TRACE_OUT`) → чужие проекты: gemma_agent 2737/2882 (95.0%) тестов имеют ≥1 src-функцию; black скомпилирован в `.pyd` → sys.settrace не ловит нативные кадры (fallback на статику Exp 9 обязателен).
 - **Веб-исследование и audit «гиблых мест» (2026-09-15, всё ПРОВЕРЕНО эмпирически):** (1) **sysmon+dynamic_context — ОПРОВЕРГНУТА**: верные контексты даёт pytest-коллекция, ручной `switch_context` → пустые `['']` (coverage.py 7.14.1); (2) **контексты ≈3-7% — НЕ воспроизвелось**: Exp 8 (2026-09-16) overhead **+19.96%** (221.78 vs 184.88s) > нашего sys.settrace (+13.6%) → штатный драйвер Шага 3 = `dynamic_trace_plugin.py`, coverage остаётся валидационным оракулом (контексты качественные: 1548/1549, 75.5% src-строк привязаны); (3) **Tarantula — Exp 7b**: rank≤3 у 22.6% тестов (далеко от 60-70%), НО precision низких рангов высока (все rank1-3 верны) → аннотация confidence (~16%), не селектор; TESTS-ребро строится из полной трассы; (4) **mutation-testing как ground truth — дорого/хрупко** (FSE'20, Google 33M; флаки раздувают score); (5) **pytest-testmon — не копируем** (line-based, сужение рерана ≠ граф-ребро TESTS для LLM-контекста); (6) **dev.to-кросс-чек**: «TRUE Coverage» (Dawson, 2026-07-22) подтверждает плато статики и шум shared-utils (наш safe_mkdir/get_data_root кейс 1:1; CI 43min→4min, precision 15%→95%); «Empirical Failure Modes» (Arthur, 2026-07-31) — Pass-Through Test Mirage (наш «фантомный код»), Python 3.14 sys.monitoring reachability = наш бэкенд, AST orphan-detection = наш Шаг 1; **ниша TESTS-рёбер для LLM-контекста ими не занята** (per-test coverage используется только для selection/rejection); (7) edge-case (Gemini): без тестов → статика; бинарники → Docker+microtrace; async → OpenTelemetry по trace_id.
 
+## 2026-09-19 тАФ E10 (search quality): full-text-╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│ + e5-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л + ╨┐╤Г╨╗ reranker 50 тЖТ REFUTED (N=10)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** EXPERIMENTS_LOG.md#2026-09-19
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╤В╤А╨╕ ┬л╨▓╤Л╨║╨╗╤О╤З╨░╤В╨╡╨╗╤П┬╗ ╨║╨░╤З╨╡╤Б╤В╨▓╨░ (E10a full-text ╤З╨░╨╜╨║╨░ ╨▓ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│, e5 `query:`/`passage:`-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л ╨▓ llama.cpp-╨▓╨╡╤В╨║╨╡ тАФ ONNX/OpenVINO ╤Г╨╢╨╡ ╨╕╨╝╨╡╨╗╨╕ `_ensure_prefix`, E10c ╨┐╤Г╨╗ reranker 30тЖТ50) ╨╜╨╡ ╨┤╨░╨╗╨╕ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨░╨╡╨╝╨╛╨│╨╛ ╤Б╨┤╨▓╨╕╨│╨░. ╨з╨╕╤Б╤В╤Л╨╣ ╨┐╤А╨╛╨│╨╛╨╜ (599 ╤Д╨░╨╣╨╗╨╛╨▓ / 9514 ╤З╨░╨╜╨║╨╛╨▓, 799.9s): fast hit@1=0% hit@5=50%; quality hit@1=20% hit@5=40%; baseline ╨░╨▓╤В╨╛╤А╨░ 0/50% ╨╕ 30/30%. ╨Ф╨╡╨╗╤М╤В╨░ тАФ ╨▓ ╨┐╤А╨╡╨┤╨╡╨╗╨░╤Е ╤И╤Г╨╝╨░ N=10.
+- **Fix (╨┐╤А╨╡╨┤╨╛╤В╨▓╤А╨░╤Й╨╡╨╜╨╕╨╡):** ╨╕╨╖╨╝╨╡╨╜╤С╨╜╨╜╤Л╨╣ ╨║╨╛╨┤ ╨╛╤В╨║╨░╨╗╨╡╨╜ ╨║ HEAD (╨┐╨╛╨▓╨╡╨┤╨╡╨╜╨╕╨╡ ╨║╨╗╨╕╨╡╨╜╤В╨░ = ╨┐╤А╨╛╨┤); ╨╛╤Б╤В╨░╤В╨╛╨║ тАФ env-╤В╤Г╨╝╨▒╨╗╨╡╤А `MAX_RERANKER_INPUT` ╤Б default=30 (╨╜╨╡╨╣╤В╤А╨░╨╗╨╡╨╜). ╨Я╨╗╨░╤Вo ┬лpure-vector┬╗ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╛ ╨┐╨╛╨▓╤В╨╛╤А╨╜╨╛ (╤Б╤А. Exp-29 ceiling ~0.23).
+- **╨б╤В╨░╤В╤Г╤Б:** тЭМ REFUTED (╨╖╨░╨║╤А╤Л╤В, ╨╖╨░╨┐╨╕╤Б╨░╨╜ ╨▓ lab exp-43). ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤Е╨╛╨┤ тАФ AST/Graph-hybrid re-ranking, ╨╜╨╡ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│╨╛╨▓╤Л╨╡ ╤В╨▓╨╕╨║╨╕.
+
+## 2026-09-05 тАФ Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (code only, ╨╜╨╡ ╨╖╨░╨┐╤Г╤И╨╡╨╜╨╛) тАФ verify_diary.py + git_hooks_installer.py
+**Root Cause:** `check_commit_exists` (verify_diary.py:361): `proc.communicate(timeout=30)` ╨╜╨░ ╤В╨░╨╣╨╝╨░╤Г╤В╨╡ ╨Э╨Х ╤Г╨▒╨╕╨▓╨░╨╡╤В ╨┐╤А╨╛╤Ж╨╡╤Б╤Б, `except: pass` ╨│╨╗╨╛╤В╨░╨╡╤В TimeoutExpired тЖТ Popen ╤Г╤В╨╡╨║╨░╨╡╤В ╨╜╨░╨▓╤Б╨╡╨│╨┤╨░. Git for Windows re-exec (git тЖТ git.exe) ╤В╨╡╤А╤П╨╡╤В DETACHED_PROCESS тЖТ ╨║╨░╨╢╨┤╤Л╨╣ ╨╖╨░╨▓╨╕╤Б╤И╨╕╨╣ `cat-file` = 3 ╨▓╨╡╤З╨╜╤Л╤Е ╨┐╤А╨╛╤Ж╨╡╤Б╤Б╨░ (git + git.exe + conhost); ╤Б╤В╨░╤А╤В╨╛╨▓╨░╤П Contradiction Ledger-╨┐╤А╨╛╨▓╨╡╤А╨║╨░ ╨┐╤А╨╕ CPU/Defender contention.
+**Fix:** `_kill_git_tree()` (`taskkill /F /T /PID`) ╨╜╨░ TimeoutExpired ╨▓ check_commit_exists + ╤В╨╛ ╨╢╨╡ ╨▓ run_script (git_hooks_installer.py:93). ╨б╨╜╤П╤В╨╛ ╨╜╨░ ╨╢╨╕╨▓╨╛╨╣ ╤Ж╨╡╨┐╨╛╤З╨║╨╡ 9660тЖТ24156тЖТ24428. ╨в╨╡╤Б╤В╤Л: 9 passed (5 commit_guard + 2 subprocess_windows + 2 ledger slow); ruff clean ╨┐╨╛ ╨╜╨╛╨▓╤Л╨╝ ╤Б╤В╤А╨╛╨║╨░╨╝.
+- **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
+
+## 2026-09-11 тАФ VOR read-path fix (PR #34) + ┬л8-╨╝╨╕╨╜╤Г╤В╨╜╤Л╨╣ ╨║╨╛╨╝╨╝╨╕╤В┬╗ = ╨Э╨Х ╨▒╨░╨│ (╤А╨╡╤И╨╡╨╜╨╕╨╡ ╨▓╨╗╨░╨┤╨╡╨╗╤М╤Ж╨░)
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ PR #34 ╤Б╨╛╨╖╨┤╨░╨╜, hooks green; ╤Б╨║╨╛╤А╨╛╤Б╤В╤М ╤В╨╡╤Б╤В╨╛╨▓ тАФ ╨╛╤Б╨╛╨╖╨╜╨░╨╜╨╜╨╛╨╡ ╤А╨╡╤И╨╡╨╜╨╕╨╡, ╨║╨╛╨┤ ╨Э╨Х ╨╝╨╡╨╜╤П╨╗╤Б╤П.
+**Root Cause:** (1) read-path VOR ╤А╨╡-╤Б╨║╨░╨╜╨╕╤А╨╛╨▓╨░╨╗ prose ╤В╨╡╨╗╨░ ADR ╤З╨╡╤А╨╡╨╖ `_PATH_RE`, ╤Е╨╛╤В╤П ╤П╨▓╨╜╤Л╨╡ `data.anchor...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+## 2026-09-10 тАФ Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR ╨╝╨░╤Б╤И╤В╨░╨▒╨╕╤А╨╛╨▓╨░╨╜╨╕╨╡ ╨╕ ╨▓╨╜╨╡╤И╨╜╨╕╨╣ ╨┤╤А╨╕╤Д╤В
+
+- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fix (╨╖╨░╨╝╨╡╤А╤Л, ╨║╨╛╨┤╨░ ╨╜╨╡ ╨╝╨╡╨╜╤П╨╗╨╛╤Б╤М). **Root Cause (KNOW ISSUES ┬лLazy-only ╨▓╨╡╤А╨╕╤Д╨╕╨║╨░╤Ж╨╕╤П┬╗):** ╨▓╨╛╨┐╤А╨╛╤Б, ╤Г╤Б╨┐╨╡╨▓╨░╨╡╤В ╨╗╨╕ VOR ╨┐╤А╨╛╨▓╨╡╤А╨╕╤В╤М ACTIVE-╤Г╨╖╨╗╤Л ╨▓ ╤А╨░╨╝╨║╨░╤Е budget_ms=50 (read-path) / 250 (background id...
+- **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛

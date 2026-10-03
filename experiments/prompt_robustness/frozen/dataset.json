@@ -1,0 +1,395 @@
+{
+  "schema_version": "2.0",
+  "frozen_note": "Вход эксперимента. Заморожен ДО первого живого вызова (AGENTS.md §17). После первого взгляда на результаты список НЕ меняется. Правка = новый датасет v3 с новым sha256 и записью SUPERSEDED в EXPERIMENTS_LOG.md.",
+  "supersedes": "v1.0 (только RU, 11 кейсов). Причина: владелец потребовал вторую языковую руку. Изменение фиксируется явно, а не молча (§8 §19.2).",
+  "design": {
+    "languages": [
+      "ru",
+      "en"
+    ],
+    "cases_total": 11,
+    "cases_in_aggregate": 10,
+    "paraphrases_per_case": 3,
+    "denominator_expected_per_lang": 30,
+    "denominator_expected_total": 60,
+    "language_axis": "RU и EN наборы НЕ переводы друг друга. EN — независимые нативные формулировки того же факта. Иначе переведённая парафраза = парафраза парафразы, и ошибка перевода смешалась бы с чувствительностью к формулировке (конфаунд §19.0 шаг 3).",
+    "answer_language": "НЕ задаётся инструкцией. Модель отвечает на языке вопроса; двуязычные алиасы факта ловят оба варианта. Указание языка ответа было бы вторым конфаундом поверх оси языка.",
+    "instruction": "Приписка IDENTICAL для обеих рук, для base и всех парафраз. Иначе измеряется (инструкция x парафраза x язык), а не инвариантность.",
+    "matcher": "union (или oracle_answer): any_of (literal, case-insensitive substring) OR regex (re.IGNORECASE|re.UNICODE). Совпадение любой альтернативы = факт извлечён.",
+    "single_line_prompts": "Обязательно: opencode.cmd на Windows зависает/fallback-ится на многострочном argv (f5_judged_run.py:90). Все промпты — одна строка.",
+    "known_matcher_risk": "Числительные факты записаны словом ('сто градусов'/'one hundred degrees') или обтекаемо ('в начале 90-х'/'in the early nineties') — any_of/regex их поймает или нет. Это FN матчера, а НЕ неустойчивость модели. Измеряется калибровкой test_harness_sanity.py::test_matcher_recall_on_handcrafted_correct_answers.",
+    "cross_lingual_caveat": "base_RU и base_EN — это РАЗНЫЕ промпты, не переводы. Их инвариантность сравнивается, но разница invariance_RU vs invariance_EN — это разница языков, а не «перевод не изменил ответ». Для утверждения «перевод не меняет факт» нужен отдельный переводной арм (out of scope).",
+    "oracle_answer": "Явный канонический ответ на кейс. Используется oracle-транспортом (позитив-контроль C1). Инвариант: extract_fact(oracle_answer, case.fact) обязана быть True — проверяется тестом. Инверсия регулярки для генерации эталона ЗАПРЕЩЕНА (\\\\b100\\\\b -> 'b100b' не матчится)."
+  },
+  "cases": [
+    {
+      "id": "q_france_capital",
+      "axis": "word_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "париж",
+          "paris"
+        ],
+        "regex": []
+      },
+      "prompts": {
+        "ru": {
+          "base": "Какая столица у Франции?",
+          "paraphrases": [
+            "Назови главный город Франции.",
+            "Каковой является столица Французской Республики?",
+            "В каком городе расположено правительство Франции?"
+          ]
+        },
+        "en": {
+          "base": "What is the capital of France?",
+          "paraphrases": [
+            "Name the main city of France.",
+            "Which city is the capital of the French Republic?",
+            "In which city is the government of France located?"
+          ]
+        }
+      },
+      "oracle_answer": "Париж — столица Франции."
+    },
+    {
+      "id": "q_japan_capital",
+      "axis": "word_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "токио",
+          "tokyo"
+        ],
+        "regex": []
+      },
+      "prompts": {
+        "ru": {
+          "base": "Какая столица Японии?",
+          "paraphrases": [
+            "Назови столицу Японии.",
+            "Какой город является столицей Японии?",
+            "В каком городе располагается правительство Японии?"
+          ]
+        },
+        "en": {
+          "base": "What is the capital of Japan?",
+          "paraphrases": [
+            "Name the capital of Japan.",
+            "Which city serves as the capital of Japan?",
+            "In which city is the government of Japan located?"
+          ]
+        }
+      },
+      "oracle_answer": "Токио — столица Японии."
+    },
+    {
+      "id": "q_water_boiling_point",
+      "axis": "numeric_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "сто градусов",
+          "100 градусов",
+          "100°",
+          "one hundred degrees",
+          "100 degrees",
+          "212"
+        ],
+        "regex": [
+          "\\b100\\b"
+        ]
+      },
+      "note": "Алиас '212' добавлен: модель может ответить в Фаренгейтах, вопрос задан в СИ. Это НЕ неустойчивость, а другая единица — факт эквивалентен.",
+      "prompts": {
+        "ru": {
+          "base": "При какой температуре вода кипит при нормальном атмосферном давлении?",
+          "paraphrases": [
+            "При какой температуре кипит вода при стандартном атмосферном давлении?",
+            "Какая температура кипения воды при давлении в одну атмосферу?",
+            "Укажите температуру кипения воды при нормальном давлении."
+          ]
+        },
+        "en": {
+          "base": "At what temperature does water boil at normal atmospheric pressure?",
+          "paraphrases": [
+            "At what temperature does water boil at standard atmospheric pressure?",
+            "What is the boiling point of water at one atmosphere of pressure?",
+            "State the boiling temperature of water at normal pressure."
+          ]
+        }
+      },
+      "oracle_answer": "Вода кипит при температуре 100 градусов Цельсия."
+    },
+    {
+      "id": "q_python_author",
+      "axis": "entity_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "ван россум",
+          "van rossum",
+          "rossum",
+          "гвидо",
+          "guido"
+        ],
+        "regex": []
+      },
+      "prompts": {
+        "ru": {
+          "base": "Кто создал язык программирования Python?",
+          "paraphrases": [
+            "Кто является автором языка Python?",
+            "Назови создателя языка Python.",
+            "Кем был разработан Python как язык программирования?"
+          ]
+        },
+        "en": {
+          "base": "Who created the Python programming language?",
+          "paraphrases": [
+            "Who is the author of the Python language?",
+            "Name the creator of Python.",
+            "Who developed Python as a programming language?"
+          ]
+        }
+      },
+      "oracle_answer": "Язык Python создал Гвидо ван Россум."
+    },
+    {
+      "id": "q_python_release_year",
+      "axis": "year_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [],
+        "regex": [
+          "\\b1991\\b"
+        ]
+      },
+      "prompts": {
+        "ru": {
+          "base": "В каком году вышел первый релиз языка Python?",
+          "paraphrases": [
+            "Когда был создан Python? Назови год.",
+            "В каком году появился Python впервые?",
+            "Назови год первого выпуска языка Python."
+          ]
+        },
+        "en": {
+          "base": "In which year was the first release of Python published?",
+          "paraphrases": [
+            "When was Python created? Give the year.",
+            "In which year did Python first appear?",
+            "State the year of the first release of Python."
+          ]
+        }
+      },
+      "note": "FN-риск в обоих языках: обтекаемый ответ ('в начале 90-х' / 'in the early 90s') не матчится. Считается FN матчера, не провалом модели.",
+      "oracle_answer": "Первый релиз языка Python вышел в 1991 году."
+    },
+    {
+      "id": "q_http_404",
+      "axis": "meaning_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "не найдено",
+          "not found",
+          "не обнаружено",
+          "не найден",
+          "resource not found"
+        ],
+        "regex": []
+      },
+      "note": "Литерал '404'/'404' НЕ включён: он есть в самом вопросе, модель может его отэхоить — иначе кейс проходит всегда (true positive на эхо, а не на знание).",
+      "prompts": {
+        "ru": {
+          "base": "Что означает HTTP-код ответа 404?",
+          "paraphrases": [
+            "Какой смысл имеет HTTP-статус 404?",
+            "Опиши, что означает код 404 в протоколе HTTP.",
+            "Расшифруй HTTP-код 404."
+          ]
+        },
+        "en": {
+          "base": "What does the HTTP response code 404 mean?",
+          "paraphrases": [
+            "What is the meaning of HTTP status 404?",
+            "Describe what the code 404 means in the HTTP protocol.",
+            "Explain the HTTP code 404."
+          ]
+        }
+      },
+      "oracle_answer": "HTTP-код 404 означает «Ресурс не найден»."
+    },
+    {
+      "id": "q_venus_after_mercury",
+      "axis": "ordinal_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "венера",
+          "venus"
+        ],
+        "regex": []
+      },
+      "prompts": {
+        "ru": {
+          "base": "Какая планета Солнечной системы находится ближе всего к Солнцу после Меркурия?",
+          "paraphrases": [
+            "Какая планета идёт сразу после Меркурия по удалённости от Солнца?",
+            "Назови вторую по счёту от Солнца планету.",
+            "Какая планета расположена ближе всего к Солнцу, если не считать Меркурий?"
+          ]
+        },
+        "en": {
+          "base": "Which planet in the Solar System is closest to the Sun after Mercury?",
+          "paraphrases": [
+            "Which planet comes immediately after Mercury in distance from the Sun?",
+            "Name the second planet counting from the Sun.",
+            "Which planet is nearest to the Sun besides Mercury?"
+          ]
+        }
+      },
+      "oracle_answer": "Это Венера — вторая планета по удалённости от Солнца."
+    },
+    {
+      "id": "q_titanic_year",
+      "axis": "year_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [],
+        "regex": [
+          "\\b1912\\b"
+        ]
+      },
+      "prompts": {
+        "ru": {
+          "base": "В каком году затонул пароход «Титаник»?",
+          "paraphrases": [
+            "Назови год гибели парохода «Титаник».",
+            "Какой год стал годом крушения «Титаника»?",
+            "В каком году произошла катастрофа с «Титаником»?"
+          ]
+        },
+        "en": {
+          "base": "In which year did the Titanic sink?",
+          "paraphrases": [
+            "State the year the Titanic sank.",
+            "Which year was the year of the Titanic disaster?",
+            "In what year did the Titanic tragedy occur?"
+          ]
+        }
+      },
+      "oracle_answer": "Пароход «Титаник» затонул в 1912 году."
+    },
+    {
+      "id": "q_smallest_prime",
+      "axis": "numeric_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "два",
+          "two"
+        ],
+        "regex": [
+          "\\b2\\b"
+        ]
+      },
+      "prompts": {
+        "ru": {
+          "base": "Какое наименьшее простое число существует?",
+          "paraphrases": [
+            "Назови наименьшее простое число.",
+            "Какое простое число является наименьшим?",
+            "Укажи минимальное простое число."
+          ]
+        },
+        "en": {
+          "base": "What is the smallest prime number?",
+          "paraphrases": [
+            "Name the smallest prime number.",
+            "Which prime number is the smallest?",
+            "State the minimal prime number."
+          ]
+        }
+      },
+      "note": "FN-риск: 'два'/'two' как подстрока бьёт по 'двенадцать'/'twelve'/'two hundred'. Поэтому цифровой regex \\b2\\b — основной путь, словесный алиас — запасной и может дать FP на 'two hundred'. Это зафиксированный известный дефект матчера, а не гипотеза.",
+      "oracle_answer": "Наименьшее простое число — 2."
+    },
+    {
+      "id": "q_photosynthesis_gas",
+      "axis": "word_fact",
+      "in_aggregate": true,
+      "fact": {
+        "any_of": [
+          "кислород",
+          "oxygen",
+          "o2"
+        ],
+        "regex": []
+      },
+      "prompts": {
+        "ru": {
+          "base": "Какой газ растения выделяют в атмосферу при фотосинтезе?",
+          "paraphrases": [
+            "Какой газ является продуктом фотосинтеза?",
+            "Назови газ, который выделяется при фотосинтезе.",
+            "Что растения выделяют в воздух при фотосинтезе?"
+          ]
+        },
+        "en": {
+          "base": "Which gas do plants release into the atmosphere during photosynthesis?",
+          "paraphrases": [
+            "Which gas is a product of photosynthesis?",
+            "Name the gas that is released during photosynthesis.",
+            "What do plants emit into the air during photosynthesis?"
+          ]
+        }
+      },
+      "oracle_answer": "Растения выделяют в атмосферу кислород."
+    },
+    {
+      "id": "q_gradient_descent_direction",
+      "axis": "conceptual",
+      "in_aggregate": false,
+      "fact": {
+        "any_of": [
+          "против градиента",
+          "антиградиент",
+          "в сторону уменьшения",
+          "наименьшего значения",
+          "opposite",
+          "negative of the gradient",
+          "negative gradient",
+          "downhill",
+          "decreasing",
+          "toward the minimum",
+          "minimiz",
+          "reducing the"
+        ],
+        "regex": []
+      },
+      "note": "ВНЕ агрегата. Ответ объяснительный, а не одно слово: exact-match либо ловит конкретную формулировку, либо нет — и это неразличимо от реального расхождения между формулировками. Это граница применимости метрики, а не плохой кейс. Для него нужен judge (out of scope, §7.10 — судья только для смысла).",
+      "prompts": {
+        "ru": {
+          "base": "В каком направлении движется градиентный спуск на каждом шаге?",
+          "paraphrases": [
+            "Куда направлен один шаг градиентного спуска?",
+            "Какое направление выбирает градиентный спуск при итерации?",
+            "В какую сторону идёт оптимизация градиентным спуском?"
+          ]
+        },
+        "en": {
+          "base": "In which direction does gradient descent move at each step?",
+          "paraphrases": [
+            "Which direction does a single gradient descent step take?",
+            "What direction does gradient descent choose during an iteration?",
+            "Which way does optimization by gradient descent go?"
+          ]
+        }
+      },
+      "oracle_answer": "Направление движения — против градиента (в сторону уменьшения функции)."
+    }
+  ]
+}

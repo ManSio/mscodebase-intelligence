@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -109,17 +110,74 @@ def test_runner_default_exits_1_on_broken_guard(tmp_path):
     assert "[BROKEN]" in p.stdout
 
 
+def _repo_tmp_dir(prefix: str) -> Path:
+    """A scratch directory INSIDE the repo.
+
+    tmp_path is outside the repo, and negative_controls_runner._resolve_fixtures
+    refuses any fixture that is not under scripts/ or the repo root — by design
+    (path safety). So the copy has to live inside the tree. The caller removes it
+    in `finally`, and it is never committed.
+    """
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=str(ROOT)))
+
+
 def test_runner_detects_digest_change():
-    """digest-pinning: правка фикстуры → UNPROVEN → exit 1 (proven сбрасывается)."""
-    fixture = ROOT / "scripts" / "negative_controls" / "fixtures" / "dead_guard.py"
-    orig = fixture.read_bytes()
+    """digest-pinning: правка фикстуры → UNPROVEN → exit 1.
+
+    The mutation is applied to a COPY under a scratch dir, never to
+    scripts/negative_controls/fixtures/.
+
+    An earlier version edited the real fixture and restored it in `finally`. Under
+    `pytest -n auto` another worker could read that fixture's digest inside the
+    window between the write and the restore, compute a different digest, and
+    classify a healthy guard as UNPROVEN. That is a race BETWEEN TESTS, not a
+    property of the digest guard. It showed up as a CI-only flake: green locally,
+    red on runners that have more workers.
+
+    The manifest here holds ONE entry on purpose. Asserting a clean whole-inventory
+    run would drag in drift_gate, which is legitimately BROKEN wherever GitBash is
+    missing — a property of the machine, not of this test.
+    """
+    mod = _load_runner()
+    scratch = _repo_tmp_dir("nc-digest-")
     try:
-        fixture.write_bytes(orig + b"\n# digest-mutant\n")
-        p = _run()
+        src = ROOT / "scripts" / "negative_controls" / "fixtures" / "dead_guard.py"
+        copy = scratch / src.name
+        shutil.copyfile(src, copy)
+
+        manifest = {
+            "version": 1,
+            "guards": [{
+                "id": "digest_probe",
+                "desc": "guard whose fixture digest is pinned",
+                "provocation_type": "test-class",
+                "command": [sys.executable, str(scratch / "dead_guard_negative_control.py")],
+                "fixtures": [str(copy)],
+                "expected_exit": 1,
+                "output_contains": ["DEAD GUARD DETECTED"],
+                "fixture_digest": mod._digest_files([copy]),
+            }],
+        }
+        # the probe script it invokes, unmodified, next to the fixture
+        shutil.copyfile(
+            ROOT / "scripts" / "negative_controls" / "fixtures" / "dead_guard_negative_control.py",
+            scratch / "dead_guard_negative_control.py")
+
+        mf = scratch / "manifest.json"
+        mf.write_text(json.dumps(manifest), encoding="utf-8")
+
+        # Control: with intact bytes the guard is PROVEN and the runner exits 0.
+        p = _run("--manifest", str(mf))
+        assert p.returncode == 0, f"{p.stdout}\n{p.stderr}"
+        assert "[PROVEN]" in p.stdout
+
+        # Break ONE fixture byte-for-byte; the digest pin must notice.
+        copy.write_bytes(copy.read_bytes() + b"\n# digest-mutant\n")
+        p = _run("--manifest", str(mf))
         assert p.returncode == 1, f"{p.stdout}\n{p.stderr}"
         assert "[UNPROVEN]" in p.stdout
     finally:
-        fixture.write_bytes(orig)
+        shutil.rmtree(scratch, ignore_errors=True)
 
 
 def test_runner_pin_requires_reason(tmp_path):
