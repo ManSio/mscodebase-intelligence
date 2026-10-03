@@ -1,0 +1,128 @@
+{
+ "split": "tune",
+ "items_in_split": 78,
+ "items_total": 156,
+ "dataset_sha256": "cb2437f1f2810d4b8418c0fa4f0a1e206ad33e2b9f83fd0a529516a61884f9e3",
+ "calibration_sha256": "1789959615647c552ae552372afab857568cc2c376dc39e0fb3df3c7e23251c5",
+ "positives": 46,
+ "negatives": 32,
+ "positives_matched": 46,
+ "negatives_matched": 0,
+ "recall": 1.0,
+ "fp_rate": 0.0,
+ "false_negatives": [],
+ "false_positives": [],
+ "per_case": {
+  "q_france_capital": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_japan_capital": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_water_boiling_point": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_python_author": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_python_release_year": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_http_404": {
+   "pos": 6,
+   "pos_hit": 6,
+   "neg": 2,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_venus_after_mercury": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_titanic_year": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_smallest_prime": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_photosynthesis_gas": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  },
+  "q_gradient_descent_direction": {
+   "pos": 4,
+   "pos_hit": 4,
+   "neg": 3,
+   "neg_hit": 0,
+   "axis": null,
+   "recall": 1.0,
+   "fp_rate": 0.0,
+   "ok": true
+  }
+ },
+ "verdict": "OK"
+}

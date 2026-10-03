@@ -1,0 +1,981 @@
+{
+ "schema_version": 1,
+ "artifact": "matcher_calibration",
+ "dataset_version": "2.0",
+ "revision": {
+  "version": "1.1",
+  "change": "Water boils at 212 degrees Fahrenheit. переклассифицирован no_match -> match.",
+  "justification": "Ошибка разметки автора, а не подгонка под метчер: при нормальном атмосферном давлении вода кипит при 100 °C = 212 °F, поэтому утверждение фактически верно. Обратная асимметрия сохранена: «Вода кипит при 100 градусах по Фаренгейту» (100 °F) остаётся no_match — это уже неверный факт.",
+  "affects_split": "item перемещается из heldout в tune (чётность индекса не меняется, меняется expect)",
+  "why_recorded": "правка после первого прогона обязана быть видна, иначе это hindsight (§17)"
+ },
+ "purpose": "Измерить recall и false-positive rate текстового матчера ДО правки алиасов. recall < 1.0 означает, что измеренная инвариантность занижена матчером, а не моделью. FP > 0 означает, что матчер принимает неверные ответы.",
+ "authoring": {
+  "method": "лексико-морфологическая энумерация смыслового пространства факта: падеж/лицо/время для RU, формы глагола и пассив для EN",
+  "blind_to_model_outputs": [
+   "q_france_capital",
+   "q_gradient_descent_direction",
+   "q_japan_capital",
+   "q_photosynthesis_gas",
+   "q_python_author",
+   "q_python_release_year",
+   "q_smallest_prime",
+   "q_titanic_year",
+   "q_venus_after_mercury",
+   "q_water_boiling_point"
+  ],
+  "hindsight_cases": [
+   "q_http_404"
+  ],
+  "hindsight_note": "Ответы моделей по q_http_404 были прочитаны при аудите v2, поэтому для этого кейса калибровка НЕ слепая и не может доказать обобщение. Обобщение дают остальные 10 кейсов.",
+  "negative_design": "Негативы не случайны: каждый содержит лексику факта в НЕВЕРНОМ утверждении (упоминание числа, названия сущности или оборота any_of) — именно такие ответы подстрочный матчер принимает ошибочно."
+ },
+ "expect_semantics": {
+  "match": "ответ семантически верен и содержит факт → матчер обязан вернуть true",
+  "no_match": "ответ неверен или не содержит факт → матчер обязан вернуть false"
+ },
+ "counts": {
+  "items": 156,
+  "positives": 91,
+  "negatives": 65,
+  "cases": 11
+ },
+ "items": [
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Париж."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Столица Франции — Париж."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Главный город Франции — Париж."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Правительство Французской Республики находится в Париже."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Марсель."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Столица Франции — Лион."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Правительство Франции находится в Брюсселе."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "Paris."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "The capital of France is Paris."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "Paris is the main city of France."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "The government of France is located in Paris."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Marseille."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The capital of France is Lyon."
+  },
+  {
+   "case": "q_france_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The government of France is located in Brussels."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Токио."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Столица Японии — Токио."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Главный город Японии — Токио."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Правительство Японии находится в Токио."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Киото."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Столица Японии — Осака."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Правительство Японии находится в Сеуле."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "Tokyo."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "The capital of Japan is Tokyo."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "Tokyo is the main city of Japan."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "match",
+   "text": "The government of Japan is located in Tokyo."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Kyoto."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The capital of Japan is Osaka."
+  },
+  {
+   "case": "q_japan_capital",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The government of Japan is located in Seoul."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Вода кипит при 100 градусов Цельсия."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Температура кипения воды — 100 °C."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Вода закипает при ста градусах."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Кипение воды при нормальном давлении происходит при 100 градусах по Цельсию."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Вода кипит при 90 градусах Цельсия."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Вода замерзает при 100 градусах Цельсия."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Вода кипит при 100 градусах по Фаренгейту."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "match",
+   "text": "Water boils at 100 degrees Celsius."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "match",
+   "text": "The boiling point of water is 100 °C."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "match",
+   "text": "Water boils at one hundred degrees Celsius."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "match",
+   "text": "Under normal pressure water boils at 100 degrees."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Water boils at 90 degrees Celsius."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Water freezes at 100 degrees Celsius."
+  },
+  {
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "expect": "match",
+   "text": "Water boils at 212 degrees Fahrenheit."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Python создал Гвидо ван Россум."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Автор языка Python — Гвидо ван Россум."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Разработчик Python — Гвидо ван Россум."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Создатель Python — Гвидо ван Россум."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Python создал Тим Бернерс-Ли."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Автор Python — Ларри Уолл."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Язык Python создал Брэд Рейсфилд."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "match",
+   "text": "Python was created by Guido van Rossum."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "match",
+   "text": "The author of the Python language is Guido van Rossum."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "match",
+   "text": "Guido van Rossum is the creator of Python."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "match",
+   "text": "The person behind the Python language is Guido van Rossum."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Python was created by Tim Berners-Lee."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The author of Python is Larry Wall."
+  },
+  {
+   "case": "q_python_author",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The Python language was created by Brad Reidfield."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Первый релиз Python вышел в 1991 году."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Python впервые появился в 1991-м."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Год первого выпуска Python — 1991."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "В 1991 году был выпущен первый релиз Python."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Первый релиз Python вышел в 1990 году."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "В 1991 году вышел первый релиз Ruby."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Python выпускается с 1993 года."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "The first release of Python was published in 1991."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "Python first appeared in 1991."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "1991."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "The initial Python version came out in 1991."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The first release of Python was published in 1992."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "In 1991, the Titanic sank."
+  },
+  {
+   "case": "q_python_release_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Python was first released in 1989."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Ресурс не найден."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Сервер не нашёл запрошенный ресурс."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Запрошенный ресурс не был найден на сервере."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Сервер не смог найти запрошенный ресурс."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Ресурс по такому адресу отсутствует."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "HTTP-код 404 означает, что доступ к ресурсу запрещён."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "404 указывает на внутреннюю ошибку сервера."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Сервер временно перегружен, поэтому вернул 404."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "match",
+   "text": "The requested resource was not found."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "match",
+   "text": "The server could not find the requested resource."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "match",
+   "text": "404 means the requested resource does not exist."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "match",
+   "text": "Resource not found on this server."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "match",
+   "text": "The requested URL could not be found."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "HTTP 404 means you are not authorized to access this resource."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "404 indicates an internal server error."
+  },
+  {
+   "case": "q_http_404",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The server is overloaded, which is why it returned 404."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Венера."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Венера — вторая планета по удалённости от Солнца."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Вторая планета от Солнца — Венера."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Сразу после Меркурия по удалённости идёт Венера."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Марс."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Вторая планета от Солнца — Марс."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Венера — третья планета по удалённости от Солнца."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "match",
+   "text": "Venus."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "match",
+   "text": "Venus is the second planet in distance from the Sun."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "match",
+   "text": "The second planet counting from the Sun is Venus."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "match",
+   "text": "Immediately after Mercury by distance comes Venus."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Mars."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The second planet from the Sun is Mars."
+  },
+  {
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Venus is the third planet in distance from the Sun."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Пароход «Титаник» затонул в 1912 году."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "1912."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Год крушения «Титаника» — 1912."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Катастрофа «Титаника» произошла в 1912 году."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "«Титаник» затонул в 1915 году."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "В 1912 году затонул лайнер RMS «Луситания»."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Год гибели «Титаника» — 1905."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "The Titanic sank in 1912."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "1912."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "The year of the Titanic disaster was 1912."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "match",
+   "text": "It was 1912 when the Titanic sank."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The Titanic sank in 1905."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "In 1912, the RMS Lusitania sank."
+  },
+  {
+   "case": "q_titanic_year",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The Titanic sank in 1913."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "match",
+   "text": "2"
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Наименьшее простое число — 2."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Двойка — наименьшее простое число."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Простейшее простое число равно двум."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "3"
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Наименьшее простое число — 1."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Единица тоже простая, поэтому наименьшее простое — 1."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "match",
+   "text": "2"
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "match",
+   "text": "The smallest prime number is 2."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "match",
+   "text": "Two is the smallest prime."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "match",
+   "text": "The least prime is two."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "3"
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The smallest prime number is 1."
+  },
+  {
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The smallest prime is 0 because it is divisible only by itself."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Кислород."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Растения выделяют кислород при фотосинтезе."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Продукт фотосинтеза — кислород."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "match",
+   "text": "В атмосферу поступает кислород."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Углекислый газ."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Растения поглощают кислород при фотосинтезе."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Азот."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "match",
+   "text": "Oxygen."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "match",
+   "text": "Plants release oxygen during photosynthesis."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "match",
+   "text": "The product of photosynthesis is oxygen."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "match",
+   "text": "Oxygen is emitted into the air."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Carbon dioxide."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Plants absorb oxygen during photosynthesis."
+  },
+  {
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Nitrogen."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Против градиента."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "match",
+   "text": "В сторону уменьшения функции."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Направление — антиградиентное."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "match",
+   "text": "Оптимизация идёт вниз по функции, против градиента."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "По градиенту."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "В сторону увеличения функции."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "ru",
+   "expect": "no_match",
+   "text": "Против градиента двигаться нельзя, поэтому шаг делается по градиенту."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "match",
+   "text": "Against the gradient."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "match",
+   "text": "In the direction of decreasing the function."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "match",
+   "text": "The direction is anti-gradient."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "match",
+   "text": "It moves downhill, opposite to the gradient."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "Along the gradient."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "In the direction of increasing the function."
+  },
+  {
+   "case": "q_gradient_descent_direction",
+   "lang": "en",
+   "expect": "no_match",
+   "text": "The negative gradient direction is unavailable, so it moves along the gradient."
+  }
+ ]
+}

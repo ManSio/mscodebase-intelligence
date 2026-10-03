@@ -105,6 +105,155 @@ def test_wide_planted_break_drives_verdict_to_fail():
     assert dec["verdict"] == "FAIL", f"гейт не упал при score ниже порога: {dec}"
 
 
+# ── C2c: контрольная рука обязана выносить вердикт ───────────────────────────
+def test_planted_control_now_produces_a_verdict_not_na():
+    """Раньше decide() отдавал N/A для не-cli рук, и посадка поломки в 1/30
+    (=0.9667 > порога 0.90) давала exit 0: контроль не мог сообщить, что
+    гейт не заметил бы и более широкую поломку. Теперь — CONTROL_OK/CONTROL_FAIL."""
+    data = load_dataset()
+    from run_experiment import run_model
+
+    target = data["aggregate"][0].prompts["ru"]["paraphrases"][0]
+    tr = PlantedBreakTransport(data["cases"], break_prompt=target)
+    rep = run_model(tr, "ctl/planted", data, base_repeats=2)
+
+    dec = decide(rep)
+    assert dec["arm"] == "planted"
+    assert dec["verdict"] == "CONTROL_OK", dec
+    assert dec["injected_hits"] == 1
+    assert dec["disagreeing_rows"] == 1
+
+
+def test_planted_control_fails_when_break_was_never_injected():
+    """Fail-closed: если поломка не внесена, контроль ПРОВАЛЕН, а не «неприменим».
+    Наличие поломки и её обнаружение — разные утверждения (§19 P-016)."""
+    data = load_dataset()
+    from run_experiment import run_model
+
+    tr = PlantedBreakTransport(data["cases"], break_prompt="<никогда не спросят>")
+    rep = run_model(tr, "ctl/planted", data, base_repeats=2)
+
+    dec = decide(rep)
+    assert dec["verdict"] == "CONTROL_FAIL", dec
+    assert any("never injected" in r for r in dec["reasons"]), dec
+
+
+def test_planted_control_fails_when_gate_is_blind_to_the_break():
+    """Поломка внесена, но гейт её не увидел (инвариантность 1.0) → CONTROL_FAIL.
+    Это тот сценарий, ради которого контроль и существует."""
+    from run_experiment import decide_control
+
+    rep = {
+        "transport": "planted_break",
+        "control": {"kind": "planted_break", "injected_hits": 1},
+        "per_lang": {"ru": {"invariance_given_base_correct": 1.0,
+                            "invariance_given_base_correct_den": 30}},
+        "rows": [{"case": "c", "lang": "ru", "which": "p0",
+                  "agrees_with_base": True}],
+    }
+    dec = decide_control(rep)
+    assert dec["verdict"] == "CONTROL_FAIL", dec
+    assert any("blind" in r for r in dec["reasons"]), dec
+
+
+def test_oracle_control_detects_perfect_invariant_arm():
+    data = load_dataset()
+    from run_experiment import run_model, OracleTransport
+
+    rep = run_model(OracleTransport(data["cases"]), "ctl/oracle", data, base_repeats=2)
+    dec = decide(rep)
+    assert dec["arm"] == "oracle"
+    assert dec["verdict"] == "CONTROL_OK", dec
+
+
+def test_oracle_control_fails_when_an_arm_is_broken():
+    from run_experiment import decide_control
+
+    rep = {
+        "transport": "oracle",
+        "control": {"kind": "oracle"},
+        "per_lang": {"ru": {"invariance_given_base_correct": 0.9,
+                            "invariance_given_base_correct_den": 30}},
+        "rows": [],
+    }
+    assert decide_control(rep)["verdict"] == "CONTROL_FAIL"
+
+
+# ── C5: структурные правила обязаны различать контекст ──────────────────────
+def test_structured_rule_separates_boiling_from_freezing():
+    """Одно и то же число «100 градусов» — верный ответ про кипение и неверный
+    про замерзание. Наивный any_of по числу считал бы оба верными."""
+    from run_experiment import extract_fact
+
+    fact = {"rule": {"kind": "value_context",
+                     "anchor": ["100"], "require": ["кип", "boil"],
+                     "reject": ["замерз", "freeze"]}}
+    assert extract_fact("Вода кипит при 100 градусов Цельсия.", fact) is True
+    assert extract_fact("Water boils at 100 degrees Celsius.", fact) is True
+    assert extract_fact("Вода замерзает при 100 градусах Цельсия.", fact) is False
+    assert extract_fact("Water freezes at 100 degrees Celsius.", fact) is False
+    assert extract_fact("Вода кипит при 90 градусах Цельсия.", fact) is False
+
+
+def test_subject_value_rule_rejects_unrelated_year_context():
+    """Год «1991» встречается и в ответе про Python, и в постороннем контексте.
+    Требование близости предмета — единственное, что их различает."""
+    from run_experiment import extract_fact
+
+    fact = {"rule": {"kind": "subject_value", "subject": ["python"],
+                     "value_regex": [r"\b1991\b"], "bare": True,
+                     "bare_values": ["1991"], "window": 80}}
+    assert extract_fact("Первый релиз Python вышел в 1991 году.", fact) is True
+    assert extract_fact("В 1991 году был выпущен первый релиз Python.", fact) is True
+    assert extract_fact("1991.", fact) is True, "голый год — тоже верный ответ"
+    assert extract_fact("В 1991 году вышел первый релиз Ruby.", fact) is False
+    assert extract_fact("In 1991, the Titanic sank.", fact) is False
+    assert extract_fact("Первый релиз Python вышел в 1990 году.", fact) is False
+
+
+def test_last_mention_rule_handles_hedged_then_corrected_answer():
+    """Модель называет направление, потом оговаривает: «Против градиента
+    двигаться нельзя, поэтому шаг по градиенту». Первое слово — не ответ,
+    решение даёт последнее упоминание."""
+    from run_experiment import extract_fact
+
+    fact = {"rule": {"kind": "last_mention",
+                     "accept": ["против градиента", "downhill"],
+                     "reject": ["по градиенту", "along the gradient"]}}
+    assert extract_fact("Против градиента.", fact) is True
+    assert extract_fact("It moves downhill.", fact) is True
+    assert extract_fact("По градиенту.", fact) is False
+    assert extract_fact("Along the gradient.", fact) is False
+    assert extract_fact("Против градиента двигаться нельзя, поэтому шаг делается "
+                        "по градиенту.", fact) is False
+    assert extract_fact("The negative gradient direction is unavailable, so it "
+                        "moves along the gradient.", fact) is False
+
+
+def test_numeric_anchor_respects_word_boundaries():
+    """Якорь «2» не должен ловиться внутри «2000» — иначе smallest_prime
+    начнёт «видеть» факт в любом четырёхзначном числе."""
+    from run_experiment import extract_fact
+
+    fact = {"rule": {"kind": "value_context", "anchor": ["2"],
+                     "require": ["прост", "prime"], "bare": True}}
+    assert extract_fact("2", fact) is True
+    assert extract_fact("Наименьшее простое число — 2.", fact) is True
+    assert extract_fact("The year 2000 is prime in this text.", fact) is False
+
+
+def test_yo_normalization_is_consistent_across_matcher_paths():
+    """Legacy-путь (any_of) и структурный путь обязаны нормализовать «ё» одинаково.
+    Иначе «не нашёл» не находится алиасом «не нашел» — молчаливый FN."""
+    from run_experiment import extract_fact
+
+    legacy = {"any_of": ["не нашел"]}
+    assert extract_fact("Сервер не нашёл запрошенный ресурс.", legacy) is True
+    structured = {"rule": {"kind": "value_context", "anchor": ["нашел"],
+                           "require": ["сервер"]}}
+    assert extract_fact("Сервер не нашёл запрошенный ресурс.", structured) is True
+
+
 # ── C3: граница порога ───────────────────────────────────────────────────────
 def _fake(mean_ru: float, den: int = 30):
     return {
@@ -119,8 +268,20 @@ def _fake(mean_ru: float, den: int = 30):
 
 
 def test_threshold_boundary():
-    assert decide(_fake(THRESHOLD))["verdict"] == "PASS"
+    # Граница порога: ровно 0.90 — ещё не провал, но и не строгая устойчивость.
+    assert decide(_fake(THRESHOLD))["verdict"] == "CONDITIONAL_PASS"
     assert decide(_fake(THRESHOLD - 0.01))["verdict"] == "FAIL"
+
+
+def test_strict_vs_conditional_pass():
+    """СТРОГО (1.0) и С УСЛОВИЕМ (>=0.90, но не 1.0) — разные утверждения.
+    Раньше обе строки сводились к PASS, и «почти устойчива» читалась как «устойчива»."""
+    strict = decide(_fake(1.0))
+    assert strict["verdict"] == "STRICT_PASS"
+    cond = decide(_fake(0.95))
+    assert cond["verdict"] == "CONDITIONAL_PASS"
+    assert cond["needs_manual_review"] is True
+    assert "review_rows" in cond, "CONDITIONAL_PASS обязан называть строки для разбора"
 
 
 def test_small_denominator_yields_unknown_not_zero():
@@ -257,7 +418,7 @@ def test_cli_exit_code_2_on_broken_dataset(tmp_path):
         f"битый/пустой датасет → ровно 2, получено {p.returncode}: {p.stderr[:200]}"
     )
 
-    ok = _run_harness("--transport", "oracle")
+    ok = _run_harness("--transport", "oracle", "--out", str(tmp_path / "ctl_ok.json"))
     assert ok.returncode == 0, (
         f"корректный датасет + контрольная рука → 0, получено {ok.returncode}"
     )
@@ -396,19 +557,21 @@ def _run_harness(*args: str) -> subprocess.CompletedProcess:
 
 def test_exit_code_3_for_unknown_and_2_only_for_population(tmp_path):
     """UNKNOWN («не смогли измерить») не должен делить код 2 с ошибкой входа (A4),
-    а контрольная рука (N/A) — это успех, а не UNKNOWN.
+    а провал контрольной руки — это провал (1), а не «не применимо» (0).
 
-    Правило кодов проверяется на чистой функции: у oracle/planted decide() короткозамкнуто
-    отдаёт N/A, поэтому UNKNOWN через процессный прогон недостижим без живых вызовов."""
+    Раньше контрольные руки давали N/A → exit 0, и посадка поломки 1/30 при пороге
+    0.90 была неотличима от успеха: гейт не мог сообщить о собственной слепоте."""
     from run_experiment import exit_code_for
 
     assert exit_code_for(["FAIL"]) == 1
-    assert exit_code_for(["PASS"]) == 0
-    assert exit_code_for(["N/A"]) == 0, "контрольная рука — успех, не UNKNOWN"
-    assert exit_code_for(["N/A", "N/A"]) == 0
+    assert exit_code_for(["CONTROL_FAIL"]) == 1, "провал контроля — провал, не успех"
+    assert exit_code_for(["STRICT_PASS"]) == 0
+    assert exit_code_for(["CONDITIONAL_PASS"]) == 0
+    assert exit_code_for(["CONTROL_OK"]) == 0
+    assert exit_code_for(["CONTROL_OK", "CONTROL_FAIL"]) == 1
     assert exit_code_for(["UNKNOWN"]) == 3, "не смогли измерить → 3"
-    assert exit_code_for(["PASS", "UNKNOWN"]) == 3
-    assert exit_code_for(["PASS", "FAIL"]) == 1
+    assert exit_code_for(["STRICT_PASS", "UNKNOWN"]) == 3
+    assert exit_code_for(["CONDITIONAL_PASS", "FAIL"]) == 1
     assert exit_code_for(["FAIL", "UNKNOWN"]) == 1, "пвал важнее «не измерили»"
 
     # UNKNOWN действительно возникает при малом знаменателе на cli-отчёте.
@@ -430,11 +593,29 @@ def test_exit_code_3_for_unknown_and_2_only_for_population(tmp_path):
 
 
 def test_control_arm_exit_code_is_zero(tmp_path):
+    """Контрольная рука обязана ВЫНОСИТЬ ВЕРДИКТ, а не отдавать N/A.
+
+    N/A был не «нейтрально», а маскировкой: посадка поломки в 1/30 (=0.967) при
+    пороге 0.90 давала N/A → exit 0, то есть контроль физически не мог сообщить,
+    что гейт не заметил бы и 2/30. Теперь oracle → CONTROL_OK → 0."""
     out = tmp_path / "ctl.json"
     r = _run_harness("--transport", "oracle", "--out", str(out))
-    assert r.returncode == 0, f"контрольная рука → 0, получено {r.returncode}"
+    assert r.returncode == 0, f"контрольная рука → 0, получено {r.returncode}: {r.stderr[:300]}"
     payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["repeats"][0]["decision"]["verdict"] == "N/A"
+    verdict = payload["repeats"][0]["decision"]["verdict"]
+    assert verdict == "CONTROL_OK", f"ожидался CONTROL_OK, получено {verdict}"
+
+
+def test_planted_control_arm_exit_code_is_zero_when_break_is_caught(tmp_path):
+    """Посаженная поломка, пойманная гейтом, — успех КОНТРОЛЯ (0),
+    и она обязана быть видна в отчёте как найденная, а не как «неприменимо»."""
+    out = tmp_path / "ctl_planted.json"
+    r = _run_harness("--transport", "planted", "--out", str(out))
+    assert r.returncode == 0, f"пойманная поломка → 0, получено {r.returncode}: {r.stderr[:300]}"
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    dec = payload["repeats"][0]["decision"]
+    assert dec["verdict"] == "CONTROL_OK", dec
+    assert dec["injected_hits"] >= 1, "поломка должна быть реально внесена"
 
 
 # ── разбор потоков CLI: ответ в stdout, баннер в stderr ──────────────────────
