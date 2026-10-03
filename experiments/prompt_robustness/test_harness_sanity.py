@@ -59,7 +59,7 @@ def test_single_planted_break_is_localized_and_detected():
     assert tr.hits == [target], f"break not hit exactly once: {tr.hits}"
     ru = rep["per_lang"]["ru"]["invariance_given_base_correct"]
     en = rep["per_lang"]["en"]["invariance_given_base_correct"]
-    assert ru == pytest.approx(29 / 30), f"ru={ru} — падение не локализовано"
+    assert ru == pytest.approx(29 / 30, abs=1e-4), f"ru={ru} — падение не локализовано"
     assert en == 1.0, f"en={en} — саботаж протекла в чистую руку"
     flagged = [r for r in rep["rows"]
                if r.get("which") == "p0" and r.get("agrees_with_base") is False]
@@ -87,7 +87,9 @@ def test_wide_planted_break_drives_verdict_to_fail():
         def ask(self, prompt, model, workdir):
             if prompt in self.bad:
                 return type(self).reply_for(prompt)
-            return super(PlantedBreakTransport, self).ask(prompt, model, workdir)
+            # Именно PlantedBreakTransport.ask: super(PlantedBreakTransport, self)
+            # перепрыгивал бы сам класс и попал в базовый Transport → NotImplementedError.
+            return PlantedBreakTransport.ask(self, prompt, model, workdir)
 
         @staticmethod
         def reply_for(prompt):
@@ -243,17 +245,255 @@ def test_multiline_prompt_rejected(tmp_path):
 
 
 def test_cli_exit_code_2_on_broken_dataset(tmp_path):
-    """Уровень процесса: exit 2, а не rc=0 с «0% устойчивости» (T10)."""
+    """Уровень процесса: exit 2, а не rc=0 с «0% устойчивости» (T10).
+
+    Прежняя версия создавала битый файл, но НЕ передавала его харнессу и
+    утверждала `returncode in (0,1,2)` — то есть проходила всегда (вакуумный тест).
+    Теперь битый датасет действительно подкладывается и код проверяется точно."""
     bad = tmp_path / "broken.json"
     bad.write_text(json.dumps({"schema_version": "x", "cases": []}), encoding="utf-8")
-    p = subprocess.run(
-        [sys.executable, str(HERE / "run_experiment.py"), "--transport", "oracle"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        env={"SYSTEMROOT": r"C:\Windows", "PATH": r"C:\Windows\system32"},
+    p = _run_harness("--transport", "oracle", "--dataset", str(bad))
+    assert p.returncode == 2, (
+        f"битый/пустой датасет → ровно 2, получено {p.returncode}: {p.stderr[:200]}"
     )
-    assert p.returncode in (0, 1, 2)
-    # С корректным датасетом по умолчанию — не 2.
-    assert p.returncode != 2 or bad.exists()
+
+    ok = _run_harness("--transport", "oracle")
+    assert ok.returncode == 0, (
+        f"корректный датасет + контрольная рука → 0, получено {ok.returncode}"
+    )
+
+
+# ── A1–A5: регрессии, найденные на ЖИВОМ пилоте 2026-10-02 ────────────────────
+# Каждая из этих правок закрывает баг, который дал бы ложно-зелёный отчёт.
+
+
+def test_rows_contain_both_languages_and_base_cells():
+    """rows — единственный источник истины. Нет base-строк или только один
+    язык в отчёте → метрики недоказуемы, число нельзя перевывести из сырья."""
+    data = load_dataset()
+    from run_experiment import OracleTransport, run_model
+
+    rep = run_model(OracleTransport(data["cases"]), "ctl/oracle", data, base_repeats=3)
+    assert {r["lang"] for r in rep["rows"]} == {"ru", "en"}, "в rows не обе языковые руки"
+    whichs = {r["which"] for r in rep["rows"]}
+    assert {"base0", "base1", "base2"} <= whichs, f"нет base-повторов: {sorted(whichs)}"
+    assert {"p0", "p1", "p2"} <= whichs, f"нет парафраз: {sorted(whichs)}"
+    assert len(rep["rows"]) == 10 * 6 * 2, f"строк {len(rep['rows'])}, ожидалось 120"
+
+
+def test_seed_stability_is_consistency_not_correctness():
+    """Стабильно-неверная модель: base_accuracy = 0.0, но seed_stability = 1.0.
+    Прежний код считал долю верных и путал две разные величины (A3)."""
+    data = load_dataset()
+    from run_experiment import Reply, run_model
+
+    class AlwaysWrong:
+        name = "wrong"
+
+        def ask(self, prompt, model, workdir):
+            return Reply("Atlantis — столица Франции.", self.name, "ok")
+
+    rep = run_model(AlwaysWrong(), "ctl/wrong", data, base_repeats=3)
+    for lang, m in rep["per_lang"].items():
+        assert m["base_accuracy"] == 0.0, f"{lang}: base_acc должен быть 0.0"
+        assert m["seed_stability"] == 1.0, (
+            f"{lang}: стабильно-неверная модель обязана давать seed_stability=1.0, "
+            f"получено {m['seed_stability']}"
+        )
+
+
+def test_seed_stability_detects_real_instability():
+    data = load_dataset()
+    from run_experiment import Reply, run_model
+
+    class Flaky:
+        name = "flaky"
+
+        def __init__(self):
+            self.n = 0
+
+        def ask(self, prompt, model, workdir):
+            self.n += 1
+            return Reply("???" if self.n % 3 == 0 else "Paris.", self.name, "ok")
+
+    rep = run_model(Flaky(), "ctl/flaky", data, base_repeats=3)
+    seeds = [m["seed_stability"] for m in rep["per_lang"].values()]
+    assert min(seeds) < 1.0, f"нестабильность не поймана: {seeds}"
+
+
+def test_base_accuracy_counts_correctness_not_validity():
+    """Прежний код делал base_correct += int(valid_base), то есть СЧИТАЛ ВАЛИДНОСТЬ
+    и объявлял base_accuracy=1.0 у модели, которая не ответила ни на один вопрос."""
+    data = load_dataset()
+    from run_experiment import Reply, run_model
+
+    class AllValidAllWrong:
+        name = "wrong2"
+
+        def ask(self, prompt, model, workdir):
+            return Reply("здесь нет никакого ответа", self.name, "ok")
+
+    rep = run_model(AllValidAllWrong(), "ctl/w2", data, base_repeats=3)
+    for lang, m in rep["per_lang"].items():
+        assert m["responses_total"] > 0, f"{lang}: ответы не учтены"
+        assert m["base_accuracy"] == 0.0, f"{lang}: base_acc={m['base_accuracy']} — считается валидность"
+
+
+def test_row_text_is_not_truncated():
+    """Обрезка text[:400] прятала отличие длинных ответов от коротких — а это
+    ровно тот случай, где устойчивость к формулировке и проявляется."""
+    data = load_dataset()
+    from run_experiment import Reply, run_model
+
+    long_text = "A" * 1500
+
+    class Long:
+        name = "long"
+
+        def ask(self, prompt, model, workdir):
+            return Reply(long_text, self.name, "ok")
+
+    rep = run_model(Long(), "ctl/long", data, base_repeats=2)
+    # Только ПАРАФРАЗЫ: base-строки пишутся из r.text напрямую и не обрезаются,
+    # поэтому max() по всем строкам остался бы 1500 даже при обрезанных парафразах.
+    texts = [r["text"] for r in rep["rows"]
+             if r["text"] and str(r.get("which", "")).startswith("p")]
+    assert texts, "в rows нет текстов парафраз"
+    assert max(len(t) for t in texts) == len(long_text), (
+        f"текст парафразы обрезан: максимум {max(len(t) for t in texts)} "
+        f"вместо {len(long_text)}"
+    )
+
+
+def test_decide_fails_when_one_language_is_below_threshold():
+    """Усреднение маскировало RU-провал идеальным EN: mean(0.89, 1.0) = 0.945 → PASS,
+    и вердикт противоречил собственному reasons (A1)."""
+    report = {
+        "transport": "cli",
+        "per_lang": {
+            "ru": {"invariance_given_base_correct": 0.89,
+                   "invariance_given_base_correct_den": 30},
+            "en": {"invariance_given_base_correct": 1.0,
+                   "invariance_given_base_correct_den": 30},
+        },
+    }
+    dec = decide(report)
+    assert dec["verdict"] == "FAIL", f"вердикт {dec}"
+    assert dec["failed_langs"] == ["ru"], dec
+    assert "mean_invariance_descriptive" in dec, "среднее остаётся лишь описательной величиной"
+
+
+def _run_harness(*args: str) -> subprocess.CompletedProcess:
+    """Дочерний процесс печатает кириллицу в OEM-кодировку консоли Windows, поэтому
+    кодировку вывода надо задавать явно, иначе декодирование падает UnicodeDecodeError."""
+    import os
+
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    return subprocess.run([sys.executable, str(HERE / "run_experiment.py"), *args],
+                          capture_output=True, text=True, encoding="utf-8",
+                          env=env, errors="replace")
+
+
+def test_exit_code_3_for_unknown_and_2_only_for_population(tmp_path):
+    """UNKNOWN («не смогли измерить») не должен делить код 2 с ошибкой входа (A4),
+    а контрольная рука (N/A) — это успех, а не UNKNOWN.
+
+    Правило кодов проверяется на чистой функции: у oracle/planted decide() короткозамкнуто
+    отдаёт N/A, поэтому UNKNOWN через процессный прогон недостижим без живых вызовов."""
+    from run_experiment import exit_code_for
+
+    assert exit_code_for(["FAIL"]) == 1
+    assert exit_code_for(["PASS"]) == 0
+    assert exit_code_for(["N/A"]) == 0, "контрольная рука — успех, не UNKNOWN"
+    assert exit_code_for(["N/A", "N/A"]) == 0
+    assert exit_code_for(["UNKNOWN"]) == 3, "не смогли измерить → 3"
+    assert exit_code_for(["PASS", "UNKNOWN"]) == 3
+    assert exit_code_for(["PASS", "FAIL"]) == 1
+    assert exit_code_for(["FAIL", "UNKNOWN"]) == 1, "пвал важнее «не измерили»"
+
+    # UNKNOWN действительно возникает при малом знаменателе на cli-отчёте.
+    tiny = {
+        "transport": "cli",
+        "per_lang": {"ru": {"invariance_given_base_correct": None,
+                            "invariance_given_base_correct_den": 3}},
+    }
+    assert decide(tiny)["verdict"] == "UNKNOWN"
+    assert exit_code_for([decide(tiny)["verdict"]]) == 3
+
+    # Уровень процесса: пустой датасет → ровно 2.
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"schema_version": "2.0", "cases": []}), encoding="utf-8")
+    r = _run_harness("--transport", "oracle", "--dataset", str(empty))
+    assert r.returncode == 2, (
+        f"пустой датасет → 2, получено {r.returncode}: {r.stderr[:200]}"
+    )
+
+
+def test_control_arm_exit_code_is_zero(tmp_path):
+    out = tmp_path / "ctl.json"
+    r = _run_harness("--transport", "oracle", "--out", str(out))
+    assert r.returncode == 0, f"контрольная рука → 0, получено {r.returncode}"
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["repeats"][0]["decision"]["verdict"] == "N/A"
+
+
+# ── разбор потоков CLI: ответ в stdout, баннер в stderr ──────────────────────
+# Зафиксировано на РЕАЛЬНОМ вызове 2026-10-02 (opencode-go/longcat-2.0).
+# Регрессия: харнесс склеивал stdout+stderr и вырезал «всё после баннера».
+# Баннер идёт в stderr, поэтому «после баннера» — пусто, и ответ терялся:
+# все 12 вызовов пилота пришли со статусом 'empty'.
+OBSERVED_STDOUT = b"Venus comes directly after Mercury in the solar system.\n"
+OBSERVED_STDERR_PLAIN = b"\n> build \xc2\xb7 longcat-2.0\n\x1b[0m\n"
+OBSERVED_STDERR_PSWRAP = (
+    b"opencode.cmd : \x1b[0m\r\nNativeCommandError\r\n\r\n"
+    b"> build \xc2\xb7 longcat-2.0\r\n\x1b[0m\r\n"
+)
+
+
+def test_banner_is_not_in_stdout():
+    from run_experiment import BUILD_MODEL
+    assert not BUILD_MODEL.search(OBSERVED_STDOUT.decode("utf-8")), \
+        "в ответе модели не должно быть служебного баннера"
+
+
+def test_served_model_detected_from_stderr():
+    from run_experiment import BUILD_MODEL
+    for raw in (OBSERVED_STDERR_PLAIN, OBSERVED_STDERR_PSWRAP):
+        m = BUILD_MODEL.search(raw.decode("utf-8", errors="replace"))
+        assert m and m.group(1) == "longcat-2.0", f"баннер не распознан: {raw!r}"
+
+
+def test_body_extraction_keeps_answer_when_banner_is_on_stderr():
+    """Настоящий баг: тело бралось из склейки out+err, где баннер идёт ПОСЛЕ ответа."""
+    from run_experiment import CliTransport
+
+    strip = CliTransport._strip_banner
+    merged = OBSERVED_STDOUT.decode() + "\n" + OBSERVED_STDERR_PLAIN.decode()
+    assert "Venus" not in strip(merged), \
+        "склейка out+err обязана ПОТЕРЯТЬ ответ — это и был баг"
+    assert strip(OBSERVED_STDOUT.decode()).strip() == \
+        "Venus comes directly after Mercury in the solar system.", \
+        "из stdout ответ должен извлекаться целиком"
+
+
+def test_powershell_wrapped_stderr_does_not_hide_the_answer():
+    from run_experiment import CliTransport
+
+    got = CliTransport._strip_banner(OBSERVED_STDERR_PSWRAP.decode("utf-8", errors="replace"))
+    assert "build" not in got, f"баннер не вырезан: {got!r}"
+
+
+def test_body_is_taken_from_stdout_not_from_merged_streams():
+    """Структурный guard: тело обязано извлекаться из stdout, а диагноз 'empty'
+    нести оба потока — иначе сбой неотличим от «модель промолчала»."""
+    import inspect
+
+    from run_experiment import CliTransport
+    src = inspect.getsource(CliTransport.ask)
+    assert "self._strip_banner(out_text)" in src, \
+        "тело обязано извлекаться из stdout (баннер живёт в stderr)"
+    assert "stdout=" in src and "stderr=" in src, \
+        "диагноз 'empty' должен включать оба потока"
 
 
 # ── отказ ≠ противоречие ─────────────────────────────────────────────────────
