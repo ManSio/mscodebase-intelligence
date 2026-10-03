@@ -112,17 +112,49 @@ def _resolve_fixtures(entry: dict) -> list[Path]:
 
 
 def _resolve_bash() -> str | None:
-    """Windows: subprocess(['bash']) резолвит в System32\\bash.exe (WSL-шим) —
-    CreateProcess ищет system32 ДО PATH, а это WSL-лаунчер без дистрибутива.
-    Явно берём bash из PATH (shutil.which ищет только PATH) и отбраковываем WSL-шим."""
-    w = shutil.which("bash")
-    if not w:
-        return None
+    """Найти пригодный bash, отбросив WSL-шим System32\\bash.exe.
+
+    `subprocess(['bash'])` на Windows резолвит в System32\\bash.exe (WSL-шим)
+    — CreateProcess ищет system32 ДО PATH, а это лаунчер без дистрибутива.
+    `shutil.which` ищет только PATH, но PATH зависит от того, кто запустил
+    агент: из PowerShell путь Git там часто отсутствует, и гейт объявлял
+    bash «недоступным», хотя GitBash установлен (инцидент 2026-10-03,
+    тот же класс, что «гейт пригоден только на машине автора»).
+
+    Поэтому: 1) фильтруем WSL-шим, 2) если в PATH ничего годного —
+    проверяем типовые места установки Git.
+    """
+    candidates: list[str] = []
+    on_path = shutil.which("bash")
+    if on_path:
+        candidates.append(on_path)
+
+    git_bash = shutil.which("git")
+    roots = [Path(r) for r in (
+        os.environ.get("ProgramFiles", r"C:\Program Files"),
+        os.environ.get("ProgramW6432", r"C:\Program Files"),
+        os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+    )]
+    for root in roots:
+        candidates.append(str(root / "Git" / "bin" / "bash.exe"))
+        candidates.append(str(root / "Git" / "usr" / "bin" / "bash.exe"))
+    if git_bash:
+        git_root = Path(git_bash).resolve().parent.parent
+        candidates.append(str(git_root / "bin" / "bash.exe"))
+
     win_dir = os.environ.get("WINDIR")
-    p = Path(w)
-    if win_dir and p.resolve().is_relative_to(Path(win_dir).resolve()):
-        return None  # System32\\bash.exe — WSL-шим, не GitBash
-    return w
+    for cand in candidates:
+        path = Path(cand)
+        if not path.is_file():
+            continue
+        if win_dir:
+            try:
+                if path.resolve().is_relative_to(Path(win_dir).resolve()):
+                    continue  # System32\\bash.exe — WSL-шим, не GitBash
+            except (OSError, ValueError):
+                continue
+        return str(path)
+    return None
 
 
 def _run_command(cmd: list[str], timeout: int = RUN_TIMEOUT) -> tuple[int, str]:
