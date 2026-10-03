@@ -470,14 +470,24 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         # 120s кап флаки при нагрузке (pytest ~108-130s) — 300s запас (2026-08-08);
         # 300→900 (2026-08-24): сюита выросла (1499+ live-sync/predict-наборы),
         # даже в CI clean-state pytest идёт ~171s — 300s флакал при параллельной нагрузке.
-        stdout, _ = proc.communicate(timeout=900)
+        # 2026-10-03: на этой машине полный прогон НЕ укладывается в 900s — измерено
+        # 36% за 600s, то есть ~1670s. Кап стал гарантированным таймаутом, из-за чего
+        # коммит нельзя было сделать ни через хук, ни честно. Бюджет сделан
+        # настраиваемым и печатается вместе с вердиктом; значение по умолчанию
+        # прежнее, чтобы CI-значение не подменялось молча.
+        budget = int(os.environ.get("MSCB_GATE_ZERO_TIMEOUT", "900"))
+        stdout, _ = proc.communicate(timeout=budget)
         output = stdout.decode("utf-8", errors="replace").strip()
         # Извлекаем итоговую строку
         lines = [l for l in output.split("\n") if "passed" in l or "failed" in l]
         summary = lines[-1] if lines else output[-200:]
         return proc.returncode == 0, summary
     except subprocess.TimeoutExpired:
-        return False, "TIMEOUT: pytest tests/ > 900s"
+        return False, (
+            f"TIMEOUT: pytest tests/ > {budget}s — это не провал тестов, это нехватка бюджета. "
+            f"Либо поднимите MSCB_GATE_ZERO_TIMEOUT (измерено: нужно ~1700s), "
+            f"либо запустите с --skip-gate-zero и оставьте gate-zero за CI."
+        )
     except Exception as e:
         return False, f"ERROR: {e}"
 
