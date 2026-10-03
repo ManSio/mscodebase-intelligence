@@ -98,7 +98,8 @@
   (get_variable_flow/get_related_files/run_health_check/predict_eta — 0 в src/),
   get_index_status/git(action)/watcher_status — action-маршруты codebase hub,
   не отдельные MCP-тулы (единственная регистрация — register_all_tools).
-  Факты: intel_*=14, core=28, inline=12, dev=4, tests=1180. Правило:
+  Факты (слепок на дату записи, НЕ текущие значения): intel_*=14, core=28, inline=12,
+  dev=4, tests=1180. Правило:
   каждое имя тула в AGENTS.md обязано быть в списке tool_name (grep-гейт).
 - ГЕЙТ РЕАЛИЗОВАН (2026-08-12): scripts/check_tool_names.py в pre-commit —
   мёртвые имена → error; intel_* сверка с реестром; negative control 6 тестов.
@@ -239,3 +240,17 @@
   revision gate VALID. Новый core (quiet_break_gate/redact/restraint) прошёл clean-state.
 - Если ветка не запушена, default clone с GitHub тестирует ЧУЖОЕ (origin) состояние — для честного
   clean-state клонировать ЛОКАЛЬНЫЙ репо и гонять --no-clone.
+
+## Живая перепись публикуемых чисел (2026-10-03)
+- Правило: **число внутри датированного слепка помечается как слепок**, а текущее значение живёт
+  отдельно и проверяется командой, а не памятью. Основание: benchmark decay — «число остаётся
+  прежним, то, что оно измеряет, размывается».
+- Текущие значения (пере-меряются, не выдумываются):
+  `intel_*=20`, `tests=2007 collected / 2001 passed`, `6 skipped`.
+- Команда пересчёта: `python tools/verification/verify_public_claims.py`
+  (каждое утверждение имеет свою команду; расхождение → rc=3).
+- Guard: `python tools/verification/verify_public_claims.py --selftest` — 4 синтетических кейса,
+  2 обязаны отклоняться. Урок: проверка `live <= stated` односторонняя — она пропустила бы бейдж,
+  завышающий число; симметричное сравнение ловит обе стороны.
+- Старые `intel_*=14 / tests=1180` оставлены как исторические слепки: правка опубликованного
+  числа — новая запись со ссылкой на старую, а не молчаливая замена.

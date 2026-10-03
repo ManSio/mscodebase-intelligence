@@ -56,8 +56,8 @@
   "repo/KNOWN_ISSUES.md": {
    "class": "INTERNAL",
    "reason": "internal board; public via known-issues.json",
-   "n_sig1": 14,
-   "n_sig2": 692,
+   "n_sig1": 16,
+   "n_sig2": 741,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -68,7 +68,7 @@
    "class": "PUBLIC",
    "reason": "public readme",
    "n_sig1": 24,
-   "n_sig2": 109,
+   "n_sig2": 108,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -78,8 +78,8 @@
   "repo/WISDOM.md": {
    "class": "INTERNAL",
    "reason": "internal distilate",
-   "n_sig1": 7,
-   "n_sig2": 204,
+   "n_sig1": 8,
+   "n_sig2": 213,
    "n_reviewed": 0,
    "profiles": [
     "full",
