@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -167,7 +168,14 @@ def _record_result(guard_name: str, control_type: str, passed: bool) -> None:
 
 
 def _record_results(guards_results: dict) -> None:
-    """Write results to experiments/planted_break/results.json."""
+    """Write results to experiments/planted_break/results.json.
+
+    The write is ATOMIC (temp file + os.replace). A plain write_text is a torn
+    write when two xdist workers land here at once, and this file is regenerated
+    on every run and read by nobody — so a torn copy is pure noise in git status.
+    os.replace is atomic on POSIX and on Windows (same volume), which is why the
+    temp file has to sit next to the target rather than in %TEMP%.
+    """
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -177,7 +185,9 @@ def _record_results(guards_results: dict) -> None:
             for g in guards_results.values()
         ),
     }
-    RESULTS_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp = RESULTS_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, RESULTS_FILE)
 
 
 @pytest.fixture(scope="session", autouse=True)
