@@ -1,0 +1,125 @@
+{
+  "experiment": "prompt_robustness",
+  "frozen_at": "2026-10-02T21:39:00+00:00",
+  "frozen_at_note": "Датасет и HYPOTHESES заморожены до первого вызова реальной модели. До заморозки выполнен один транспортный вызов opencode-go/longcat-2.0 с промптом 'PONG' (проверка канала); вопросов датасета он не содержал и ни в одну метрику не входит.",
+  "dataset": {
+    "file": "dataset.json",
+    "schema_version": "2.0",
+    "sha256": "72ffdb58e0bc850de82cdf70c13c21a36c0f4b46988cab8982b98d6d0977c4e1",
+    "bytes": 18939,
+    "cases_total": 11,
+    "cases_in_aggregate": 10,
+    "prompts_per_language": {
+      "ru": 40,
+      "en": 40
+    },
+    "prompts_note": "включая 1 base + 3 парафразы на кейс",
+    "paraphrase_comparisons_per_language": {
+      "ru": 30,
+      "en": 30
+    },
+    "invariance_denominator_per_language": 30,
+    "invariance_denominator_total": 60,
+    "invariance_denominator_note": "Знаменатель = только парафразы. Base не сравнивается сам с собой; он задаёт условие base_ok. Поэтому 30 на язык, а не 40.",
+    "model_calls_per_model": 120,
+    "model_calls_note": "120 = 60 парафраз + 60 base (3 повтора × 2 языка × 10 кейсов)"
+  },
+  "hypotheses": {
+    "file": "HYPOTHESES.md",
+    "sha256": "a889fa5d482a529096f911e22fa201392552721aa4218d79cd388f1569919223",
+    "bytes": 11717,
+    "hypotheses": [
+      "H1",
+      "H2",
+      "H3",
+      "H4",
+      "H5",
+      "H6",
+      "H7"
+    ],
+    "expected_to_fail": [
+      "H2",
+      "H5",
+      "H6"
+    ],
+    "controls": [
+      "C1",
+      "C2",
+      "C2b",
+      "C3",
+      "C3b",
+      "C4",
+      "C5",
+      "C6"
+    ],
+    "amendments": [
+      "A1",
+      "A2",
+      "A3",
+      "A4",
+      "A5",
+      "A6"
+    ]
+  },
+  "harness": {
+    "file": "run_experiment.py",
+    "sha256": "70daee61353aba99dca9f13d5ca8a018253a0bdb0b442edf1d385ccf01617bbd",
+    "tests_file": "test_harness_sanity.py",
+    "tests_sha256": "5c770d2e889b258020019832a44fc79b39ecf0aec80ddb813864054db8be3cd3",
+    "tests_passing": 39,
+    "mutation_checks": "8/8 пойманы (baseline и restore зелёные)",
+    "verify_command": "python -m pytest experiments/prompt_robustness/test_harness_sanity.py -q"
+  },
+  "measured": {
+    "source": "pilot_longcat.json (живой CLI, 1 кейс x 3 повтора x 2 языка)",
+    "pilot_calls": 12,
+    "pilot_elapsed_s": 178.1,
+    "sec_per_call": 14.8,
+    "full_run_calls": 360,
+    "full_run_estimate_min": 89,
+    "full_run_estimate_note": "360 вызовов x ~14.8 с. Оценка из пилота на 12 вызовах, не измерение полного прогона."
+  },
+  "controls_results": {
+    "control_oracle.json": "exit 0; все 3 модели, обе руки: base_acc=1.0, inv=1.0 (30/30), seed=1.0 (n=10)",
+    "control_planted.json": "exit 0; RU inv=0.9667 (29/30), EN inv=1.0 (30/30); единственная расогласованная строка — саботированная q_france_capital/ru/p0",
+    "re_derivation": "метрики перевыведены из сырых rows независимым скриптом; расхождений 0, 120 строк на модель (60 RU + 60 EN)"
+  },
+  "decision_rule": {
+    "invariance_threshold": 0.9,
+    "applies_per_language": true,
+    "averaging_across_languages": false,
+    "min_invariance_denominator": 10,
+    "base_repeats": 3,
+    "seeds": [
+      1,
+      2,
+      3
+    ],
+    "variant": "high",
+    "pure": true,
+    "exit_codes": {
+      "0": "PASS or control arm",
+      "1": "FAIL",
+      "2": "POPULATION ERROR only",
+      "3": "UNKNOWN (denominator too small)"
+    }
+  },
+  "models": [
+    "opencode-go/longcat-2.0",
+    "opencode-go/qwen3.7-plus",
+    "opencode-go/deepseek-v4.1-flash"
+  ],
+  "transport": {
+    "kind": "opencode CLI (subprocess)",
+    "exe": "%APPDATA%\\npm\\opencode.cmd",
+    "invocation": "single-line argv, no --file (имя файла выдало бы arm/which)",
+    "model_served_marker": "> build · <model>",
+    "system_fingerprint": null,
+    "system_fingerprint_note": "CLI не отдаёт fingerprint; unavailable фиксируется явно, а не подменяется догадкой."
+  },
+  "verify_command": "python -m pytest experiments/prompt_robustness/test_harness_sanity.py -q",
+  "reproduce_controls": [
+    "python experiments/prompt_robustness/run_experiment.py --transport oracle  --out experiments/prompt_robustness/results/control_oracle.json",
+    "python experiments/prompt_robustness/run_experiment.py --transport planted --out experiments/prompt_robustness/results/control_planted.json"
+  ]
+}
