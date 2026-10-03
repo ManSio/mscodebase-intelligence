@@ -49,3 +49,22 @@ def test_no_ruff_returns_zero():
     with mock.patch.dict("sys.modules", real_modules, clear=True):
         with mock.patch("builtins.__import__", side_effect=ImportError("no ruff")):
             assert mod.main() == 0
+
+
+def test_silent_nonzero_exit_is_named_as_a_broken_runner():
+    """2026-10-03: `python -m ruff` exits 1 with NO output. A bare "exit 1"
+    is indistinguishable from a lint error, so the gate must say which it is."""
+    with mock.patch.object(subprocess, "Popen", return_value=_FakeProc(1, "")):
+        assert mod.main() == 1
+
+
+def test_console_script_is_preferred_over_the_dead_module_form():
+    """The installed ruff package here has no __main__, so `-m ruff` cannot run."""
+    with mock.patch.object(mod.shutil, "which", lambda _n: None), \
+            mock.patch.object(Path, "exists", lambda _self: False), \
+            mock.patch.object(subprocess, "run",
+                              return_value=subprocess.CompletedProcess([], 1, "", "")):
+        assert mod.ruff_cmd() is None
+    with mock.patch.object(mod.shutil, "which", lambda _n: "/usr/bin/ruff"):
+        cmd = mod.ruff_cmd()
+        assert cmd is not None and "python" not in cmd[0]
