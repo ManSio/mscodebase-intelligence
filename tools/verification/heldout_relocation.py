@@ -67,18 +67,35 @@ import os  # noqa: E402
 
 with tempfile.TemporaryDirectory() as td:
     env = dict(os.environ, MSCB_PROJECTS_ROOT=td)
-    p = subprocess.run([PY, str(HERE / "g5_denominator.py")], env=env,
+    p = subprocess.run([PY, "-B", str(HERE / "g5_denominator.py")], env=env,
                        capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=300)
-ok = p.returncode == 2
-results.append(ok)
-out = (p.stdout or "") + (p.stderr or "")
-reported_number = bool(re.search(r"coverage\s+\d", out))
-ok = ok and not reported_number
-results.append(ok - 1 if False else ok)
-print(f"  [{'OK ' if ok else 'XX '}] rc={p.returncode} (want 2); reported a coverage number: {reported_number}")
-for line in out.strip().splitlines()[-3:]:
-    print(f"        {line[:88]}")
+    out = (p.stdout or "") + (p.stderr or "")
+    # Before scope profiles existed this expected exit 2: a missing sibling repo was
+    # a fatal dependency. Now the gate narrows to repo_only and says so. What must
+    # still hold is that the narrowing is ANNOUNCED — a silently smaller population
+    # is worse than a crash, and that is the failure this suite exists to prevent.
+    announced = "SCOPE PROFILE: repo_only" in out and "portfolio" in out
+    ok = p.returncode == 0 and announced
+    results.append(ok)
+    print(f"  [{'OK ' if ok else 'XX '}] rc={p.returncode} (want 0), scope announced: {announced}")
+    for line in out.strip().splitlines()[:2]:
+        print(f"        {line[:96]}")
+
+# --- 3b. and with NO repo at all it must still refuse, not shrink to nothing ----
+print("\n-- 3b. negative control: no repo either -> exit 2, never a number")
+with tempfile.TemporaryDirectory() as td:
+    env = dict(os.environ, MSCB_PROJECTS_ROOT=td, MSCB_REPO_ROOT=td)
+    p = subprocess.run([PY, "-B", str(HERE / "g5_denominator.py")], env=env,
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=300)
+    out = (p.stdout or "") + (p.stderr or "")
+    printed_number = bool(re.search(r"coverage[ ]+[0-9]", out))
+    ok = p.returncode == 2 and not printed_number
+    results.append(ok)
+    print(f"  [{'OK ' if ok else 'XX '}] rc={p.returncode} (want 2), printed a coverage number: {printed_number}")
+    for line in out.strip().splitlines()[-2:]:
+        print(f"        {line[:96]}")
 
 # --- 4. and with the CORRECT root it still reports a number --------------------
 print("\n-- 4. control: the real root still produces a number (not stuck refusing)")

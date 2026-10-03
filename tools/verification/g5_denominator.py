@@ -38,12 +38,34 @@ sys.stdout.reconfigure(encoding="utf-8")
 # Getting this wrong made the gate report "population undeterminable" — the CORRECT
 # failure for a missing dependency, produced by the WRONG cause (a bad path, not a
 # missing repo). Both look identical from the exit code alone.
-ROOT = Path(__file__).resolve().parents[2]
+#
+# MSCB_REPO_ROOT exists because heldout_g5.py runs a COPY of this file from a temp
+# dir, where parents[2] is empty. Without an override the copy could only ever
+# report "no scope profile is satisfiable" — a test harness that cannot exercise
+# the gate is not a harness.
+ROOT = Path(os.environ.get("MSCB_REPO_ROOT") or Path(__file__).resolve().parents[2])
 
-# Where the audited repositories live. Derived from this file's location, so a clone
-# at any path works. NEVER silently substituted: if the directory is absent, scan()
-# raises a hard failure and main() exits 2 (RT3).
+# Where the audited repositories live. Derived from ROOT, so a clone at any path works.
+# NEVER silently substituted: if the directory is absent, scan() raises a hard failure
+# and main() exits 2 (RT3).
 PROJECTS_ROOT = Path(os.environ.get("MSCB_PROJECTS_ROOT", str(ROOT.parent)))
+
+# --- the population, as DECLARED SCOPE PROFILES ---------------------------------
+# A bare clone (CI, a fresh machine, a git worktree) has no sibling repositories.
+# Deriving the population from the filesystem made the gate exit 2 there — correct in
+# refusing to print a number, but it made the gate UNRUNNABLE outside one developer's
+# folder layout, which defeats the point of committing it in the first place.
+#
+# So the population is declared in the committed manifest as named profiles, each
+# with the roots it requires. The gate picks the first profile whose roots all exist
+# and PRINTS which one it used, and why the others were skipped. Coverage is then
+# reported for that profile only: never blended across profiles, never silently
+# reduced to whatever happens to be on disk.
+SCOPE_PROFILES = {
+    "full": {"roots": ["repo", "portfolio"]},
+    "repo_only": {"roots": ["repo"]},
+}
+PROFILE_ORDER = ["full", "repo_only"]
 RULE_VERSION = 1
 
 # --- rule 1: number + unit-after -------------------------------------------------
@@ -65,28 +87,66 @@ RULE_2 = re.compile(r"(?<![\w.])[-+]?\d+(?![\w])")
 RULE_2_SRC = RULE_2.pattern
 
 # --- the population: an EXPLICIT list. No globs, no fallbacks (RT1). -------------
-REPO = PROJECTS_ROOT / "MSCodeBase"
+# REPO is THIS repository, by definition. It used to be PROJECTS_ROOT / "MSCodeBase",
+# which hardcoded the checkout's folder name — so in a worktree or a CI workspace
+# the gate looked for a repo that does not exist and reported "population
+# undeterminable" instead of scanning the tree it was actually running in.
+REPO = ROOT
 PORT = PROJECTS_ROOT / "MSPortfolio"
 
-# (relative label, path, class, why-in-or-out)
-ARTIFACTS: list[tuple[str, Path, str, str]] = [
-    ("portfolio/lab/experiments.json", PORT / "src/data/lab/experiments.json", "PUBLIC", "public lab mirror"),
-    ("portfolio/lab/experiments.ru.json", PORT / "src/data/lab/experiments.ru.json", "PUBLIC", "RU mirror of above"),
-    ("portfolio/lab/diary.json", PORT / "src/data/lab/diary.json", "PUBLIC", "public diary mirror"),
-    ("portfolio/lab/diary.ru.json", PORT / "src/data/lab/diary.ru.json", "PUBLIC", "RU mirror of above"),
-    ("portfolio/lab/known-issues.json", PORT / "src/data/lab/known-issues.json", "PUBLIC", "public issue board"),
-    ("portfolio/lab/known-issues.ru.json", PORT / "src/data/lab/known-issues.ru.json", "PUBLIC", "RU mirror of above"),
-    ("portfolio/lab/test-suites.json", PORT / "src/data/lab/test-suites.json", "PUBLIC", "public suite claims"),
-    ("portfolio/lab/test-suites.ru.json", PORT / "src/data/lab/test-suites.ru.json", "PUBLIC", "RU mirror of above"),
-    ("portfolio/README.md", PORT / "README.md", "PUBLIC", "public readme"),
-    ("portfolio/CHANGELOG.md", PORT / "CHANGELOG.md", "PUBLIC", "public changelog"),
-    ("repo/EXPERIMENTS_LOG.md", REPO / "EXPERIMENTS_LOG.md", "INTERNAL", "internal log; public via experiments.json"),
-    ("repo/AGENT_DIARY.md", REPO / "AGENT_DIARY.md", "INTERNAL", "internal diary; public via diary.json"),
-    ("repo/KNOWN_ISSUES.md", REPO / "KNOWN_ISSUES.md", "INTERNAL", "internal board; public via known-issues.json"),
-    ("repo/ISSUE.md", REPO / "ISSUE.md", "INTERNAL", "internal tracker"),
-    ("repo/WISDOM.md", REPO / "WISDOM.md", "INTERNAL", "internal distilate"),
-    ("repo/README.md", REPO / "README.md", "PUBLIC", "public readme"),
+# (relative label, path, class, why-in-or-out, which scope profiles include it)
+ARTIFACTS: list[tuple[str, Path, str, str, tuple[str, ...]]] = [
+    ("portfolio/lab/experiments.json", PORT / "src/data/lab/experiments.json", "PUBLIC", "public lab mirror", ("full",)),
+    ("portfolio/lab/experiments.ru.json", PORT / "src/data/lab/experiments.ru.json", "PUBLIC", "RU mirror of above", ("full",)),
+    ("portfolio/lab/diary.json", PORT / "src/data/lab/diary.json", "PUBLIC", "public diary mirror", ("full",)),
+    ("portfolio/lab/diary.ru.json", PORT / "src/data/lab/diary.ru.json", "PUBLIC", "RU mirror of above", ("full",)),
+    ("portfolio/lab/known-issues.json", PORT / "src/data/lab/known-issues.json", "PUBLIC", "public issue board", ("full",)),
+    ("portfolio/lab/known-issues.ru.json", PORT / "src/data/lab/known-issues.ru.json", "PUBLIC", "RU mirror of above", ("full",)),
+    ("portfolio/lab/test-suites.json", PORT / "src/data/lab/test-suites.json", "PUBLIC", "public suite claims", ("full",)),
+    ("portfolio/lab/test-suites.ru.json", PORT / "src/data/lab/test-suites.ru.json", "PUBLIC", "RU mirror of above", ("full",)),
+    ("portfolio/README.md", PORT / "README.md", "PUBLIC", "public readme", ("full",)),
+    ("portfolio/CHANGELOG.md", PORT / "CHANGELOG.md", "PUBLIC", "public changelog", ("full",)),
+    ("repo/EXPERIMENTS_LOG.md", REPO / "EXPERIMENTS_LOG.md", "INTERNAL", "internal log; public via experiments.json", ("full", "repo_only")),
+    ("repo/AGENT_DIARY.md", REPO / "AGENT_DIARY.md", "INTERNAL", "internal diary; public via diary.json", ("full", "repo_only")),
+    ("repo/KNOWN_ISSUES.md", REPO / "KNOWN_ISSUES.md", "INTERNAL", "internal board; public via known-issues.json", ("full", "repo_only")),
+    ("repo/ISSUE.md", REPO / "ISSUE.md", "INTERNAL", "internal tracker", ("full", "repo_only")),
+    ("repo/WISDOM.md", REPO / "WISDOM.md", "INTERNAL", "internal distilate", ("full", "repo_only")),
+    ("repo/README.md", REPO / "README.md", "PUBLIC", "public readme", ("full", "repo_only")),
 ]
+
+
+def choose_profile() -> tuple[str | None, str]:
+    """Pick the first scope profile whose roots all exist. Returns (profile, why).
+
+    Printed on every run. A profile switch is a change of population, so it must be
+    as visible as a rule-version change — otherwise the same command reports
+    different coverage in CI and on the author's machine with no visible cause.
+
+    Returns (None, why) when no profile is satisfiable; the caller must then refuse
+    to report a number rather than fall back to whatever is on disk.
+    """
+    notes = []
+    for name in PROFILE_ORDER:
+        spec = SCOPE_PROFILES[name]
+        missing = []
+        for root in spec["roots"]:
+            if root == "repo" and not (ROOT / "pyproject.toml").exists():
+                missing.append("repo (this checkout)")
+            if root == "portfolio" and not (PORT / "src" / "data" / "lab").exists():
+                missing.append(f"portfolio ({PORT})")
+        if not missing:
+            why = f"profile '{name}' satisfied"
+            earlier = PROFILE_ORDER[:PROFILE_ORDER.index(name)]
+            if earlier:
+                why += (f"; '{earlier[0]}' skipped because "
+                        + ("the portfolio mirror is not present"
+                           if "portfolio" in SCOPE_PROFILES[earlier[0]]["roots"]
+                           else "its roots are missing"))
+            return name, why
+        notes.append(f"'{name}' needs {', '.join(missing)}")
+    return None, ("no scope profile is satisfiable: " + "; ".join(notes)
+                  + " — a smaller population must never be reported as the population")
+
 
 EXEMPT_CODES = {
     "MIRROR": "RU mirror of an already-registered EN artifact",
@@ -110,11 +170,18 @@ def load_manifest(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
-def scan() -> tuple[dict, list[str]]:
-    """Returns (per-label -> sigs, hard_failures). Missing file => hard failure (RT3)."""
+def scan(profile: str = "full") -> tuple[dict, list[str]]:
+    """Returns (per-label -> sigs, hard_failures). Missing file => hard failure (RT3).
+
+    Only artifacts belonging to `profile` are scanned; the others are not "missing",
+    they are out of scope by declaration, and saying otherwise would make a bare
+    clone look like a broken checkout.
+    """
     out: dict[str, dict] = {}
     hard: list[str] = []
-    for label, path, cls, why in ARTIFACTS:
+    for label, path, cls, why, profiles in ARTIFACTS:
+        if profile not in profiles:
+            continue
         if not path.exists():
             hard.append(f"MISSING DEPENDENCY: {label} -> {path} (RT3: never a silent 0)")
             continue
@@ -127,7 +194,7 @@ def scan() -> tuple[dict, list[str]]:
     return out, hard
 
 
-def evaluate(manifest: dict, found: dict) -> tuple[list[str], dict]:
+def evaluate(manifest: dict, found: dict, profile: str = "full") -> tuple[list[str], dict]:
     """Returns (blocks, stats).
 
     TWO DISTINCT COUNTS PER ARTIFACT — never conflate them:
@@ -323,7 +390,14 @@ def main(argv: list[str]) -> int:
         print(f"MANIFEST UNREADABLE: {e}")
         return 2
 
-    found, hard = scan()
+    profile, profile_why = choose_profile()
+    if profile is None:
+        print(f"[FATAL] {profile_why}")
+        return 2
+    print(f"SCOPE PROFILE: {profile} — {profile_why}")
+    print()
+
+    found, hard = scan(profile)
     if hard:
         for h in hard:
             print(f"[FATAL] {h}")
@@ -333,7 +407,7 @@ def main(argv: list[str]) -> int:
         print("POPULATION EMPTY — refusing to report 0% as coverage.")
         return 2
 
-    blocks, stats = evaluate(manifest, found)
+    blocks, stats = evaluate(manifest, found, profile)
     report(found, stats, rule_hash)
     print()
     if blocks:

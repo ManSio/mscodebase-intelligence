@@ -54,10 +54,14 @@ def build_baseline() -> bytes:
 
 
 def run_gate(dirpath: Path) -> tuple[int, str]:
+    # MSCB_REPO_ROOT points the copy at the real checkout: the copy lives in a temp
+    # dir, so its parents[2] is an empty folder and every scope profile would fail.
+    env = dict(os.environ,
+               MSCB_PROJECTS_ROOT=str(PROJECTS_ROOT),
+               MSCB_REPO_ROOT=str(REPO))
     p = subprocess.run([sys.executable, "-B", str(dirpath / GATE_NAME)],
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300,
-                       env=dict(os.environ, MSCB_PROJECTS_ROOT=str(PROJECTS_ROOT)))
+                       errors="replace", timeout=300, env=env)
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 
@@ -95,12 +99,16 @@ def m_drop_artifact(d):
 
 
 def m_bad_exempt(d):
-    d["artifacts"]["portfolio/lab/test-suites.json"].update(
+    d["artifacts"]["repo/AGENT_DIARY.md"].update(
         {"reason_code": "EXEMPT", "exempt_code": "TRUST_ME"})
 
 
 def m_class_drift(d):
-    d["artifacts"]["portfolio/lab/diary.json"]["class"] = "INTERNAL"
+    # repo/KNOWN_ISSUES.md is class INTERNAL in the manifest; flip it to PUBLIC.
+    # It used to be a portfolio artifact, which is out of scope under the repo_only
+    # profile a bare clone gets — mutating it was a no-op there, so the case passed
+    # vacuously with rc=0 where a block was required.
+    d["artifacts"]["repo/KNOWN_ISSUES.md"]["class"] = "PUBLIC"
 
 
 CASES = [
