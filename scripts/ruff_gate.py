@@ -34,24 +34,29 @@ def ruff_cmd() -> list[str] | None:
     2026-10-03: `python -m ruff` in this venv printed NOTHING and exited 1 — the
     installed `ruff` package has no `__main__`. The gate called exactly that, so
     it was permanently red and mute: it looked like "lint is broken", and the
-    only visible effect was that commits could not be made. Prefer the console
-    script; verify with `--version` instead of trusting the import.
+    only visible effect was that commits could not be made.
+
+    Order matters: availability is decided by importability first (no
+    subprocess at all), because a subprocess probe here would fire inside other
+    tests that stub `subprocess.Popen`. The dead module form is only used when
+    no console script exists, and it is then proven with `--version`.
     """
+    try:
+        import ruff  # noqa: F401
+    except ImportError:
+        return None
+
     exe = shutil.which("ruff")
     if not exe:
-        # console scripts live next to the interpreter in a venv
+        # console scripts live next to the interpreter inside a venv
         cand = Path(sys.executable).parent / ("ruff.exe" if os.name == "nt" else "ruff")
         if cand.exists():
             exe = str(cand)
     if exe:
-        try:
-            probe = subprocess.run([exe, "--version"], capture_output=True,
-                                  encoding="utf-8", errors="replace", timeout=60)
-            if probe.returncode == 0 and "ruff" in (probe.stdout or "").lower():
-                return [exe, "check"]
-        except (OSError, subprocess.SubprocessError):
-            pass
-    # last resort: module form, but only if it can report a version
+        return [exe, "check"]
+
+    # No console script: the module form is the last resort, but only if it can
+    # actually report a version (this venv's copy cannot).
     try:
         probe = subprocess.run([sys.executable, "-m", "ruff", "--version"],
                               capture_output=True, encoding="utf-8",
