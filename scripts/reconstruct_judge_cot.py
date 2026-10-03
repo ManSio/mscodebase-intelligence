@@ -26,7 +26,7 @@ if sys.stdout is not None:
         pass
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DB = Path(r"C:\Users\misha\.local\share\opencode\opencode.db")
+DEFAULT_DB = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 WORKDIR = "D:/Project/MSCodeBase/experiments/4A_unit_of_return/results/f5judged/work"
 FROZEN = ROOT / "experiments" / "4A_unit_of_return" / "frozen" / "f5" / "queries.jsonl"
 

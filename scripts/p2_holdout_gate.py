@@ -2,7 +2,7 @@
 """P2 pool-anchor holdout gate (live, fresh-process): P2 + H1-H12 + N/doc controls.
 
 Usage:
-    python scripts/p2_holdout_gate.py [--project D:/Project/MSCodeBase]
+    python scripts/p2_holdout_gate.py [--project <repo-root>]
 
 Pattern follows scripts/o1_holdout_gate.py (fresh process, discarded warm-up,
 void-flag), PLUS a blocking FTS prebuild: the cold FTS5 to_pandas build takes

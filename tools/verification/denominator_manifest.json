@@ -1,0 +1,200 @@
+{
+ "rule_version": 1,
+ "generated_for_profile": "repo_only",
+ "scope_profiles": {
+  "full": {
+   "roots": [
+    "repo",
+    "portfolio"
+   ]
+  },
+  "repo_only": {
+   "roots": [
+    "repo"
+   ]
+  }
+ },
+ "rule1": "(?<![\\w.])[-+]?\\d[\\d ,._]*\\s?(?:%|x\\b|\\u00d7|k\\b|MB|KB|ms|s\\b)?\\s*(?:passing|passed|failed|fails|tests?|asserts?|checks?|guards?|chunks?|ms|sec|seconds?|min|minutes?|hours?|days?|nodes?|files?|experiments?|claims?|runs?|cycles?|articles?|issues?|commits?|tokens?|lines?|bytes?|pct|ratio|score|percent)",
+ "rule2": "(?<![\\w.])[-+]?\\d+(?![\\w])",
+ "rule_sha256": "7a3e2063a5825d84ea659d75aac9ffeeba28d73ca5e599b77039c491d27fb9e1",
+ "projects_root": "C:\\Users\\misha\\AppData\\Local\\Temp",
+ "note": "n_sig1 is DERIVED by the rule above. n_reviewed is AUTHORED and starts at 0. class and reason are JUDGEMENT (RT4), stated per artifact so the boundary is visible. Coverage is n_reviewed / n_sig1 and is 0% by construction until real classification happens. Each artifact lists the scope profiles it belongs to; null counts mean it was out of scope when this manifest was generated.",
+ "artifacts": {
+  "repo/AGENT_DIARY.md": {
+   "class": "INTERNAL",
+   "reason": "internal diary; public via diary.json",
+   "n_sig1": 104,
+   "n_sig2": 2167,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "repo/EXPERIMENTS_LOG.md": {
+   "class": "INTERNAL",
+   "reason": "internal log; public via experiments.json",
+   "n_sig1": 302,
+   "n_sig2": 5759,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "repo/ISSUE.md": {
+   "class": "INTERNAL",
+   "reason": "internal tracker",
+   "n_sig1": 13,
+   "n_sig2": 856,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "repo/KNOWN_ISSUES.md": {
+   "class": "INTERNAL",
+   "reason": "internal board; public via known-issues.json",
+   "n_sig1": 16,
+   "n_sig2": 741,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "repo/README.md": {
+   "class": "PUBLIC",
+   "reason": "public readme",
+   "n_sig1": 24,
+   "n_sig2": 108,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "repo/WISDOM.md": {
+   "class": "INTERNAL",
+   "reason": "internal distilate",
+   "n_sig1": 8,
+   "n_sig2": 213,
+   "n_reviewed": 0,
+   "profiles": [
+    "full",
+    "repo_only"
+   ]
+  },
+  "portfolio/lab/experiments.json": {
+   "class": "PUBLIC",
+   "reason": "public lab mirror",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/experiments.ru.json": {
+   "class": "PUBLIC",
+   "reason": "RU mirror of above",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/diary.json": {
+   "class": "PUBLIC",
+   "reason": "public diary mirror",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/diary.ru.json": {
+   "class": "PUBLIC",
+   "reason": "RU mirror of above",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/known-issues.json": {
+   "class": "PUBLIC",
+   "reason": "public issue board",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/known-issues.ru.json": {
+   "class": "PUBLIC",
+   "reason": "RU mirror of above",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/test-suites.json": {
+   "class": "PUBLIC",
+   "reason": "public suite claims",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/lab/test-suites.ru.json": {
+   "class": "PUBLIC",
+   "reason": "RU mirror of above",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/README.md": {
+   "class": "PUBLIC",
+   "reason": "public readme",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  },
+  "portfolio/CHANGELOG.md": {
+   "class": "PUBLIC",
+   "reason": "public changelog",
+   "n_sig1": null,
+   "n_sig2": null,
+   "n_reviewed": 0,
+   "profiles": [
+    "full"
+   ],
+   "note": "out of scope for the profile this manifest was generated with; regenerate under that profile to fill it in"
+  }
+ }
+}

@@ -144,6 +144,12 @@ def report(title: str, rows: list) -> tuple[int, int, float]:
             f"{i:>2} {r1:>6} {r5:>6} {ms:>9.0f}  {mark} {norm(exp)} → {norm(top)}"
         )
     avg = ms_total / max(len([r for r in rows if r[2] > 0]), 1)
+    # T10: an empty row set has no rate. Printing hit@1=0/0 (0%) would read as
+    # "measured, and nothing matched", which is a different claim from
+    # "nothing was measured". Fail loudly instead.
+    if n == 0:
+        print("POPULATION EMPTY: run_mode produced no rows — hit@1/hit@5 are undefined, not 0%")
+        sys.exit(2)
     print(f"hit@1={h1}/{n} ({100*h1/n:.0f}%)  hit@5={h5}/{n} ({100*h5/n:.0f}%)  avg_ms={avg:.0f}")
     return h1, h5, avg
 
@@ -181,6 +187,7 @@ def main() -> int:
     for mode in [m.strip() for m in args.modes.split(",") if m.strip()]:
         rows = run_mode(searcher, mode)
         h1, h5, _ = report(f"mode={mode}", rows)
+        # report() exits 2 on an empty set, so reaching here means n >= 1.
         if h5 / len(rows) < args.min_hit5:
             n_bad += 1
 
