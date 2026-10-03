@@ -5,41 +5,126 @@
 
 ---
 
-## 2026-09-29 — Индекс вычищен от мусора + relang: эффекта языка нет (Fixed/Closed)
+## 2026-10-03 — Параллельные сессии без границ: 3 инцидента за один день (Open, P1)
 
-- **Purge (Fixed):** 772 файла / 2152 чанка (`experiments/**/results|work`, было 20.3% индекса) удалены one-time скриптом `scripts/purge_experiment_outputs.py` (штатный prune отказал бы: 52.4% файлов > safety-guard 50%). Проверка: 0 осталось. Guard на будущее — PR #62 (`SystemArtifacts.is_experiment_output`).
-- **Relang (Closed):** B×5 на чистом стеке — RU 26/80=32.5% vs EN 30/80=37.5%, CI пересекаются → эффекта языка нет. 6/16 запросов флипаются all-or-nothing (язык меняет какие, не сколько). Старый EN-замер на сломанном стеке невалиден. Артефакты: `results/f5relang/`, `f5/RESULTS_RELANG.md`.
-- **PR #52 (Closed как superseded):** tier-anchor пропущен (P2 закрыт #54 в той же точке); спасены сигмоида/top-N/holdout-калибровка → PR #63. FTS-hoist+guard → PR #62.
-- **Objective (Done 2026-09-29):** перемер на чистом индексе (`results/f5/objective_clean.json`) — A hit@1 4/16, hit@3 5/16, hit@10 6/16 (=), B top-1 4/16. Топ двинут на 1 запрос (шум n=16): purge значимо не повлиял.
+- **Инцидент 1 (каталог-призрак).** `tools/knowledge/` (15 файлов, включая замороженный
+  тред и referent отрицательного результата D-05) появился в общем дереве, через ~2 минуты
+  исчез. Сессия объявила «данные потеряны, P1, git не вернёт». **На деле каталог цел** —
+  он в worktree соседней сессии (`mscb-wt-64`). Признак, который я проглядел:
+  `CreationTime 03.10 07:20:05` у всех 15 файлов при `LastWriteTime 01.10` = копирование.
+- **Инцидент 2 (файл из чужого дерева).** В 08:38 соседняя сессия записала
+  `tools/verification/verify_public_claims.py` **в моё рабочее дерево** — без предупреждения.
+  Мой `git status` загрязнён; любой коммит собрал бы чужую работу.
+- **Инцидент 3 (ветка-территория).** Та же сессия переключила дерево `mscb-wt-64`
+  с `feat/protocol-triage-and-t10-guards` на `main`, пока я разбирался, что делать
+  с неслитой веткой. Мой план P1 устарел в момент составления.
+- **Общий корень:** нигде не было записано «одно дерево = одна сессия». Правило отсутствовало →
+  границ не существовало. Сессии не видели друг друга, но писали в общие файлы.
+- **Guard:** `scripts/check_parallel_sessions.py` — 11-й pre-commit. Показывает все чужие
+  worktree с ветками и незакоммиченными файлами; **BLOCK**, если застейдженный файл изменён
+  в другом дереве или это реестр (`AGENT_DIARY`/`KNOWN_ISSUES`/`EXPERIMENTS_LOG`/`WISDOM`/`ISSUE`),
+  который трогает другая сессия; advisory на worktree в `%TEMP%` и на «свои реестры».
+  Контроль: `--selftest` positive 1/1 + negative 2/2; проверенно реальное срабатывание —
+  застейдженный файл соседней сессии даёт BLOCK. **Правило в AGENTS.md §7.1b + глобальный §21.**
+- **Два бага гейта поймал сам и сам же починил (обязательно к изучению):**
+  (1) `_norm()` не был применён → гейт принимал **собственное** дерево за чужое и печатал
+  уверенную неправду; (2) контроль `%TEMP%` был написан от выдуманного пользователя `x`,
+  а не от реального `$TEMP`, поэтому «падающий» контроль не падал вовсе. **Selleftest,
+  построенный не на реальной среде, даёт зелёный свет ни о чём** (P-02 в новой формулировке).
+- **Статус:** 🔴 Open (P1) — правила и гейт есть, но **согласования владельца не было**:
+  активная сессия в чужом worktree активна прямо сейчас, а `mscb-wt-64` лежит в `%TEMP%`.
+
+## 2026-10-03 — Вендоренный файл Apache-2.0 без NOTICE (Open, документированное отступление)
+
+- **Локация:** `experiments/4A_unit_of_return/frozen/crystal_catalogue_2026-09-26.md`
+  (5 873 B) — дословная копия `catalogue/README.md` из `Tirthahq/crystal-memory` @3e30ed2.
+- **Состояние:** provenance-заголовок есть (URL, дата загрузки, лицензия, SHA), и в нём
+  **прямо сказано**, что NOTICE не воспроизводится. То есть это **зафиксированное отступление,
+  а не скрытая утечка** — ровно то, как должно выглядеть.
+- **Чего не хватает:** Apache-2.0 §4(c) обязывает воспроизвести NOTICE, **если он есть у
+  оригинала**. Наличие NOTICE в upstream **не проверено**. В репо нет ни одного файла
+  третьих сторон (`THIRD_PARTY*`/`NOTICE*`/`licenses/` → 0 вхождений).
+- **Guard/фикс:** проверить upstream на NOTICE; при наличии — добавить файл третьих сторон
+  в корень и дополнить provenance-заголовок. До проверки статус «документированное отступление».
+- **Статус:** 🟡 Open, низкий риск (5.9 KB, лицензия разрешает редактирование с указанием правок).
+
+## 2026-10-03 — `tools/knowledge/`: корпус не отслеживается git и шарится между двумя worktree (Open, P1)
+
+> ⚠️ **Запись переписана в тот же день.** Первая версия утверждала «каталог исчез, вернуть
+> нечем» — это была **неверная интерпретация одного снимка** (см. «Ошибка» ниже). Файлы целы.
+
+- **Где на самом деле:** `%TEMP%\mscb-wt-64\tools\knowledge\` —
+  15 файлов, включая **`repoint_stale_refs.py`** (referent отрицательного результата **D-05**
+  в реестре паттернов) и **`tom-devto-thread-FROZEN.md`** (55 275 B — замороженный тред
+  статьи dev.to `4p1h`, тот же вопрос, что и в `experiments/audit_devto_judgements/`).
+  В моём рабочем дереве они были видны 03.10 07:20 и исчезли ~07:22 — **`CreationTime 07:20:05`
+  у всех 15 при `LastWriteTime` 01.10 20:25–22:03 = сигнатура КОПИРОВАНИЯ**, а не создания.
+- **Ошибка агента (моя, записано как guard):** я увидел, что каталога нет в моём дереве, и
+  записал «потеря данных, P1, git не вернёт». На деле он **переехал в соседний worktree**
+  активной сессии. **Вывод «нет в этом дереве» ≠ «нет вообще»**, когда рядом работает
+  параллельная сессия: единственный корректный тест — спросить соседний worktree, а не
+  делать вывод по одному снимку `git status`. Это ровно класс «наличие ≠ живость», но
+  наоборот — **отсутствие ≠ потеря**.
+- **Реальный риск (остаётся):** каталог **неотслеживаем в обоих деревьях** (`?? tools/knowledge/`),
+  поэтому `git log`/`checkout` его не вернёт, а `git clean -fd` в любом из деревьев — **удалит
+  безвозвратно**. Он существует только на диске Temp.
+- **Guard:** research-корпусы — **только в треке** (`experiments/**/frozen/`) с sha256-манифестом.
+  Плюс CI-guard «untracked-каталог с артефактами исследования дольше N часов» и, отдельно,
+  **`mscb-wt-64` лежит в `%TEMP%`** — Temp очищается системой; постоянные worktree туда класть нельзя.
+- **Дубликат:** `experiments/audit_devto_judgements/frozen/devto_4p1h_raw_fetch.md` (мой, sha256 `98104210…`)
+  и `tools/knowledge/tom-devto-thread-FROZEN.md` (от 01.10) — **два замороженных слепка одного
+  треда**. Следующий агент обязан выбрать один как канон и сослаться на него, а не держать два.
+- **Статус:** 🔴 Open (P1, риск потери). Обнаружено и переписано 2026-10-03.
+
+## 2026-10-03 — `tools/verification/`: 13 файлов верификации живут на неслитой ветке; `gate` падает на текущей (Open, P1)
+
+- **Root Cause (Verified 2026-10-03, исправлено после первой неверной версии):** файлы
+  **не удалены и не потеряны**. `tools/verification/gates.py` (25 356 B) плюс ещё 12 файлов
+  вешают в коммите `285dbc3f` на ветке **`feat/protocol-triage-and-t10-guards`**
+  (есть и локально, и в `origin`), которая **не является предком HEAD**
+  (`git merge-base --is-ancestor` → rc=1). Текущая ветка — `chore/bump-urllib3-pyjwt-cve`
+  @ `ee5edd20`. Удаляющего коммита нет: `git log --diff-filter=D -- tools/verification/gates.py` пуст.
+- **Почему выглядело как «исходника нет»:** компиляция `__pycache__/{gates,g5_denominator}.cpython-314.pyc`
+  от **01.10 23:35** — неотслеживаемый остаток от чекаута той ветки. Именно `.pyc`, а не исходник,
+  делает тул **видимым, но нерабочим**: MCP-тул `gate` → `rc=2: can't open file 'tools\verification\gates.py'`.
+- **Влияние:** на текущей ветке любой вердикт `gate` = **BLOCK, а не ALLOW** (§19.6 — гейт,
+  который не может ответить, не читается как разрешение). Проверки сессии 2026-10-03 были
+  ручными и помечены как не-механизированные (`experiments/audit_devto_judgements/HANDOFF.md`).
+- **⛔ Не делать руками:** не переписывать `gates.py` с нуля и не вытаскивать из `.pyc`.
+  Файл цел, лежит в git.
+- **Фикс (решение владельца):** merge либо cherry-pick ветки `feat/protocol-triage-and-t10-guards`.
+- **⛔ HALT — параллельная сессия:** эта ветка зачекаучена в **другом worktree**
+  `%TEMP%\mscb-wt-64` @ `dee49085` → там работает другой агент.
+  Не переключать ветку и не вытягивать файлы из-под него в этом дереве (§3 HALT,
+  multi-agent-coordination: правка файла, редактируемого параллельно).
+- **Guard (после merge):** CI-гейт «MCP-тул зарегистрирован, но его скрипт отсутствует в
+  рабочем дереве» — иначе класс **«наличие ≠ живость»** (`.pyc` без `.py`, неслитая ветка)
+  повторится молча. Отдельно: `__pycache__`-ископаемые в трек не коммитить.
+- **Статус:** 🔴 Open (P1). Найдено 2026-10-03; root cause уточнён в тот же день
+  (первая версия записи ошибочно утверждала «исходник никогда не был в треке» — опровергнуто
+  `git log --all --follow`).
+
+## 2026-10-03 — Тихий ноль и «свой контроль» на защите лишь частично (Open)
+
+- **Факт (Verified 2026-10-03, grep, не по памяти):** `sys.exit(2)` — **6 мест из 73 скриптов**
+  в `scripts/` (`diag_quality_hang.py:261,270`, `revision_gate.py:127`, `run_1L_live_arm.py:313,317`,
+  `smoke_livesync.py:27`). Знаменатель: `(Get-ChildItem scripts\*.py).Count` = 73.
+  **Покрытие НЕ доказано** — остальные 67 могут быть защищены иначе; это не измерение доли.
+- **Отсутствует вовсе (0 вхождений по репо):** маркер `coverage unknown` (печать того, чего
+  инструмент не видел) и assertion на совпадение популяций (`assert len(cache) == len(documents)`).
+- **Отсутствует:** claims ledger (число привязано к конфигу, при которой измерено) —
+  `claims ledger`, `claims_ledger`, `measured under`, `live config`, `config_stale`, `stale claim` → 0.
+- **Источник класса:** Tom Jones, «Implementation is where judgements go to become invisible»
+  (dev.to `4p1h`, 27.09.2026) + комментарии. Первоисточник заморожен:
+  `experiments/audit_devto_judgements/frozen/devto_4p1h_raw_fetch.md` sha256 `98104210…`.
+- **Статус:** 🔴 Open. Не баг, а измеренный пробел покрытия. Эксперименты E-1/E-4/E-5 и
+  Red Team — в `HANDOFF.md` §3/§4.
 
 ## 2026-09-28 — Шкала реранкера + top-N floor (salvage из PR #52, tier-anchor пропущен)
 
 - **Спасено из конфликтного PR #52:** `_sigmoid`-нормализация логитов llama.cpp → [0,1] (без неё MIN_RERANK_SCORE=0.3 отсекал 70–97% выдачи), top-N recall floor `reranker_topn_keep` (default 0 = выключено), holdout-калибровка порога с запретом eval-источников кодом. Guard: 4 sigmoid-теста + 13 тестов top-N/калибровки.
 - **Пропущено осознанно:** `anchor_tier_winners` — P2 закрыт влитым #54 (`_anchor_identifier_chunks_async`) в той же точке пула; второй P2-механизм без собственного A/B — нарушение. Ветка #52 сохранена как референс.
 - **Статус:** ✅ Salvaged (PR #63).
-
-## 2026-09-28 — Pre-commit hook fail-open при потере маркеров (Fixed)
-
-- **Локация:** `.githooks/pre-commit:31-53` (`find_project_root` + `run_script`).
-- **Симптом:** если ни `.git`, ни `KNOWN_ISSUES.md` не найдены (переименование, копия дерева, битый `.git`), fallback указывает мимо проекта; все 9 гейтов печатают ⏭️ «скрипт не найден» и возвращают True → «All pre-commit checks passed», exit 0, коммит идёт без единой проверки.
-- **Repro (Verified 2026-09-28):** копия хука в `%TEMP%` (без маркеров) → 9× «скрипт не найден», итог PASS.
-- **Guard:** fallback-ветвь обязана fail-closed (sys.exit(1) с явным «project root not found»), либо `run_script` считает missing-script провалом, когда пропущены ВСЕ скрипты; regression-тест: исполнение с `__file__` в markerless-tmpdir → exit ≠ 0.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
-
-## 2026-09-28 — silent_subprocess: STARTUPINFO ctor outside narrowed try (Fixed)
-
-- **Локация:** `src/core/silent_subprocess.py:32-33` (S1), `:51` (S2 — unwrapped `setdefault`).
-- **Симптом:** `subprocess.STARTUPINFO()` на L33 вне `try`; на экзотическом win32-билде без `STARTUPINFO` — `AttributeError` из `apply()` на импорте (S2/L51 тот же путь без обёртки; S4/L67 в безопасности — вызов внутри try).
-- **Контекст:** на CPython/win32 `STARTUPINFO` всегда есть; все реальные `creationflags=`-вызывающие передают int — практический риск ≈ 0.
-- **Guard:** перенести конструирование внутрь try (S1) + обернуть L51 как L67; regression-тест: monkeypatch `subprocess.STARTUPINFO = <missing>` → `apply()` не бросает.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green; PR #56 CI all green). Tails (branch `fix/redteam-tails`): модуль был INERT — заведён в entry point (`src/main.py` import + `apply()` at startup, как требует docstring модуля) + TypeError-guard на не-классовый `Popen` (тестовые шимы); liveness доказан `tests/test_silent_subprocess_wired.py` (fresh-процесс: импорт `src.main` → `_APPLIED=True`, на win32 `Popen=_SilentPopen`).
-
-## 2026-09-28 — o1_holdout_gate: hung query hangs whole gate, no timeout (Fixed)
-
-- **Локация:** `scripts/o1_holdout_gate.py:129-156` (`_run_all`), вызов L106.
-- **Симптом:** 15 запросов идут последовательно в одном loop без `wait_for`/глобального капа; один зависший `hybrid_search_async` вешает весь гейт навсегда (единственный `timeout=10` — git-rev диагностика, L99-101).
-- **Guard:** per-query `asyncio.wait_for(..., timeout=120)` + timeout → fail-row (как `degraded`); regression — фейковый searcher с висящим запросом → гейт падает за ~120с, а не висит.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green incl. positive controls; PR #56 CI all green).
 
 ## 2026-09-28 — Ретриевер-замеры без сброса реранкер-кэша недействительны (Open)
 
@@ -49,21 +134,6 @@
 - **Статус:** 🟡 Open (процедурное правило; guard-скрипт `scripts/o1_holdout_gate.py` — fresh-process + warm-up + void-флаг).
 
 **24 entries** — compressed per §4.8 R3 (conclusion-first; dedup 2026-09-08, 2026-09-21). Closed entries moved to docs/archive/KNOWN_ISSUES_2026_09.md on 2026-09-27 (R1 size guard; second batch on merge experiment/4a-unit-of-return).
-
-## 2026-09-28 — Холодный FTS-билд превышал 2s-бюджет и молча выпадал (Fixed) + _get_ext_dir указывал в src/ (Fixed)
-
-- **FTS (c, flaky A/B):** замер — холодный `to_pandas`-билд всего индекса = **2.47s > 2.0s** `wait_for` в `engine.py:671`. Первый поиск в свежем процессе молча терял FTS-тир → пилот 18/20 vs 8/20 на тех же запросах. **Fix:** build вынесен из-под таймаута (идемпотентен, double-checked lock), 2s остались только на сам поиск (~0.05s). Guard `test_fts5_timeout_does_not_break_search` зелёный.
-- **llama-пути (b):** `llama_install.py:_get_ext_dir` брал 3 `parent` от `__file__` вместо 4 → указывал в `src/`, ветка «режим разработки» была мёртвой, модели резолвились в пустой `%LOCALAPPDATA%/mscodebase/models`. На вопрос «падает или не успевает»: после простоя restart **пытается** (`idle-unload recovery`), но падал по отсутствию файлов, не по таймингу. **Fix:** off-by-one исправлен + `multilingual-e5-small-Q8_0.gguf` (132MB) докопирован из расширения в `models/` (git-ignored). Live-check `smoke_e2e.py`: **SMOKE E2E PASSED** (embed dim=384, rerank top=1, поиск по индексу).
-- **Побочно (Verified, не чинено — решение владельца):** холодный топ захламлён артефактами (`judged_raw*.json`, `work/ctx_*.txt` в выдаче) — живое подтверждение индексного мусора (P2-смежное). Чистка индекса сменит ретрив-базисы.
-- **Статус:** ✅ Fixed (пути + FTS-холод).
-
-## 2026-09-27 — Import-time os.environ mutation in scripts breaks xdist workers (Fixed)
-
-- **Симптом:** 6 plugin-тестов (`test_plugins_subprocess/registry`) падали под `-n auto` с `ModuleNotFoundError: No module named 'src'` в runner-subprocess, серийно (`-n0`) — зелёные.
-- **Root Cause (Verified, бисекцией до чанка из 24 файлов):** `scripts/f5_judged_run.py` делал `os.environ.setdefault("PYTHONPATH", <EXT>)` на уровне импорта; импорт модуля в `tests/test_f5_judged_verdict.py` загрязнял весь xdist-воркер, и `setdefault(PYTHONPATH)` в `proxy.py` становился no-op с мусорным значением.
-- **Fix:** side effects переехали в `_ensure_importable()`, вызываемую только из `if __name__ == "__main__"`. T3: аналогичный паттерн есть в `benchmark_search_stages.py`, `f5_retrieve_arms.py`, `live_search_audit.py` — ни один не импортируется тестами, не трогали.
-- **Правило-ловушка:** скрипты с import-time мутацией `os.environ`/`sys.path` нельзя импортировать в тестах — только через `__main__`-guard.
-- **Статус:** ✅ Fixed.
 
 ## 2026-09-27 — F5 judge verdict parsing takes first regex match (Open)
 - **Локация:** `scripts/f5_judged_run.py:238-246` (`_parse_verdict`): сначала первый regex-матч `"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?`, иначе первое вхождение в порядке (incorrect, correct, uncertain).
@@ -195,13 +265,6 @@
      - Тесты: `tests/test_bootstrap_pipeline.py` (5 интеграц., без моков) + 3 на `index_src_functions`; 28/28 green + полный suite passed. Клиент параметризован по env (`TRACE_SRC_ROOT`/`TRACE_OUT`) → чужие проекты: gemma_agent 2737/2882 (95.0%) тестов имеют ≥1 src-функцию; black скомпилирован в `.pyd` → sys.settrace не ловит нативные кадры (fallback на статику Exp 9 обязателен).
 - **Веб-исследование и audit «гиблых мест» (2026-09-15, всё ПРОВЕРЕНО эмпирически):** (1) **sysmon+dynamic_context — ОПРОВЕРГНУТА**: верные контексты даёт pytest-коллекция, ручной `switch_context` → пустые `['']` (coverage.py 7.14.1); (2) **контексты ≈3-7% — НЕ воспроизвелось**: Exp 8 (2026-09-16) overhead **+19.96%** (221.78 vs 184.88s) > нашего sys.settrace (+13.6%) → штатный драйвер Шага 3 = `dynamic_trace_plugin.py`, coverage остаётся валидационным оракулом (контексты качественные: 1548/1549, 75.5% src-строк привязаны); (3) **Tarantula — Exp 7b**: rank≤3 у 22.6% тестов (далеко от 60-70%), НО precision низких рангов высока (все rank1-3 верны) → аннотация confidence (~16%), не селектор; TESTS-ребро строится из полной трассы; (4) **mutation-testing как ground truth — дорого/хрупко** (FSE'20, Google 33M; флаки раздувают score); (5) **pytest-testmon — не копируем** (line-based, сужение рерана ≠ граф-ребро TESTS для LLM-контекста); (6) **dev.to-кросс-чек**: «TRUE Coverage» (Dawson, 2026-07-22) подтверждает плато статики и шум shared-utils (наш safe_mkdir/get_data_root кейс 1:1; CI 43min→4min, precision 15%→95%); «Empirical Failure Modes» (Arthur, 2026-07-31) — Pass-Through Test Mirage (наш «фантомный код»), Python 3.14 sys.monitoring reachability = наш бэкенд, AST orphan-detection = наш Шаг 1; **ниша TESTS-рёбер для LLM-контекста ими не занята** (per-test coverage используется только для selection/rejection); (7) edge-case (Gemini): без тестов → статика; бинарники → Docker+microtrace; async → OpenTelemetry по trace_id.
 
-## 2026-09-19 тАФ E10 (search quality): full-text-╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│ + e5-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л + ╨┐╤Г╨╗ reranker 50 тЖТ REFUTED (N=10)
-
-- **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** EXPERIMENTS_LOG.md#2026-09-19
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** ╤В╤А╨╕ ┬л╨▓╤Л╨║╨╗╤О╤З╨░╤В╨╡╨╗╤П┬╗ ╨║╨░╤З╨╡╤Б╤В╨▓╨░ (E10a full-text ╤З╨░╨╜╨║╨░ ╨▓ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│, e5 `query:`/`passage:`-╨┐╤А╨╡╤Д╨╕╨║╤Б╤Л ╨▓ llama.cpp-╨▓╨╡╤В╨║╨╡ тАФ ONNX/OpenVINO ╤Г╨╢╨╡ ╨╕╨╝╨╡╨╗╨╕ `_ensure_prefix`, E10c ╨┐╤Г╨╗ reranker 30тЖТ50) ╨╜╨╡ ╨┤╨░╨╗╨╕ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨░╨╡╨╝╨╛╨│╨╛ ╤Б╨┤╨▓╨╕╨│╨░. ╨з╨╕╤Б╤В╤Л╨╣ ╨┐╤А╨╛╨│╨╛╨╜ (599 ╤Д╨░╨╣╨╗╨╛╨▓ / 9514 ╤З╨░╨╜╨║╨╛╨▓, 799.9s): fast hit@1=0% hit@5=50%; quality hit@1=20% hit@5=40%; baseline ╨░╨▓╤В╨╛╤А╨░ 0/50% ╨╕ 30/30%. ╨Ф╨╡╨╗╤М╤В╨░ тАФ ╨▓ ╨┐╤А╨╡╨┤╨╡╨╗╨░╤Е ╤И╤Г╨╝╨░ N=10.
-- **Fix (╨┐╤А╨╡╨┤╨╛╤В╨▓╤А╨░╤Й╨╡╨╜╨╕╨╡):** ╨╕╨╖╨╝╨╡╨╜╤С╨╜╨╜╤Л╨╣ ╨║╨╛╨┤ ╨╛╤В╨║╨░╨╗╨╡╨╜ ╨║ HEAD (╨┐╨╛╨▓╨╡╨┤╨╡╨╜╨╕╨╡ ╨║╨╗╨╕╨╡╨╜╤В╨░ = ╨┐╤А╨╛╨┤); ╨╛╤Б╤В╨░╤В╨╛╨║ тАФ env-╤В╤Г╨╝╨▒╨╗╨╡╤А `MAX_RERANKER_INPUT` ╤Б default=30 (╨╜╨╡╨╣╤В╤А╨░╨╗╨╡╨╜). ╨Я╨╗╨░╤Вo ┬лpure-vector┬╗ ╨┐╨╛╨┤╤В╨▓╨╡╤А╨╢╨┤╨╡╨╜╨╛ ╨┐╨╛╨▓╤В╨╛╤А╨╜╨╛ (╤Б╤А. Exp-29 ceiling ~0.23).
-- **╨б╤В╨░╤В╤Г╤Б:** тЭМ REFUTED (╨╖╨░╨║╤А╤Л╤В, ╨╖╨░╨┐╨╕╤Б╨░╨╜ ╨▓ lab exp-43). ╨б╨╗╨╡╨┤╤Г╤О╤Й╨╕╨╣ ╤Е╨╛╨┤ тАФ AST/Graph-hybrid re-ranking, ╨╜╨╡ ╤Н╨╝╨▒╨╡╨┤╨┤╨╕╨╜╨│╨╛╨▓╤Л╨╡ ╤В╨▓╨╕╨║╨╕.
-
 ## 2026-09-05 тАФ Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
@@ -222,3 +285,5 @@
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
 - **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fix (╨╖╨░╨╝╨╡╤А╤Л, ╨║╨╛╨┤╨░ ╨╜╨╡ ╨╝╨╡╨╜╤П╨╗╨╛╤Б╤М). **Root Cause (KNOW ISSUES ┬лLazy-only ╨▓╨╡╤А╨╕╤Д╨╕╨║╨░╤Ж╨╕╤П┬╗):** ╨▓╨╛╨┐╤А╨╛╤Б, ╤Г╤Б╨┐╨╡╨▓╨░╨╡╤В ╨╗╨╕ VOR ╨┐╤А╨╛╨▓╨╡╤А╨╕╤В╤М ACTIVE-╤Г╨╖╨╗╤Л ╨▓ ╤А╨░╨╝╨║╨░╤Е budget_ms=50 (read-path) / 250 (background id...
 - **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
+
+<!-- Ротация 2026-10-03: закрытые записи перенесены в docs/archive/KNOWN_ISSUES_2026_09.md и _2026_10.md (лимит 300 строк, §8). Открытые записи и все P1 остаются здесь. -->
