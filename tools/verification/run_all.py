@@ -25,11 +25,14 @@ sys.stdout.reconfigure(encoding="utf-8")
 # Getting this wrong makes every repo-relative step look like a missing file, which
 # is indistinguishable from a real missing dependency unless the gate distinguishes them.
 REPO = pathlib.Path(__file__).resolve().parents[2]
-# The agent's personal config dir holds the knowledge registries. Optional: when absent,
-# those steps are SKIPPED loudly rather than reported as failures вЂ” a missing optional
-# dependency is not a broken guard (В§19.3: the control has to be able to fail).
+# The knowledge registries live INSIDE the repo now (tools/knowledge/), so their
+# references resolve against the same checkout being verified. Running them from
+# ~/.config kept them in one tree while the paths they named lived in another,
+# and every branch switch dangled half the references.
+KNOWLEDGE = pathlib.Path(__file__).resolve().parents[1] / "knowledge" / "check_knowledge.py"
+# The pitfalls skill is personal and stays outside the repo; K3 is skipped when absent.
 CFG = pathlib.Path(os.environ.get("OPENCODE_CFG", pathlib.Path.home() / ".config" / "opencode"))
-HAVE_KNOWLEDGE = (CFG / "knowledge" / "check_knowledge.py").exists()
+HAVE_KNOWLEDGE = KNOWLEDGE.exists()
 # The gates live NEXT TO this script, inside the repo, so they version with the code
 # they audit. This is the whole point of the move: a guard that is not committed
 # does not exist for CI or for anyone else.
@@ -37,8 +40,8 @@ G = pathlib.Path(__file__).resolve().parent
 PY = sys.executable
 
 STEPS = [
-    ("knowledge: registries resolve", [PY, str(CFG / "knowledge" / "check_knowledge.py")], 0),
-    ("knowledge: checks can fail", [PY, str(CFG / "knowledge" / "check_knowledge.py"), "--selftest"], 0),
+    ("knowledge: registries resolve", [PY, str(KNOWLEDGE)], 0),
+    ("knowledge: checks can fail", [PY, str(KNOWLEDGE), "--selftest"], 0),
     ("gates: can block", [PY, str(G / "gates.py"), "--selftest"], 0),
     ("gates: block known defects (held-out)", [PY, str(G / "heldout_validation.py")], 0),
     ("G5 denominator: can block", [PY, str(G / "g5_denominator.py"), "--selftest"], 0),
@@ -72,7 +75,7 @@ def main() -> int:
     failed = []
     for name, cmd, expect in STEPS:
         if name.startswith("knowledge") and not HAVE_KNOWLEDGE:
-            print(f"[SKIP] {name:44} config dir not found: {CFG}")
+            print(f"[SKIP] {name:44} knowledge validator not found: {KNOWLEDGE}")
             print("       Reported as skipped, not passed. A step that did not run is not a green step.")
             continue
         p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
