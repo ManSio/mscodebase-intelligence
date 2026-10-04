@@ -1,0 +1,166 @@
+{
+ "schema_version": 1,
+ "annotator": "single (model)",
+ "source": "cb2437f1f2810d4b8418c0fa4f0a1e206ad33e2b9f83fd0a529516a61884f9e3",
+ "rows_total": 360,
+ "rejected_by_matcher": 17,
+ "false_negatives": 16,
+ "true_errors_caught": 1,
+ "signal_rate": 0.002777777777777778,
+ "noise_rate": 0.044444444444444446,
+ "adjudicated": [
+  {
+   "model": "longcat-2.0",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "base2",
+   "text": "100°C (212°F).",
+   "answer_correct": true,
+   "note": "100C - верное значение, нет предиката"
+  },
+  {
+   "model": "longcat-2.0",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "p1",
+   "text": "100°C (212°F).",
+   "answer_correct": true,
+   "note": "то же"
+  },
+  {
+   "model": "longcat-2.0",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "p2",
+   "text": "100°C (212°F).",
+   "answer_correct": true,
+   "note": "то же"
+  },
+  {
+   "model": "longcat-2.0",
+   "lang": "en",
+   "case": "q_python_release_year",
+   "which": "base1",
+   "text": "The first release of Python was published in **1994**.",
+   "answer_correct": false,
+   "note": "1994 - фактически неверно, релиз был в 1991"
+  },
+  {
+   "model": "longcat-2.0",
+   "lang": "en",
+   "case": "q_http_404",
+   "which": "base0",
+   "text": "HTTP 404 means the server cannot find the requested resource.",
+   "answer_correct": true,
+   "note": "'cannot find' - отсутствует в списке алиасов"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "ru",
+   "case": "q_water_boiling_point",
+   "which": "base1",
+   "text": "100°C",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "ru",
+   "case": "q_water_boiling_point",
+   "which": "base2",
+   "text": "100 °C (212 °F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "ru",
+   "case": "q_water_boiling_point",
+   "which": "p1",
+   "text": "100°C (212°F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "ru",
+   "case": "q_water_boiling_point",
+   "which": "p2",
+   "text": "100 °C.",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "ru",
+   "case": "q_titanic_year",
+   "which": "p1",
+   "text": "1912 год.",
+   "answer_correct": true,
+   "note": "'1912 год.' - год без предмета"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "base0",
+   "text": "100°C (212°F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "p0",
+   "text": "100 °C (212 °F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "p1",
+   "text": "100 °C (212 °F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "qwen3.7-plus",
+   "lang": "en",
+   "case": "q_water_boiling_point",
+   "which": "p2",
+   "text": "100 °C (212 °F).",
+   "answer_correct": true,
+   "note": "только значение"
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "lang": "ru",
+   "case": "q_http_404",
+   "which": "p1",
+   "text": "Код 404 означает, что сервер не может найти запрошенный ресурс.",
+   "answer_correct": true,
+   "note": "'не может найти' - нет алиаса"
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "lang": "ru",
+   "case": "q_titanic_year",
+   "which": "base2",
+   "text": "В 1912 году.",
+   "answer_correct": true,
+   "note": "'В 1912 году.' - год без предмета"
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "lang": "ru",
+   "case": "q_photosynthesis_gas",
+   "which": "base1",
+   "text": "Кислород (O₂).",
+   "answer_correct": true,
+   "note": "'Кислород (O2)' - формула ломает bare"
+  }
+ ]
+}
