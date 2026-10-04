@@ -1,0 +1,220 @@
+{
+  "experiment": "prompt_robustness",
+  "generated_utc": "2026-10-03T03:41:58+00:00",
+  "command": "experiments\\prompt_robustness\\run_experiment.py --transport cli --models opencode-go/longcat-2.0 --case q_france_capital --repeats 3 --out experiments\\prompt_robustness\\results\\pilot_longcat.json",
+  "dataset_sha256": "72ffdb58e0bc850de82cdf70c13c21a36c0f4b46988cab8982b98d6d0977c4e1",
+  "dataset_schema_version": "2.0",
+  "instruction": "Answer the question in one short sentence. If you do not know, reply exactly: I don't know.",
+  "instruction_sha256": "bba27901d4193d56",
+  "variant": "high",
+  "thresholds": {
+    "invariance": 0.9,
+    "min_denominator": 10
+  },
+  "repeats": [
+    {
+      "model": "opencode-go/longcat-2.0",
+      "transport": "cli",
+      "served_models_observed": [
+        "longcat-2.0"
+      ],
+      "elapsed_s": 178.1,
+      "base_repeats": 3,
+      "per_lang": {
+        "ru": {
+          "base_accuracy": 1.0,
+          "invariance_given_base_correct": 1.0,
+          "invariance_given_base_correct_den": 3,
+          "invariance_overall": 1.0,
+          "invariance_overall_den": 3,
+          "seed_stability": 1.0,
+          "seed_den": 1,
+          "abstentions": 0,
+          "invalid": 0,
+          "responses_total": 6
+        },
+        "en": {
+          "base_accuracy": 1.0,
+          "invariance_given_base_correct": 1.0,
+          "invariance_given_base_correct_den": 3,
+          "invariance_overall": 1.0,
+          "invariance_overall_den": 3,
+          "seed_stability": 1.0,
+          "seed_den": 1,
+          "abstentions": 0,
+          "invalid": 0,
+          "responses_total": 6
+        }
+      },
+      "rows": [
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "base0",
+          "prompt": "Какая столица у Франции?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "Париж.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "base1",
+          "prompt": "Какая столица у Франции?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "Столица Франции — Париж.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "base2",
+          "prompt": "Какая столица у Франции?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "Париж.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "p0",
+          "prompt": "Назови главный город Франции.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "Париж.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "p1",
+          "prompt": "Каковой является столица Французской Республики?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "Столицей Французской Республики является Париж.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "ru",
+          "which": "p2",
+          "prompt": "В каком городе расположено правительство Франции?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "Правительство Франции расположено в Париже.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "base0",
+          "prompt": "What is the capital of France?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "Paris.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "base1",
+          "prompt": "What is the capital of France?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "The capital of France is Paris.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "base2",
+          "prompt": "What is the capital of France?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "The capital of France is Paris.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "p0",
+          "prompt": "Name the main city of France.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "The main city (capital) of France is **Paris**.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "p1",
+          "prompt": "Which city is the capital of the French Republic?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "Paris.",
+          "error": ""
+        },
+        {
+          "case": "q_france_capital",
+          "axis": "word_fact",
+          "lang": "en",
+          "which": "p2",
+          "prompt": "In which city is the government of France located?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "The government of France is located in Paris.",
+          "error": ""
+        }
+      ],
+      "decision": {
+        "verdict": "UNKNOWN",
+        "per_lang": {
+          "ru": {
+            "invariance": 1.0,
+            "den": 3
+          },
+          "en": {
+            "invariance": 1.0,
+            "den": 3
+          }
+        },
+        "reasons": [
+          "ru: denominator 3 < 10 → UNKNOWN, not 0.0",
+          "en: denominator 3 < 10 → UNKNOWN, not 0.0"
+        ]
+      }
+    }
+  ]
+}
