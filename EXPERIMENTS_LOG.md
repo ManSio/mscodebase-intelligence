@@ -422,7 +422,7 @@ code_first:   adoption=0.200 false_accept=0.100 true_accept=0.100 unknown=0.800 
 
 **Гипотеза (продолжение Day 1):** на дешёвых платных моделях OpenRouter (нет free-стены) вердикты будут снова отличаться от proxy 1-V, и — новое — между моделями будет большой разброс (adoption/false_accept зависят от модели, а не только от дизайна памяти). Ожидание: false_accept(code_first) разбросан от ~0 до ~0.3.
 **Команда:** `python scripts/run_1L_live_arm.py --provider openrouter --arm both --models "qwen/qwen3.7-flash,qwen/qwen3.5-flash-02-23,z-ai/glm-4.7-flash,nvidia/nemotron-3.5-lightning,deepseek/deepseek-v4-flash,qwen/qwen3.6-flash" --no-reasoning --resume` (temp=0, seed=42, max_tokens=100, prompt v1, facts sha256=820bbbf60a0fc930; 600 вызовов).
-**Сырой результат (progress-файлы: `<MSCODEBASE_DATA_DIR>/projects/bfe9644b/experiments/live_arm_1L_progress_*.json`, err=0 на всех руках):**
+**Сырой результат (progress-файлы: `<MSCODEBASE_DATA_DIR>/projects/bfe964…/experiments/live_arm_1L_progress_*.json`, err=0 на всех руках):**
 ```
 модель                        arm            adoption  false_acc  true_acc  unknown  acc(decided)   cost$
 qwen/qwen3.7-flash            memory_first   0.22      0.02       0.20      0.66     0.88 (15/17)   0.00023
@@ -1538,7 +1538,7 @@ python scripts/run_1L_live_arm.py --provider openrouter --arm graph_first \
   --models "..." --no-reasoning --prompt-version v2 --tag 2e_e3   # rung 3 (структура)
 python scripts/summarize_1L_categories.py --tag 2e_e{1,2,3} --markdown
 ```
-(calls=450, errors=0, est_cost ≈ $0.007; progress: %LOCALAPPDATA%/mscodebase/projects/bfe9644b/experiments/live_arm_1L_progress_2e_e{1,2,3}_*.json)
+(calls=450, errors=0, est_cost ≈ $0.007; progress: %LOCALAPPDATA%/mscodebase/projects/bfe964…/experiments/live_arm_1L_progress_2e_e{1,2,3}_*.json)
 
 **Сырой результат (per-category):**
 ```
@@ -2547,6 +2547,14 @@ hard-refusal внутри своего репо легитимен; подчин
 
 ## Exp 19 — E7: находит ли индекс симптомов то, с чем пришёл (blind eval каталога crystal-memory)
 
+> ⚠️ **PARTIALLY SUPERSEDED (2026-10-06, Exp 27).** Сырьё этого прогона **не сохранилось нигде**: ни в
+> рабочем дереве, ни в 30 локальных/30 удалённых ветках, ни в stash, ни в reflog (полон с 2026-07-31),
+> ни в 2,435 недостижимых деревьев Zed-чекпоинтов, ни среди 4,650 недостижимых блобов. Утверждение
+> внесено в git двумя Markdown-only коммитами (`8dc75932`, `03516b24`). **ОТЗЫВАЕТСЯ:** «устойчивость
+> читателя — одна модель 8/10, другая 6/10» (знаменателя 10 не существует; два корректных правила дают
+> разный порядок моделей). **НЕ ПЕРЕВЫВОДИТСЯ:** «NONE 10/10 валидных» — поддержано только поздней
+> репликой F4 на том же списке (11/11). Оригинальный текст записи сохранён как есть.
+
 **Гипотеза:** каталог verification-failures, индексированный по симптому (Tom Jones / Spanda Works,
 Apache-2.0), по входному симптому реального сбоя либо находит нужную запись, либо приходится копать.
 
@@ -2674,6 +2682,14 @@ agent went numb to its own alerts»; наш E3/E4 — та же опасност
 
 
 ## Exp 23 — E11: frozen list vs the NEW arrival index (Tom's catalogue, «after»)
+
+> ✅ **RE-DERIVABLE (2026-10-06, Exp 27).** Раньше считалось, что сырьё потеряно вместе с
+> `%TEMP%/opencode/e11`. **Восстановлено побайтово из `opencode.db`**: handout
+> `frozen/e11_HANDOUT.recovered.md`, sha256 `cd917be4257b65b5ebf511369d5e852d68ff165e7869e7da437f35400170e535`
+> совпал с предрегистрированным, handout записан на 35 с раньше первого вызова модели ⇒ pre-look,
+> восстановление законное. Пересчёт из stdout: `#16 → семейство A` в **5/5**, must-hit 3/3 везде,
+> must-NONE 3/3 в longcat/qwen и 2/3 в трёх deepseek (`#11 → generated-document`, объявленный FP).
+> **2 валидных прогона, controls 6/6.** Провенанс: `frozen/e11_HANDOUT.recovered.provenance.md`.
 
 **Гипотеза:** arrival layer (25 фраз → записи) делает dispositional-симптом #16 («агент не пользуется
 моими тулами») достижимым для семьи A, чего таблицы симптомов не могли (E7: NONE 10/10 валидных).
@@ -2842,4 +2858,66 @@ invalid/uncertain: 0
 ```
 **Вердикт:** reader priors существуют на уровне шума — механизм Tom подтверждён, масштаб нет (его 6/14 vs наши 2/48). Prose-плечо B 18.8% читается на фоне ~4% пола, отрыв сохраняется.
 **Артефакты:** `experiments/4A_unit_of_return/results/f5judged/judged_raw_D_ablation.json`, `experiments/4A_unit_of_return/results/f5judged/judged_aggregate_D_ablation.json`.
+
+
+## Exp 27 — Аудит публикуемых чисел перед со-авторством (T-11 / §19.11)
+
+**Мотив:** перед тем как брать совместную статью и отвечать в чужом треде, пересчитать из сырья всё,
+что мы уже опубликовали. Три независимых аудита (реестры, opencode.db, git-широкий поиск по 30+30
+веткам/stash/reflog/2,435 деревьев Zed/4,650 блобов).
+
+**Повод (Zero-Prompt триггер):** T11 — публикуем новое число, значит сначала аудируем свои.
+
+**Результат по population из 9 утверждений:** ✅ 4 CONFIRMED, ⚠️ 2 PARTIAL/QUALIFIED, ❌ 3 отозваны.
+Полный леджер с referent'ами и командами: `experiments/publication_audit_2026-10-06/RESULTS.md`
+(манифестpopulation'а — `MANIFEST_retroactive.md`, **не предрегистрация**: аудит шёл после чтения
+утверждений, и это записано явно).
+
+**Ключевое:**
+- ❌ **«устойчивость читателя 8/10 vs 6/10» — ОТЗЫВАЕТСЯ.** Знаменателя 10 не существует ни в одном
+  уцелевшем файле (16 пунктов, ≤5 прогонов на модель); два корректных правила дают противоположный
+  порядок. Сырьё оригинального прогона не сохранилось нигде.
+- ❌ **«glm FA 0.24–0.38 vs qwen recall 0.08→0.88» — ОТЗЫВАЕТСЯ.** `0.24` = glm-4.7-flash (V2-en),
+  `0.38` = **nemotron-nano-30b**, то есть другая модель; мы склеили диапазон из двух моделей. Плюс сырья
+  нет: `<DATA_DIR>/projects/bfe964…/experiments/` пуст и никогда не был в git. Уцелели только id
+  false-positive по моделям (`experiments/1L_live_arm/report.md` §6.2) и 833 КБ телеметрии вызовов
+  (4,087 генераций — без вердиктов).
+- ⚠️ **«recall 0.08→0.88» — с оговоркой:** арифметика верна (2/25 и 22/25), но это **смена формата
+  данных** (`code_first` → `file_content_first`), а не before/after.
+- ✅ **«#16 → A в 5/5» — ПОДТВЕРЖДЕНО** из восстановленного pre-look сырья (см. Exp 23).
+- ✅ **F4b arrival 10/11 vs symptom 3/11 — подтверждено, но знаменатель завышен.**
+
+**Найденные дефекты собственных данных (главное, ради чего аудит и делался):**
+1. **Завышенный знаменатель.** `results/f4b/symptom/longcat-2.0/run_..._2.txt` и `run_..._5.txt`
+   **побайтово идентичны** (sha256 `229e54…`), а манифест объявляет `runs_per_model.longcat-2.0=5`
+   и `total_runs=22`. Уникальных прогонов **21**. ⇒ «10/11 против 3/11» = 11 в знаменателе при 10
+   уникальных. Направление не затронуто (все сбои symptom на одном пункте).
+   **Гейт:** `scripts/check_duplicate_runs.py` — exit 1 на дубликат/несовпадение, **exit 2 на пустой
+   популяции** (тихо «0 дубликатов» запрещено), `--selftest` 5/5, 16 юнит-тестов, ruff чист.
+   Замер FP гейта: на `ans_*` (короткие ответы, 640 файлов) даёт 290 уникальных ⇒ это очередь на
+   ревью с высоким recall, а не точная мера; на `run_*` (≈4 КБ) 1 группа из 22 — истинное срабатывание.
+2. **Испорченный файл выглядел как другой формат.** Первый аудит-проход объявил `run_longcat_1.txt`
+   «UTF-16LE, декодируется в полную таблицу ⇒ valid 6/11». Прямая проверка байтов опровергла: файл
+   начинается с U+FFFD, повреждён реально ⇒ **5/11 верно, «исправление» НЕ опубликовано.**
+   Это ловушка аудита второго порядка: аудит без положительного контроля производит собственную ложь.
+3. **Каталог результатов носит имя чужого эксперимента.** `results/recovered_e7/` — это регрессия
+   F4 от 2026-09-26, **не** Exp 19 от 2026-09-22; её `RESULTS.md` сам снимает числовое
+   воспроизведение. Прочитать её как E7 = молчаливая подмена эксперимента.
+4. **Двусмысленный id:** «E11» = два разных эксперимента (Exp 23 arrival-index и Exp 11 graph-hybrid).
+5. **Устаревшая шапка:** `experiments/4A_unit_of_return/README.md` открывается «pre-registered, прогонов
+   нет», при 795 файлах в `results/`.
+
+**Публикация:** коррекции опубликованы в `tjonesit/crystals#1` (комментарии `6021913154`, `6022397603`);
+оригиналы не удалены. Портфолио (`experiments.json`) **не синхронизировано** — ⚠️ по AGENTS.md §7.13.
+
+**Вердикт:** ✅ **аудит выполнен, population 9/9, 3 утверждения отозваны публично.** Цена, которую мы
+заплатили: два опубликованных числа оказались мёртвыми для всех, кто их читает. Цена, которую мы
+избежали: совместная статья на непроверяемых числах.
+
+**Границы:** аудит не перезапускал ни один прогон (дорого); verdict'ы «нет сырья» означают
+NOT RE-DERIVABLE, а не «опровергнуто» — где перевывод возможен, он сделан.
+
+**Артефакты:** `experiments/publication_audit_2026-10-06/{RESULTS.md,MANIFEST_retroactive.md}`,
+`experiments/4A_unit_of_return/frozen/e11_HANDOUT.recovered.md` (+ `.provenance.md`),
+`scripts/check_duplicate_runs.py`, `tests/test_check_duplicate_runs.py`.
 
