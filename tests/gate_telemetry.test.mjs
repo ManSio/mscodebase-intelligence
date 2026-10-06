@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as gate from "../.opencode/plugin/mscodebase_gate.ts";
+import * as gate from "../.opencode/plugin/gate_helpers.ts";
+import * as entryModule from "../.opencode/plugin/mscodebase_gate.ts";
 
 const {
   projectHash,
@@ -31,8 +32,11 @@ describe("plugin entry is loader-safe (opencode >=1.16 getLegacyPlugins)", () =>
       assert.equal(typeof value, "function", `non-function export: ${name}`);
     }
   });
+  it("entry module exports ONLY default (exact upstream issue pattern)", async () => {
+    assert.deepEqual(Object.keys(entryModule), ["default"]);
+  });
   it("default export is a function", () => {
-    assert.equal(typeof gate.default, "function");
+    assert.equal(typeof entryModule.default, "function");
   });
 });
 

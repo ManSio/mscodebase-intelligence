@@ -12,8 +12,8 @@ import { join } from "node:path";
 process.env.MSCODEBASE_STALE_GATE = "off"; // stale path untouched; keep e2e focused
 if (!process.env.MSCODEBASE_PY) process.env.MSCODEBASE_PY = "python";
 
-const gate = await import("../.opencode/plugin/mscodebase_gate.ts");
-const plugin = gate.default;
+const gate = await import("../.opencode/plugin/gate_helpers.ts");
+const { default: plugin } = await import("../.opencode/plugin/mscodebase_gate.ts");
 const { buildAdvisoryNote, isolationRowExtra, parseIsolation } = gate;
 
 const FIRING =
