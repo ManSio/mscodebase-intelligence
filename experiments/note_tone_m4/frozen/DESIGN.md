@@ -53,12 +53,22 @@ Secondary: V0 vs C1 (any note vs none), V3 vs C1 (length alone vs none).
   straddles 0 (length alone does nothing). Anything else: INCONCLUSIVE or REFUTED, never "trending".
 - A run is VALID only if C-plant held (gate fired) — report valid/total, never hide the denominator.
 
-## Cost estimate (no spending authorized)
+## Cost estimate (measured basis, 2026-10-06 — replaces the earlier $3–15 guess)
 
-30 agent runs × ~3–8 min each ≈ 2–4 hours wall-clock, unattended-safe (isolated worktree per run,
-no pushes). Model cost at current OpenRouter prices ≈ **$3–15 total** depending on model mix.
-Cheapest valid smoke first if authorized: V1 vs V2 × 3 reps × 1 model = 6 runs (≈$1–3, ~30 min),
-then decide on the full 30.
+Measured from `opencode.db` session costs (all sessions since 2026-09-26, real money spent):
+longcat-2.0 $0.0027/run (n=1759), qwen3.7-plus $0.0110/run (n=1695),
+deepseek-v4.1-flash $0.0284/run (n=404), this session $0.086 (2.15M in / 81k out).
+These averages mix single-prompt micro-runs with full work sessions. An M4 run is in between:
+one agent task with tools (heavier than a micro-run ≈5–15×, lighter than a work session).
+
+Per-run estimate: longcat ≈ $0.015–0.04, qwen ≈ $0.06–0.17, deepseek ≈ $0.14–0.43.
+Full 30 (5 arms × 3 reps × 2 models): **≈ $1–9 depending on the model mix.**
+Cheapest valid smoke first: V1 vs V2 × 3 reps × longcat only = 6 runs ≈ **$0.10–0.25**.
+
+Protocol-correct next step instead of trusting this table: run ONE pilot (V1, longcat),
+read its exact cost from the session DB, then extrapolate ×30. That replaces the guess
+with a measurement for about five cents. Wall-clock for the full 30: ≈ 2–4 h, unattended-safe
+(isolated worktree per run, no pushes). Starts only on the owner's explicit word with a cap.
 
 ## What this is NOT
 
