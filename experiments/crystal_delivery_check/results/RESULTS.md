@@ -23,7 +23,7 @@ Raw rows: `run_<ACT>.json` (18 files); second pass recomputed below from those f
 | H1 word-boundary short keys + seven generics | CONFIRMED | A1/A2/A3 empty in 12/12 arm×mode cells; C1a=`[bench.md]` 4/4; C2a empty 4/4; unit battery 25/25 probes both arms == expected; A==B 25/25 |
 | H2 ≥5-char keys stay substring | CONFIRMED | B1/B2/B3 ≥1 candidate in 12/12 arm×mode cells; unit probes (duplicate_runs, negative-controls, check_third_party_data, dispatch-codex, stale_detector, detector) match in both arms 6/6 |
 | H3 within-tier overlap first | CONFIRMED | D1 overlap=`[iso, actn]` vs rotation=`[actn, iso]` in 4/4 arm×replay cells; gap 0.2500 ≥ 0.10; overlap-first is the higher-overlap crystal |
-| H4 across tiers overlap changes nothing | CONFIRMED | D2 order identical across modes in 4/4 arm×replay cells (`[det, sdet]`, sdet seen=1 tier) |
+| H4 across tiers overlap changes nothing | CONFIRMED-NARROW (downgraded 2026-10-06: D2 overlaps are 0.0/0.0, so the tier decides identically in both modes by construction — the act could not have shown a difference even if the code were broken; the crossed cell "different tiers × nonzero overlap" was never exercised and stays UNTESTED until a follow-up act covers it) | D2 order identical across modes in 4/4 arm×replay cells (`[det, sdet]`, sdet seen=1 tier) |
 | H5 CRYSTAL_ORDER=rotation restores legacy | CONFIRMED | rotation order == legacy key `(seen,last,essence_len,basename)` on 18/18 acts × 2 arms (see note N2 on the frozen falsifier wording) |
 | H6 must-match-nothing act stays empty | CONFIRMED | A5 empty 4/4 arm×mode cells (A1–A4 likewise) |
 | H7 subject scope path+600 chars | CONFIRMED | E1 match 4/4, E3 match 4/4, E2 empty 4/4, both arms (see note N1: frozen label said "expected to fail" but the guard works) |
@@ -47,7 +47,15 @@ Raw rows: `run_<ACT>.json` (18 files); second pass recomputed below from those f
 
 Candidates, order, overlap scores, delivered/starved sets: identical on
 18/18 acts × 2 modes × 2 replays (72/72 cells). Unit probes 25/25 identical.
-**Zero instrument divergences.** Per the frozen decision rule nothing downgrades.
+**Zero instrument divergences.** Honest denominator (added 2026-10-06 after red-team):
+9 of the 18 acts are empty by design in both arms, so 36 of the 72 cells are empty-empty
+agreements with no discriminating power; the informative agreement is 36/36 on non-empty
+cells. The two arms are correlated (same reader; Arm A written after reading their source),
+so this is a transcription-grade check of one specification, not two-witness confirmation.
+H5 is CONFIRMED-as-rescored (frozen falsifier was defective, scored per ORDER_RULE instead)
+and the non-vacuous half of H12 rests on the unfrozen auxiliary F1m/F2m — headline reads
+"9 CONFIRMED as frozen, 1 rescored, 1 auxiliary", not "11 CONFIRMED". Per the frozen decision
+rule nothing else downgrades.
 
 ## Population
 
