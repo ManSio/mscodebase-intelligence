@@ -40,6 +40,18 @@ describe("plugin entry is loader-safe (opencode >=1.16 getLegacyPlugins)", () =>
   });
 });
 
+describe("hooks never throw on malformed input (M4 smoke attempts 2-3)", () => {
+  it("before/after resolve (not reject) on undefined input/output", async () => {
+    const plugin = await entryModule.default({ directory: tmpdir() });
+    await plugin["tool.execute.before"](undefined, undefined);
+    await plugin["tool.execute.before"](undefined, {});
+    await plugin["tool.execute.before"]({ tool: "bash" }, undefined);
+    await plugin["tool.execute.before"]({ tool: "bash", callID: "x" }, { args: {} });
+    await plugin["tool.execute.after"](undefined, undefined);
+    await plugin["tool.execute.after"]({ callID: "y" }, undefined);
+  });
+});
+
 // Sample produced by the REAL src/core/error_handler._format_success_response
 // on a post-change isolation dict (deliver=false + restraint detail).
 const ISO_SUPPRESSED =

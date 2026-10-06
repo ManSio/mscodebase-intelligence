@@ -81,6 +81,10 @@ export default (async ({ directory }) => {
   emit({ kind: "init", directory, stale: STALE_MODE, isolation: ISO_MODE, log: LOG })
   return {
     "tool.execute.before": async (input: any, output: any) => {
+      // Контракт хоста: хук никогда не бросает. opencode ≥1.18 вызывает хуки с
+      // формами входа, которые мы не контролируем (undefined input/output) —
+      // непроверенный доступ ронял весь сервер (M4 smoke, попытки 2–3).
+      if (!input || typeof input !== "object" || !output || typeof output !== "object") return
       if (input.tool !== "bash") return
       const cmd = String(output.args?.command ?? "")
       if (!/\bgit\s+commit\b/.test(cmd)) return
@@ -144,6 +148,7 @@ export default (async ({ directory }) => {
 
     "tool.execute.after": async (input: any, output: any) => {
       if (ISO_MODE !== "advisory") return
+      if (!input || typeof input !== "object" || !output || typeof output !== "object") return
       const cached = stash.get(input.callID)
       if (!cached) return
       stash.delete(input.callID)

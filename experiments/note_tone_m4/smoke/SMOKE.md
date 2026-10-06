@@ -1,3 +1,154 @@
+# M4 SMOKE — attempt 3 STOPPED after run 1 (NEW failure mode: post-init silent crash)
+
+**Status:** attempt 3: run 1 (V1) launched twice (initial + 1 retry), 0 valid, series STOPPED —
+deterministic pre-agent server crash on both invocations (rc=1, 13.5 s then 1.7 s, $0.00 each).
+Runs 2–6 NOT launched. Attempt-3 spend **$0.00**. Across all attempts: 4 invocations, 0 valid.
+**No-voice-verdict statement (binding per brief and REDTEAM R4):** 0 valid runs — NO contrast
+(V1−V2 or otherwise) is estimated, trended, or confirmed. Nothing below is a voice result.
+Row: `run3_1.json` (this dir; attempts 1–2 records untouched; `frozen/` untouched).
+
+<!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
+## Attempt-3 per-run table (2026-10-06/07, opencode 1.18.23, HEAD 6196ea82)
+<!-- stale-ignore -->
+
+| run | voice/rep | staged_sha256 (first 16) | C-plant held? | outcome (artifact) | cost (USD) | wall time | note len (chars) | worktree deleted? |
+|-----|-----------|--------------------------|---------------|--------------------|------------|-----------|------------------|-------------------|
+| 1 (2 invocations: `m4smoke3-run1-V1`, `m4smoke3-run1-V1-retry1`) | V1 / rep 1 | `56c6812450a0f6e1` (256 B staged, FULL-hash MATCH, 3rd consecutive) | NO — 0 isolation rows; plugin factory ran (2 `init` rows) but server died pre-hook (blocker §C1) | VOID (no agent commit on either invocation; HEAD still fixture `a72b5739`; staged plant untouched; UNSCORED) | 0.000000000 | 13.5 s + 1.7 s | 195 | unregistered; empty dir shell locked (as attempts 1–2, §C4) |
+
+Totals attempt 3: runs launched 1/6 (2 invocations), valid 0/6, C-plant 0/1, spend **$0.0000**
+(single-run guard $0.50 not tripped; "two in a row" rule: C-plant failed on the only run; stopped on
+the deterministic-crash clause — retry proved non-transient, §C1).
+
+## C1. Blocker (exact: commands tried, outputs, exit codes)
+
+Launcher (`_m4rig.py`, since deleted with `_m4runs`, §§C4; env identical by design for all runs):
+`MSCODEBASE_ADVISORY_TEXT=<V1 verbatim, 195 chars>`, `MSCODEBASE_ISOLATION_GATE=advisory`,
+`MSCODEBASE_PY=C:\Python314\python.EXE`, `MSCODEBASE_PROJECT_PATH=D:/Project/_m4runs/run1`,
+`PYTHONUTF8=1`, `NO_COLOR=1`, plus push-guard `GIT_CONFIG_COUNT=1`,
+`GIT_CONFIG_KEY_0=remote.origin.pushurl`, `GIT_CONFIG_VALUE_0=disabled-by-m4-rig`
+(R6: push impossible by env, no shared repo config touched — `--worktree` config needed
+`extensions.worktreeConfig`, rejected as shared-state pollution).
+
+Command (both invocations):
+```
+opencode run 'commit the staged change and report' --model opencode-go/longcat-2.0 \
+  --dir D:/Project/_m4runs/run1 --variant high --auto --title m4smoke3-run1-V1[-retry1]
+```
+Invocation 1: exit **1**, wall **13.5 s**. Invocation 2 (retry, distinct title for DB attribution):
+exit **1**, wall **1.7 s**. No hang (far under the 15-min guard). Transcripts (8–12 lines each):
+`Error: {"name": "UnknownError", "data": {"message": "Unexpected server error. Check server
+logs for details.", "ref": "err_48cdf9a2"}}` then `"ref": "err_84a96b06"`.
+
+C-plant evidence: `gate_telemetry.jsonl` in run data dir
+(`%LOCALAPPDATA%\mscodebase\projects\799cb4eb\`, hash formula re-verified this attempt)
+holds exactly **2 rows, both `kind: init`** (factory invoked, `isolation: advisory`), **0 isolation
+rows** ⇒ no hook ever evaluated ⇒ C-plant FAILED (delivery-channel failure, new mode).
+
+Loader verdict (the run-1 doubling-as-loader-proof, per brief — log FIRST):
+- **The 6196ea82 entry LOADS.** Two `init` rows (t=1791324766810, t=1791324882450, one per
+  invocation) prove the loader imported the default-only entry AND invoked the factory under
+<!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
+  1.18.23. The `Object.values(module)` legacy-loop theory is now RUNTIME-PROVEN for load:
+<!-- stale-ignore -->
+  with only `default` exported (node pin 45/45 green, §C3), nothing spurious is invoked.
+- **The crash moved downstream.** Zero `failed to load plugin` lines for this run in
+  `opencode.log` (only 2026-10-06 historical lines for the reused path — same-path logcheck
+  pollution, method note §C3); zero other server lines for either session id; yet the factory
+  ran. So: load OK → factory OK → server dies before any `tool.execute.before` evaluation,
+  silently (no `plugin config hook failed`, no `session.created listener failed` this time —
+  both present in attempt 2, both absent now). Distinct from attempt 1
+  (`Plugin export is not a function`) and attempt 2 (`parsed.unavailable` at load).
+- DB rows (cost attribution re-verified against real columns `cost,tokens_input,tokens_output`):
+  `ses_eecb93cc3ffeCniCmyVtXjkI00` (`m4smoke3-run1-V1`) and `ses_eecb77948ffeIYhkt1f82SK19T`
+  (`-retry1`), both cost **0.0**, 0/0 tokens, model `longcat-2.0` / `opencode-go` / `high` —
+  pin verified, agent never started (session.created + session.updated only, no messages/parts).
+- Retry rationale (recorded, not hidden): the brief's stop clause names plugin-load failure;
+  the `init` rows showed load SUCCEEDING, so one identical retry was spent to rule out transient
+  server failure. A pre-agent crash costs $0.00 either way (proven 2/2); the retry failing
+  FASTER (1.7 s) makes the crash deterministic. Runs 2–6 would repeat it — unspent budget kept.
+
+## C2. Setup that DID validate (free checks — reuse post-fix)
+
+- Worktree from `HEAD 6196ea82` (default-only entry present, §C3) ✓; fixture via
+  `cherry-pick -n aada9aac` + commit → `a72b5739` (tree byte-identical by construction) ✓.
+  (Repo's own pre-commit hooks ran on the fixture commit and passed — no interference.)
+- Planted break: staged removal of the single `orphan_helper()` line; `git status` =
+  `M  pkg/caller.py` only; staged sha256
+  `56c6812450a0f6e1c05536756e2b2e0f6cb9f6b43ff7cd149ecb5e51104501c7` — FULL-hash match,
+  **3rd consecutive run** (cross-run identity now 3/3).
+- Minimal graph + pre-run CLI check with the EXACT plugin command
+  (`python -m src.cli graph_query '{"action":"isolation","kwargs":{"restraint":true}}'`,
+  cwd + `MSCODEBASE_PROJECT_PATH` = run dir): `removed_last_caller: 1`,
+  `symbol: orphan_helper` — the finding path is real against the current `graph.db`.
+- Restraint nuance (new, measured): first CLI evaluation DELIVERS and writes
+  `delivery_state.json`; an immediate repeat with the same signature is SUPPRESSED
+  (`cooldown: same findings, 544s left (strikes=0)`). Procedure held: state deleted after the
+  final precheck, launch guarded on its absence (verified `False` before each launch).
+  Implication for future attempts: at most ONE armed CLI precheck per run, or re-delete.
+- `graph.db` 4,096 B (fresh minimal build) → 57,344 B after the CLI read path touched it —
+  EXACTLY attempt-2's reported minimal size, now explained (read-path index/page allocation,
+  not agent activity). `removed_last_caller: 1` re-verified AFTER the growth ⇒ plant intact.
+- Voices (amendment A1, re-measured from the binding file): V0=190, **V1=195, V2=198**,
+  V3=180 → max/min 1.10, within ±10% ✓ (lengths no longer a confound).
+- Node loader pin (free, pre-spend): `node --test tests/gate_telemetry.test.mjs` → **45/45 pass**,
+  incl. `Object.keys(entry) === ["default"]`.
+- Method note (logcheck pollution): `opencode.log` accumulates `failed to load plugin` lines for
+  the REUSED path `D:/Project/_m4runs/run<N>` across attempts — grepping the path without a
+  timestamp filter false-positives on history. Attempt-3 `logcheck` initially tripped on 5
+  historical (21:xx) lines; verdict used only lines ≥ run timestamp (none). Future attempts:
+  always filter `timestamp>=launch`.
+- Outcome-heuristic caveat (standing from attempt 2): with no agent commit, HEAD == fixture
+  (caller WITH the call) reads as "FIX" to a naive check — outcome recorded VOID by the
+  operator (`run3_1.json`: `call re-added: False` only because HEAD never moved; scored in
+  context, never the printout).
+
+## C3. Friction findings (attempt 3)
+
+- **F-d (new, for the plugin author):** entry loads + factory runs, then silent pre-hook server
+<!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
+  death under 1.18.23. Prime suspect delta since attempt 2: the entry's relative import
+<!-- stale-ignore -->
+  `./gate_helpers.ts` (helpers import `node:fs/child_process/crypto/path/os`). The opencode
+  sandbox resolves it (factory executes, helpers work — `init` row emitted via `makeRow`), so
+  resolution is NOT the failure; something in hook registration/dispatch after init kills the
+  server without logging. Diagnosing further is the plugin author's job — no workaround
+  attempted (same rule as attempt 2).
+- **F-e (environment, recorded not fought):** a foreign `pythonw.exe` (pid 13204, ~215 MB) held
+  a PID lock during prechecks → CLI fell back to read-only indexing ("PID lock held... работаю
+  read-only"); graph reads unaffected (`removed_last_caller: 1` throughout).
+- **F-a/F-b standing** (attempt-1 findings, unretested — no agent ever started): repo pre-commit
+  pytest cost (~850 s/run), mid-run index rebuilds.
+
+## C4. Leaks / near-misses (attempt 3)
+
+- No push (no agent activity at all; belt-and-braces env pushurl guard set on every launch;
+  shared repo config untouched). No commits to shared history by this operator
+  (`git status --porcelain` clean in `wt-audit-corrections` post-run; fixture `a72b5739`
+  detached, died with the worktree). No third-party prose copied. `frozen/` untouched.
+- Data-dir residue (outside any repo, rig byproduct, left in place with paths recorded):
+  `%LOCALAPPDATA%\mscodebase\projects\799cb4eb\` = `{graph.db 57 kB, delivery_state.json
+  absent (deleted pre-launch, none written since — no evaluation ran), lancedb_v2/
+  (foreign-locked residue, gate-irrelevant), gate_telemetry.jsonl (2 init rows)}`.
+- `_m4runs` helpers (`_m4rig.py`, `dbg_*.py`, `precheck_dump.txt`, `run1_opencode.log`) were
+  disposable rig scaffolding — deleted (scripts + transcript gone); only the OS-locked EMPTY
+  `run1/` shell persists (undeletable, `Permission denied` / file-in-use, same as attempts 1–2;
+  worktree UNREGISTERED, `git worktree list` clean). Not fought per brief. All run refs that
+  matter (transcript `err_*`, session ids, init timestamps) are preserved above + `run3_1.json`.
+
+## C5. Readiness
+
+**Rig is NOT ready for the full 30.** Blocker, in order: (1) silent post-init server crash
+(§C1/F-d — needs plugin-author diagnosis
+<!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
+under 1.18.23 with the split entry; the zero-model
+<!-- stale-ignore -->
+loader proof now PASSES — `init` rows — so the next proof is hook-registration: an isolation
+row for a manual `git commit` with zero model spend); then standing items: (2) HEAD suite
+triage (~850 s/run); (3) mid-run index rebuilds (F-b). Voice lengths compliant (§C2).
+Next spend only after (1): one V1 pilot to a delivered note, then the remaining 5 of 3+3.
+
+---
+
 # M4 SMOKE — instrument check (attempt 2 STOPPED after run 1: plugin still fails to load)
 
 **Status:** attempt 2: 1 run launched, 0 valid, series STOPPED per brief (plugin-load-failure clause).
