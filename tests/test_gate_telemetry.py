@@ -248,7 +248,7 @@ def test_ts_python_hash_sync(tmp_path):
     # Helpers live in gate_helpers.ts since the loader-contract split:
     # the entry (mscodebase_gate.ts) exports ONLY default (opencode ≥1.16
     # legacy loader invokes every function export — issues #41234/#31575).
-    plugin = anchor / ".opencode" / "plugin" / "gate_helpers.ts"
+    plugin = anchor / "tools" / "gate_helpers.ts"
     out = subprocess.run(
         [node, "-e",
          f"import({json.dumps(plugin.as_uri())}).then(m=>console.log(m.projectHash({json.dumps(str(anchor))})))"],
