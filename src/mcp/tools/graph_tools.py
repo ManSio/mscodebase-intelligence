@@ -566,11 +566,19 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         # Сдержанность (anti-numbing) — только opt-in и только для advisory-доставки.
         # Блокирующие гейты сюда не заходят (см. src/core/restraint.py).
         if (kwargs or {}).get("restraint") and result.get("status") == "ok" and result.get("findings"):
-            from src.core.restraint import should_deliver, signature
+            from src.core.restraint import should_deliver_detail, signature
 
-            deliver, reason = should_deliver(root, signature(result["findings"]))
-            result["deliver"] = deliver
-            result["suppressed_reason"] = "" if deliver else reason
+            # ЕДИНСТВЕННАЯ ветка решения: тот же вызов решает deliver/suppress
+            # И отдаёт детали для телеметрии хука (gate_telemetry.jsonl) —
+            # ниже только проекция dict'а в обратно-совместимые ключи.
+            detail = should_deliver_detail(root, signature(result["findings"]))
+            result["deliver"] = detail["delivered"]
+            result["suppressed_reason"] = "" if detail["delivered"] else detail["reason"]
+            result["restraint"] = {
+                "signature": detail["signature"],
+                "strikes": detail["strikes"],
+                "cooldown_s_left": detail["cooldown_s_left"],
+            }
         return result
 
     async def _execute_arch_drift(self, file_path: str = "", project_root: str = "") -> dict:

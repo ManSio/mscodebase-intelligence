@@ -22,7 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("mscodebase_server.restraint")
 
-__all__ = ["signature", "should_deliver", "state_path"]
+__all__ = ["signature", "should_deliver", "should_deliver_detail", "state_path"]
 
 DEFAULT_COOLDOWN_SEC = 600.0
 DEFAULT_MAX_STRIKES = 3
@@ -62,16 +62,21 @@ def _write_state(path: Path, state: Dict[str, Any]) -> None:
         logger.warning("restraint: state write failed: %s", exc)
 
 
-def should_deliver(
+def should_deliver_detail(
     project_root: Path,
     sig: str,
     cooldown_sec: float = DEFAULT_COOLDOWN_SEC,
     max_strikes: int = DEFAULT_MAX_STRIKES,
     now: Optional[float] = None,
-) -> Tuple[bool, str]:
-    """True — доставить (обновляет состояние); False — подавить повтор.
+) -> Dict[str, Any]:
+    """То же решение, что should_deliver, плюс детали для телеметрии гейта.
 
-    Backoff растёт с числом повторных доставок той же сигнатуры: window = cooldown * 2^min(strikes, max).
+    ЕДИНСТВЕННАЯ ветка решения (should_deliver делегирует сюда): подавлять
+    или доставлять решает ЭТОТ код, а вызывающий и телеметрия только читают
+    возвращённый dict — второй кодовой дорожки, которая могла бы разойтись
+    с первой, нет. Ключи: delivered/reason (как раньше) + signature/strikes/
+    cooldown_s_left (НОВОЕ, для gate_telemetry.jsonl; strikes = число уже
+    доставок той же сигнатуры, cooldown_s_left = 0 при доставке).
     """
     path = state_path(project_root)
     now = time.time() if now is None else now
@@ -84,7 +89,37 @@ def should_deliver(
 
     if same and (now - last) < window:
         left = int(window - (now - last))
-        return False, f"cooldown: same findings, {left}s left (strikes={strikes})"
+        # mirrors the suppress branch (same condition as should_deliver had)
+        return {
+            "delivered": False,
+            "reason": f"cooldown: same findings, {left}s left (strikes={strikes})",
+            "signature": sig,
+            "strikes": strikes,
+            "cooldown_s_left": left,
+        }
 
     _write_state(path, {"sig": sig, "last_ts": now, "strikes": strikes + 1 if same else 0})
-    return True, "delivered"
+    # mirrors the deliver branch
+    return {
+        "delivered": True,
+        "reason": "delivered",
+        "signature": sig,
+        "strikes": strikes,
+        "cooldown_s_left": 0,
+    }
+
+
+def should_deliver(
+    project_root: Path,
+    sig: str,
+    cooldown_sec: float = DEFAULT_COOLDOWN_SEC,
+    max_strikes: int = DEFAULT_MAX_STRIKES,
+    now: Optional[float] = None,
+) -> Tuple[bool, str]:
+    """True — доставить (обновляет состояние); False — подавить повтор.
+
+    Backoff растёт с числом повторных доставок той же сигнатуры: window = cooldown * 2^min(strikes, max).
+    Тонкая обёртка над should_deliver_detail (решение — там, здесь только проекция).
+    """
+    d = should_deliver_detail(project_root, sig, cooldown_sec, max_strikes, now)
+    return d["delivered"], d["reason"]
