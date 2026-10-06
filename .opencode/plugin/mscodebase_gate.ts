@@ -11,6 +11,8 @@
 // Переключатели (env): MSCODEBASE_PY, MSCODEBASE_STALE_GATE=block|off,
 //                      MSCODEBASE_ISOLATION_GATE=advisory|block|off,
 //                      MSCODEBASE_GATE_LOG (явный путь к JSONL),
+//                      MSCODEBASE_ADVISORY_TEXT (M4 override: фиксированный текст
+//                        advisory-заметки вместо вывода гейта; additive, default-off),
 //                      MSCODEBASE_DATA_DIR / BASE_INDEX_DIR (корень данных для пути по умолчанию).
 // Хук никогда не роняет хост: любые сбои → лог, без throw (кроме намеренного блока).
 //
@@ -116,6 +118,11 @@ export interface GateRow {
   restraint?: RestraintDetail
   latency_ms: number
   refusal_len?: number
+  // M4 advisory-text override (только когда override вооружён; иначе ключей нет —
+  // строки по умолчанию побайтово идентичны форме до изменения):
+  override?: boolean
+  real_len?: number
+  real_hash?: string
 }
 
 export const ROW_REQUIRED_KEYS = ["t", "gate", "mode", "act", "delivered", "reason", "latency_ms"] as const
@@ -175,6 +182,54 @@ export function decideIsolation(mode: string, parsed: IsolationParsed, cliFailed
     return { delivered: false, reason: "fired_advisory" }
   }
   return { delivered: false, reason: "suppressed_zero_findings" }
+}
+
+// ── M4 advisory-text override (additive, default-off; см. REDTEAM-M4 harness amendment) ──
+// MSCODEBASE_ADVISORY_TEXT: когда задан И непуст И isolation в advisory И findings > 0,
+// tool.execute.after дописывает ЭТОТ текст дословно вместо вывода гейта.
+// Всё остальное нетронуто: реальный вывод всё равно считается, стэшится и логируется
+// (строка несёт override:true + real_len/real_hash); block-режим override игнорирует
+// полностью; тихий гейт (0 findings) молчит и с включённым override.
+export function advisoryOverrideText(): string {
+  const raw = process.env.MSCODEBASE_ADVISORY_TEXT
+  return raw !== undefined && raw !== null && raw.length > 0 ? raw : ""
+}
+
+export function realOutputHash(out: string): string {
+  return createHash("md5").update(out ?? "").digest("hex")
+}
+
+export interface AdvisoryNote {
+  text: string
+  override: boolean
+  realLen: number
+  realHash: string
+}
+
+// Чистое решение для tool.execute.after: null = ничего не дописывать
+// (не-advisory режим; пустой stash; count == 0 — доставка не выдумывается никогда).
+export function buildAdvisoryNote(cached: string | undefined, mode: string): AdvisoryNote | null {
+  if (mode !== "advisory") return null
+  if (!cached) return null
+  if (parseIsolation(cached).count <= 0) return null // тихий гейт молчит: override доставку не изобретает
+  const override = advisoryOverrideText()
+  if (override) {
+    return { text: override, override: true, realLen: cached.length, realHash: realOutputHash(cached) }
+  }
+  return {
+    text: `\n\n✦ GRAPH-GATE (advisory): this commit isolates graph node(s).\n${cached.slice(0, 500)}`,
+    override: false,
+    realLen: cached.length,
+    realHash: realOutputHash(cached),
+  }
+}
+
+// Дополнительные ключи строки isolation. ПУСТОЙ объект когда override выключен или
+// неприменим → строки по умолчанию побайтово идентичны форме до изменения.
+export function isolationRowExtra(out: string, parsed: IsolationParsed, mode: string): Record<string, unknown> {
+  const override = advisoryOverrideText()
+  if (!override || mode !== "advisory" || parsed.count <= 0) return {}
+  return { override: true, real_len: out.length, real_hash: realOutputHash(out) }
 }
 
 function actOf(output: unknown): string {
@@ -266,7 +321,7 @@ export default (async ({ directory }) => {
           // mirrors the stash/suppress/fall-through branch below: the SAME parsed values feed the row
           if (parsed.count > 0 && ISO_MODE === "advisory" && !parsed.suppressed) stash.set(input.callID, out)
           const d = decideIsolation(ISO_MODE, parsed, false)
-          emit({ gate: "isolation", mode: ISO_MODE, act, count: parsed.count, delivered: d.delivered, reason: d.reason, ...(parsed.restraint ? { restraint: parsed.restraint } : {}), latency_ms })
+          emit({ gate: "isolation", mode: ISO_MODE, act, count: parsed.count, delivered: d.delivered, reason: d.reason, ...(parsed.restraint ? { restraint: parsed.restraint } : {}), ...isolationRowExtra(out, parsed, ISO_MODE), latency_ms })
         } catch (e) {
           if (String(e).includes("GRAPH-GATE")) throw e
           // mirrors the swallow-and-continue branch: host never breaks on gate errors
@@ -281,9 +336,9 @@ export default (async ({ directory }) => {
       if (!cached) return
       stash.delete(input.callID)
       // без лог-строки: fired_advisory уже записана в before (одна оценка — одна строка)
-      output.output =
-        (output.output ?? "") +
-        `\n\n✦ GRAPH-GATE (advisory): this commit isolates graph node(s).\n${cached.slice(0, 500)}`
+      const note = buildAdvisoryNote(cached, ISO_MODE)
+      if (!note) return // тихий гейт молчит и с включённым override: доставка не выдумывается
+      output.output = (output.output ?? "") + note.text
     },
   }
 }) satisfies Plugin
