@@ -33,7 +33,7 @@
 // Object.values(module) и ВЫЗЫВАЕТ каждый function-экспорт как фабрику плагина
 // (см. opencode issues #41234/#31575/#42451). Поэтому этот входной модуль обязан
 // экспортировать ТОЛЬКО default-фабрику — никаких других runtime-экспортов
-// (включая const). Все хелперы живут в ./gate_helpers.ts; тесты хелперов
+// (включая const). Все хелперы живут в ../../tools/gate_helpers.ts; тесты хелперов
 // импортируют gate_helpers.ts напрямую, а loader-safety тест импортирует ЭТОТ
 // модуль и проверяет Object.keys(entry) === ["default"].
 
@@ -51,8 +51,8 @@ import {
   isolationRowExtra,
   cli,
   actOf,
-} from "./gate_helpers.ts"
-import type { GateRow } from "./gate_helpers.ts"
+} from "../../tools/gate_helpers.ts"
+import type { GateRow } from "../../tools/gate_helpers.ts"
 
 // Module-local config + stash (identical lines to the pre-split module):
 // the entry must export ONLY default, so values the factory closes over live here,

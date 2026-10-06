@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as gate from "../.opencode/plugin/gate_helpers.ts";
+import * as gate from "../tools/gate_helpers.ts";
 import * as entryModule from "../.opencode/plugin/mscodebase_gate.ts";
 
 const {
@@ -37,6 +37,16 @@ describe("plugin entry is loader-safe (opencode >=1.16 getLegacyPlugins)", () =>
   });
   it("default export is a function", () => {
     assert.equal(typeof entryModule.default, "function");
+  });
+  it("plugin dir holds no other loadable module (helpers live outside)", async () => {
+    // The loader auto-loads EVERY file in the plugin dir as its own plugin
+    // (M4 smoke attempts 2-3: gate_helpers.ts was invoked export-by-export).
+    const { readdirSync } = await import("node:fs");
+    const { join, dirname } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const dir = join(dirname(fileURLToPath(import.meta.url)), "..", ".opencode", "plugin");
+    const ts = readdirSync(dir).filter((f) => f.endsWith(".ts") || f.endsWith(".js"));
+    assert.deepEqual(ts, ["mscodebase_gate.ts"]);
   });
 });
 
