@@ -125,7 +125,10 @@ export interface GateRow {
   real_hash?: string
 }
 
-export const ROW_REQUIRED_KEYS = ["t", "gate", "mode", "act", "delivered", "reason", "latency_ms"] as const
+// Module-local on purpose: opencode >=1.16 legacy loader throws on any non-function
+// module export ("Plugin export is not a function"), which kills the whole plugin before
+// hooks register. Tests assert the schema against their own copy (see gate_telemetry.test.mjs).
+const ROW_REQUIRED_KEYS = ["t", "gate", "mode", "act", "delivered", "reason", "latency_ms"] as const
 
 export function makeRow(r: GateRow): GateRow {
   return { t: Date.now(), ...r }
