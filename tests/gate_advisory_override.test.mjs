@@ -24,7 +24,8 @@ process.env.MSCODEBASE_STALE_GATE = "off"; // stale path untouched by this chang
 if (!process.env.MSCODEBASE_PY) process.env.MSCODEBASE_PY = "python";
 const ADVISORY_TEXT_SENTINEL = "MSCODEBASE_ADVISORY_TEXT";
 
-const gate = await import("../.opencode/plugin/mscodebase_gate.ts");
+const gate = await import("../.opencode/plugin/gate_helpers.ts");
+const { default: plugin } = await import("../.opencode/plugin/mscodebase_gate.ts");
 const {
   advisoryOverrideText,
   realOutputHash,
@@ -32,7 +33,6 @@ const {
   isolationRowExtra,
   parseIsolation,
 } = gate;
-const plugin = gate.default;
 
 // Firing CLI output shape (mirrors the real formatter: counts + deliver marker).
 const FIRING =
