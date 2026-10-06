@@ -18,8 +18,23 @@ const {
   decideStale,
   decideIsolation,
   makeRow,
-  ROW_REQUIRED_KEYS,
 } = gate;
+
+// Local copy on purpose: the plugin module must not export non-function values
+// (opencode >=1.16 legacy loader throws "Plugin export is not a function").
+// Keeping the expected keys here also proves the schema from the consumer side.
+const ROW_REQUIRED_KEYS = ["t", "gate", "mode", "act", "delivered", "reason", "latency_ms"];
+
+describe("plugin entry is loader-safe (opencode >=1.16 getLegacyPlugins)", () => {
+  it("every runtime export is a function", () => {
+    for (const [name, value] of Object.entries(gate)) {
+      assert.equal(typeof value, "function", `non-function export: ${name}`);
+    }
+  });
+  it("default export is a function", () => {
+    assert.equal(typeof gate.default, "function");
+  });
+});
 
 // Sample produced by the REAL src/core/error_handler._format_success_response
 // on a post-change isolation dict (deliver=false + restraint detail).
