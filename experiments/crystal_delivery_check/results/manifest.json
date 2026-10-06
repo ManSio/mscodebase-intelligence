@@ -1,0 +1,2847 @@
+{
+ "E_bodies": {
+  "E1_len": 57,
+  "E2_key_first_index": 3244,
+  "E2_len": 3273,
+  "E3_key_first_index": 24,
+  "E3_len": 3246,
+  "ctx_composition": "target + ' ' + body"
+ },
+ "catalogue_tree_sha": "8da5e640d970c7ba0e47148b5255450e2982312b",
+ "delivery_log": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\audit-cache\\crystal-d8-ledgers\\delivery.jsonl",
+ "env_defaults": {
+  "CRYSTAL_ELIGIBILITY_LOG": "(unset)",
+  "CRYSTAL_HOLDBACK_PCT": "(unset)",
+  "CRYSTAL_ORDER": "(unset Dua default overlap)"
+ },
+ "fixture_essence_len": {
+  "actn.md": 70,
+  "bench.md": 80,
+  "board.md": 154,
+  "copy.md": 159,
+  "det.md": 174,
+  "dupruns.md": 159,
+  "guard.md": 195,
+  "iso.md": 983,
+  "negctrl.md": 158,
+  "price.md": 107,
+  "pty.md": 167,
+  "reply.md": 123,
+  "sdet.md": 184,
+  "tpd.md": 183,
+  "usage.md": 139,
+  "widget.md": 161
+ },
+ "fixture_keys": {
+  "actn.md": "action",
+  "bench.md": "bench",
+  "board.md": "board",
+  "copy.md": "copy",
+  "det.md": "detector",
+  "dupruns.md": "duplicate_runs",
+  "guard.md": "guard",
+  "iso.md": "isolation",
+  "negctrl.md": "negative-controls",
+  "price.md": "price",
+  "pty.md": "pty",
+  "reply.md": "reply",
+  "sdet.md": "stale_detector",
+  "tpd.md": "check_third_party_data",
+  "usage.md": "usage",
+  "widget.md": "widget"
+ },
+ "frozen_sha256": {
+  "ACTS.md": "db31bb3cb73db0cd235f2a407d1bb000ac3b8e8e5744db6e1b1918a37b90ab87",
+  "HYPOTHESES.md": "50ac94fd4fa2108b6b61869d7120e5e8b71212149ef5e707f11ff3f92e8d9841",
+  "ORDER_RULE.md": "57f55b3c925184499237c19b9657071d2ddb026335f3c2c816bdff47135e186f"
+ },
+ "harness_workarounds": [
+  "none: no source modified; only env vars + LEDGER monkeypatch for F-tests"
+ ],
+ "head_sha": "fe4e465058cdf5c35cad542f9f0848e8f7c34c2d",
+ "ledger_dir": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\audit-cache\\crystal-d8-ledgers",
+ "per_act": {
+  "A1": {
+   "act": "bash",
+   "ctx": "pytest -q tests/ -k empty",
+   "ctx_len": 25,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "A2": {
+   "act": "bash",
+   "ctx": "npm run copying",
+   "ctx_len": 15,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "A3": {
+   "act": "bash",
+   "ctx": "git commit -m \"guardrails update\"",
+   "ctx_len": 33,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "A4": {
+   "act": "bash",
+   "ctx": "ruff check src/ --select ARG",
+   "ctx_len": 28,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "A5": {
+   "act": "bash",
+   "ctx": "python -m src.cli graph_query",
+   "ctx_len": 29,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "B1": {
+   "act": "bash",
+   "ctx": "python -m src.cli graph_query --action isolation",
+   "ctx_len": 48,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "B2": {
+   "act": "bash",
+   "ctx": "git commit -m \"fix(negative-controls): resolve GitBash outside PATH\"",
+   "ctx_len": 68,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "headed": [],
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "headed": [],
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "headed": [],
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "negctrl.md"
+       ],
+       "delivered": [
+        "negctrl.md"
+       ],
+       "essence_len": {
+        "negctrl.md": 158
+       },
+       "headed": [],
+       "ordered": [
+        "negctrl.md"
+       ],
+       "overlap": {
+        "negctrl.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "B3": {
+   "act": "bash",
+   "ctx": "pytest tests/ -k duplicate_runs",
+   "ctx_len": 31,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "headed": [],
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "headed": [],
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "headed": [],
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "dupruns.md"
+       ],
+       "delivered": [
+        "dupruns.md"
+       ],
+       "essence_len": {
+        "dupruns.md": 159
+       },
+       "headed": [],
+       "ordered": [
+        "dupruns.md"
+       ],
+       "overlap": {
+        "dupruns.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "C1a": {
+   "act": "bash",
+   "ctx": "npm run build --mode bench",
+   "ctx_len": 26,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "headed": [],
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "headed": [],
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "headed": [],
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "bench.md"
+       ],
+       "delivered": [
+        "bench.md"
+       ],
+       "essence_len": {
+        "bench.md": 80
+       },
+       "headed": [],
+       "ordered": [
+        "bench.md"
+       ],
+       "overlap": {
+        "bench.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "C2a": {
+   "act": "bash",
+   "ctx": "scripts/check_board_status.sh",
+   "ctx_len": 29,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "D1": {
+   "act": "bash",
+   "ctx": "python -m src.cli graph_query --action isolation",
+   "ctx_len": 48,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "iso.md",
+        "actn.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "iso.md",
+        "actn.md"
+       ],
+       "delivered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "essence_len": {
+        "actn.md": 70,
+        "iso.md": 983
+       },
+       "headed": [],
+       "ordered": [
+        "actn.md",
+        "iso.md"
+       ],
+       "overlap": {
+        "actn.md": 0.0,
+        "iso.md": 0.25
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "D2": {
+   "act": "bash",
+   "ctx": "python -m src.cli stale_detector",
+   "ctx_len": 32,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "headed": [],
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "headed": [],
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "headed": [],
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "sdet.md",
+        "det.md"
+       ],
+       "delivered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "essence_len": {
+        "det.md": 174,
+        "sdet.md": 184
+       },
+       "headed": [],
+       "ordered": [
+        "det.md",
+        "sdet.md"
+       ],
+       "overlap": {
+        "det.md": 0.0,
+        "sdet.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "D3": {
+   "act": "bash",
+   "ctx": "bash scripts/check_third_party_data.py --all",
+   "ctx_len": 44,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "headed": [],
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "headed": [],
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "headed": [],
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "tpd.md"
+       ],
+       "delivered": [
+        "tpd.md"
+       ],
+       "essence_len": {
+        "tpd.md": 183
+       },
+       "headed": [],
+       "ordered": [
+        "tpd.md"
+       ],
+       "overlap": {
+        "tpd.md": 0.0
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "E1": {
+   "act": "write",
+   "ctx": "docs/research/note.md a note about a widget and its tests",
+   "ctx_len": 57,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.14285714285714285
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": "docs/research/note.md"
+  },
+  "E2": {
+   "act": "write",
+   "ctx": "docs/research/note.md filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. and here we mention a widget once, deep in the body",
+   "ctx_len": 3273,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": "docs/research/note.md"
+  },
+  "E3": {
+   "act": "write",
+   "ctx": "docs/research/note.md a widget appears early. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. ",
+   "ctx_len": 3246,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      },
+      "armB": {
+       "candidates": [
+        "widget.md"
+       ],
+       "delivered": [
+        "widget.md"
+       ],
+       "essence_len": {
+        "widget.md": 161
+       },
+       "headed": [],
+       "ordered": [
+        "widget.md"
+       ],
+       "overlap": {
+        "widget.md": 0.15384615384615385
+       },
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": "docs/research/note.md"
+  },
+  "F1": {
+   "act": "bash",
+   "ctx": "git commit -m \"chore: telemetry\"",
+   "ctx_len": 32,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  },
+  "F2": {
+   "act": "bash",
+   "ctx": "git commit -m \"chore: telemetry\"",
+   "ctx_len": 32,
+   "modes": {
+    "overlap": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ],
+    "rotation": [
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     },
+     {
+      "armA": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      },
+      "armB": {
+       "candidates": [],
+       "delivered": [],
+       "essence_len": {},
+       "headed": [],
+       "ordered": [],
+       "overlap": {},
+       "starved": []
+      }
+     }
+    ]
+   },
+   "target": ""
+  }
+ },
+ "platform": "Windows-11-10.0.26220-SP0",
+ "python": "3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]",
+ "reference_clone": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\audit-cache\\crystal-d8-src",
+ "run_copy": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\audit-cache\\crystal-d8-run",
+ "sessions": {
+  "A1": [
+   "d8-A1-overlap-r1",
+   "d8-A1-overlap-r2",
+   "d8-A1-rotation-r1",
+   "d8-A1-rotation-r2"
+  ],
+  "A2": [
+   "d8-A2-overlap-r1",
+   "d8-A2-overlap-r2",
+   "d8-A2-rotation-r1",
+   "d8-A2-rotation-r2"
+  ],
+  "A3": [
+   "d8-A3-overlap-r1",
+   "d8-A3-overlap-r2",
+   "d8-A3-rotation-r1",
+   "d8-A3-rotation-r2"
+  ],
+  "A4": [
+   "d8-A4-overlap-r1",
+   "d8-A4-overlap-r2",
+   "d8-A4-rotation-r1",
+   "d8-A4-rotation-r2"
+  ],
+  "A5": [
+   "d8-A5-overlap-r1",
+   "d8-A5-overlap-r2",
+   "d8-A5-rotation-r1",
+   "d8-A5-rotation-r2"
+  ],
+  "B1": [
+   "d8-B1-overlap-r1",
+   "d8-B1-overlap-r2",
+   "d8-B1-rotation-r1",
+   "d8-B1-rotation-r2"
+  ],
+  "B2": [
+   "d8-B2-overlap-r1",
+   "d8-B2-overlap-r2",
+   "d8-B2-rotation-r1",
+   "d8-B2-rotation-r2"
+  ],
+  "B3": [
+   "d8-B3-overlap-r1",
+   "d8-B3-overlap-r2",
+   "d8-B3-rotation-r1",
+   "d8-B3-rotation-r2"
+  ],
+  "C1a": [
+   "d8-C1a-overlap-r1",
+   "d8-C1a-overlap-r2",
+   "d8-C1a-rotation-r1",
+   "d8-C1a-rotation-r2"
+  ],
+  "C2a": [
+   "d8-C2a-overlap-r1",
+   "d8-C2a-overlap-r2",
+   "d8-C2a-rotation-r1",
+   "d8-C2a-rotation-r2"
+  ],
+  "D1": [
+   "d8-D1-overlap-r1",
+   "d8-D1-overlap-r2",
+   "d8-D1-rotation-r1",
+   "d8-D1-rotation-r2"
+  ],
+  "D2": [
+   "d8-D2-overlap-r1",
+   "d8-D2-overlap-r2",
+   "d8-D2-rotation-r1",
+   "d8-D2-rotation-r2"
+  ],
+  "D3": [
+   "d8-D3-overlap-r1",
+   "d8-D3-overlap-r2",
+   "d8-D3-rotation-r1",
+   "d8-D3-rotation-r2"
+  ],
+  "E1": [
+   "d8-E1-overlap-r1",
+   "d8-E1-overlap-r2",
+   "d8-E1-rotation-r1",
+   "d8-E1-rotation-r2"
+  ],
+  "E2": [
+   "d8-E2-overlap-r1",
+   "d8-E2-overlap-r2",
+   "d8-E2-rotation-r1",
+   "d8-E2-rotation-r2"
+  ],
+  "E3": [
+   "d8-E3-overlap-r1",
+   "d8-E3-overlap-r2",
+   "d8-E3-rotation-r1",
+   "d8-E3-rotation-r2"
+  ],
+  "F1": [
+   "d8-F1-overlap-r1",
+   "d8-F1-overlap-r2",
+   "d8-F1-rotation-r1",
+   "d8-F1-rotation-r2"
+  ],
+  "F2": [
+   "d8-F2-overlap-r1",
+   "d8-F2-overlap-r2",
+   "d8-F2-rotation-r1",
+   "d8-F2-rotation-r2"
+  ]
+ },
+ "store_root": "C:\\Users\\misha\\AppData\\Local\\mscodebase\\audit-cache\\crystal-d8-work\\store",
+ "telemetry": {
+  "F1": {
+   "candidate_snapshot_rows": 1,
+   "ctx": "git commit -m \"chore: telemetry\"",
+   "dry": false,
+   "due": {
+    "due": [],
+    "n_due": 0,
+    "starved": []
+   },
+   "eligible_rows": 0,
+   "ledger_written": true,
+   "rc": 0,
+   "session": "d8-F1-tel",
+   "stderr_tail": ""
+  },
+  "F1m": {
+   "candidate_snapshot_rows": 1,
+   "ctx": "pytest tests/ -k duplicate_runs",
+   "dry": false,
+   "due": {
+    "due": [
+     "dupruns.md"
+    ],
+    "n_due": 1,
+    "starved": []
+   },
+   "eligible_rows": 1,
+   "ledger_written": true,
+   "rc": 0,
+   "session": "d8-F1m-tel",
+   "stderr_tail": ""
+  },
+  "F2": {
+   "candidate_snapshot_rows": 0,
+   "ctx": "git commit -m \"chore: telemetry\"",
+   "dry": true,
+   "due": {
+    "due": [],
+    "n_due": 0,
+    "starved": []
+   },
+   "eligible_rows": 0,
+   "ledger_written": false,
+   "rc": 0,
+   "session": "d8-F2-tel",
+   "stderr_tail": ""
+  },
+  "F2m": {
+   "candidate_snapshot_rows": 0,
+   "ctx": "pytest tests/ -k duplicate_runs",
+   "dry": true,
+   "due": {
+    "due": [
+     "dupruns.md"
+    ],
+    "n_due": 1,
+    "starved": []
+   },
+   "eligible_rows": 0,
+   "ledger_written": false,
+   "rc": 0,
+   "session": "d8-F2m-tel",
+   "stderr_tail": ""
+  }
+ },
+ "unit_probes": [
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "empty",
+   "key": "pty",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "comparison",
+   "key": "aris",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "nomic",
+   "key": "nom",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "guardrails",
+   "key": "guard",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "copying",
+   "key": "copy",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "usages report",
+   "key": "usage",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "keyboard",
+   "key": "board",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "benchmark",
+   "key": "bench",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "xreply",
+   "key": "reply",
+   "want": false
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "prices",
+   "key": "price",
+   "want": false
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run pty now",
+   "key": "pty",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run guard now",
+   "key": "guard",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run copy now",
+   "key": "copy",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run usage now",
+   "key": "usage",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run board now",
+   "key": "board",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run bench now",
+   "key": "bench",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run reply now",
+   "key": "reply",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "run price now",
+   "key": "price",
+   "want": true
+  },
+  {
+   "armA": false,
+   "armB": false,
+   "ctx": "scripts/check_board_status.sh",
+   "key": "board",
+   "want": false
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "pytest tests/ -k duplicate_runs",
+   "key": "duplicate_runs",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "fix(negative-controls): blah",
+   "key": "negative-controls",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "bash scripts/check_third_party_data.py --all",
+   "key": "check_third_party_data",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "scripts/dispatch-codex.py",
+   "key": "dispatch-codex",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "python -m src.cli stale_detector",
+   "key": "stale_detector",
+   "want": true
+  },
+  {
+   "armA": true,
+   "armB": true,
+   "ctx": "python -m src.cli stale_detector",
+   "key": "detector",
+   "want": true
+  }
+ ]
+}

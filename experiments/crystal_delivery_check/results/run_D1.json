@@ -1,0 +1,209 @@
+{
+ "act": "bash",
+ "act_id": "D1",
+ "ctx": "python -m src.cli graph_query --action isolation",
+ "ctx_len": 48,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "ordered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "headed": [],
+     "ordered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "ordered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "headed": [],
+     "ordered": [
+      "iso.md",
+      "actn.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "ordered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "headed": [],
+     "ordered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "ordered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "iso.md",
+      "actn.md"
+     ],
+     "delivered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "essence_len": {
+      "actn.md": 70,
+      "iso.md": 983
+     },
+     "headed": [],
+     "ordered": [
+      "actn.md",
+      "iso.md"
+     ],
+     "overlap": {
+      "actn.md": 0.0,
+      "iso.md": 0.25
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}
