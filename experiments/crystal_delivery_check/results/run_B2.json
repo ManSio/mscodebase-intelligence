@@ -1,0 +1,169 @@
+{
+ "act": "bash",
+ "act_id": "B2",
+ "ctx": "git commit -m \"fix(negative-controls): resolve GitBash outside PATH\"",
+ "ctx_len": 68,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "headed": [],
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "headed": [],
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "headed": [],
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "negctrl.md"
+     ],
+     "delivered": [
+      "negctrl.md"
+     ],
+     "essence_len": {
+      "negctrl.md": 158
+     },
+     "headed": [],
+     "ordered": [
+      "negctrl.md"
+     ],
+     "overlap": {
+      "negctrl.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

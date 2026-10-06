@@ -1,0 +1,89 @@
+{
+ "act": "bash",
+ "act_id": "C2a",
+ "ctx": "scripts/check_board_status.sh",
+ "ctx_len": 29,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

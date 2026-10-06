@@ -1,0 +1,209 @@
+{
+ "act": "bash",
+ "act_id": "D2",
+ "ctx": "python -m src.cli stale_detector",
+ "ctx_len": 32,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "headed": [],
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "headed": [],
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "headed": [],
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "sdet.md",
+      "det.md"
+     ],
+     "delivered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "essence_len": {
+      "det.md": 174,
+      "sdet.md": 184
+     },
+     "headed": [],
+     "ordered": [
+      "det.md",
+      "sdet.md"
+     ],
+     "overlap": {
+      "det.md": 0.0,
+      "sdet.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

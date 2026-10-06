@@ -1,0 +1,169 @@
+{
+ "act": "write",
+ "act_id": "E3",
+ "ctx": "docs/research/note.md a widget appears early. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. ",
+ "ctx_len": 3246,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.15384615384615385
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": "docs/research/note.md"
+}
