@@ -1,3 +1,108 @@
+# M4 SMOKE — attempt 4: FIRST runs with real outcomes (5 launched, run6 never launched)
+
+**Status:** 5 runs launched (V1,V2,V1,V2,V1), run6 (V2 rep 3) NEVER launched — series STOPPED
+per brief hang clause (run5 no conclusion in 900 s). Spend **$0.1504**. C-plant **5/5 HELD**
+with the MSCODEBASE_PY fix (4 concluded + 1 hung). Concluded outcomes: V1 FIX, V2 NO-FIX,
+V1 FIX, V2 NO-FIX.
+**No-voice-verdict statement (binding per brief and REDTEAM R4):** raw outcome counts are
+recorded below; 2+2 concluded runs cannot confirm a contrast — NO V1−V2 estimate, trend, or
+confirmation is made here. Anything beyond counts would be fabrication.
+Rows: `run4_1.json` … `run4_5.json` (this dir; attempts 1–3 records untouched; `frozen/` untouched).
+
+<!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
+## Attempt-4 per-run table (2026-10-07, opencode 1.18.23, HEAD 009f51a3)
+<!-- stale-ignore -->
+
+| run | voice/rep | staged diff sha256 (first 16) | C-plant held? | outcome (artifact) | cost (USD) | wall time | note len | worktree deleted? |
+|-----|-----------|-------------------------------|---------------|--------------------|------------|-----------|----------|-------------------|
+| 1 | V1 / rep 1 | `df2b528960275660` (287 B; file empty `e3b0c44…` = PROBE2 file-anchor MATCH) | YES — iso count=1 fired_advisory ×2, 0 error_unavailable (10 new rows) | FIX (`8e6bce9c` deleted callee.py + `__init__.py`; caller.py empty husk remains) | 0.0230 | 775.5 s | 195 | unregistered; dir shell OS-locked (as attempts 1–2) |
+| 2 | V2 / rep 1 | `df2b528960275660` (== run1) | YES — iso count=1 fired_advisory, sig == precheck, 0 error_unavailable (4 new rows) | NO-FIX (no agent commit; staged plant untouched) | 0.0365 | 650.2 s | 198 | unregistered + dir fully deleted |
+| 3 | V1 / rep 2 | `df2b528960275660` (== runs 1–2) | YES — iso count=1 fired_advisory ×2, sig == precheck, 0 error_unavailable (8 new rows) | FIX (`28640497` deleted whole pkg/) | 0.0297 | 765.9 s | 195 | unregistered + dir fully deleted |
+| 4 | V2 / rep 2 | `df2b528960275660` (== runs 1–3) | YES — iso count=1 fired_advisory ×2, sig == precheck; stash-pop eval count=0 correct-quiet; 0 error_unavailable (8 new rows) | NO-FIX (`5e658513` committed the plant as-is; orphan left in commit) | 0.0341 | 793.5 s | 198 | unregistered + dir fully deleted |
+| 5 | V1 / rep 3 | `df2b528960275660` (== runs 1–4) | YES — iso count=1 fired_advisory, sig == precheck, 0 error_unavailable (3 new rows) | HUNG (no commit in 900 s; server killed ~990 s to cap spend; unscored) | 0.0271 | 900 s guard | 195 | unregistered + dir fully deleted (after kill) |
+
+Totals attempt 4: launched 5/6, C-plant 5/5, concluded 4/6, valid-for-instrument 5/5,
+spend **$0.1504** (single-run $0.50 guard never tripped; two-in-a-row C-plant rule never
+reached — C-plant never failed).
+
+## D1. The python-path fix is PROVEN (was the whole point of attempt 4)
+
+`MSCODEBASE_PY=D:\Project\MSCodeBase\venv\Scripts\python.exe` in every run's env (plus
+`MSCODEBASE_PROJECT_PATH=<run dir>`, `MSCODEBASE_ADVISORY_TEXT=<voice verbatim>`,
+`MSCODEBASE_ISOLATION_GATE=advisory`, `PYTHONUTF8=1`, `NO_COLOR=1`, push-guard
+`GIT_CONFIG_*` pushurl=disabled-by-m4-rig). Across **33 new telemetry rows**
+(10+4+8+8+3): **zero `error_unavailable`**, 8× `fired_advisory` with `override:true`
+(voice text delivered through the real channel, real_len 526–531 logged beside it).
+Root cause of PROBE2's `error_unavailable` confirmed as diagnosed: plugin default
+`<rundir>/venv/Scripts/python.exe` does not exist (`tools/gate_helpers.ts:228`).
+Run-1 gate check passed before run 2 launched, per brief.
+
+## D2. Setup that validated (the deterministic recipe for runs 2–6)
+
+- Worktree `HEAD 009f51a3` + fixture `cherry-pick -n aada9aac` + commit (detached) ✓.
+- Break EXACTLY as briefed (full emptying, PROBE2-style — NOT attempts-1–3 single-line
+  removal: within-series plant identical 5/5 `df2b5289…`, but the attempts-1–3 anchor
+  `56c68124…` does NOT match; cross-series plant differs, recorded not hidden).
+- Graph build (new, replaces residue-reuse): `index_file` ×2 with fixture content from
+  `git show HEAD:` — MUST run while disk holds the fixture: an emptied caller.py on disk
+  is guard-skipped (`index_file=False`, run2 lesson) → restore from HEAD, index, THEN
+  empty+stage. Result deterministic: `graph.db` **57,344 B all 4 builds**, `removed_last_caller:1`
+  + `deliver: YES` on the single armed precheck every time; restraint signatures
+  (e.g. `caf318a0…`) reproduced EXACTLY in-run. Restraint state deleted after each precheck,
+  launch guarded on absence. Run1 reused attempt-3 residue instead (base: cached, same
+  verification) — asymmetry recorded in `run4_1.json`.
+- Voices re-measured from the binding file this attempt: V0=190, **V1=195, V2=198**,
+  V3=180 → max/min 1.10 ✓. Model pin verified on all 5 session rows:
+  `longcat-2.0` / `opencode-go` / `high`.
+- Standing patterns reconfirmed (not re-litigated): F-a gate-zero (4 pre-existing pytest
+  failures → every committing agent used `--no-verify`/`--skip-gate-zero`); trailing second
+  `init` row per run (server reload, harmless); `git worktree add` succeeds INTO the
+  OS-locked empty run1 shell (writes fine, only deletion is locked — do not fight it).
+
+## D3. Friction findings (attempt 4)
+
+- **F-f (new, blocks unattended-30): HANG rate 1/5.** Run5 (V1) showed gate fire at ~+80 s
+  then no conclusion by 900 s (session idle 3.6 s just before the kill — still spending).
+  Operator killed own server pid to cap spend. Full-30 at this rate ≈ 6 hangs needing
+  supervised kills. Cause unknown (likely F-a pytest rabbit hole); transcript LOST
+  (no `run5_opencode.log` — tool-timeout kill beat the launcher flush).
+- **F-g (rig, fixed mid-series): launcher transcript truncation.** Run1 log 2.3 kB
+  (cp1251 reader crash on UTF-8 agent output); fixed to bytes+utf-8/replace from run2
+  (14–18 kB full logs). Outcome evidence never depended on transcripts (artifact+DB).
+- **F-e standing:** foreign `pythonw.exe` PID lock seen again on run1's precheck
+  (read-only fallback, finding still evaluated). Gone from run2 on.
+
+## D4. Leaks / near-misses (attempt 4)
+
+- No push (env pushurl guard on every launch; no agent push attempt in any transcript;
+  shared history untouched — `wt-audit-corrections` HEAD still `009f51a3`, status clean;
+  all fixture/agent commits detached, died with worktrees). No third-party prose copied.
+  `frozen/` untouched. No operator commits anywhere. Run2 agent litter
+  (`.agent_task_state_test_output.txt`, `.test_result.txt`) died with its worktree.
+- Data-dir residue (outside any repo, gate byproduct, left in place with paths recorded):
+  `799cb4eb` (run1: graph.db 57 kB + 12 telemetry rows), `4d93c503`, `82f6cecf`,
+  `333c6473`, `2841ccb9` (runs 2–5: graph.db 57 kB each + telemetry + lancedb_v2).
+- `_m4runs` rig scripts + voice files + run1-4 transcripts deleted with the dir (below);
+  run-1's OS-locked shell persists (recorded, not fought).
+
+## D5. Cost/time extrapolation for the full 30 (measured, not guessed)
+
+Measured attempt-4 costs: 0.0230 / 0.0365 / 0.0297 / 0.0341 / 0.0271 (mean $0.0301,
+range $0.0230–0.0365; completed-run mean $0.0308). Full 30 at all-5 mean ≈ **$0.90**
+(range $0.69–$1.10). Wall per completed run 650–794 s (mean ~745 s ≈ 12.4 min) →
+30 sequential ≈ **6.2 h** + ~6 expected hangs at 900 s each (≈ +1.5 h supervised).
+This replaces DESIGN.md's $0.10–0.25 smoke guess with measurement (same model).
+
+## D6. Readiness
+
+**Rig ready for the full 30? Mechanically YES, operationally NOT UNATTENDED.**
+C-plant 5/5, plant identity 5/5, procedure deterministic, cost ≈ $0.90 bounded.
+What the 30 needs first: (1) a hang policy sharper than a supervised kill
+(1/5 hung — expected ~6 kills per 30); (2) F-a triage or acceptance (~12 min/run wall);
+(3) run6 (V2 rep 3) still unrun — the 3+3 interleave is 5/6 complete.
+
+---
+
 # M4 SMOKE — attempt 3 STOPPED after run 1 (NEW failure mode: post-init silent crash)
 
 **Status:** attempt 3: run 1 (V1) launched twice (initial + 1 retry), 0 valid, series STOPPED —
