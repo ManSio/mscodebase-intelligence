@@ -1,4 +1,15 @@
 
+## [2026-10-08] Phase 2 (on-demand rerank в engine) — реализовано, PR следом
+
+- Новый pure `src/core/search/ondemand_rerank.py` (cosine, stable ties, пропуск
+  бестекстовых); конфиг `MSCODEBASE_ONDEMAND_RERANK` (+TOP_N) по образцу
+  late_enrichment; врезка в hybrid перед BGE (флаг ON → on-demand ВМЕСТО BGE,
+  default OFF — путь не тронут).
+- Тесты `test_ondemand_rerank.py` 6/6 (точная математика на fake-векторах);
+  смежные 36/36; ruff чист. Live-proof флагом: quality h1 3/10 h5 4/10 =
+  baseline, `rerank_timing.mode=ondemand_cosine` за 1041мс; fast не тронут
+  (0/6 как было). `flagon_check.py` — артефакт проверки.
+
 ## [2026-10-08] Phase 1 (E26-chanки за флагом) — реализовано, тесты 10/10+47
 
 - Новый `src/core/indexing/chunk_augment.py` (pure, FILE/SYMBOLS/DOC = frozen E26,
