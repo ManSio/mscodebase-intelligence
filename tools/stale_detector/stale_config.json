@@ -22,7 +22,8 @@
     ".venv",
     "archive",
     "blog",
-    "ISSUES"
+    "ISSUES",
+    "frozen"
   ],
   "version_exclude_patterns": [
     "127\\.0\\.0",

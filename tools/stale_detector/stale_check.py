@@ -57,7 +57,12 @@ class StaleConfig:
     def __post_init__(self):
         self.exclude_files = self.exclude_files or []
         self.exclude_dirs = self.exclude_dirs or [
-            "sandbox", "__pycache__", ".git", "node_modules"
+            "sandbox", "__pycache__", ".git", "node_modules",
+            # `frozen/` holds immutable pre-look evidence (frozen experiment inputs,
+            # recovered transcripts). Their version strings are historical BY DESIGN:
+            # rewriting them to match today would destroy the pre-look integrity the
+            # whole experiment rests on. Drift-checking them is always a false positive.
+            "frozen",
         ]
         self.version_exclude_patterns = self.version_exclude_patterns or []
         self.version_ignore_files = self.version_ignore_files or []

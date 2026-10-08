@@ -106,5 +106,14 @@
       "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-10-08T20:07:14Z",
+    "reason": "stale_check.py gained a frozen/ exclusion; discrimination re-verified live this session (10 files / up to 18 drifts reported before the exclusion, 0 after)",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "96e9bb3620c6aee7b7d9d43aa388d1a56cff837332b71f955ef233fa9ff9b8f2",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]
