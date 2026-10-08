@@ -63,7 +63,7 @@
   },
   "harness": {
     "file": "run_experiment.py",
-    "sha256": "70daee61353aba99dca9f13d5ca8a018253a0bdb0b442edf1d385ccf01617bbd",
+    "sha256": "084e10ccd99461c0fc79da9b65c9acd4fb0b89d7044f0e71da96d347258c063a",
     "tests_file": "test_harness_sanity.py",
     "tests_sha256": "5c770d2e889b258020019832a44fc79b39ecf0aec80ddb813864054db8be3cd3",
     "tests_passing": 39,
@@ -83,6 +83,27 @@
     "control_oracle.json": "exit 0; все 3 модели, обе руки: base_acc=1.0, inv=1.0 (30/30), seed=1.0 (n=10)",
     "control_planted.json": "exit 0; RU inv=0.9667 (29/30), EN inv=1.0 (30/30); единственная расогласованная строка — саботированная q_france_capital/ru/p0",
     "re_derivation": "метрики перевыведены из сырых rows независимым скриптом; расхождений 0, 120 строк на модель (60 RU + 60 EN)"
+  },
+  "known_defects": {
+    "note": "FINDINGS.md обязателен к чтению вместе с этими числами.",
+    "matcher_false_negatives": {
+      "case": "q_http_404",
+      "rows": 8,
+      "of": 360,
+      "cause": "алиасы не покрывают морфологию RU ('не нашёл', 'не смог найти') и английские формы 'could not find/could not be found'",
+      "consequence": "base_acc=0.9 / seed=0.9 / inv_overall=0.9333 в части рук измеряют матчер, а не модель; публиковать как неустойчивость нельзя",
+      "fix": "dataset v3 (supersedes v2) — алиасы расширены после калибровки; v2 НЕ правится (hindsight, §17)",
+      "negative_control": "расширение даёт 0 ложных срабатываний на заведомо неверных ответах"
+    },
+    "verdict_sensitivity": {
+      "problem": "порог 0.90 при знаменателе 30 не видит одиночную поломку: planted-контроль 1/30 = 0.9667 -> вердикт PASS",
+      "fix": "v3: STRICT PASS (inv==1.0) / CONDITIONAL PASS (0.90<=inv<1.0) / FAIL"
+    },
+    "abstentions": {
+      "count": 1,
+      "of": 360,
+      "row": "longcat-2.0/ru/q_python_release_year/base0 -> 'I don't know.'"
+    }
   },
   "decision_rule": {
     "invariance_threshold": 0.9,
