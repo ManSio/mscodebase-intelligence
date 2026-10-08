@@ -51,6 +51,7 @@ import {
   isolationRowExtra,
   cli,
   actOf,
+  isGitCommit,
 } from "../../tools/gate_helpers.ts"
 import type { GateRow } from "../../tools/gate_helpers.ts"
 
@@ -87,7 +88,9 @@ export default (async ({ directory }) => {
       if (!input || typeof input !== "object" || !output || typeof output !== "object") return
       if (input.tool !== "bash") return
       const cmd = String(output.args?.command ?? "")
-      if (!/\bgit\s+commit\b/.test(cmd)) return
+      // Tokenizer, not /\bgit\s+commit\b/: global options such as `git -C <dir> commit`
+      // are the same command and must be gated too (M4 full-30 run 11 slipped through).
+      if (!isGitCommit(cmd)) return
       const act = actOf(output)
 
       // ── Gate 1: stale_detector ──

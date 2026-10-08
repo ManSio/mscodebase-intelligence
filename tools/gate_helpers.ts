@@ -224,6 +224,32 @@ export function actOf(output: unknown): string {
   return `bash ${cmd}`.replace(/\s+/g, " ").trim().slice(0, 200)
 }
 
+// Global git options that take a separate value token. `git -C <path> commit` and
+// `git -c k=v commit` are the SAME command as `git commit`; a regex requiring
+// adjacency let them through un-gated (M4 full-30 run 11, 30/30 transcripts).
+const GIT_VALUE_OPTS = new Set([
+  "-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env",
+])
+
+export function isGitCommit(cmd: string): boolean {
+  // Quoted segments are data, not commands: `echo 'git commit -m x'` must not be
+  // gated, otherwise printing a command triggers the gate (over-gating is safe but
+  // noisy and trains agents to ignore advisory output).
+  const tokens = String(cmd).replace(/'[^']*'/g, " ").replace(/"[^"]*"/g, " ").split(/\s+/).filter(Boolean)
+  for (let i = 0; i < tokens.length; i++) {
+    if (!/\bgit(?:\.exe)?$/i.test(tokens[i])) continue
+    for (let j = i + 1; j < tokens.length; j++) {
+      const t = tokens[j]
+      if (t === "--") break
+      if (GIT_VALUE_OPTS.has(t)) { j++; continue }
+      if (t.startsWith("-")) continue
+      return t === "commit"
+    }
+    return false
+  }
+  return false
+}
+
 export function cli(directory: string, tool: string, argsJson: string): Promise<string> {
   const py = process.env.MSCODEBASE_PY ?? join(directory, "venv", "Scripts", "python.exe")
   return new Promise((resolve) => {
