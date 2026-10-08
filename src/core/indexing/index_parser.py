@@ -15,6 +15,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.core.indexing.chunk_augment import augment_enabled, build_file_prefix
+
 __all__ = [
     "IndexParser",
 ]
@@ -212,6 +214,15 @@ class IndexParser:
 
             if not chunk_texts:
                 return None
+
+            # Фаза 1 (E26): опциональный препенд FILE/SYMBOLS/DOC.
+            # Default OFF — тексты байт-идентичны. При ON меняется каждый текст,
+            # а значит и chunk_hash (sha256 текста) — вектора пересчитаются,
+            # а не протухнут. Единая точка для AST- и fallback-путей.
+            if augment_enabled():
+                _aug = build_file_prefix(rel_path_str, content)
+                chunk_texts = [_aug + t for t in chunk_texts]
+                chunk_texts_full = [_aug + t for t in chunk_texts_full]
 
             # Code Health
             try:

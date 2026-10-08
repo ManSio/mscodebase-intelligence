@@ -1,4 +1,13 @@
 
+## [2026-10-08] Phase 1 (E26-chanки за флагом) — реализовано, тесты 10/10+47
+
+- Новый `src/core/indexing/chunk_augment.py` (pure, FILE/SYMBOLS/DOC = frozen E26,
+  паритет 27/27 с шаблоном); wiring одной точкой в `index_parser.parse_one_file`;
+  флаг `MSCODEBASE_AUGMENT_CHUNKS` default OFF (байт-идентичность); флип меняет
+  chunk_hash=sha256(text) → вектора пересчитаются, не протухнут.
+- `tests/test_chunk_augment.py` 10/10; смежные (searcher/hardening/chunk_cache/
+  ast_invalidation/resume) 47/47. Прод-реиндекс НЕ запускался (фаза 2+ по плану).
+
 ## [2026-10-03] P-020 / P-021 — гонка между тестами, непригодный гейт, реестр вне репозитория
 
 - **P-020 (Verified):** `test_negative_controls_runner.py` доказывал digest-pinning **правкой настоящей фикстуры** `dead_guard.py` + restore в `finally`. Под `-n auto` соседний воркер читал digest в окне между записью и restore → `unproven=1` на CI при зелёном локально. **Все ручные проверки проходили, потому что проверяли байты, а триггер — параллелизм.** Фикс: scratch-копия + контроль `PROVEN` до мутации.
