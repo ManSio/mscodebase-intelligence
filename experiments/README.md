@@ -24,7 +24,7 @@
 | Concurrency | Гонки при замене примитива (§2.3) | [`concurrency/`](concurrency/) | ✅ 2026-08-11 | «0 errors» ≠ верные данные — стресс-тест на корректность |
 | Evalmut | Mutation testing для eval-градеров | [`evalmut/`](evalmut/) | ✅ 2026-08-14 | validate_scores: mutation score 8% → 100% (P-006) |
 | Root Cause Eval | Аудит root-cause предсказаний | [`root_cause_eval/`](root_cause_eval/) | 🟡 2026-07-22 | датасет инцидентов + gold standard |
-| Lock-zombie | PID-lock self-healing (WS9) | [`lock_zombie/`](lock_zombie/) | ✅ 2026-08-08 | orphan 30s→120ms |
+| Lock-zombie | PID-lock self-healing (WS9) | [`lock_zombie/`](lock_zombie/) | ✅ 2026-08-08 | orphan 30s→120ms — ⚠️ `SUPERSEDED`: измерено на `3798d6a9`, путь удалён по дизайну (R3TF) |
 | Late Enrichment | Late code chunking (WS3) | [`late_enrichment/`](late_enrichment/) | 🟡 исследование | imports=0.0 — находка, KNOWN_ISSUES |
 | Benchmark D | Контекстный бенчмарк (12 задач L3-L5) | [`benchmark2/`](benchmark2/) | ✅ 2026-08-08 | runner.py + tasks.jsonl + README |
 | Probes | Одноразовые пробы (без отчётов) | [`misc_probes/`](misc_probes/) | — | см. README папки |

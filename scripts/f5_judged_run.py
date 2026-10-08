@@ -245,24 +245,13 @@ def _arm_context(arm: str, results: list[dict], gold: str) -> str:
     raise SystemExit(f"unknown arm {arm}")
 
 
-def _parse_verdict(text: str) -> str:
-    """Explicit-final contract (validated on 1014 judge sessions, 2026-09-27).
-
-    A reasoning judge may hesitate mid-text ("looks incorrect ... actually
-    correct"). The FINAL decision is the LAST one stated: last JSON
-    "verdict" match wins; otherwise the last verdict-word mention wins.
-    Measured on judged_cot_backfill.json: last==final 842/1014 vs
-    first-match 820/1014; on 61 flip sessions last==final 53/61 (87%)
-    vs first==final 34/61 (56%). No explicit "final verdict:" marker
-    exists in the wild (0/61), so last-match IS the contract.
-    """
-    matches = re.findall(r'"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?', text or "", re.I)
-    if matches:
-        return matches[-1].lower()
-    hits = re.findall(r"\b(correct|incorrect|uncertain)\b", text or "", re.I)
-    if hits:
-        return hits[-1].lower()
-    return "uncertain"
+try:  # both invocation shapes: `python scripts/x.py` and import-by-path in tests
+    from scripts.judge_verdict import parse_verdict as _parse_verdict
+except ImportError:  # pragma: no cover
+    from judge_verdict import parse_verdict as _parse_verdict
+# The explicit-final contract and its 1014-session validation now live in
+# scripts/judge_verdict.py, shared with reconstruct_judge_cot.py, which used to
+# carry a first-match copy of this parser.
 
 
 def main() -> int:

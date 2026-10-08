@@ -1317,7 +1317,8 @@ zombie_probe: holder pid=12684 alive=False -> STALE  (после выхода с
 ```
 **Before (та же сессия, старый код):** контеншн = 30.0s → RuntimeError (замерено в Exp B); orphan-кейс не детектился (30s → RuntimeError); free ~9ms; stale ~33ms.
 
-**Вердикт:** ПОДТВЕРЖДЕНА. orphan: 30000ms → 120ms (terminate+steal, вкл. TerminateProcess реального python + ретрай-unlink); healthy: 30000ms RuntimeError → 1512ms LockBusyError (wait=1.5 в бенче; прод-дефолт 8.0s); free/stale без изменений (7/31ms). Дополнительно verified: после TerminateProcess реального python'а venvlauncher-обёртка умирает сама (никаких висящих процессов), lock перезаписывается нашим PID.
+**Вердикт (2026-08-08):** ПОДТВЕРЖДЕНА. **Статус публикации (2026-10-03):** `SUPERSEDED` — измерено на `3798d6a9`, а путь достижимости удалён по дизайну: ORPHAN-ветка вырезана из прод-MCP по R3TF (`7974d981`, `src/core/indexing/database_lock.py:81-84`). Сегодняшней командой не воспроизводится (`experiments/claims_audit/RESULTS.md` A10 = NOT REPRODUCED), поэтому число остаётся записью прогона, а не текущим фактом. Не переписывать.
+orphan: 30000ms → 120ms (terminate+steal, вкл. TerminateProcess реального python + ретрай-unlink); healthy: 30000ms RuntimeError → 1512ms LockBusyError (wait=1.5 в бенче; прод-дефолт 8.0s); free/stale без изменений (7/31ms). Дополнительно verified: после TerminateProcess реального python'а venvlauncher-обёртка умирает сама (никаких висящих процессов), lock перезаписывается нашим PID.
 **Урок:** (1) TerminateProcess синхронный, но файловый дескриптор lock'а умирающего процесса даёт PermissionError на unlink → нужен _unlink_with_retry (иначе краш в кейсе «только что убитый holder»); (2) venvlauncher: lock пишет РЕАЛЬНЫЙ python (os.getpid() внутри скрипта), terminate по pid из lock убивает именно держателя, обёртка умирает следом — прод-механизм работоспособен.
 
 ---

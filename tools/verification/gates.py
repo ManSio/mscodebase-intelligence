@@ -24,6 +24,7 @@ than no gate: it certifies the wrong set.
 from __future__ import annotations
 
 import argparse
+import inspect
 import json
 import re
 import sys
@@ -319,10 +320,45 @@ def run(action: str, *, in_scope: bool = True, **kw) -> tuple[dict, int]:
                  "decisive_region": DECISIVE.get(gname, "undeclared"),
                  "why": "caller declared this input outside the gate's applicability; "
                         "no verdict was reached. OUTSIDE ITS SCOPE IS NOT A PASS."}, 0)
-    res = fn(**kw)
+    # One tool action serves four gates, so a caller legitimately sends a superset
+    # of kwargs. Passing that straight through raised TypeError, which the
+    # top-level handler turned into a traceback and exit 2 — indistinguishable
+    # from "the gate is unavailable". So: select this gate's own parameters, and
+    # ECHO what was dropped. A key the caller meant for this gate but misspelled
+    # still lands as a missing required kwarg, which is reported as unusable input
+    # (rc=2), never as a silent ALLOW.
+    # Red team: a dropped key is by construction another gate's key, so it cannot
+    # change this gate's verdict — that is why the verdict is not downgraded, and
+    # why the dropped names stay in the result for a consumer that reads only
+    # `verdict`.
+    allowed = set(inspect.signature(fn).parameters)
+    ignored = sorted(k for k in kw if k not in allowed)
+    if ignored:
+        kw = {k: v for k, v in kw.items() if k in allowed}
+    try:
+        res = fn(**kw)
+    except TypeError as e:
+        # A required kwarg the caller never supplied is unusable input, not a
+        # crash. The module's own exit-code contract says that is rc=2 with a
+        # verdict of UNKNOWN, so answer that way instead of letting the
+        # top-level handler turn it into "gate unavailable".
+        required = sorted(n for n, p in inspect.signature(fn).parameters.items()
+                          if p.default is inspect.Parameter.empty
+                          and p.kind is inspect.Parameter.KEYWORD_ONLY)
+        out = {"gate": action.upper(), "verdict": UNKNOWN,
+               "scope": scope_of(action.upper()),
+               "decisive_region": DECISIVE.get(action.upper(), "undeclared"),
+               "why": f"unusable input for this gate: {e}",
+               "required_kwargs": required,
+               "supplied_kwargs": sorted(kw)}
+        if ignored:
+            out["ignored_kwargs"] = ignored
+        return out, 2
     gname = res.get("gate", action)
     res["scope"] = scope_of(gname)
     res["decisive_region"] = DECISIVE.get(gname, "undeclared")
+    if ignored:
+        res["ignored_kwargs"] = ignored
     rc = {"BLOCK": 1, "ALLOW": 0, "UNKNOWN": 2, OUT_OF_SCOPE: 0}[res["verdict"]]
     return res, rc
 

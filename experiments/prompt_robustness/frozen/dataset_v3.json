@@ -1,0 +1,501 @@
+{
+ "schema_version": 3,
+ "experiment": "prompt_robustness",
+ "supersedes": {
+  "dataset": "frozen/dataset.json",
+  "schema_version": "2.0",
+  "reason": "Калибровка v1.1 показала, что подстрочный any_of даёт recall 0.867 и FP 0.212 на 11 кейсах: FN занижают инвариантность моделей, FP скрывают настоящие ошибки. Правила переписаны в структурные (value_context / subject_value / last_mention).",
+  "v2_kept": "v2 не изменяется — его числа уже опубликованы вместе с оговоркой",
+  "fit_split": "tune (половина калибровки), heldout проверен отдельно"
+ },
+ "cases": [
+  {
+   "id": "q_france_capital",
+   "axis": "word_fact",
+   "in_aggregate": true,
+   "fact": {
+    "any_of": [
+     "париж",
+     "paris"
+    ],
+    "regex": []
+   },
+   "prompts": {
+    "ru": {
+     "base": "Какая столица у Франции?",
+     "paraphrases": [
+      "Назови главный город Франции.",
+      "Каковой является столица Французской Республики?",
+      "В каком городе расположено правительство Франции?"
+     ]
+    },
+    "en": {
+     "base": "What is the capital of France?",
+     "paraphrases": [
+      "Name the main city of France.",
+      "Which city is the capital of the French Republic?",
+      "In which city is the government of France located?"
+     ]
+    }
+   },
+   "oracle_answer": "Париж — столица Франции."
+  },
+  {
+   "id": "q_japan_capital",
+   "axis": "word_fact",
+   "in_aggregate": true,
+   "fact": {
+    "any_of": [
+     "токио",
+     "tokyo"
+    ],
+    "regex": []
+   },
+   "prompts": {
+    "ru": {
+     "base": "Какая столица Японии?",
+     "paraphrases": [
+      "Назови столицу Японии.",
+      "Какой город является столицей Японии?",
+      "В каком городе располагается правительство Японии?"
+     ]
+    },
+    "en": {
+     "base": "What is the capital of Japan?",
+     "paraphrases": [
+      "Name the capital of Japan.",
+      "Which city serves as the capital of Japan?",
+      "In which city is the government of Japan located?"
+     ]
+    }
+   },
+   "oracle_answer": "Токио — столица Японии."
+  },
+  {
+   "id": "q_water_boiling_point",
+   "axis": "numeric_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "value_context",
+     "anchor": [
+      "100",
+      "сто градус",
+      "ста градус",
+      "one hundred",
+      "212"
+     ],
+     "require": [
+      "кип",
+      "boil",
+      "boiling",
+      "точка кипения"
+     ],
+     "reject": [
+      "замерз",
+      "тает",
+      "freeze",
+      "frozen",
+      "melting"
+     ],
+     "reject_pairs": [
+      [
+       "100",
+       "фаренгейт"
+      ],
+      [
+       "100",
+       "fahrenheit"
+      ],
+      [
+       "сто градус",
+       "фаренгейт"
+      ],
+      [
+       "one hundred",
+       "fahrenheit"
+      ]
+     ]
+    }
+   },
+   "note": "Алиас '212' добавлен: модель может ответить в Фаренгейтах, вопрос задан в СИ. Это НЕ неустойчивость, а другая единица — факт эквивалентен.",
+   "prompts": {
+    "ru": {
+     "base": "При какой температуре вода кипит при нормальном атмосферном давлении?",
+     "paraphrases": [
+      "При какой температуре кипит вода при стандартном атмосферном давлении?",
+      "Какая температура кипения воды при давлении в одну атмосферу?",
+      "Укажите температуру кипения воды при нормальном давлении."
+     ]
+    },
+    "en": {
+     "base": "At what temperature does water boil at normal atmospheric pressure?",
+     "paraphrases": [
+      "At what temperature does water boil at standard atmospheric pressure?",
+      "What is the boiling point of water at one atmosphere of pressure?",
+      "State the boiling temperature of water at normal pressure."
+     ]
+    }
+   },
+   "oracle_answer": "Вода кипит при температуре 100 градусов Цельсия."
+  },
+  {
+   "id": "q_python_author",
+   "axis": "entity_fact",
+   "in_aggregate": true,
+   "fact": {
+    "any_of": [
+     "ван россум",
+     "van rossum",
+     "rossum",
+     "гвидо",
+     "guido"
+    ],
+    "regex": []
+   },
+   "prompts": {
+    "ru": {
+     "base": "Кто создал язык программирования Python?",
+     "paraphrases": [
+      "Кто является автором языка Python?",
+      "Назови создателя языка Python.",
+      "Кем был разработан Python как язык программирования?"
+     ]
+    },
+    "en": {
+     "base": "Who created the Python programming language?",
+     "paraphrases": [
+      "Who is the author of the Python language?",
+      "Name the creator of Python.",
+      "Who developed Python as a programming language?"
+     ]
+    }
+   },
+   "oracle_answer": "Язык Python создал Гвидо ван Россум."
+  },
+  {
+   "id": "q_python_release_year",
+   "axis": "year_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "subject_value",
+     "subject": [
+      "python",
+      "питон"
+     ],
+     "value_regex": [
+      "\\b1991\\b"
+     ],
+     "bare": true,
+     "bare_values": [
+      "1991"
+     ],
+     "window": 80
+    }
+   },
+   "prompts": {
+    "ru": {
+     "base": "В каком году вышел первый релиз языка Python?",
+     "paraphrases": [
+      "Когда был создан Python? Назови год.",
+      "В каком году появился Python впервые?",
+      "Назови год первого выпуска языка Python."
+     ]
+    },
+    "en": {
+     "base": "In which year was the first release of Python published?",
+     "paraphrases": [
+      "When was Python created? Give the year.",
+      "In which year did Python first appear?",
+      "State the year of the first release of Python."
+     ]
+    }
+   },
+   "note": "FN-риск в обоих языках: обтекаемый ответ ('в начале 90-х' / 'in the early 90s') не матчится. Считается FN матчера, не провалом модели.",
+   "oracle_answer": "Первый релиз языка Python вышел в 1991 году."
+  },
+  {
+   "id": "q_http_404",
+   "axis": "meaning_fact",
+   "in_aggregate": true,
+   "fact": {
+    "any_of": [
+     "не найдено",
+     "не найден",
+     "не нашел",
+     "не нашла",
+     "не нашли",
+     "не был найден",
+     "не была найдена",
+     "не были найдены",
+     "не смог найти",
+     "не смогла найти",
+     "не удалось найти",
+     "не существует",
+     "отсутствует",
+     "not found",
+     "could not be found",
+     "could not find",
+     "cannot be found",
+     "can't be found",
+     "does not exist",
+     "doesn't exist",
+     "was not found",
+     "isn't found",
+     "no such resource"
+    ],
+    "regex": []
+   },
+   "note": "Литерал '404'/'404' НЕ включён: он есть в самом вопросе, модель может его отэхоить — иначе кейс проходит всегда (true positive на эхо, а не на знание).",
+   "prompts": {
+    "ru": {
+     "base": "Что означает HTTP-код ответа 404?",
+     "paraphrases": [
+      "Какой смысл имеет HTTP-статус 404?",
+      "Опиши, что означает код 404 в протоколе HTTP.",
+      "Расшифруй HTTP-код 404."
+     ]
+    },
+    "en": {
+     "base": "What does the HTTP response code 404 mean?",
+     "paraphrases": [
+      "What is the meaning of HTTP status 404?",
+      "Describe what the code 404 means in the HTTP protocol.",
+      "Explain the HTTP code 404."
+     ]
+    }
+   },
+   "oracle_answer": "HTTP-код 404 означает «Ресурс не найден»."
+  },
+  {
+   "id": "q_venus_after_mercury",
+   "axis": "ordinal_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "value_context",
+     "anchor": [
+      "венера",
+      "venus"
+     ],
+     "require": [
+      "втор",
+      "second",
+      "2nd",
+      "после меркур",
+      "after mercury"
+     ],
+     "bare": true
+    }
+   },
+   "prompts": {
+    "ru": {
+     "base": "Какая планета Солнечной системы находится ближе всего к Солнцу после Меркурия?",
+     "paraphrases": [
+      "Какая планета идёт сразу после Меркурия по удалённости от Солнца?",
+      "Назови вторую по счёту от Солнца планету.",
+      "Какая планета расположена ближе всего к Солнцу, если не считать Меркурий?"
+     ]
+    },
+    "en": {
+     "base": "Which planet in the Solar System is closest to the Sun after Mercury?",
+     "paraphrases": [
+      "Which planet comes immediately after Mercury in distance from the Sun?",
+      "Name the second planet counting from the Sun.",
+      "Which planet is nearest to the Sun besides Mercury?"
+     ]
+    }
+   },
+   "oracle_answer": "Это Венера — вторая планета по удалённости от Солнца."
+  },
+  {
+   "id": "q_titanic_year",
+   "axis": "year_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "subject_value",
+     "subject": [
+      "титаник",
+      "titanic"
+     ],
+     "value_regex": [
+      "\\b1912\\b"
+     ],
+     "bare": true,
+     "bare_values": [
+      "1912"
+     ],
+     "window": 80
+    }
+   },
+   "prompts": {
+    "ru": {
+     "base": "В каком году затонул пароход «Титаник»?",
+     "paraphrases": [
+      "Назови год гибели парохода «Титаник».",
+      "Какой год стал годом крушения «Титаника»?",
+      "В каком году произошла катастрофа с «Титаником»?"
+     ]
+    },
+    "en": {
+     "base": "In which year did the Titanic sink?",
+     "paraphrases": [
+      "State the year the Titanic sank.",
+      "Which year was the year of the Titanic disaster?",
+      "In what year did the Titanic tragedy occur?"
+     ]
+    }
+   },
+   "oracle_answer": "Пароход «Титаник» затонул в 1912 году."
+  },
+  {
+   "id": "q_smallest_prime",
+   "axis": "numeric_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "value_context",
+     "anchor": [
+      "2",
+      "два",
+      "двум",
+      "двойка",
+      "two"
+     ],
+     "require": [
+      "прост",
+      "prime"
+     ],
+     "bare": true
+    }
+   },
+   "prompts": {
+    "ru": {
+     "base": "Какое наименьшее простое число существует?",
+     "paraphrases": [
+      "Назови наименьшее простое число.",
+      "Какое простое число является наименьшим?",
+      "Укажи минимальное простое число."
+     ]
+    },
+    "en": {
+     "base": "What is the smallest prime number?",
+     "paraphrases": [
+      "Name the smallest prime number.",
+      "Which prime number is the smallest?",
+      "State the minimal prime number."
+     ]
+    }
+   },
+   "note": "FN-риск: 'два'/'two' как подстрока бьёт по 'двенадцать'/'twelve'/'two hundred'. Поэтому цифровой regex \\b2\\b — основной путь, словесный алиас — запасной и может дать FP на 'two hundred'. Это зафиксированный известный дефект матчера, а не гипотеза.",
+   "oracle_answer": "Наименьшее простое число — 2."
+  },
+  {
+   "id": "q_photosynthesis_gas",
+   "axis": "word_fact",
+   "in_aggregate": true,
+   "fact": {
+    "rule": {
+     "kind": "value_context",
+     "anchor": [
+      "кислород",
+      "oxygen",
+      "o2"
+     ],
+     "require": [
+      "выделя",
+      "выделяют",
+      "поступает",
+      "высвобожда",
+      "отдает",
+      "продукт",
+      "release",
+      "emit",
+      "produce",
+      "product",
+      "released",
+      "output"
+     ],
+     "reject": [
+      "поглоща",
+      "поглощает",
+      "absorb",
+      "absorbs",
+      "uptake"
+     ],
+     "bare": true
+    }
+   },
+   "prompts": {
+    "ru": {
+     "base": "Какой газ растения выделяют в атмосферу при фотосинтезе?",
+     "paraphrases": [
+      "Какой газ является продуктом фотосинтеза?",
+      "Назови газ, который выделяется при фотосинтезе.",
+      "Что растения выделяют в воздух при фотосинтезе?"
+     ]
+    },
+    "en": {
+     "base": "Which gas do plants release into the atmosphere during photosynthesis?",
+     "paraphrases": [
+      "Which gas is a product of photosynthesis?",
+      "Name the gas that is released during photosynthesis.",
+      "What do plants emit into the air during photosynthesis?"
+     ]
+    }
+   },
+   "oracle_answer": "Растения выделяют в атмосферу кислород."
+  },
+  {
+   "id": "q_gradient_descent_direction",
+   "axis": "conceptual",
+   "in_aggregate": false,
+   "fact": {
+    "rule": {
+     "kind": "last_mention",
+     "accept": [
+      "против градиента",
+      "антиградиент",
+      "в сторону уменьшения",
+      "наименьшего значения",
+      "downhill",
+      "opposite to the gradient",
+      "against the gradient",
+      "negative gradient",
+      "decreasing",
+      "anti-gradient",
+      "toward the minimum"
+     ],
+     "reject": [
+      "по градиенту",
+      "в сторону увеличения",
+      "along the gradient",
+      "increasing"
+     ]
+    }
+   },
+   "note": "ВНЕ агрегата. Ответ объяснительный, а не одно слово: exact-match либо ловит конкретную формулировку, либо нет — и это неразличимо от реального расхождения между формулировками. Это граница применимости метрики, а не плохой кейс. Для него нужен judge (out of scope, §7.10 — судья только для смысла).",
+   "prompts": {
+    "ru": {
+     "base": "В каком направлении движется градиентный спуск на каждом шаге?",
+     "paraphrases": [
+      "Куда направлен один шаг градиентного спуска?",
+      "Какое направление выбирает градиентный спуск при итерации?",
+      "В какую сторону идёт оптимизация градиентным спуском?"
+     ]
+    },
+    "en": {
+     "base": "In which direction does gradient descent move at each step?",
+     "paraphrases": [
+      "Which direction does a single gradient descent step take?",
+      "What direction does gradient descent choose during an iteration?",
+      "Which way does optimization by gradient descent go?"
+     ]
+    }
+   },
+   "oracle_answer": "Направление движения — против градиента (в сторону уменьшения функции)."
+  }
+ ]
+}

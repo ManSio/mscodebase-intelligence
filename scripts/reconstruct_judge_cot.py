@@ -30,23 +30,19 @@ DEFAULT_DB = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
 WORKDIR = "D:/Project/MSCodeBase/experiments/4A_unit_of_return/results/f5judged/work"
 FROZEN = ROOT / "experiments" / "4A_unit_of_return" / "frozen" / "f5" / "queries.jsonl"
 
-VERDICT_RE = re.compile(r"\b(correct|incorrect|uncertain)\b", re.I)
-JSON_VERDICT_RE = re.compile(r'"verdict"\s*:\s*"?(correct|incorrect|uncertain)"?', re.I)
+try:  # both invocation shapes: `python scripts/x.py` and import-by-path in tests
+    from scripts.judge_verdict import VERDICT_RE, parse_verdict as _parse_verdict
+except ImportError:  # pragma: no cover
+    from judge_verdict import VERDICT_RE, parse_verdict as _parse_verdict
 
 
 def _norm(s: str) -> str:
     return " ".join((s or "").split())
 
 
-def _parse_verdict(text: str) -> str:
-    m = JSON_VERDICT_RE.search(text or "")
-    if m:
-        return m.group(1).lower()
-    low = (text or "").lower()
-    for v in ("incorrect", "correct", "uncertain"):
-        if v in low:
-            return v
-    return "uncertain"
+# Verdict parsing used to live here as a FIRST-match substring scan, which
+# inverted self-correcting judges. The contract and its measurement now live in
+# scripts/judge_verdict.py, shared with f5_judged_run.py.
 
 
 def _split_prompt(user_text: str) -> tuple[str, str]:

@@ -1,0 +1,225 @@
+{
+  "experiment": "prompt_robustness",
+  "generated_utc": "2026-10-03T07:40:58+00:00",
+  "command": "experiments\\prompt_robustness\\run_experiment.py --transport cli --dataset experiments\\prompt_robustness\\frozen\\dataset_v3.json --models opencode-go/longcat-2.0 --case q_http_404 --repeats 3 --timeout 300 --out experiments\\prompt_robustness\\results\\pilot_v3_http.json",
+  "dataset_sha256": "cb2437f1f2810d4b8418c0fa4f0a1e206ad33e2b9f83fd0a529516a61884f9e3",
+  "dataset_schema_version": 3,
+  "instruction": "Answer the question in one short sentence. If you do not know, reply exactly: I don't know.",
+  "instruction_sha256": "bba27901d4193d56",
+  "variant": "high",
+  "thresholds": {
+    "invariance": 0.9,
+    "min_denominator": 10
+  },
+  "repeats": [
+    {
+      "model": "opencode-go/longcat-2.0",
+      "transport": "cli",
+      "served_models_observed": [
+        "longcat-2.0"
+      ],
+      "elapsed_s": 229.3,
+      "base_repeats": 3,
+      "control": {
+        "kind": "cli",
+        "break_prompt": null,
+        "injected_hits": 0
+      },
+      "per_lang": {
+        "ru": {
+          "base_accuracy": 1.0,
+          "invariance_given_base_correct": 1.0,
+          "invariance_given_base_correct_den": 3,
+          "invariance_overall": 1.0,
+          "invariance_overall_den": 3,
+          "seed_stability": 1.0,
+          "seed_den": 1,
+          "abstentions": 0,
+          "invalid": 0,
+          "responses_total": 6
+        },
+        "en": {
+          "base_accuracy": 1.0,
+          "invariance_given_base_correct": 1.0,
+          "invariance_given_base_correct_den": 3,
+          "invariance_overall": 1.0,
+          "invariance_overall_den": 3,
+          "seed_stability": 1.0,
+          "seed_den": 1,
+          "abstentions": 0,
+          "invalid": 0,
+          "responses_total": 6
+        }
+      },
+      "rows": [
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "base0",
+          "prompt": "Что означает HTTP-код ответа 404?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "HTTP-код 404 означает, что запрошенный ресурс не найден на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "base1",
+          "prompt": "Что означает HTTP-код ответа 404?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "HTTP-код 404 означает, что запрашиваемый ресурс (страница или файл) не найден на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "base2",
+          "prompt": "Что означает HTTP-код ответа 404?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "404 означает «Not Found» — запрошенный ресурс не найден на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "p0",
+          "prompt": "Какой смысл имеет HTTP-статус 404?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "404 означает, что запрошенный ресурс не найден на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "p1",
+          "prompt": "Опиши, что означает код 404 в протоколе HTTP.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "Код 404 означает «Не найдено» (Not Found) — запрошенный ресурс отсутствует на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "ru",
+          "which": "p2",
+          "prompt": "Расшифруй HTTP-код 404.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "HTTP-код 404 означает «Not Found» — запрошенный ресурс не найден на сервере.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "base0",
+          "prompt": "What does the HTTP response code 404 mean?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "404 Not Found means the server could not find the requested resource at the specified URL.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "base1",
+          "prompt": "What does the HTTP response code 404 mean?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "404 means the requested resource was not found on the server.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "base2",
+          "prompt": "What does the HTTP response code 404 mean?",
+          "status": "ok",
+          "matched": true,
+          "abstained": false,
+          "text": "HTTP 404 means \"Not Found\" — the requested resource does not exist on the server.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "p0",
+          "prompt": "What is the meaning of HTTP status 404?",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "404 means the requested resource was not found on the server.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "p1",
+          "prompt": "Describe what the code 404 means in the HTTP protocol.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "404 means the requested resource was not found on the server.",
+          "error": ""
+        },
+        {
+          "case": "q_http_404",
+          "axis": "meaning_fact",
+          "lang": "en",
+          "which": "p2",
+          "prompt": "Explain the HTTP code 404.",
+          "status": "ok",
+          "matched": true,
+          "agrees_with_base": true,
+          "base_ok": true,
+          "text": "404 Not Found — сервер не может найти запрашиваемый ресурс по указанному URL.",
+          "error": ""
+        }
+      ],
+      "decision": {
+        "verdict": "UNKNOWN",
+        "per_lang": {
+          "ru": {
+            "invariance": 1.0,
+            "den": 3
+          },
+          "en": {
+            "invariance": 1.0,
+            "den": 3
+          }
+        },
+        "reasons": [
+          "ru: denominator 3 < 10 → UNKNOWN, not 0.0",
+          "en: denominator 3 < 10 → UNKNOWN, not 0.0"
+        ]
+      }
+    }
+  ]
+}

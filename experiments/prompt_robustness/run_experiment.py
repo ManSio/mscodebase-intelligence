@@ -124,6 +124,12 @@ class CliTransport(Transport):
             proc.communicate()
             return Reply("", None, "timeout", f">{self.timeout}s")
         text = ANSI.sub("", ((out or b"") + b"\n" + (err or b"")).decode("utf-8", errors="replace"))
+        # КРИТИЧНО: ответ модели приходит в stdout, баннер "> build · model" — в stderr.
+        # Склейка out+err ставит баннер ПОСЛЕ ответа, и «всё, что после баннера» — пусто,
+        # т.е. прежний харнесс молча выбрасывал сам ответ: все 12 вызовов пилота пришли
+        # со статусом 'empty'. Тело ответа берём ТОЛЬКО из stdout.
+        out_text = ANSI.sub("", (out or b"").decode("utf-8", errors="replace"))
+        err_text = ANSI.sub("", (err or b"").decode("utf-8", errors="replace"))
 
         m = BUILD_MODEL.search(text)
         served = m.group(1) if m else None
@@ -133,9 +139,11 @@ class CliTransport(Transport):
         if "Cannot connect" in text or "Error:" in text:
             return Reply("", served, "error", text[:200])
 
-        body = self._strip_banner(text)
+        body = self._strip_banner(out_text)
         if not body.strip():
-            return Reply("", served, "empty", "no answer text after banner")
+            return Reply("", served, "empty",
+                        f"stdout empty after banner; stdout={out_text[:120]!r} "
+                        f"stderr={err_text[:120]!r}")
         return Reply(body, served, "ok")
 
     @staticmethod
@@ -195,9 +203,114 @@ def _render_fact(case: "Case") -> str:
     return case.oracle_answer
 
 
+def _strip_punct(text: str) -> str:
+    """Нижний регистр без пунктуации: 'Кислород.' == 'кислород'."""
+    return re.sub(r"[^\w\s°]+", " ", (text or "").lower()).replace("ё", "е").strip()
+
+
+def _anchor_hit(clean: str, anchor: str) -> bool:
+    """Подстрока; границы слова — только для чисел.
+
+    Границы обязательны для цифр ('2' не должен ловиться внутри '2000'), но
+    КАТЕГОРИЧЕСКИ неприменимы к стемам: 'кип' в 'кипит', 'emit' в 'emitted',
+    'втор' в 'вторая' — это один токен, а regex (?<!\\w)stem(?!\\w) его отвергает.
+    """
+    if anchor.isdigit():
+        return re.search(r"(?<!\w)" + re.escape(anchor) + r"(?!\w)", clean) is not None
+    return anchor in clean
+
+
+def _any_anchor(clean: str, anchors: list[str]) -> bool:
+    return any(_anchor_hit(clean, a) for a in anchors)
+
+
+def _is_bare(text: str, anchors: list[str]) -> bool:
+    """Ответ состоит только из факта ('Кислород.', '1912.') — короткий факт без
+    контекста. Без этого правила год/число нельзя отличить от чужого контекста."""
+    clean = _strip_punct(text)
+    return any(clean == _strip_punct(a) for a in anchors)
+
+
+def _rule_value_context(text: str, rule: dict) -> bool:
+    """anchor + требуемый контекст, минус запрещённый контекст/пары.
+
+    Нужен, когда одно и то же число встречается и в верном, и в неверном ответе
+    ('100 градусов' при кипении — верно, '100 градусов' при замерзании — нет).
+    """
+    clean = _strip_punct(text)
+    anchors = rule.get("anchor") or []
+    if not _any_anchor(clean, anchors):
+        return False
+    if rule.get("bare") and _is_bare(text, anchors):
+        return True
+    if _any_anchor(clean, rule.get("reject") or []):
+        return False
+    for pair in rule.get("reject_pairs") or []:
+        if all(_anchor_hit(clean, p) for p in pair):
+            return False
+    require = rule.get("require") or []
+    if require and not _any_anchor(clean, require):
+        return False
+    return True
+
+
+def _rule_subject_value(text: str, rule: dict) -> bool:
+    """Значение обязано стоять рядом с предметом вопроса ('Python ... 1991').
+
+    Голый год неотличим от чужого контекста без предмета: 'В 1991 году вышел
+    первый релиз Ruby' содержит 1991, но это не ответ про Python.
+    """
+    low = (text or "").lower().replace("ё", "е")
+    values = [re.compile(p, re.IGNORECASE | re.UNICODE) for p in rule.get("value_regex") or []]
+    value_hits = [m.start() for rx in values for m in rx.finditer(low)]
+    if not value_hits:
+        return False
+    if rule.get("bare") and _is_bare(text, rule.get("bare_values") or []):
+        return True
+    subjects = rule.get("subject") or []
+    window = int(rule.get("window", 80))
+    subject_hits = [m.start() for s in subjects
+                    for m in re.finditer(re.escape(s.lower()), low)]
+    for vp in value_hits:
+        for sp in subject_hits:
+            if abs(sp - vp) <= window:
+                return True
+    return False
+
+
+def _rule_last_mention(text: str, rule: dict) -> bool:
+    """Решает ПОСЛЕДНЕЕ упоминание направления.
+
+    Модели часто сначала называют направление, потом оговаривают: 'Против градиента
+    двигаться нельзя, поэтому шаг по градиенту' — ответ «по градиенту», а не первое
+    слово. Наивный any_of принял бы здесь неверный ответ.
+    """
+    low = (text or "").lower().replace("ё", "е")
+    last_at, verdict = -1, False
+    for phrase, is_accept in ((rule.get("accept") or [], True),
+                              (rule.get("reject") or [], False)):
+        for p in phrase:
+            start = low.find(p.lower())
+            while start != -1:
+                if start > last_at:
+                    last_at, verdict = start, is_accept
+                start = low.find(p.lower(), start + 1)
+    return verdict
+
+
 def extract_fact(text: str, fact: dict) -> bool:
-    low = (text or "").lower()
-    if any(a.lower() in low for a in fact.get("any_of", [])):
+    rule = fact.get("rule")
+    if rule:
+        kind = rule.get("kind")
+        if kind == "value_context":
+            return _rule_value_context(text, rule)
+        if kind == "subject_value":
+            return _rule_subject_value(text, rule)
+        if kind == "last_mention":
+            return _rule_last_mention(text, rule)
+        raise ValueError(f"unknown rule kind: {kind!r}")
+    low = (text or "").lower().replace("ё", "е")
+    if any(a.lower().replace("ё", "е") in low for a in fact.get("any_of", [])):
         return True
     return any(re.search(p, text or "", re.IGNORECASE | re.UNICODE) for p in fact.get("regex", []))
 
@@ -293,12 +406,19 @@ def run_cell(transport: Transport, model: str, prompt: str, workdir: Path, fact:
     return Run(prompt, "ok", extract_fact(reply.text, fact), abst, reply.served_model, reply.text)
 
 
-def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 2,
+def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 3,
               timeout: int = 300) -> dict:
     stamp = datetime.now(timezone.utc).strftime("%H%M%S")
     served: set[str] = set()
     per_lang: dict[str, dict] = {}
     t0 = time.time()
+    # injected_hits — ДЕЛЬТА за этот прогон. Счётчик живёт на транспорте и растёт
+    # между моделями: сравнение «всего внесено» с «расхождений в этом отчёте»
+    # дало бы ложный CONTROL_FAIL уже на второй модели.
+    hits_before = len(getattr(transport, "hits", None) or [])
+    # rows живут ВНЕ цикла по языкам: раньше список пересоздавался на каждой руке,
+    # и в отчёт попадал только последний язык — число для RU было недоказуемо.
+    rows: list[dict] = []
 
     for lang in LANGS:
         base_correct = 0
@@ -306,7 +426,6 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
         inv_num = inv_den = 0            # conditioned on base correct
         ovr_num = ovr_den = 0
         abst = invalid = total = 0
-        rows: list[dict] = []
 
         for case in data["aggregate"]:
             blk = case.prompts[lang]
@@ -317,23 +436,32 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                          f"{model.split('/')[-1]}_{lang}_{case.id}_base{i}", fact)
                 for i in range(base_repeats)
             ]
-            for r in base_runs:
+            for bi, r in enumerate(base_runs):
                 served.add(r.served_model or "?")
                 if r.status == "ok":
                     total += 1
                     abst += int(r.abstained)
                     if r.abstained:
                         r.matched = None
-                    else:
-                        seed_total += 1
-                        seed_same += int(bool(r.matched))
                 else:
                     invalid += 1
+                rows.append({
+                    "case": case.id, "axis": case.axis, "lang": lang,
+                    "which": f"base{bi}", "prompt": blk["base"],
+                    "status": "abstain" if (r.status == "ok" and r.abstained) else r.status,
+                    "matched": r.matched, "abstained": r.abstained,
+                    "text": r.text, "error": r.error,
+                })
 
             valid_base = [r for r in base_runs if r.status == "ok" and not r.abstained]
             base_ok = bool(valid_base) and all(r.matched for r in valid_base)
-            if valid_base:
-                base_correct += 1
+            base_correct += int(base_ok)
+            # seed_stability = СОГЛАСОВАННОСТЬ повторов, а не правильность.
+            # Стабильно-неверная модель обязана давать 1.0 при base_accuracy = 0.0;
+            # прежний код считал долю верных и путал две разные величины.
+            if len(valid_base) >= 2:
+                seed_total += 1
+                seed_same += int(len({bool(r.matched) for r in valid_base}) == 1)
 
             for j, para in enumerate(blk["paraphrases"]):
                 pr = run_cell(transport, model, para,
@@ -351,7 +479,7 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                 if pr.abstained:
                     rows.append({"case": case.id, "axis": case.axis, "lang": lang,
                                  "which": f"p{j}", "prompt": para, "status": "abstain",
-                                 "abstained": True, "text": pr.text[:400]})
+                                 "abstained": True, "text": pr.text, "error": pr.error})
                     continue
                 agree = bool(pr.matched) == base_ok
                 ovr_den += 1
@@ -362,7 +490,7 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
                 rows.append({"case": case.id, "axis": case.axis, "lang": lang,
                              "which": f"p{j}", "prompt": para, "status": "ok",
                              "matched": pr.matched, "agrees_with_base": agree,
-                             "base_ok": base_ok, "text": pr.text[:400]})
+                             "base_ok": base_ok, "text": pr.text, "error": pr.error})
 
         per_lang[lang] = {
             "base_accuracy": round(base_correct / len(data["aggregate"]), 4),
@@ -383,50 +511,148 @@ def run_model(transport: Transport, model: str, data: dict, base_repeats: int = 
         "served_models_observed": sorted(served),
         "elapsed_s": round(time.time() - t0, 1),
         "base_repeats": base_repeats,
+        # Метаданные контрольной руки. Без injected_hits нельзя отличить
+        # «поломка не обнаружена» от «поломка не была внесена» (наличие ≠ живость).
+        "control": {
+            "kind": transport.name,
+            "break_prompt": getattr(transport, "break_prompt", None),
+            "injected_hits": len(getattr(transport, "hits", None) or []) - hits_before,
+        },
         "per_lang": per_lang,
         "rows": rows,
     }
 
 
 # ── Вердикт ──────────────────────────────────────────────────────────────────
+def _disagreeing_rows(report: dict, limit: int = 20) -> list[dict]:
+    """Строки, где парафраза разошлась с base — их человек обязан прочитать
+    вручную: CONDITIONAL_PASS без разбора остаётся непроверенным числом."""
+    out = []
+    for r in report.get("rows") or []:
+        if r.get("agrees_with_base") is False:
+            out.append({"case": r.get("case"), "axis": r.get("axis"),
+                        "lang": r.get("lang"), "which": r.get("which"),
+                        "text": (r.get("text") or "")[:200]})
+    return out[:limit]
+
+
+def decide_control(report: dict, min_den: int = MIN_INVARIANCE_DENOM) -> dict:
+    """Вердикт контрольной руки. Fail-closed: отсутствие доказательства работы
+    гейта считается провалом гейта, а не «не применимо».
+
+    Раньше обе контрольные руки получали N/A, и посадка поломки в 1/30 (=0.967)
+    при пороге 0.90 давала exit 0 — то есть гейт не мог обнаружить собственную
+    слепость. Теперь CONTROL_FAIL → exit 1.
+    """
+    kind = report.get("transport")
+    ctrl = report.get("control") or {}
+    reasons: list[str] = []
+    per_lang = {lg: {"invariance": m["invariance_given_base_correct"],
+                     "den": m["invariance_given_base_correct_den"]}
+                for lg, m in report.get("per_lang", {}).items()}
+
+    if kind == "oracle":
+        bad = [lg for lg, s in per_lang.items()
+               if s["invariance"] != 1.0 or s["den"] < min_den]
+        if bad:
+            reasons.append(f"oracle must be invariant in every language; broken: {bad}")
+        return {"verdict": "CONTROL_OK" if not bad else "CONTROL_FAIL",
+                "arm": "oracle", "per_lang": per_lang, "reasons": reasons}
+
+    # planted: поломка внесена? обнаружена? локализована?
+    hits = int(ctrl.get("injected_hits") or 0)
+    if hits < 1:
+        return {"verdict": "CONTROL_FAIL", "arm": "planted", "per_lang": per_lang,
+                "reasons": ["planted break was never injected — the control tested "
+                            "nothing; presence of a break is not its detection"]}
+
+    bad_rows = _disagreeing_rows(report, limit=10_000)
+    if not bad_rows:
+        reasons.append(f"planted break injected {hits}× but produced no disagreement — "
+                       "the gate is blind to its own failure mode")
+    cases = {r["case"] for r in bad_rows}
+    if len(bad_rows) != hits:
+        reasons.append(f"planted break injected {hits}× but {len(bad_rows)} rows "
+                       "disagreed — either not localized or collateral damage")
+    verdict = "CONTROL_OK" if (bad_rows and len(bad_rows) == hits) else "CONTROL_FAIL"
+    return {"verdict": verdict, "arm": "planted", "per_lang": per_lang,
+            "injected_hits": hits, "disagreeing_rows": len(bad_rows),
+            "disagreeing_cases": sorted(cases), "reasons": reasons}
+
+
 def decide(report: dict, threshold: float = THRESHOLD, min_den: int = MIN_INVARIANCE_DENOM) -> dict:
-    if report["transport"] != "cli":
-        return {"verdict": "N/A", "reason": f"transport={report['transport']} (control arm)"}
+    if report.get("transport") != "cli":
+        return decide_control(report, min_den=min_den)
     reasons: list[str] = []
     nums: list[float] = []
     unknown = False
+    per_lang = {}
     for lang, m in report["per_lang"].items():
         v = m["invariance_given_base_correct"]
-        if v is None or m["invariance_given_base_correct_den"] < min_den:
+        den = m["invariance_given_base_correct_den"]
+        per_lang[lang] = {"invariance": v, "den": den}
+        if v is None or den < min_den:
             unknown = True
-            reasons.append(f"{lang}: denominator {m['invariance_given_base_correct_den']} < {min_den} → UNKNOWN, not 0.0")
+            reasons.append(f"{lang}: denominator {den} < {min_den} → UNKNOWN, not 0.0")
             continue
         nums.append(v)
         if v < threshold:
             reasons.append(f"{lang}: invariance {v:.3f} < {threshold}")
     if unknown:
-        return {"verdict": "UNKNOWN", "reasons": reasons}
+        return {"verdict": "UNKNOWN", "per_lang": per_lang, "reasons": reasons}
     if not nums:
-        return {"verdict": "UNKNOWN", "reasons": ["no usable denominators"]}
-    mean = sum(nums) / len(nums)
-    verdict = "PASS" if mean >= threshold else "FAIL"
-    return {"verdict": verdict, "mean_invariance": round(mean, 4),
-            "threshold": threshold, "reasons": reasons}
+        return {"verdict": "UNKNOWN", "per_lang": per_lang,
+                "reasons": ["no usable denominators"]}
+    # Вердикт по языкам НЕ усредняется: усреднение превращало RU=0.89 при EN=1.0
+    # в mean=0.945 → PASS, и вердикт противоречил собственному reasons (A1).
+    failed = [lg for lg, s in per_lang.items()
+              if s["invariance"] is not None and s["invariance"] < threshold]
+    common = {"per_lang": per_lang,
+              "mean_invariance_descriptive": round(sum(nums) / len(nums), 4),
+              "min_invariance": round(min(nums), 4),
+              "failed_langs": failed, "threshold": threshold, "reasons": reasons}
+    if failed:
+        return {"verdict": "FAIL", **common}
+    # Двухуровневый вердикт: 1.0 — строгая устойчивость; 0.90..1.0 — устойчивость
+    # с условием, и условие обязано быть названо (какие строки разошлись).
+    if any(v != 1.0 for v in nums):
+        return {"verdict": "CONDITIONAL_PASS", "needs_manual_review": True,
+                "review_rows": _disagreeing_rows(report), **common}
+    return {"verdict": "STRICT_PASS", **common}
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
+def exit_code_for(verdicts: list[str]) -> int:
+    """Правило кодов возврата как ЧИСТАЯ функция (A4), чтобы его можно было
+    проверить без живых вызовов.
+
+    0 — STRICT_PASS / CONDITIONAL_PASS / CONTROL_OK
+    1 — FAIL или CONTROL_FAIL
+    2 — POPULATION ERROR (обрабатывается в main, сюда не попадает)
+    3 — UNKNOWN: «измерить не удалось», а не «провал»
+    """
+    if any(v in ("FAIL", "CONTROL_FAIL") for v in verdicts):
+        return 1
+    if any(v == "UNKNOWN" for v in verdicts):
+        return 3
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="prompt-robustness harness")
     ap.add_argument("--transport", choices=["cli", "oracle", "planted"], default="cli")
     ap.add_argument("--models", default=",".join(MODELS))
     ap.add_argument("--case", default=None, help="substring filter (pilot)")
-    ap.add_argument("--repeats", type=int, default=2)
+    ap.add_argument("--dataset", default=None,
+                    help="path to dataset.json (default: frozen/dataset.json)")
+    ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
     try:
-        data = load_dataset(case_filter=args.case)
+        ds_path = Path(args.dataset) if args.dataset else FROZEN
+        data = load_dataset(ds_path, case_filter=args.case)
     except PopulationError as e:
         print(f"POPULATION ERROR: {e}", file=sys.stderr)
         print("Метрика не вычисляется. Тихий ноль запрещён (§19.6).", file=sys.stderr)
@@ -480,11 +706,7 @@ def main() -> int:
     print(f"\nwritten: {out}")
 
     verdicts = [r["decision"]["verdict"] for r in reports]
-    if any(v == "FAIL" for v in verdicts):
-        return 1
-    if all(v in ("UNKNOWN", "N/A") for v in verdicts):
-        return 2
-    return 0
+    return exit_code_for(verdicts)
 
 
 if __name__ == "__main__":

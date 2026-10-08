@@ -1,0 +1,1095 @@
+{
+ "schema_version": 1,
+ "source": "experiments/prompt_robustness/results/live_full_v3.json",
+ "source_sha256": "346138f416a098ed03617ede212cd2701003b79b2946879aa11279edb9e86e80",
+ "dataset_sha256": "cb2437f1f2810d4b8418c0fa4f0a1e206ad33e2b9f83fd0a529516a61884f9e3",
+ "frozen_before": "любая ручная разметка и любой подбор правил",
+ "selection_rule": "по одной base + одной paraphrase строке на (model, case, lang), порядок файла",
+ "blind_fields_stripped": [
+  "matched",
+  "agrees_with_base",
+  "base_ok"
+ ],
+ "items": [
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of France?",
+   "text": "Paris.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the main city of France.",
+   "text": "Paris.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица у Франции?",
+   "text": "Париж.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови главный город Франции.",
+   "text": "Париж.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What does the HTTP response code 404 mean?",
+   "text": "The HTTP 404 code means the server could not find the requested resource.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "What is the meaning of HTTP status 404?",
+   "text": "The 404 status means the server could not find the requested resource.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Что означает HTTP-код ответа 404?",
+   "text": "HTTP-код 404 означает, что запрошенный ресурс не найден на сервере.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой смысл имеет HTTP-статус 404?",
+   "text": "HTTP-статус 404 означает, что запрошенный ресурс не найден на сервере.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of Japan?",
+   "text": "The capital of Japan is Tokyo.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the capital of Japan.",
+   "text": "Tokyo.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица Японии?",
+   "text": "Токио — столица Японии.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови столицу Японии.",
+   "text": "Токио.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which gas do plants release into the atmosphere during photosynthesis?",
+   "text": "Oxygen.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which gas is a product of photosynthesis?",
+   "text": "Oxygen is a product of photosynthesis.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какой газ растения выделяют в атмосферу при фотосинтезе?",
+   "text": "Кислород.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой газ является продуктом фотосинтеза?",
+   "text": "Кислород (O₂) — газ, выделяющийся как побочный продукт фотосинтеза.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Who created the Python programming language?",
+   "text": "Guido van Rossum created the Python programming language.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Who is the author of the Python language?",
+   "text": "Guido van Rossum.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Кто создал язык программирования Python?",
+   "text": "Гвидо ван Россум.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Кто является автором языка Python?",
+   "text": "Гвидо ван Россум.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year was the first release of Python published?",
+   "text": "Python was first released in 1991.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "When was Python created? Give the year.",
+   "text": "Python was created in 1991.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году вышел первый релиз языка Python?",
+   "text": "1991",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Когда был создан Python? Назови год.",
+   "text": "Python был создан в 1989 году (первый публичный релиз — в 1991).",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the smallest prime number?",
+   "text": "2",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the smallest prime number.",
+   "text": "2",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какое наименьшее простое число существует?",
+   "text": "2",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови наименьшее простое число.",
+   "text": "2",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year did the Titanic sink?",
+   "text": "1912",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "State the year the Titanic sank.",
+   "text": "The Titanic sank in 1912.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году затонул пароход «Титаник»?",
+   "text": "«Титаник» затонул в 1912 году.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови год гибели парохода «Титаник».",
+   "text": "1912",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which planet in the Solar System is closest to the Sun after Mercury?",
+   "text": "Venus.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which planet comes immediately after Mercury in distance from the Sun?",
+   "text": "Venus.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая планета Солнечной системы находится ближе всего к Солнцу после Меркурия?",
+   "text": "Венера.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какая планета идёт сразу после Меркурия по удалённости от Солнца?",
+   "text": "Венера.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "At what temperature does water boil at normal atmospheric pressure?",
+   "text": "Water boils at 100°C (212°F) at normal atmospheric pressure.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "At what temperature does water boil at standard atmospheric pressure?",
+   "text": "Water boils at 100 °C (212 °F) at standard atmospheric pressure.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "При какой температуре вода кипит при нормальном атмосферном давлении?",
+   "text": "Вода кипит при 100 °C (212 °F) при нормальном атмосферном давлении (1 атм).",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/deepseek-v4.1-flash",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "При какой температуре кипит вода при стандартном атмосферном давлении?",
+   "text": "Вода кипит при 100 °C (212 °F) при стандартном атмосферном давлении.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of France?",
+   "text": "Paris.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the main city of France.",
+   "text": "Paris.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица у Франции?",
+   "text": "Paris.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови главный город Франции.",
+   "text": "Главный город Франции — Париж.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What does the HTTP response code 404 mean?",
+   "text": "HTTP 404 means the server cannot find the requested resource.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "What is the meaning of HTTP status 404?",
+   "text": "HTTP status 404 means \"Not Found\" — the requested resource could not be located on the server.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Что означает HTTP-код ответа 404?",
+   "text": "404 означает \"Not Found\" — запрошенный ресурс не найден на сервере.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой смысл имеет HTTP-статус 404?",
+   "text": "HTTP-статус 404 означает, что запрошенный ресурс не найден на сервере.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of Japan?",
+   "text": "Tokyo.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the capital of Japan.",
+   "text": "Tokyo.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица Японии?",
+   "text": "Токио.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови столицу Японии.",
+   "text": "Токио.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which gas do plants release into the atmosphere during photosynthesis?",
+   "text": "Oxygen.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which gas is a product of photosynthesis?",
+   "text": "Oxygen.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какой газ растения выделяют в атмосферу при фотосинтезе?",
+   "text": "Растения выделяют кислород.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой газ является продуктом фотосинтеза?",
+   "text": "Кислород (O₂) является газообразным продуктом фотосинтеза.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Who created the Python programming language?",
+   "text": "Guido van Rossum created Python.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Who is the author of the Python language?",
+   "text": "Guido van Rossum is the author of the Python language.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Кто создал язык программирования Python?",
+   "text": "Гвидо ван Россум.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Кто является автором языка Python?",
+   "text": "Автором языка Python является Гвидо ван Россум.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year was the first release of Python published?",
+   "text": "1991.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "When was Python created? Give the year.",
+   "text": "Python was created in 1991.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году вышел первый релиз языка Python?",
+   "text": "1991",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Когда был создан Python? Назови год.",
+   "text": "Python был создан в **1991** году.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the smallest prime number?",
+   "text": "2",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the smallest prime number.",
+   "text": "The smallest prime number is 2.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какое наименьшее простое число существует?",
+   "text": "Наименьшее простое число — 2.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови наименьшее простое число.",
+   "text": "2",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year did the Titanic sink?",
+   "text": "The Titanic sank in 1912.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "State the year the Titanic sank.",
+   "text": "The Titanic sank in 1912.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году затонул пароход «Титаник»?",
+   "text": "Пароход «Титаник» затонул в 1912 году.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови год гибели парохода «Титаник».",
+   "text": "Пароход «Титаник» затонул в 1912 году.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which planet in the Solar System is closest to the Sun after Mercury?",
+   "text": "Venus.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which planet comes immediately after Mercury in distance from the Sun?",
+   "text": "Venus.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая планета Солнечной системы находится ближе всего к Солнцу после Меркурия?",
+   "text": "Венера.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какая планета идёт сразу после Меркурия по удалённости от Солнца?",
+   "text": "Венера.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "At what temperature does water boil at normal atmospheric pressure?",
+   "text": "Water boils at 100 °C (212 °F) at normal atmospheric pressure.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "At what temperature does water boil at standard atmospheric pressure?",
+   "text": "Water boils at 100°C (212°F) at standard atmospheric pressure (1 atm).",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "При какой температуре вода кипит при нормальном атмосферном давлении?",
+   "text": "Вода кипит при 100°C при нормальном атмосферном давлении (1 атм / 101,325 кПа).",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/longcat-2.0",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "При какой температуре кипит вода при стандартном атмосферном давлении?",
+   "text": "Вода кипит при 100 °C при стандартном атмосферном давлении.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of France?",
+   "text": "Paris",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_france_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the main city of France.",
+   "text": "Paris.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица у Франции?",
+   "text": "Столица Франции — Париж.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_france_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови главный город Франции.",
+   "text": "Париж.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What does the HTTP response code 404 mean?",
+   "text": "HTTP 404 means the requested resource was not found on the server.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_http_404",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "What is the meaning of HTTP status 404?",
+   "text": "HTTP status 404 means \"Not Found\" - the server cannot locate the requested resource.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Что означает HTTP-код ответа 404?",
+   "text": "HTTP-код 404 означает, что сервер не нашёл запрашиваемый ресурс.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_http_404",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой смысл имеет HTTP-статус 404?",
+   "text": "HTTP-статус 404 означает, что сервер найден, но запрашиваемый ресурс на нём отсутствует.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the capital of Japan?",
+   "text": "Tokyo",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_japan_capital",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the capital of Japan.",
+   "text": "Tokyo.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая столица Японии?",
+   "text": "Токио",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_japan_capital",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови столицу Японии.",
+   "text": "Токио.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which gas do plants release into the atmosphere during photosynthesis?",
+   "text": "Oxygen.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_photosynthesis_gas",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which gas is a product of photosynthesis?",
+   "text": "Oxygen is a product of photosynthesis.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какой газ растения выделяют в атмосферу при фотосинтезе?",
+   "text": "Кислород.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_photosynthesis_gas",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какой газ является продуктом фотосинтеза?",
+   "text": "Кислород.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Who created the Python programming language?",
+   "text": "Guido van Rossum created the Python programming language.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_author",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Who is the author of the Python language?",
+   "text": "Guido van Rossum is the author of the Python language.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Кто создал язык программирования Python?",
+   "text": "Guido van Rossum.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_author",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Кто является автором языка Python?",
+   "text": "Guido van Rossum.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year was the first release of Python published?",
+   "text": "1991",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_release_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "When was Python created? Give the year.",
+   "text": "Python was created in 1991.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году вышел первый релиз языка Python?",
+   "text": "Первый релиз языка Python вышел в 1991 году.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_python_release_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Когда был создан Python? Назови год.",
+   "text": "Python был создан в 1991 году.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "What is the smallest prime number?",
+   "text": "The smallest prime number is 2.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_smallest_prime",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Name the smallest prime number.",
+   "text": "The smallest prime number is 2.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какое наименьшее простое число существует?",
+   "text": "2",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_smallest_prime",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови наименьшее простое число.",
+   "text": "2",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "In which year did the Titanic sink?",
+   "text": "1912",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_titanic_year",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "State the year the Titanic sank.",
+   "text": "1912",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "В каком году затонул пароход «Титаник»?",
+   "text": "Пароход «Титаник» затонул в 1912 году.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_titanic_year",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Назови год гибели парохода «Титаник».",
+   "text": "1912",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "Which planet in the Solar System is closest to the Sun after Mercury?",
+   "text": "Venus.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_venus_after_mercury",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "Which planet comes immediately after Mercury in distance from the Sun?",
+   "text": "Venus.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "Какая планета Солнечной системы находится ближе всего к Солнцу после Меркурия?",
+   "text": "Венера.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_venus_after_mercury",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "Какая планета идёт сразу после Меркурия по удалённости от Солнца?",
+   "text": "Венера.",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "base0",
+   "prompt": "At what temperature does water boil at normal atmospheric pressure?",
+   "text": "100°C (212°F).",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_water_boiling_point",
+   "lang": "en",
+   "which": "p0",
+   "prompt": "At what temperature does water boil at standard atmospheric pressure?",
+   "text": "100 °C (212 °F).",
+   "kind": "para"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "base0",
+   "prompt": "При какой температуре вода кипит при нормальном атмосферном давлении?",
+   "text": "Вода кипит при 100°C (212°F) при нормальном атмосферном давлении.",
+   "kind": "base"
+  },
+  {
+   "model": "opencode-go/qwen3.7-plus",
+   "case": "q_water_boiling_point",
+   "lang": "ru",
+   "which": "p0",
+   "prompt": "При какой температуре кипит вода при стандартном атмосферном давлении?",
+   "text": "Вода кипит при 100°C (212°F) при стандартном атмосферном давлении.",
+   "kind": "para"
+  }
+ ]
+}
