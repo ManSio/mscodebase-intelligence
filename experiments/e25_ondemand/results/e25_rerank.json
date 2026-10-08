@@ -1,0 +1,194 @@
+{
+ "queries": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "n_cand": 3,
+   "arms": {
+    "raw": {
+     "rank": 1,
+     "ms": 671.5
+    },
+    "coderet": {
+     "rank": 1,
+     "ms": 727.0
+    },
+    "e5": {
+     "rank": 3,
+     "ms": 199.9
+    }
+   }
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": 1,
+     "ms": 2077.9
+    },
+    "coderet": {
+     "rank": 1,
+     "ms": 2294.0
+    },
+    "e5": {
+     "rank": 2,
+     "ms": 701.8
+    }
+   }
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": null,
+     "ms": 2060.8
+    },
+    "coderet": {
+     "rank": null,
+     "ms": 1784.4
+    },
+    "e5": {
+     "rank": null,
+     "ms": 380.1
+    }
+   }
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": 5,
+     "ms": 2880.8
+    },
+    "coderet": {
+     "rank": 4,
+     "ms": 3713.8
+    },
+    "e5": {
+     "rank": 3,
+     "ms": 1113.7
+    }
+   }
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": 1,
+     "ms": 2343.7
+    },
+    "coderet": {
+     "rank": 1,
+     "ms": 2742.5
+    },
+    "e5": {
+     "rank": 1,
+     "ms": 796.8
+    }
+   }
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": 2,
+     "ms": 6726.7
+    },
+    "coderet": {
+     "rank": 1,
+     "ms": 5737.5
+    },
+    "e5": {
+     "rank": 1,
+     "ms": 995.4
+    }
+   }
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "n_cand": 1,
+   "arms": {
+    "raw": {
+     "rank": null,
+     "ms": 536.0
+    },
+    "coderet": {
+     "rank": null,
+     "ms": 567.1
+    },
+    "e5": {
+     "rank": null,
+     "ms": 171.7
+    }
+   }
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "n_cand": 7,
+   "arms": {
+    "raw": {
+     "rank": null,
+     "ms": 2791.8
+    },
+    "coderet": {
+     "rank": null,
+     "ms": 2359.8
+    },
+    "e5": {
+     "rank": null,
+     "ms": 467.0
+    }
+   }
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": null,
+     "ms": 2483.0
+    },
+    "coderet": {
+     "rank": null,
+     "ms": 2885.9
+    },
+    "e5": {
+     "rank": null,
+     "ms": 660.2
+    }
+   }
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "n_cand": 10,
+   "arms": {
+    "raw": {
+     "rank": 1,
+     "ms": 1929.5
+    },
+    "coderet": {
+     "rank": 1,
+     "ms": 2149.7
+    },
+    "e5": {
+     "rank": 1,
+     "ms": 485.1
+    }
+   }
+  }
+ ]
+}
