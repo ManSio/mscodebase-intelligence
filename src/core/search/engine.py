@@ -445,6 +445,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._ondemand_rerank_top_n = int(
             getattr(get_config().search, "ondemand_rerank_top_n", 10) or 10
         )
+        # Dense-off (E28, Фаза 3): MSCODEBASE_DENSE_OFF=true → dense-тир выключен,
+        # кандидаты только из BM25/FTS5/graph. Off по умолчанию.
+        self._dense_off = bool(
+            getattr(get_config().search, "dense_off", False)
+        )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock: Optional[asyncio.Lock] = None  # lazy: создаётся при первом async-вызове (привязка к event loop)
@@ -933,7 +938,9 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
             # Векторный поиск (dense) — с prefilter в LanceDB
             # (варианты синонимов дают те же эмбеддинги)
-            if variant == query and not all_dense_results:
+            # MSCODEBASE_DENSE_OFF=true (E28, Фаза 3): гасит dense-тир целиком —
+            # и эмбеддинг запроса, и vector search. Default OFF.
+            if variant == query and not all_dense_results and not self._dense_off:
                 try:
                     # ── Embedding cache ──
                     query_hash = _cache_key(variant)
