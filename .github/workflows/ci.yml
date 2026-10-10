@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    # main — обычные PR. Ветки миграции — «stacked» PR (основа не main):
+    # без них CI не запускался, и фазы 2/3 уехали без единого зелёного прогона
+    # (2026-10-10, инцидент PR #74/#75). push по-прежнему только main,
+    # чтобы не задваивать прогоны для одной и той же ревизии.
+    branches: [main, 'feat/**', 'exp/**', 'fix/**', 'chore/**']
 
 permissions:
   contents: read
