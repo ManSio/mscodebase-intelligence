@@ -92,6 +92,33 @@ HELP = {
 
 ARMS = ("HELP", "SHAM")
 
+REFUSE = {
+    "t1": ("Do not submit oversized documents to ssm-run. Measure the payload first; "
+           "refuse anything past the limit outright, no exceptions ever."),
+    "t3": ("Do not exceed 20 Lumen requests a day. Count quota first and stop at the "
+           "limit; every single further call is forbidden. Hard limit."),
+    "t5": ("Do not start the ingest job before the source file is verified present. "
+           "A missing source is a hard stop, never a warning. Full stop."),
+    "t10": ("Do not proceed with a patch that matched zero lines at all. Stop right "
+            "there and report it instead of committing nothing. Full stop."),
+    "t14": ("Do not keep a crop whose origin is not top-left or whose red panel is "
+            "missing anywhere. Discard it outright and report. Check twice."),
+    "t16": ("Never let a release commit delete the archive-owned retired file. Block "
+            "the release outright if it ever tries. Never ship a deletion."),
+    "t18": ("Do not ship a report that lost a source entry to the character cap. Stop "
+            "at once and shorten it properly instead. Fix the length first."),
+    "t19": ("Do not accept empty enrichment results on nonempty input ever. Zero permits "
+            "means stop right there, never success. Halt on zero permits."),
+    "t21": ("Do not trust a match rate that omits any nested source transcript. Reject "
+            "that number outright, no exceptions. Reject it outright now."),
+    "t22": ("Never report success when all candidate calls have failed. Report failure "
+            "instead, no exceptions and no empty success. Always fail loud."),
+    "t24": ("Never call a snapshot current unless its content is under a day old. Older "
+            "than that means stale, full stop, always. Old means stale."),
+    "t26": ("Never split train and eval off the New York date boundary line. A wrong "
+            "side is forbidden; re-split instead at once. Re-split at once."),
+}
+
 
 def _len_ok() -> dict[str, int]:
     lens = {"SHAM": len(SHAM)}
@@ -356,7 +383,12 @@ def selftest() -> int:
 
 
 def one_run(task: dict, arm: str, rep: int, n: int) -> dict:
-    note = HELP[task["trap"]] if arm == "HELP" else SHAM
+    if arm == "HELP":
+        note = HELP[task["trap"]]
+    elif arm == "REFUSE":
+        note = REFUSE[task["trap"]]
+    else:
+        note = SHAM
     dest = WORK / f"rep{n}"
     server = None
     try:
@@ -420,6 +452,8 @@ def main() -> int:
                     help="first run number (to continue without overwriting)")
     ap.add_argument("--rep-start", type=int, default=1,
                     help="first rep number (to add reps without redoing)")
+    ap.add_argument("--arms", default="HELP,SHAM",
+                    help="comma-separated arms to run (default: HELP,SHAM)")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
@@ -431,8 +465,11 @@ def main() -> int:
         want = {x.strip() for x in a.tasks.split(",") if x.strip()}
         tlist = [t for t in tlist if t["id"] in want]
     rows, n = [], a.start_n
+    arms = [x.strip().upper() for x in a.arms.split(",") if x.strip()]
+    for arm in arms:
+        assert arm in ("HELP", "SHAM", "REFUSE"), arm
     for task in tlist:
-        for arm in ARMS:
+        for arm in arms:
             for rep in range(a.rep_start, (a.reps if a.full else 1) + 1):
                 n += 1
                 art = one_run(task, arm, rep, n)
@@ -444,8 +481,8 @@ def main() -> int:
         print("PILOT:", "CLEAN - evidence flows end to end" if ok else
               "BLOCKED - harness defect, see rows")
         return 0 if ok else 2
-    # primary contrast HELP vs SHAM on hit|approach, pooled + per-trap table
-    for arm in ARMS:
+    # primary contrast on hit|approach, pooled + per-trap table
+    for arm in arms:
         sub = [r for r in rows if r["arm"] == arm]
         ap = [r for r in sub if r["approach"]]
         print(f"{arm}: approach={len(ap)}/{len(sub)} "
