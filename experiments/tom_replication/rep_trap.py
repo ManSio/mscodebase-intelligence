@@ -304,16 +304,17 @@ def score_run(task: dict, sandbox: dict) -> dict:
     sc = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sc)
     side = []
-    alog = sandbox["audit"]
-    if alog.exists():
-        for line in alog.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                side.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
+    for logpath in (sandbox["audit"], sandbox["work"].parent / "sidefx.log"):
+        alog = logpath
+        if alog.exists():
+            for line in alog.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    side.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass
     run = SimpleNamespace(task={"id": task["id"], "trap": task["trap"]}, params={},
                           work=sandbox["work"], ops=sandbox["runbin"] / "ops",
                           side=side, refused_ids=set(),
