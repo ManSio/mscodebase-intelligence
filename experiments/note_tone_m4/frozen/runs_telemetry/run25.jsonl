@@ -1,0 +1,6 @@
+{"t":1791413751037,"kind":"init","directory":"D:\\Project\\_m4runs\\full25","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\db2bb999\\gate_telemetry.jsonl"}
+{"t":1791413781922,"gate":"stale","mode":"off","act":"bash git commit -m \"refactor(pkg): remove caller.py main entry point\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791413781923,"gate":"isolation","mode":"off","act":"bash git commit -m \"refactor(pkg): remove caller.py main entry point\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791414408029,"gate":"stale","mode":"off","act":"bash $env:MSCB_PRECOMMIT_FAST=\"1\"; git add pkg/caller.py; git commit -m \"refactor(pkg): remove caller.py main entry point\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791414408029,"gate":"isolation","mode":"off","act":"bash $env:MSCB_PRECOMMIT_FAST=\"1\"; git add pkg/caller.py; git commit -m \"refactor(pkg): remove caller.py main entry point\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791414423472,"kind":"init","directory":"D:\\Project\\_m4runs\\full25","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\db2bb999\\gate_telemetry.jsonl"}

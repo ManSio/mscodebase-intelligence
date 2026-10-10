@@ -1,0 +1,4 @@
+{"t":1791415478409,"kind":"init","directory":"D:\\Project\\_m4runs\\full29","stale":"block","isolation":"advisory","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\c9a45015\\gate_telemetry.jsonl"}
+{"t":1791415524344,"gate":"stale","mode":"block","act":"bash git commit -m \"chore(fixture): clear caller.py body\"","drift":0,"delivered":false,"reason":"suppressed_zero_findings","latency_ms":4497}
+{"t":1791415537097,"gate":"isolation","mode":"advisory","act":"bash git commit -m \"chore(fixture): clear caller.py body\"","count":1,"delivered":true,"reason":"fired_advisory","restraint":{"signature":"a3677a06f7c6068d","strikes":0,"cooldown_s_left":0},"override":true,"real_len":528,"real_hash":"9a3766b2040138361329c3bffc7f4206","latency_ms":12753}
+{"t":1791415852181,"kind":"init","directory":"D:\\Project\\_m4runs\\full29","stale":"block","isolation":"advisory","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\c9a45015\\gate_telemetry.jsonl"}
