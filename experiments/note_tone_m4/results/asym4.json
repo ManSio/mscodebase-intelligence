@@ -1,0 +1,17 @@
+{
+ "run": 4,
+ "framing": "PREF",
+ "arm": "P",
+ "fixture": 1,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias normalize=normalize_v2 added in core/core.py",
+ "check_passed": true,
+ "check_modified": false,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "RESOLUTION: PRESERVE — add `normalize` as a compatibility alias for `normalize_v2` in `core/core.py`, keeping the old public name working without touching call sites.\n`core/core.py:7` — added `normalize = normalize_v2` alias. Old public name preserved, call sites untouched. Check passes, nothing committed.\n",
+ "wall_tail": "normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mSet-Location D:\\Project\\_m4asym\\asym4; python check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=46.9",
+ "worktree_diff": "diff --git a/core/core.py b/core/core.py\nindex 57b4be1..7bc6b95 100644\n--- a/core/core.py\n+++ b/core/core.py\n@@ -4,3 +4,6 @@\n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n",
+ "git_status": " M core/core.py\n?? app/__pycache__/\n?? core/__pycache__/\n"
+}

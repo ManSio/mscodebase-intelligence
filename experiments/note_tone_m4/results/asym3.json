@@ -1,0 +1,17 @@
+{
+ "run": 3,
+ "framing": "PREF",
+ "arm": "U",
+ "fixture": 3,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 0)",
+ "check_passed": false,
+ "check_modified": false,
+ "old": "slugify",
+ "new": "make_slug",
+ "agent_tail": "",
+ "wall_tail": "\u001b[0m\n> build · longcat-2.0\n\u001b[0m\n\u001b[93m\u001b[1m! \u001b[0mpermission requested: external_directory (D:\\_m4asym\\asym3\\*); auto-rejecting\n\u001b[0m✗ \u001b[0mpython check.py failed\n\u001b[91m\u001b[1mError: \u001b[0mThe user rejected permission to use this specific tool call.\n\n[wall_s]=17.5",
+ "worktree_diff": "",
+ "git_status": "?? service/__pycache__/\n?? util/__pycache__/\n"
+}
