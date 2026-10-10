@@ -90,7 +90,15 @@ MIN_RERANK_SCORE = 0.3
 
 
 def _sigmoid(x: float) -> float:
-    """Логит -> вероятность [0,1], численно устойчиво для |x| > 700."""
+    """Нормализация raw logit в [0, 1], численно устойчиво для |x| > 700.
+
+    llama.cpp /v1/rerank возвращает raw logits ≈[-11, +11], а не вероятности —
+    без нормализации фильтр MIN_RERANK_SCORE отсекает почти всё подряд.
+    Только для llama_cpp-ветки; threshold 0.3 откалиброван под [0, 1].
+
+    Ветвление по знаку нужно, чтобы math.exp не переполнялся на больших |x|:
+    версия PR #58 без него ломалась бы на logits порядка 700+.
+    """
     if x >= 0.0:
         return 1.0 / (1.0 + math.exp(-x))
     e = math.exp(x)
@@ -505,10 +513,11 @@ class MultiProviderReranker(IReranker):
                 results = data.get("results", [])
                 if results:
                     # Cohere format: results[i] = {"index": N, "relevance_score": F}
+                    # llama.cpp отдаёт raw logits ≈[-11, +11] → sigmoid в [0, 1]
                     scores = [0.0] * len(passages)
                     for r in results:
                         idx = r.get("index", 0)
-                        scores[idx] = r.get("relevance_score", 0.0)
+                        scores[idx] = _sigmoid(r.get("relevance_score", 0.0))
                     return scores
             logger.debug(f"llama.cpp rerank HTTP {resp.status_code}: {resp.text[:200]}")
             return None
