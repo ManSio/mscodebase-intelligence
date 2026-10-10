@@ -120,13 +120,27 @@ varies 0.11–0.87s with machine state, so treat small-n absolutes as noisy).
 The 500ms pain threshold falls around ~1400 crystals. At that size the hook lags
 every keystroke, and hooks that lag get disabled.
 
+## One finding from our own agent (yours to use or discard)
+
+Same agent, same channel, same fixture family, two framings of one choice
+(18 runs, longcat-2.0): when both resolutions pass verification, note direction
+steers the choice (replication of a 1.000/0.000 split); when the check itself
+names the right answer, misleading notes change nothing (3/3 correct with a
+note pointing the wrong way, 3/3 without it) — the agent follows the readable
+check, not the note. So on our stack, notes steer open choices and go quiet
+where verification is readable. The boundary runs on verifiability, not wording.
+Our trap-battery replication on your 12 tasks found no hit difference either
+(0.600 vs 0.529 advisory over 44 runs; 0.500 vs 0.667 refusal-flavored over 22)
+— cross-model non-replication, not refutation, on the model named in Scope.
+
 ## What we checked and found fine
 
 Benign battery 0/10 deliveries; no ReDoS (10MB ctx in 0.4s); heredoc bodies are
 scanned; background `&` does not hide; corrupted ledger and broken crystal files
 fail open (returned/delivered and skipped-silently — noted here rather than
 under findings because for a fence that direction deserves its own discussion);
-no expired flags or tiers on the deployed set.
+no expired flags or tiers on the deployed set; ledger size does not degrade
+delivery (0.014s at 3 entries vs 0.059s at 20,002 — the prune holds).
 
 ## Our errors along the way (all corrected in the reports)
 
@@ -155,7 +169,11 @@ with approach 4/11 vs 9/11) — stated as non-replication on a different stack,
 not refutation; the approach gap in the refusal arm has no cite evidence
 (tails show bypasses and tool-discovery stalls, never the note), so it is
 noise, not a mechanism; the benign battery is 10 everyday acts; 17/68 runs
-timed out at the provider ceiling and are counted, not dropped.
+timed out at the provider ceiling and are counted, not dropped. We read your
+3f4dbfd timing correction (notes shape the next step, not the current one;
+refuse-once in testing, not in this release): it bounds our refusal-arm null
+to the current release, and we will re-run that arm when refuse-once ships if
+you want it measured from outside.
 
 Everything above is committed with the scripts that produced it wherever the
 code is ours; your files were read from a frozen mirror that verifies clean.
