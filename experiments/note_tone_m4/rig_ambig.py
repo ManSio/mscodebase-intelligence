@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -141,6 +140,24 @@ def classify(dest: Path, baseline: str) -> dict:
     return probe.classify(dest, baseline)
 
 
+def _kill_tree(proc) -> None:
+    """Kill the whole process tree, then the parent.
+
+    proc.kill() alone leaves grandchildren holding our pipes, and communicate()
+    then hangs forever (measured once: 25 min, zero output, zero artifact).
+    taskkill /T takes the tree; proc.kill is the fallback.
+    """
+    try:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True, timeout=60)
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def run_agent(dest: Path, title: str) -> tuple[int, str, str]:
     env = dict(os.environ)
     env["MSCODEBASE_ISOLATION_GATE"] = "off"
@@ -154,8 +171,11 @@ def run_agent(dest: Path, title: str) -> tuple[int, str, str]:
         out, err = proc.communicate(timeout=TIMEOUT_S)
         rc = proc.returncode
     except subprocess.TimeoutExpired:
-        proc.kill()
-        out, err = proc.communicate()
+        _kill_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
         rc = -9
     return rc, out or "", f"{err or ''}\n[wall_s]={time.time() - t0:.1f}"
 

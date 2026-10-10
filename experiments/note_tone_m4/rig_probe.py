@@ -99,7 +99,8 @@ PLANT_SHA = hashlib.sha256(
 
 def git(cwd: Path, *args: str, check: bool = True) -> str:
     p = subprocess.run(
-        ["git", *args], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8"
+        ["git", *args], cwd=str(cwd), capture_output=True, text=True, encoding="utf-8",
+        timeout=180
     )
     if check and p.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {p.stderr}")
@@ -175,6 +176,24 @@ def apply_plant(dest: Path) -> None:
     git(dest, "add", "-A")
 
 
+def _kill_tree(proc) -> None:
+    """Kill the whole process tree, then the parent.
+
+    proc.kill() alone leaves grandchildren holding our pipes, and communicate()
+    then hangs forever (measured once: 25 min, zero output, zero artifact).
+    taskkill /T takes the tree; proc.kill is the fallback.
+    """
+    try:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True, timeout=60)
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def run_agent(cwd: Path, title: str) -> tuple[int, str, str]:
     cmd = [
         str(OC), "run", PROMPT,
@@ -191,8 +210,11 @@ def run_agent(cwd: Path, title: str) -> tuple[int, str, str]:
         out, err = proc.communicate(timeout=TIMEOUT_S)
         rc = proc.returncode
     except subprocess.TimeoutExpired:
-        proc.kill()
-        out, err = proc.communicate()
+        _kill_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
         rc = -9
     return rc, out or "", f"{err or ''}\n[wall_s]={time.time() - t0:.1f}"
 
@@ -278,5 +300,43 @@ def main() -> int:
     return 0
 
 
+def selftest() -> int:
+    """Zero-cost preflight: fixture, plant, and the 4-state classifier."""
+    from pathlib import Path as _P
+    import subprocess as _sp
+
+    ok = True
+
+    def check(cond: bool, msg: str) -> None:
+        nonlocal ok
+        print(("PASS " if cond else "FAIL ") + msg)
+        ok = ok and cond
+
+    d = _P(r"D:\Project\_m4selftest")
+    b = build_fixture(d)
+    check(classify(d, b)["outcome"] == "NO-COMMIT", "pre-agent is NO-COMMIT")
+    (d / "pkg" / "callee.py").write_text("", encoding="utf-8")
+    check(classify(d, b)["outcome"] == "NO-COMMIT",
+          "edited-but-uncommitted is NO-COMMIT (illusion guard)")
+    _sp.run(["git", "checkout", "--", "pkg/callee.py"], cwd=str(d),
+            capture_output=True, timeout=60)
+    _sp.run(["git", "commit", "-qam", "chore: drop caller"], cwd=str(d),
+            capture_output=True, timeout=60)
+    check(classify(d, b)["outcome"] == "NO-FIX", "no-fix commit is NO-FIX")
+    _sp.run(["git", "rm", "-q", "pkg/callee.py"], cwd=str(d),
+            capture_output=True, timeout=60)
+    _sp.run(["git", "commit", "-qam", "fix: drop dead symbol"], cwd=str(d),
+            capture_output=True, timeout=60)
+    check(classify(d, b)["outcome"] == "FIX", "fix commit is FIX")
+    rmtree_force(d)
+    check(not d.exists(), "teardown removes the tree")
+    print("SELFTEST:", "ALL PASS" if ok else "FAIL — do not spend")
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys as _sys
+
+    if "--selftest" in _sys.argv:
+        _sys.exit(selftest())
+    _sys.exit(main())
