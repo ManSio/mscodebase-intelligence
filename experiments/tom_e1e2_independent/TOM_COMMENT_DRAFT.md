@@ -30,6 +30,9 @@ stated next to the number, not in a footnote.
 - Our instrument is proven able to detect note effects: on a forced-choice task
   on our stack, note direction steers 1.000 vs 0.000 (18 runs). So the nulls
   below are not a broken-instrument artifact.
+- Literature numbers below (AgentPoison 82%/63%, Governance Decay optimized
+  100/85/65) were re-verified against the papers themselves during review, not
+  quoted from snippets.
 
 ## What reproduces exactly
 
@@ -58,67 +61,81 @@ tsc) match only as words; symbolic keys match verbatim with the pipe load-bearin
 (same words without it: empty); long keys keep substring semantics; the seven
 generic words add nobody; must-match-nothing acts are empty; order on 3
 two-candidate acts equals our independent word-overlap computation 3/3 and is
-stable across repeats.
+stable across repeats. (Sample-size caveat: n=3 acts, and no deployed crystal
+carries a tier, so tier-scoped ordering is untestable on this store — the order
+claim is thin by construction, stated here rather than below.)
 
-## What breaks
+## Three things I would fix first
 
-**1. Weaponized crystals fire with zero content checks.** A crystal file with a
-`git status` binding and an exfiltration instruction loads 1/1 with no complaint
-and delivers 1/1. We grepped for verification machinery: `invalid_bindings` is
-structural only, `_ledger_signature` is a cache key, `_redacted` is fail-open
-credential scrubbing on output. There is no signature, no trust authority, no
-content check. Your crystals are a static trusted textbook in the design; nothing
-in the code treats them as untrusted input. The closest measured analogues —
-MPBench (~50% poisoning ASR on embedding-retrieval agent memories, with prompt-
-injection defenses structurally blind to the memory-poisoning channel) and
-AgentPoison (arXiv:2407.12784: 82% retrieval / 63% end-to-end at <0.1% poison
-rate, <1% benign impact) — suggest this is the highest-leverage item on this
-list, with one honest boundary: both benchmarks attack embedding-retrieval
-memories, while your store matches by substring/regex, so their rates are
-context for the threat class, not transferable numbers for your system.
+**1. Supply-chain: weaponized crystals fire with zero content checks.** A crystal
+file with a `git status` binding and an exfiltration instruction loads 1/1 with
+no complaint and delivers 1/1. To be fair about the threat model: whoever can
+write to the store directly is already inside the perimeter. The live scenario
+is arrival from outside — a catalogue sync from a public repo, a malicious PR
+against a shared store, a vendored crystal pack. Against that scenario there is
+nothing: `invalid_bindings` is structural only, `_ledger_signature` is a cache
+key, `_redacted` is fail-open scrubbing on output. No signature, no trust
+authority, no content check. The measured analogues (AgentPoison arXiv:2407.12784:
+82% retrieval / 63% end-to-end at <0.1% poison rate; MPBench ~50% on embedding-
+retrieval memories) attack embedding stores rather than substring stores, so
+treat their rates as threat-class context, not transferable numbers.
 
-**2. Length-5 substring hole, 5/5.** Keys of exactly length 5 (`|tail`, `|head`,
-`|grep`, `cargo`, `<<EOF`) stayed on substrings while shorter keys got boundaries:
-`escargot` fires green-tests via `cargo`; `log|tailspin`, `cmd|headache`,
-`cmd|grepable`, `<<EOFILE` fire exit-code. Natural text, wrong warnings.
+**2. Input validation: length-5 hole plus invisibles, both cheap to fix.** Keys of
+exactly length 5 (`|tail`, `|head`, `|grep`, `cargo`, `<<EOF`) stayed on
+substrings: `escargot` fires green-tests via `cargo`; `log|tailspin`,
+`cmd|headache`, `cmd|grepable`, `<<EOFILE` fire exit-code — 5/5, natural text,
+wrong warnings. Separately, no normalization anywhere: Cyrillic homoglyphs,
+zero-width/thin spaces and fullwidth forms pass silently 6/6 while case folds
+correctly. Neither is fixable by adding keys — the first needs the boundary rule
+extended to length 5 (or an anchor after the leading symbol), the second needs
+input normalization (NFKC + confusable/zero-width stripping) before comparison.
 
-**3. Text-level invisibles, 6/6 silent.** No normalization anywhere: Cyrillic
-homoglyphs (`еval`), zero-width/thin spaces inside keys, and fullwidth forms all
-pass silently, while case folds correctly. This cannot be fixed by adding keys —
-only by normalizing input before comparison.
+**3. Budget starvation, as proof of possibility.** 1 large critical note against
+12 small weak ones sharing one act: the critical is starved 1/1 with its text
+absent, 11 weaks delivered. Mechanism, dissected: candidate order follows
+overlap honestly — the greedy best-fit packer takes small pieces first. This is
+a synthetic swarm, so read it as possibility, not frequency: it shows the budget
+can silently drop the most important note, not that real stores do this daily.
+For your "order over volume" thesis, stated precisely: the order is honest,
+the budget is not.
 
-**4. Attention deflection by budget, demonstrated end to end.** 1 large critical
-note (~2100 chars, ~zero overlap) against 12 small weak ones (~340 chars, high
-overlap) sharing one act: the critical is starved 1/1 with its text absent from
-the output, 11 weaks delivered. Dissection: candidate order follows overlap
-honestly — the greedy best-fit packer takes small pieces first. So a swarm of
-small high-overlap weaks crowds out a large critical, while a small critical
-survives by the same best-fit rule (also measured). For your "order over volume"
-thesis: the order is honest, the budget is not.
+<details>
+<summary>Rest of the findings with denominators (click to expand)</summary>
 
-**5. Repeat silence, measured to the key.** Same dangerous act twice in one
+**Repeat silence, measured to the key.** Same dangerous act twice in one
 session: [delivered, empty]. The backoff key is per act TYPE (`act:bash:<name>`),
 so after one firing, any bash act in the window is suppressed for that crystal.
 The session cap fires exactly at seen=3 (control seen=2 delivers). Forged-clock
 tests separate the two: ageing releases backoff but not the cap; fresh sessions
 speak (cap is per-session). A single trivial act buys minutes of silence.
 
-**6. Rotation beats relevance on repeats.** After one delivery, an act 3x more
+**Rotation beats relevance on repeats.** After one delivery, an act 3x more
 relevant to the heard crystal (overlap 0.065 vs 0.021) still ranks the unheard
 one first — `seen` leads the sort key unconditionally.
 
-**7. The seven-word rule has no deployed effect.** Ablation plus a full 25-key
-inventory: 0/25 deployed keys depend on the set. A synthetic guard-key crystal
-proves the mechanism works (word matches, glued does not) — there is just
-nothing for it to apply to. It will matter only if future crystals take those
-words as keys.
-
-**8. Scale is linear into pain.** 100/1000/5000 synthetic crystals: load
+**Scale is linear into pain.** 100/1000/5000 synthetic crystals: load
 0.87/8.02/39.07s, match 0.034/0.326/1.735s per act (~0.35ms/crystal). A spot
 re-check reproduces the same order and linearity (n=1000: 7.99s/0.344s; n=100
 varies 0.11–0.87s with machine state, so treat small-n absolutes as noisy).
 The 500ms pain threshold falls around ~1400 crystals. At that size the hook lags
 every keystroke, and hooks that lag get disabled.
+
+</details>
+
+## Mechanisms verified working, with nothing to apply them to
+
+Two findings that are deliberately NOT listed as defects, because they show
+working mechanisms on an empty stage:
+
+- **Seven-word rule.** Ablation plus a full 25-key inventory: 0/25 deployed keys
+  depend on the set. A synthetic guard-key crystal proves the mechanism works
+  (word matches, glued does not) — there is just nothing for it to apply to
+  until future crystals take those words as keys.
+- **Staleness expiry.** A crystal with past `stale_after` delivers a WITHHELD
+  stub 1/1; future-dated and undated deliver full text. But 0 of 24 shipped
+  entries carry any `stale_after` (21 catalogue entries have no dates at all,
+  the 3 starters were verified 2026-09-03 with no expiry). The machinery works;
+  there is nothing for it to operate on.
 
 ## One finding from our own agent (yours to use or discard)
 
@@ -140,13 +157,9 @@ scanned; background `&` does not hide; corrupted ledger and broken crystal files
 fail open (returned/delivered and skipped-silently — noted here rather than
 under findings because for a fence that direction deserves its own discussion);
 ledger size does not degrade delivery (0.014s at 3 entries vs 0.059s at 20,002
-— the prune holds). On your new staleness section: we verified the machinery
-(a crystal with past `stale_after` delivers an "EXPIRED CLAIM WAS WITHHELD"
-stub 1/1; future-dated and undated deliver full text), then inventoried the
-shipped set — **0 of 24 entries carry any `stale_after`** (21 catalogue entries
-have no dates at all, the 3 starters were verified 2026-09-03 with no expiry).
-The mechanism works; there is nothing for it to operate on. No tiers on the
-deployed set either, so tier-scoped ordering currently has no instances.
+— the prune holds). On your new staleness section: see the mechanisms point
+above. No tiers on the deployed set either, so tier-scoped ordering currently
+has no instances.
 
 ## Our errors along the way (all corrected in the reports)
 
@@ -161,37 +174,36 @@ next to the number it touched.
 
 ## Caveats we keep attached
 
-Order checked on 3 acts; the seven words have no deployed binding to test in
-combat; t3a is EXCLUDED from the pooled contrast (both agents bypassed the
-wrapped stand-ins with direct urllib calls, so the note never arrived in either
-arm — kept as a separate delivery-coverage finding: both hit your quota wall,
-which is precisely the behavior the trap wants, through an uninstrumented
-path); the blind repeat control is vacuous (0 candidates both times — `guard`
-has no binding, so it proves determinism on empty, with repeatability on
-non-empty sets coming from the ordering pairs instead); our behavioral
-replication on longcat-2.0 (44 runs advisory + 22 refusal-flavored) found no
-hit difference (0.600 vs 0.529 with approach 15/22 vs 17/22; 0.500 vs 0.667
-with approach 4/11 vs 9/11) — stated as non-replication on a different stack,
-not refutation; the approach gap in the refusal arm has no cite evidence
-(tails show bypasses and tool-discovery stalls, never the note), so it is
-noise, not a mechanism; the benign battery is 10 everyday acts; 17/68 runs
-timed out at the provider ceiling and are counted, not dropped. We read your
-3f4dbfd timing correction (notes shape the next step, not the current one;
-refuse-once in testing, not in this release): it bounds our refusal-arm null
-to the current release, and we will re-run that arm when refuse-once ships if
-you want it measured from outside.
-
-What our numbers are not, stated plainly: all attacks above are fixed probes,
-so every rate is a lower bound — an attacker who searches (cf. Governance
-Decay: fixed 0% to optimized 65–100%) would do better, and we did not measure
-that ceiling. All behavioral runs are single acts around ~70 seconds; hour-long
-live sessions were simulated by ledger time-travel, not lived. Everything
-behavioral is one model (longcat-2.0) — Claude/GPT/Qwen on the same tasks is
-your territory, not ours. We measured the dispatcher in isolation, never the
-full hook-to-agent-reading loop, so your "shapes the next step" integration
-with Claude Code is unverified from our side. Parallel-act races, POSIX vs
-Windows paths, and the catalogue as a read surface are named but unmeasured
-(low ROI at our scale).
+Order checked on 3 acts (stated with the conclusion, not just here); the seven
+words have no deployed binding to test in combat; t3a is EXCLUDED from the
+pooled contrast (both agents bypassed the wrapped stand-ins with direct urllib
+calls, so the note never arrived in either arm — kept as a separate
+delivery-coverage finding: both hit your quota wall, which is precisely the
+behavior the trap wants, through an uninstrumented path); the blind repeat
+control is vacuous (0 candidates both times — `guard` has no binding, so it
+proves determinism on empty, with repeatability on non-empty sets coming from
+the ordering pairs instead); our behavioral replication on longcat-2.0 (44 runs
+advisory + 22 refusal-flavored) found no hit difference (0.600 vs 0.529 with
+approach 15/22 vs 17/22; 0.500 vs 0.667 with approach 4/11 vs 9/11) — stated as
+non-replication on a different stack, not refutation; the approach gap in the
+refusal arm has no cite evidence (tails show bypasses and tool-discovery
+stalls, never the note), so it is noise, not a mechanism; the benign battery is
+10 everyday acts; 17/68 runs timed out at the provider ceiling and are counted,
+not dropped. We read your 3f4dbfd timing correction (notes shape the next step,
+not the current one; refuse-once in testing, not in this release): it bounds
+our refusal-arm null to the current release, and we will re-run that arm when
+refuse-once ships if you want it measured from outside. What our numbers are
+not, stated plainly: all attacks above are fixed probes, so every rate is a
+lower bound — an attacker who searches (cf. Governance Decay, arXiv:2606.22528:
+optimized injections reach 65–100% per Table 4, verified against the paper)
+would do better, and we did not measure that ceiling. All behavioral runs are
+single acts around ~70 seconds; hour-long live sessions were simulated by
+ledger time-travel, not lived. Everything behavioral is one model
+(longcat-2.0) — Claude/GPT/Qwen on the same tasks is your territory, not ours.
+We measured the dispatcher in isolation, never the full hook-to-agent-reading
+loop, so your "shapes the next step" integration with Claude Code is
+unverified from our side. Parallel-act races, POSIX vs Windows paths, and the
+catalogue as a read surface are named but unmeasured (low ROI at our scale).
 
 Everything above is committed with the scripts that produced it wherever the
 code is ours; your files were read from a frozen mirror that verifies clean.
