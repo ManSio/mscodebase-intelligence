@@ -188,6 +188,16 @@ class SearchConfig:
         default_factory=lambda: int(os.getenv("MSCODEBASE_ONDEMAND_RERANK_TOP_N", "10"))
     )
 
+    # Dense-off (E28, Фаза 3): true → НЕ выполнять dense-тир (эмбеддинг запроса +
+    # векторный поиск в LanceDB). Кандидаты остаются из BM25/FTS5/graph.
+    # Off по умолчанию — поведение поиска неизменно без флага.
+    dense_off: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_DENSE_OFF", "false"
+        ).lower()
+        == "true"
+    )
+
 
 @dataclass
 class IndexConfig:
