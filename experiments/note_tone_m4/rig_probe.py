@@ -136,7 +136,7 @@ def rmtree_force(path: Path) -> None:
         raise RuntimeError(f"cannot remove {path}: {last}")
 
 
-def build_fixture(dest: Path) -> str:
+def build_fixture(dest: Path, plant: bool = True) -> str:
     if dest.exists():
         rmtree_force(dest)
         if dest.exists():
@@ -159,10 +159,20 @@ def build_fixture(dest: Path) -> str:
     git(dest, "add", "-A")
     git(dest, "commit", "-q", "-m", "fixture: initial state")
     baseline = git(dest, "rev-parse", "HEAD").strip()
-    # Plant the break: stage removal of the last caller.
+    if plant:
+        apply_plant(dest)
+    return baseline
+
+
+def apply_plant(dest: Path) -> None:
+    """Remove the last caller of orphan_helper and stage the removal.
+
+    Must run AFTER the graph index is built on the clean state: the isolation check
+    diffs the index against the base, so a plant applied before indexing is invisible
+    (measured: removed_last_caller=0 with the plant in place at bootstrap time).
+    """
     (dest / "pkg" / "caller.py").write_text(CALLER_STAGED, encoding="utf-8")
     git(dest, "add", "-A")
-    return baseline
 
 
 def run_agent(cwd: Path, title: str) -> tuple[int, str, str]:
