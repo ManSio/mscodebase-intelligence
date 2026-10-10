@@ -1,0 +1,4 @@
+{"t":1791410037626,"kind":"init","directory":"D:\\Project\\_m4runs\\full20","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\815ddb85\\gate_telemetry.jsonl"}
+{"t":1791410071246,"gate":"stale","mode":"off","act":"bash git commit -m \"chore(fixture): clear planted caller for orphan_helper\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791410071246,"gate":"isolation","mode":"off","act":"bash git commit -m \"chore(fixture): clear planted caller for orphan_helper\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791410330645,"kind":"init","directory":"D:\\Project\\_m4runs\\full20","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\815ddb85\\gate_telemetry.jsonl"}
