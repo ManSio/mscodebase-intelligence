@@ -139,8 +139,14 @@ Benign battery 0/10 deliveries; no ReDoS (10MB ctx in 0.4s); heredoc bodies are
 scanned; background `&` does not hide; corrupted ledger and broken crystal files
 fail open (returned/delivered and skipped-silently — noted here rather than
 under findings because for a fence that direction deserves its own discussion);
-no expired flags or tiers on the deployed set; ledger size does not degrade
-delivery (0.014s at 3 entries vs 0.059s at 20,002 — the prune holds).
+ledger size does not degrade delivery (0.014s at 3 entries vs 0.059s at 20,002
+— the prune holds). On your new staleness section: we verified the machinery
+(a crystal with past `stale_after` delivers an "EXPIRED CLAIM WAS WITHHELD"
+stub 1/1; future-dated and undated deliver full text), then inventoried the
+shipped set — **0 of 24 entries carry any `stale_after`** (21 catalogue entries
+have no dates at all, the 3 starters were verified 2026-09-03 with no expiry).
+The mechanism works; there is nothing for it to operate on. No tiers on the
+deployed set either, so tier-scoped ordering currently has no instances.
 
 ## Our errors along the way (all corrected in the reports)
 
