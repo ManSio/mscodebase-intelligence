@@ -1,0 +1,166 @@
+{
+ "fast": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "ms": 2551.719499984756,
+   "h1": 0,
+   "h5": 5,
+   "top": "docs/ru/FAQ.md"
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "ms": 299.80959999375045,
+   "h1": 0,
+   "h5": 0,
+   "top": "scripts/monitor.py"
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "ms": 310.84590003592893,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/graph.py"
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "ms": 264.00919997831807,
+   "h1": 0,
+   "h5": 5,
+   "top": "docs/ISSUES/review_deep_2026-08-04.md"
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "ms": 268.36919999914244,
+   "h1": 0,
+   "h5": 2,
+   "top": "scripts/monitor.py"
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "ms": 266.37620001565665,
+   "h1": 0,
+   "h5": 3,
+   "top": "src/core/embedder/onnx_server.py"
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "ms": 384.97289997758344,
+   "h1": 0,
+   "h5": 2,
+   "top": "src/core/multi_project_searcher.py"
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "ms": 268.4764000005089,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/rate_limiter.py"
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "ms": 264.05170001089573,
+   "h1": 0,
+   "h5": 0,
+   "top": "docs/ISSUES/review_deep_2026-08-04.md"
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "ms": 259.12309996783733,
+   "h1": 0,
+   "h5": 2,
+   "top": "requirements.txt"
+  }
+ ],
+ "quality": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "ms": 4862.485799996648,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/indexing/freshness.py"
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "ms": 623.7730999710038,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/indexing/indexer_table.py"
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "ms": 1958.1866000080481,
+   "h1": 0,
+   "h5": 0,
+   "top": "experiments/root_cause_eval/incident_dataset.json"
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "ms": 438.8113999739289,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/search/bm25.py"
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "ms": 1909.6979000023566,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/intelligence/verify_on_read.py"
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "ms": 396.88349998323247,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/embedder/onnx_server.py"
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "ms": 1441.143300035037,
+   "h1": 0,
+   "h5": 2,
+   "top": "src/core/multi_project_searcher.py"
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "ms": 337.2541000135243,
+   "h1": 0,
+   "h5": 0,
+   "top": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "ms": 2459.6051999833435,
+   "h1": 0,
+   "h5": 0,
+   "top": "experiments/1V_memory_contamination/memory_contamination_facts_v3_generated.json"
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "ms": 431.68700003298,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/search/bm25.py"
+  }
+ ]
+}

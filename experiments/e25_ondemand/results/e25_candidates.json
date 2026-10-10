@@ -1,0 +1,490 @@
+{
+ "top": 10,
+ "queries": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "recall_rank": 1,
+   "ms": 18344.515400007367,
+   "candidates": [
+    {
+     "file": "src/core/indexing/freshness.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.freshness\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\freshness.py | Context: FreshnessChecker\n// [Part 1]\ndef verify(self, project_path: Path, force: bool = False) -> int:\r\n        \"\"\"Инкрементальная сверка: stat-first → hash-confirm → hot-reload.\r\n\r\n        Returns:\r\n            Число переиндексированных файлов (0 при свежем индексе/debounce).\r\n        \"\"\"\r\n        project_path = Path(project_path).resolve()\r\n        if not project_path.exists() or self.table is None:\r\n            return 0\r\n\r\n        now = time.monotonic()\r\n        if not force and now - self._last_check < self._interval_sec:\r\n    \n...",
+     "score": 0.029206349206349208
+    },
+    {
+     "file": "src/mcp/tools/search_tools.py",
+     "text": "// Scope: function | function_definition | mcp.tools.search_tools\n// File: D:\\Project\\MSCodeBase\\src\\mcp\\tools\\search_tools.py | Context: SearchCodeTool\nasync def _maybe_hot_reload(self) -> None:\r\n        \"\"\"KI-109: фоновая сверка актуальности индекса — ВНЕ критического пути.\r\n\r\n        Раньше hot-reload ожидался синхронно ВНУТРИ search_code: при пачке\r\n",
+     "score": 0.029827662395050816
+    },
+    {
+     "file": "src/mcp/tools/search_tools.py",
+     "text": "// Scope: function | function_definition | mcp.tools.search_tools\n// File: D:\\Project\\MSCodeBase\\src\\mcp\\tools\\search_tools.py | Context: SearchCodeTool\nasync def _run_hot_reload_bg(self, indexer: Any, project_path: Any) -> None:\r\n        \"\"\"Фоновый hot-reload (KI-109): не блокирует search_code.\"\"\"\r\n        try:\r\n            n = await asyncio.to_thread(indexer.verify_index_freshness, project_path)\r\n",
+     "score": 0.01639344262295082
+    }
+   ]
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "recall_rank": 8,
+   "ms": 546.5115000260994,
+   "candidates": [
+    {
+     "file": "src/core/indexing/index_guard.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.index_guard\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\index_guard.py | Context: IndexGuard\n// [Part 1]\ndef _migrate_table(\r\n        self,\r\n        db: \"lancedb.DBConnection\",\r\n        table: \"lancedb.Table\",\r\n        existing_fields: Dict[str, pa.DataType],\r\n    ) -> bool:\r\n        \"\"\"Миграция таблицы к актуальной схеме.\r\n\r\n        Returns:\r\n            True если миграция успешна, False если нужен drop+recreate\r\n        \"\"\"\r\n        try:\r\n            # Читаем существующие данные\r\n            old_df = table.to_pandas()\r\n            if len(old_df) == 0:\r\n                # Пустая таблица — просто пе\n...",
+     "score": 0.02668564312399929
+    },
+    {
+     "file": "src/core/indexing/indexer_table.py",
+     "text": "// Scope: function | function_definition | core.indexing.indexer_table\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\indexer_table.py | Context: IndexerTableMixin\ndef _escape_file_path_for_lance(self, file_path: str) -> str:\r\n        \"\"\"Экранирует file_path для безопасного использования в where/delete запросах LanceDB.\r\n        LanceDB не поддерживает параметризованные запросы, поэтому экранируем вручную.\r\n        \"\"\"\r\n",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/core/indexing/startup_diagnostics.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.startup_diagnostics\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\startup_diagnostics.py\n// [Part 1]\ndef inspect_db(db_path: Path, table_name: str = DEFAULT_TABLE_NAME) -> DbStatus:\r\n    \"\"\"Читает директорию БД и таблицу read-only (без изменений).\r\n\r\n    Последовательность: директория → connect → open_table → count_rows.\r\n    Любая ошибка LanceDB трактуется как corrupt (человеческий текст вместо\r\n    Rust-трейса). Директорию НЕ создаёт.\r\n    \"\"\"\r\n    db_path = Path(db_path)\r\n    if not db_path.exists() or not db_path.is_dir():\r\n        return DbStatus(\r\n            state=\"missing\",\r\n           \n...",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "src/core/artifact_paths.py",
+     "text": "// Scope: function | function_definition | core.artifact_paths\n// File: D:\\Project\\MSCodeBase\\src\\core\\artifact_paths.py\ndef get_db_path(project_path: Path) -> Path:\r\n    \"\"\"Путь к LanceDB-базе проекта (эквивалент исторического _generate_unique_db_path).\"\"\"\r\n    project_name = os.path.basename(project_path).lower()\r\n    return get_index_dir(project_path) / f\"index_{project_name}_{project_hash(project_path)}.db\"",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/indexing/db_writer.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.db_writer\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\db_writer.py | Context: LanceDBWriter\n// [Part 1]\ndef write_records(\r\n        self,\r\n        parsed: Dict[str, Any],\r\n        embeddings: List[List[float]],\r\n        summarizer=None,\r\n        enable_summaries: bool = False,\r\n        parser=None,\r\n    ) -> list:\r\n        \"\"\"Собирает data_records и пишет в LanceDB. Возвращает records.\"\"\"\r\n        # POSIX path is the single canonical form (see indexer._parse_file_only).\r\n        from src.core.relpath import normalize_rel_path\r\n\r\n        rel_path_str = normalize_rel_path(parsed[\"rel_path\"])\r\n      \n...",
+     "score": 0.015625
+    },
+    {
+     "file": "src/core/bootstrap_entities.py",
+     "text": "// Scope: function | function_definition | core.bootstrap_entities\n// File: D:\\Project\\MSCodeBase\\src\\core\\bootstrap_entities.py\ndef _is_dataclass_decorator(node: ast.expr) -> bool:\r\n    \"\"\"Декоратор — dataclass в формах Name (@dataclass), Call (@dataclass(k=...)),\r\n    Attribute (@dataclasses.dataclass / dataclasses.dataclass(k=...)).\"\"\"\r\n    target = node.func if isinstance(node, ast.Call) else node\r\n",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "scripts/monitor.py",
+     "text": "// Scope: function | function_definition | monitor\n// File: D:\\Project\\MSCodeBase\\scripts\\monitor.py\ndef parse_db_write(line):\r\n    r\"\"\"Записано в БД: src\\core\\foo.py (12 чанков)\"\"\"\r\n    m = re.search(r'Записано в БД:.*\\((\\d+)\\s+чанков\\)', line)\r\n    return int(m.group(1)) if m else None",
+     "score": 0.015151515151515152
+    },
+    {
+     "file": "src/core/indexing/db_manager.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.db_manager\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\db_manager.py | Context: LanceDBManager\n// [Part 1]\ndef _open_or_create_table(self, schema: pa.Schema):\r\n        \"\"\"Открывает существующую таблицу или создаёт новую.\r\n\r\n        Содержит миграции (text_full, metadata columns) и авто-детект\r\n        смены размерности эмбеддинга.\r\n        \"\"\"\r\n        try:\r\n            table = self.db.open_table(self.table_name)\r\n            existing_fields = [f.name for f in table.schema]\r\n\r\n            if \"text_full\" not in existing_fields:\r\n                logger.warning(\"Migration: adding text_full\")\r\n          \n...",
+     "score": 0.014925373134328358
+    },
+    {
+     "file": "src/core/indexing/db_manager.py",
+     "text": "// Scope: function | function_definition | core.indexing.db_manager\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\db_manager.py | Context: LanceDBManager\nasync def to_pandas_async(self):\r\n        \"\"\"Асинхронное чтение всей таблицы в pandas.\"\"\"\r\n        tbl = await self.ensure_async_table()\r\n        return await tbl.to_pandas()",
+     "score": 0.014705882352941176
+    },
+    {
+     "file": "src/core/multi_project_searcher.py",
+     "text": "// Scope: function | function_definition | core.multi_project_searcher\n// File: D:\\Project\\MSCodeBase\\src\\core\\multi_project_searcher.py | Context: MultiProjectSearcher\ndef _get_project_table(self, project_path: Path):\n        \"\"\"Получает таблицу LanceDB для проекта (с кэшированием).\"\"\"\n        db_path = _generate_unique_db_path(project_path)\n        path_key = str(db_path)\n",
+     "score": 0.014492753623188406
+    }
+   ]
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "recall_rank": 0,
+   "ms": 4587.427599995863,
+   "candidates": [
+    {
+     "file": "src/core/project_resolution.py",
+     "text": "// Scope: function_part | giant_function_part | core.project_resolution\n// File: D:\\Project\\MSCodeBase\\src\\core\\project_resolution.py\n// [Part 1]\ndef _check_sqlite_schema_health(conn) -> Optional[str]:\r\n    \"\"\"Проверяет, что таблицы scoped_kv_store и workspaces существуют\r\n    и содержат ключевые колонки.\r\n\r\n    Принимает уже открытое соединение — не вызывает _get_sqlite_connection()\r\n    рекурсивно. Вызывается один раз при старте.\r\n    \"\"\"\r\n    if conn is None:\r\n        return \"Zed SQLite DB недоступна — workspace-резолвинг будет degraded\"\r\n    try:\r\n        cur = conn.cursor()\r\n\r\n        # Проверяем таблицы\r\n        cur.execute(\r\n      \n...",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/indexing/index_guard.py",
+     "text": "// Scope: function | function_definition | core.indexing.index_guard\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\index_guard.py | Context: IndexGuard\ndef _validate_schema(\r\n        self, existing_fields: Dict[str, pa.DataType]\r\n    ) -> Tuple[bool, list]:\r\n        \"\"\"Проверяет соответствие схемы ожидаемой.\"\"\"\r\n",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "src/core/intelligence/health.py",
+     "text": "// Scope: function_part | giant_function_part | core.intelligence.health\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\health.py | Context: HealthReport\n// [Part 1]\ndef _check_zed_sqlite_schema(self):\r\n        \"\"\"Проверка схемы Zed SQLite DB (scoped_kv_store — недокументированный API).\"\"\"\r\n        try:\r\n            import sqlite3\r\n\r\n            from src.core.platform_utils import get_zed_db_path\r\n\r\n            def _check_schema(conn) -> str | None:\r\n                \"\"\"Проверяет наличие scoped_kv_store и workspaces.\"\"\"\r\n                if conn is None:\r\n                    return \"Zed SQLite DB недоступна\"\r\n                try:\r\n                    cur = con\n...",
+     "score": 0.014705882352941176
+    },
+    {
+     "file": "src/core/indexing/index_guard.py",
+     "text": "// Scope: function | function_definition | core.indexing.index_guard\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\index_guard.py | Context: IndexGuard\ndef _is_schema_complete(self, existing_fields: Dict[str, pa.DataType]) -> bool:\r\n        \"\"\"Проверяет полноту схемы (все ожидаемые поля).\"\"\"\r\n        full_fields = {\r\n            \"id\",\r\n",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "experiments/prompt_robustness/frozen/dataset.json",
+     "text": "// Scope: fallback | dataset.json\n а другая единица — факт эквивалентен.\",\r\n      \"prompts\": {\r\n        \"ru\": {\r\n          \"base\": \"При какой температуре вода кипит при нормальном атмосферном давлении?\",\r\n          \"paraphrases\": [\r\n            \"При какой температуре кипит вода при стандартном атмосферном давлении?\",\r\n            \"Какая температура кипения воды при давлении в одну атмосферу?\",\r\n            \"Укажите температуру кипения воды при нормальном давлении.\"\r\n          ]\r\n        },\r\n        \"en\": {\r\n          \"base\": \"At what temperature does water boil at normal atmospheric pressure?\",\r\n          \"paraphrases\": [\r\n            \"At what temperature does water boil at standard atmospheric pressure?\",\r\n            \"What is the boiling point of water at one atmosphere of pressure?\",\r\n            \"State the boiling temperature of water at normal pressure.\"\r\n          ]\r\n        }\r\n      },\r\n      \"oracle_answer\": \"Вода кипит при температуре 100 градусов Цельсия.\"\r\n    },\r\n    {\r\n      \"id\": \"q_python_author\",\r\n     ",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/search/cypher_schema.py",
+     "text": "// Scope: function | function_definition | core.search.cypher_schema\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\cypher_schema.py\ndef _check_match_clause(mc: MatchClause) -> Optional[str]:\r\n    \"\"\"Проверяет паттерны обязательного MATCH (метки, свойства, rel types).\"\"\"\r\n    for path in mc.paths:\r\n        for node in (path.left, path.right):\r\n",
+     "score": 0.014925373134328358
+    },
+    {
+     "file": "src/core/graph.py",
+     "text": "// Scope: function | function_definition | core.graph\n// File: D:\\Project\\MSCodeBase\\src\\core\\graph.py | Context: PropertyGraph\ndef _init_schema(self):\r\n        \"\"\"Инициализация схемы БД.\"\"\"\r\n        conn = self._conn\r\n        conn.executescript(\"\"\"\r\n",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/core/search/cypher_schema.py",
+     "text": "// Scope: function | function_definition | core.search.cypher_schema\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\cypher_schema.py\ndef _iter_where_labels(expr, found: List[str]) -> None:\r\n    \"\"\"Собирает label-имена из label-тестов в WHERE (n:Label).\"\"\"\r\n    if isinstance(expr, _LabelTest):\r\n        found.append(expr.label)\r\n",
+     "score": 0.014492753623188406
+    },
+    {
+     "file": "src/core/intelligence/health.py",
+     "text": "// Scope: function | function_definition | core.intelligence.health\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\health.py | Context: HealthReport\ndef _check_schema(conn) -> str | None:\r\n                \"\"\"Проверяет наличие scoped_kv_store и workspaces.\"\"\"\r\n                if conn is None:\r\n                    return \"Zed SQLite DB недоступна\"\r\n",
+     "score": 0.015625
+    },
+    {
+     "file": "src/core/search/cypher_schema.py",
+     "text": "// Scope: function | function_definition | core.search.cypher_schema\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\cypher_schema.py\ndef _check_node_pattern(node: NodePattern) -> Optional[str]:\r\n    \"\"\"Проверяет метки и свойства одного узла паттерна.\"\"\"\r\n    for label in node.labels:\r\n        if label.upper() not in _KNOWN_LABELS_UPPER:\r\n",
+     "score": 0.015151515151515152
+    }
+   ]
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "recall_rank": 2,
+   "ms": 389.8693000082858,
+   "candidates": [
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\n// [Part 1]\ndef _build_bm25_index(self) -> None:\n        \"\"\"Ленивая инициализация BM25 индекса из текущей таблицы LanceDB.\n\n        Потокобезопасна: использует _bm25_lock для предотвращения конкурентного\n        построения индекса из нескольких потоков.\n        Если таблица повреждена или пуста — BM25 остаётся пустым (degraded mode),\n        поиск продолжит работу только через векторный поиск.\n        \"\"\"\n        if self._bm25 is not None:\n            return\n\n        with self._bm25_lock:\n            # Doub\n...",
+     "score": 0.02919863597612958
+    },
+    {
+     "file": "src/core/search/engine.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.engine\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\engine.py | Context: Searcher\n// [Part 1]\ndef vector_search(\r\n        self,\r\n        query_vector: List[float],\r\n        limit: int = 5,\r\n        filter_expr: str = \"\",\r\n    ) -> List[dict]:\r\n        \"\"\"Прямой векторный поиск через таблицу LanceDB.\r\n\r\n        Args:\r\n            filter_expr: SQL-выражение для фильтрации (например, \"layer = 'core'\")\r\n        \"\"\"\r\n        if self.indexer.table is None:\r\n            return []\r\n        try:\r\n            # Проверяем доступность таблицы лёгким count_rows\r\n            try:\r\n                if s\n...",
+     "score": 0.028484848484848488
+    },
+    {
+     "file": "src/core/search/engine.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.engine\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\engine.py | Context: Searcher\n// [Part 1]\nasync def ask_async(self, query: str, limit: int = 5) -> str:\r\n        \"\"\"mode=ask: поиск + генерация ответа через phi-4.\r\n\r\n        Args:\r\n            query: Поисковый запрос\r\n            limit: Максимум чанков для контекста\r\n\r\n        Returns:\r\n            Ответ phi-4 с цитатами или fallback на обычный поиск.\r\n        \"\"\"\r\n        try:\r\n            # Шаг 1: ищем релевантные чанки\r\n            results = await self.hybrid_search_async(\r\n                query, limit=limit, intent_hint=\"auto\"\r\n   \n...",
+     "score": 0.026875901875901876
+    },
+    {
+     "file": "experiments/embed_real_path_vs_raw/exp_ram_load.py",
+     "text": "// Scope: lines | fallback_lines | d:.project.mscodebase.experiments.embed_real_path_vs_raw.exp_ram_load.py\n// File: D:\\Project\\MSCodeBase\\experiments\\embed_real_path_vs_raw\\exp_ram_load.py\n\"\"\"E13-нагрузчик: имитация index_project Phase 2 (реальный путь):\nсортировка чанков по длине + batch=32 последовательно, как index_project_runner.\nГоняет 2000 реальных чанков из Локальнонi БД MSCodeBase. RAM снимает отдельный семплер.\n\"\"\"\nimport sys, time\nsys.stdout.reconfigure(encoding='utf-8')\nimport httpx, lancedb\n\nDB = r\"<user>AppData\\Local\\mscodebase\\projects\\bfe9644b\\lancedb_v2\\index_mscodebase_bfe9644b.db\"\nEMB = \"http://127.0.0.1:8080/v1/embeddings\"\nBATCH = 32\n\ndb = lancedb.connect(DB)\ndf\n...",
+     "score": 0.025793650793650792
+    },
+    {
+     "file": "src/core/indexing/indexer_table.py",
+     "text": "// Scope: function | function_definition | core.indexing.indexer_table\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\indexer_table.py | Context: IndexerTableMixin\ndef _escape_file_path_for_lance(self, file_path: str) -> str:\r\n        \"\"\"Экранирует file_path для безопасного использования в where/delete запросах LanceDB.\r\n        LanceDB не поддерживает параметризованные запросы, поэтому экранируем вручную.\r\n        \"\"\"\r\n",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "scripts/monitor.py",
+     "text": "// Scope: function | function_definition | monitor\n// File: D:\\Project\\MSCodeBase\\scripts\\monitor.py\ndef parse_db_write(line):\r\n    r\"\"\"Записано в БД: src\\core\\foo.py (12 чанков)\"\"\"\r\n    m = re.search(r'Записано в БД:.*\\((\\d+)\\s+чанков\\)', line)\r\n    return int(m.group(1)) if m else None",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "scripts/smoke_e2e.py",
+     "text": "// Scope: function | function_definition | smoke_e2e\n// File: D:\\Project\\MSCodeBase\\scripts\\smoke_e2e.py\ndef check_search(project: Path) -> tuple[bool, str]:\r\n    \"\"\"Реальный векторный поиск по реальному индексу проекта (без моков).\r\n\r\n    Открываем LanceDB напрямую (lancedb.connect) — чтение не требует нашего\r\n",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/artifact_paths.py",
+     "text": "// Scope: function | function_definition | core.artifact_paths\n// File: D:\\Project\\MSCodeBase\\src\\core\\artifact_paths.py\ndef get_db_path(project_path: Path) -> Path:\r\n    \"\"\"Путь к LanceDB-базе проекта (эквивалент исторического _generate_unique_db_path).\"\"\"\r\n    project_name = os.path.basename(project_path).lower()\r\n    return get_index_dir(project_path) / f\"index_{project_name}_{project_hash(project_path)}.db\"",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/indexing/db_writer.py",
+     "text": "// Scope: function_part | giant_function_part | core.indexing.db_writer\n// File: D:\\Project\\MSCodeBase\\src\\core\\indexing\\db_writer.py | Context: LanceDBWriter\n// [Part 1]\ndef write_records(\r\n        self,\r\n        parsed: Dict[str, Any],\r\n        embeddings: List[List[float]],\r\n        summarizer=None,\r\n        enable_summaries: bool = False,\r\n        parser=None,\r\n    ) -> list:\r\n        \"\"\"Собирает data_records и пишет в LanceDB. Возвращает records.\"\"\"\r\n        # POSIX path is the single canonical form (see indexer._parse_file_only).\r\n        from src.core.relpath import normalize_rel_path\r\n\r\n        rel_path_str = normalize_rel_path(parsed[\"rel_path\"])\r\n      \n...",
+     "score": 0.015625
+    },
+    {
+     "file": "src/core/error_handler.py",
+     "text": "// Scope: function_part | giant_function_part | core.error_handler\n// File: D:\\Project\\MSCodeBase\\src\\core\\error_handler.py\n// [Part 3]\n@functools.wraps(func)\r\n        def sync_wrapper(*args, **kwargs) -> str:\r\n            \"\"\"Синхронная обертка через ThreadPoolExecutor.\"\"\"\r\n            start_time = time.perf_counter()\r\n            try:\r\n                if timeout_ms:\r\n                    # Для синхронных функций используем ThreadPoolExecutor + timeout.\r\n                    # Py3.14: asyncio.get_event_loop() без текущего цикла бросает\r\n                    # RuntimeError (неявное создание цикла убрано) — get_running_loop()\r\n      \n...",
+     "score": 0.015384615384615385
+    }
+   ]
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "recall_rank": 1,
+   "ms": 3682.755299960263,
+   "candidates": [
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py | Context: VerifyOnRead\ndef _classify(self, anchors: List[Anchor], fp: _Fingerprint) -> Tuple[str, Optional[str]]:\r\n        \"\"\"Вердикт: FOUND / NOT_FOUND(+проваленный якорь) / INCONCLUSIVE.\"\"\"\r\n        if not anchors:\r\n            return VERDICT_INCONCLUSIVE, None\r\n",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py | Context: Anchor\ndef to_dict(self) -> Dict[str, str]:\r\n        return {\"kind\": self.kind, \"value\": self.value}",
+     "score": 0.014705882352941176
+    },
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py | Context: Anchor\ndef __init__(self, kind: str, value: str):\r\n        self.kind = kind  # \"file\" | \"import\" | \"env\" | \"pkg\"\r\n        self.value = value",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py\ndef _norm_pkg(name: str) -> str:\r\n    \"\"\"PEP 503 нормализация имени пакета: lowercase, `-_.` -> `-`, срез extras.\"\"\"\r\n    name = name.split(\"[\", 1)[0].strip()\r\n    return re.sub(r\"[-_.]+\", \"-\", name.lower())",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py | Context: VerifyOnRead\ndef _resolve_head_impl(self) -> str:\r\n        \"\"\"git rev-parse HEAD (Popen+communicate, timeout); fallback — mtime src.\"\"\"\r\n        try:\r\n            proc = subprocess.Popen(\r\n",
+     "score": 0.015151515151515152
+    },
+    {
+     "file": "src/core/intelligence/verify_on_read.py",
+     "text": "// Scope: function | function_definition | core.intelligence.verify_on_read\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\verify_on_read.py\ndef _is_git_worktree(root: Path) -> bool:\r\n    \"\"\"A subdir of a git worktree may have no own .git file; check nearest root.\"\"\"\r\n    try:\r\n        proc = subprocess.Popen(\r\n",
+     "score": 0.014925373134328358
+    },
+    {
+     "file": "src/core/intelligence/tools_reg.py",
+     "text": "// Scope: function_part | giant_function_part | core.intelligence.tools_reg\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\tools_reg.py\n// [Part 12]\nreturn await intel_layer.intel_supersede_memory_node(node_id, reason, new_node_id)\r\n\r\n    @mcp_app.tool(\"intel_auto_collect_adrs\")\r\n    def auto_collect_adrs(max_commits: int = 50) -> str:\r\n        \"\"\"Автоматический сбор ADR из git-лога.\r\n\r\n        Сканирует последние N коммитов, находит архитектурные решения\r\n        (feat/refactor/arch/adr) и сохраняет их в проектную память.\r\n\r\n        Args:\r\n            max_commits: Сколько последних коммитов проверить (по умолч. 50)\r\n\r\n        Returns:\r\n    \n...",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "src/core/intelligence/layer.py",
+     "text": "// Scope: function_part | giant_function_part | core.intelligence.layer\n// File: D:\\Project\\MSCodeBase\\src\\core\\intelligence\\layer.py | Context: ProjectIntelligenceLayer\n// [Part 1]\ndef intel_auto_collect_adrs(self, max_commits: int = 50) -> str:\r\n        \"\"\"Автоматический сбор ADR из git-лога. (без subprocess, чтение .git/logs/HEAD)\"\"\"\r\n        import re as _re\r\n        import zlib\r\n        from pathlib import Path as _P\r\n\r\n        git_dir = _P(self.project_path) / '.git'\r\n        reflog_path = git_dir / 'logs' / 'HEAD'\r\n        if not reflog_path.exists():\r\n            return \"Git-репозиторий не найден. ADR-коллектор требует git.\"\r\n\r\n        # Читаем .git/logs/HEAD (без s\n...",
+     "score": 0.015625
+    },
+    {
+     "file": "experiments/1V_memory_contamination/memory_contamination_verify.py",
+     "text": "// Scope: function | function_definition | d:.project.mscodebase.experiments.1v_memory_contamination.memory_contamination_verify.py\n// File: D:\\Project\\MSCodeBase\\experiments\\1V_memory_contamination\\memory_contamination_verify.py\ndef _read_env_keys(root: Path) -> set:\r\n    \"\"\"Ключи .env/.env.example — для нормализации env-паттернов (write-path).\"\"\"\r\n    keys: set = set()\r\n    for name in (\".env\", \".env.example\"):\r\n",
+     "score": 0.014492753623188406
+    },
+    {
+     "file": "src/core/doc_llm_verifier.py",
+     "text": "// Scope: function | function_definition | core.doc_llm_verifier\n// File: D:\\Project\\MSCodeBase\\src\\core\\doc_llm_verifier.py | Context: DocLLMVerifier\ndef _verify_structural(self, sections: List[DocSection]) -> List[LLMDiscrepancy]:\r\n        \"\"\"Структурная проверка (без LLM).\"\"\"\r\n        discrepancies: List[LLMDiscrepancy] = []\r\n\r\n",
+     "score": 0.014285714285714285
+    }
+   ]
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "recall_rank": 3,
+   "ms": 334.9235000205226,
+   "candidates": [
+    {
+     "file": "experiments/root_cause_eval/incident_dataset_full.json",
+     "text": "// Scope: fallback | incident_dataset_full.json\nicrosoft удалила виртуальные\\nAPI Set DLL (api-ms-win-crt-*). Все MSVC-сборки llama.cpp (включая Vulkan\\nClang build, где llama-server-impl.dll всё равно MSVC) падали с\\nSTATUS_DLL_NOT_FOUND. Vulkan-сборка не работала на CPU-only (require GPU).\",\r\n    \"root_cause\": \"**\\n\\n- `llama-server-impl.dll` + 5 других DLL импортируют api-ms-win-crt-*.dll\\n  (виртуальные API Set, которых нет на Insider)\\n- Скопировать .dll файлы бесполезно — загрузчик Windows игнорирует файлы\\n  с именами API Set (это виртуальные DLL, обрабатываемые apisetschema.dll)\\n- Функции из CRT API Set есть в ucrtbase.dll (загружается нормально)\",\r\n    \"fix\": \"Insider CRT API Set — патч PE-импортов api-ms-win-crt → ucrtbase\"\r\n  },\r\n  {\r\n    \"title\": \"2026-07-10 23:40\",\r\n    \"symptom\": \"**\\nДаже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал\\nс STATUS_DLL_NOT_FOUND. MSVC-сборка требует CRT API Set, которых нет на Insider.\",\r\n    \"root_cause\": \"**\\nНа Windows Insider (build >= 26000) Microsoft удалила некот",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/core/embedder/onnx_client.py",
+     "text": "// Scope: function | function_definition | core.embedder.onnx_client\n// File: D:\\Project\\MSCodeBase\\src\\core\\embedder\\onnx_client.py | Context: OnnxEmbedderClient\ndef embed_batch(self, texts: List[str]) -> List[List[float]]:\r\n        \"\"\"Эмбеддинг батча текстов.\"\"\"\r\n        if not self.ensure_server_running():\r\n            raise RuntimeError(\"ONNX server not available\")\r\n",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/providers/embedder/remote_embedder.py",
+     "text": "// Scope: function | function_definition | providers.embedder.remote_embedder\n// File: D:\\Project\\MSCodeBase\\src\\providers\\embedder\\remote_embedder.py | Context: RemoteEmbedder\ndef _call_llama_cpp_api(self, texts):\r\n        \"\"\"Временный эмбеддинг через llama.cpp (для shadow canary).\"\"\"\r\n        # Truncate inputs to 512 tokens for llama.cpp\r\n        texts = self._truncate_for_llama(texts)\r\n",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "experiments/root_cause_eval/incident_dataset.json",
+     "text": "// Scope: fallback | incident_dataset.json\nuild, где llama-server-impl.dll всё равно MSVC) падали с\\nSTATUS_DLL_NOT_FOUND. Vulkan-сборка не работала на CPU-only (require GPU).\",\r\n    \"root_cause\": \"**\\n\\n- `llama-server-impl.dll` + 5 других DLL импортируют api-ms-win-crt-*.dll\\n  (виртуальные API Set, которых нет на Insider)\\n- Скопировать .dll файлы бесполезно — загрузчик Windows игнорирует файлы\\n  с именами API Set (это виртуальные DLL, обрабатываемые apisetschema.dll)\\n- Функции из CRT API Set есть в ucrtbase.dll (загружается нормально)\",\r\n    \"fix\": \"Insider CRT API Set — патч PE-импортов api-ms-win-crt → ucrtbase\",\r\n    \"files\": \"** src/core/llama_runner.py (_patch_dll_imports, download_llama_binary),\\nscripts/patch_dll_imports.py (standalone tool), install.py\"\r\n  },\r\n  {\r\n    \"title\": \"2026-07-10 23:40\",\r\n    \"symptom\": \"**\\nДаже после фикса downlevel/ CRT DLL, llama-server.exe всё равно падал\\nс STATUS_DLL_NOT_FOUND. MSVC-сборка требует CRT API Set, которых нет на Insider.\",\r\n    \"root_cause\": \"**\\nНа Windows Insider (b",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/providers/embedder/remote_embedder.py",
+     "text": "// Scope: function | function_definition | providers.embedder.remote_embedder\n// File: D:\\Project\\MSCodeBase\\src\\providers\\embedder\\remote_embedder.py | Context: RemoteEmbedder\ndef _call_ollama_api(self, texts):\r\n        \"\"\"Временный эмбеддинг через Ollama (для shadow canary).\"\"\"\r\n        config = get_config()\r\n        try:\r\n",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/embedder/onnx_server.py",
+     "text": "// Scope: function_part | giant_function_part | core.embedder.onnx_server\n// File: D:\\Project\\MSCodeBase\\src\\core\\embedder\\onnx_server.py | Context: OnnxHandler\n// [Part 1]\ndef _embed_batch(self, texts: List[str]) -> List[List[float]]:\r\n        \"\"\"Батч эмбеддинг.\"\"\"\r\n        session = self.server.session\r\n        tokenizer = self.server.tokenizer\r\n        input_names = self.server.input_names\r\n        max_length = self.server.max_length\r\n\r\n        # Токенизация батча через tokenizers\r\n        encodings = tokenizer.encode_batch(texts, add_special_tokens=True)\r\n\r\n        batch_ids = []\r\n        batch_masks = []\r\n        for enc in encodings:\r\n            ids = enc.id\n...",
+     "score": 0.015625
+    },
+    {
+     "file": "src/providers/embedder/remote_embedder.py",
+     "text": "// Scope: function | function_definition | providers.embedder.remote_embedder\n// File: D:\\Project\\MSCodeBase\\src\\providers\\embedder\\remote_embedder.py | Context: RemoteEmbedder\ndef _call_lm_studio_api(self, texts):\r\n        \"\"\"Временный эмбеддинг через LM Studio (для shadow canary).\"\"\"\r\n        try:\r\n            r = self._sync_client.post(\r\n",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "src/config/settings.py",
+     "text": "// Scope: function | function_definition | config.settings\n// File: D:\\Project\\MSCodeBase\\src\\config\\settings.py\ndef _is_llama_server_running() -> bool:\r\n    \"\"\"Check if llama-server is already running on the default port.\"\"\"\r\n    try:\r\n        import socket as _socket\r\n",
+     "score": 0.015151515151515152
+    },
+    {
+     "file": "experiments/root_cause_eval/incident_dataset.json",
+     "text": "// Scope: fallback | incident_dataset.json\nbuild >= 26000). На Insider отсутствуют CRT API Set DLL.\\n2. `llama-server.exe` (stub 9 KB) падал с `STATUS_DLL_NOT_FOUND` (0xC0000135) при попытке загрузить `api-ms-win-crt-*`.\\n3. В ZIP-архиве llama.cpp есть папка `downlevel/` с заглушками CRT, но `download_llama_binary()` не извлекала их.\\n4. Popen без `cwd` — Windows не гарантировала загрузку DLL из папки EX\",\r\n    \"fix\": \"llama.cpp не стартует на Windows Insider (STATUS_DLL_NOT_FOUND)\",\r\n    \"files\": \"** src/core/llama_runner.py\"\r\n  },\r\n  {\r\n    \"title\": \"2026-07-10 16:20\",\r\n    \"symptom\": \"** При индексации через Qwen3 llama-server растёт на 25-40 MB/сек\\nдо 5.5+ GB. Причина: бесконтрольный рост KV-кэша без дефрагментации.\",\r\n    \"root_cause\": \"бесконтрольный рост KV-кэша без дефрагментации.\",\r\n    \"fix\": \"llama-server RAM leak during indexing + full doc update\",\r\n    \"files\": \"** `src/core/llama_runner.py`, `src/core/remote_embedder.py`\"\r\n  },\r\n  {\r\n    \"title\": \"2026-07-10 08:20\",\r\n    \"symptom\": \"** `embed_batch` всегда возвра",
+     "score": 0.014925373134328358
+    },
+    {
+     "file": "src/core/embedder/onnx_server.py",
+     "text": "// Scope: function | function_definition | core.embedder.onnx_server\n// File: D:\\Project\\MSCodeBase\\src\\core\\embedder\\onnx_server.py\ndef run_server(port: int, model_name: str):\r\n    \"\"\"Запуск HTTP сервера.\"\"\"\r\n    # Загружаем модель при старте\r\n    session, tokenizer, input_names = load_model(model_name)\r\n",
+     "score": 0.014925373134328358
+    }
+   ]
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "recall_rank": 0,
+   "ms": 3071.8974000192247,
+   "candidates": [
+    {
+     "file": "src/core/di_container.py",
+     "text": "// Scope: function_part | giant_function_part | core.di_container\n// File: D:\\Project\\MSCodeBase\\src\\core\\di_container.py\n// [Part 1]\ndef _create_indexer_for_path(\r\n        p: Path,\r\n        _embedder=embedder,\r\n        _code_parser=code_parser,\r\n        _registry=registry,\r\n        _notification_broker=notification_broker,\r\n    ) -> Indexer:\r\n        \"\"\"Фабрика для создания per-project Indexer.\r\n\r\n        Каждый Indexer получает свой db_path, file_guard, symbol_index,\r\n        bm25_batch — полностью изолировано от других окон.\r\n\r\n        Multi-window (INC-6BCB-v2): bm25_batch живёт НА Indexer-е\r\n        (не в DI singleton) — \n...",
+     "score": 0.014705882352941176
+    }
+   ]
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "recall_rank": 0,
+   "ms": 247.97299999045208,
+   "candidates": [
+    {
+     "file": "experiments/context_engine/results_v2.json",
+     "text": "// Scope: fallback | results_v2.json\n: 3,\r\n          \"agent_latency_ms\": 991.0,\r\n          \"server_latency_ms\": 991.0,\r\n          \"tokens\": 219,\r\n          \"full\": \"🔍 notify_change — 1 defs, 0 callers, 2 callees. Definition: D:/Project/MSCodeBase/src/mcp/server_tools.py line 654. Calls: NotifyChangeTool → :666, __wrapped__ → :667\\n@mcp.tool('notify_change') async def notify_change(file_path: str, kwargs=None) -> str: \\\"\\\"\\\"Обновляет индекс одного файла через LSP VFS или диск. P0: замыкает workflow edit → notify → reindex. Доступен напрямую (также через hub-инструмент index(action='notify')).\\\"\\\"\\\" from src.mcp.tools.indexing_tools import NotifyChangeTool; tool = NotifyChangeTool(services); return await NotifyChangeTool.execute.__wrapped__(tool, file_path=file_path, kwargs=kwargs)\\n94e6173f fix(ci): ruff lint 35 errors + verify_clean_state pip-fail guard; e1efe82c WS1-WS7; 4bd29b0a feat: edge transparency, Jupyter, find_duplicates, get_context (3.4.0); be132122 feat(lsp): lsp_get_code_actions; d611b3a6 feat(lsp): type-info",
+     "score": 0.03200204813108039
+    },
+    {
+     "file": "experiments/context_engine/results_tasks_v3.json",
+     "text": "// Scope: fallback | results_tasks_v3.json\nass\": \"verify_change\",\r\n      \"symbol\": \"notify_change\",\r\n      \"arms\": {\r\n        \"A\": {\r\n          \"round_trips\": 3,\r\n          \"agent_latency_ms\": 991.0,\r\n          \"server_latency_ms\": 991.0,\r\n          \"tokens\": 219,\r\n          \"full\": \"🔍 notify_change — 1 defs, 0 callers, 2 callees. Definition: D:/Project/MSCodeBase/src/mcp/server_tools.py line 654. Calls: NotifyChangeTool → :666, __wrapped__ → :667\\n@mcp.tool('notify_change') async def notify_change(file_path: str, kwargs=None) -> str: \\\"\\\"\\\"Обновляет индекс одного файла через LSP VFS или диск. P0: замыкает workflow edit → notify → reindex. Доступен напрямую (также через hub-инструмент index(action='notify')).\\\"\\\"\\\" from src.mcp.tools.indexing_tools import NotifyChangeTool; tool = NotifyChangeTool(services); return await NotifyChangeTool.execute.__wrapped__(tool, file_path=file_path, kwargs=kwargs)\\n94e6173f fix(ci): ruff lint 35 errors + verify_clean_state pip-fail guard; e1efe82c WS1-WS7; 4bd29b0a feat: edge transparency, Jupy",
+     "score": 0.030886196246139225
+    },
+    {
+     "file": "experiments/4A_unit_of_return/f5/results_fresh.json",
+     "text": "// Scope: fallback | results_fresh.json\n{\r\n  \"queries\": 16,\r\n  \"mode\": \"quality\",\r\n  \"limit\": 10,\r\n  \"populations\": [\r\n    \"code\",\r\n    \"prose\"\r\n  ],\r\n  \"metrics\": {\r\n    \"A_hit@1\": {\r\n      \"k\": 5,\r\n      \"n\": 16,\r\n      \"rate\": 0.3125,\r\n      \"ci95\": [\r\n        0.1416,\r\n        0.556\r\n      ]\r\n    },\r\n    \"A_hit@3\": {\r\n      \"k\": 6,\r\n      \"n\": 16,\r\n      \"rate\": 0.375,\r\n      \"ci95\": [\r\n        0.1848,\r\n        0.6136\r\n      ]\r\n    },\r\n    \"A_hit@10\": {\r\n      \"k\": 6,\r\n      \"n\": 16,\r\n      \"rate\": 0.375,\r\n      \"ci95\": [\r\n        0.1848,\r\n        0.6136\r\n      ]\r\n    },\r\n    \"B_top1_is_gold\": {\r\n      \"k\": 5,\r\n      \"n\": 16,\r\n      \"rate\": 0.3125,\r\n      \"ci95\": [\r\n        0.1416,\r\n        0.556\r\n      ]\r\n    },\r\n    \"C_oracle\": {\r\n      \"k\": 16,\r\n      \"n\": 16,\r\n      \"rate\": 1.0,\r\n      \"ci95\": [\r\n        0.8064,\r\n        1.0\r\n      ]\r\n    },\r\n    \"D_closed_book\": {\r\n      \"k\": 0,\r\n      \"n\": 16,\r\n      \"rate\": 0.0,\r\n      \"ci95\": [\r\n        0.0,\r\n        0.1936\r\n      ]\r\n    }\r\n  },\r\n  \"avg_context_chars\": {\r\n    \"A\":",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "src/core/rate_limiter.py",
+     "text": "// Scope: function | function_definition | core.rate_limiter\n// File: D:\\Project\\MSCodeBase\\src\\core\\rate_limiter.py | Context: SlidingWindowRateLimiter\ndef __init__(self):\n        self._windows: Dict[str, list[float]] = defaultdict(list)\n        self._lock = threading.Lock()  # см. INC-53EC / REFC-03",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/rate_limiter.py",
+     "text": "// Scope: function | function_definition | core.rate_limiter\n// File: D:\\Project\\MSCodeBase\\src\\core\\rate_limiter.py | Context: CircuitBreaker\nasync def _notify_state_change(self, old_state: str, new_state: str):\n        \"\"\"Уведомляет о смене состояния через callback.\"\"\"\n        if self._on_state_change:\n            try:\n",
+     "score": 0.015625
+    },
+    {
+     "file": "src/core/rate_limiter.py",
+     "text": "// Scope: function | function_definition | core.rate_limiter\n// File: D:\\Project\\MSCodeBase\\src\\core\\rate_limiter.py | Context: DebounceBatch\nasync def _flush(self):\n        \"\"\"Сбрасывает накопленные файлы в callback.\"\"\"\n        with self._lock:\n            if not self._files:\n",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "src/core/rate_limiter.py",
+     "text": "// Scope: function | function_definition | core.rate_limiter\n// File: D:\\Project\\MSCodeBase\\src\\core\\rate_limiter.py | Context: CircuitBreaker\ndef get_state(self) -> dict:\n        \"\"\"Возвращает состояние circuit breaker.\"\"\"\n        return {\n            \"name\": self.name,\n",
+     "score": 0.015151515151515152
+    }
+   ]
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "recall_rank": 0,
+   "ms": 3818.0734000052325,
+   "candidates": [
+    {
+     "file": "src/providers/reranker/llama_runner.py",
+     "text": "// Scope: function_part | giant_function_part | providers.reranker.llama_runner\n// File: D:\\Project\\MSCodeBase\\src\\providers\\reranker\\llama_runner.py | Context: LlamaRunner\n// [Part 1]\nasync def start_reranker(self) -> bool:\r\n        \"\"\"Запускает llama-server с --reranking (BGE-M3 на порту RERANK_PORT).\r\n\r\n        Сначала проверяет, отвечает ли порт /health — если да, используем\r\n        существующий процесс. Иначе запускаем новый.\r\n\r\n        Использует interprocess lock (Named Mutex + PID-файл) чтобы\r\n        предотвратить гонку между MCP-процессами.\r\n        \"\"\"\r\n        if self._reranker_process is not None:\r\n            poll = self._reranker_process.poll()\r\n            if \n...",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "experiments/1V_memory_contamination/memory_contamination_facts_v3_generated.json",
+     "text": "// Scope: fallback | memory_contamination_facts_v3_generated.json\n\",\r\n      \"subject\": \"reranker\",\r\n      \"value\": \"BGE-M3\",\r\n      \"claim\": \"Реренкер использует BGE-M3\",\r\n      \"support_patterns\": [\r\n        \"bge-m3\"\r\n      ],\r\n      \"contra_patterns\": []\r\n    },\r\n    {\r\n      \"id\": \"G05\",\r\n      \"truth\": true,\r\n      \"section\": \"adrs\",\r\n      \"kind\": \"real\",\r\n      \"subject\": \"reranker_model\",\r\n      \"value\": \"bge-reranker-v2-m3\",\r\n      \"claim\": \"Модель реранкера использует bge-reranker-v2-m3\",\r\n      \"support_patterns\": [\r\n        \"bge-reranker-v2-m3\"\r\n      ],\r\n      \"contra_patterns\": []\r\n    },\r\n    {\r\n      \"id\": \"G06\",\r\n      \"truth\": true,\r\n      \"section\": \"adrs\",\r\n      \"kind\": \"real\",\r\n      \"subject\": \"index\",\r\n      \"value\": \"LanceDB\",\r\n      \"claim\": \"Индекс чанков использует LanceDB\",\r\n      \"support_patterns\": [\r\n        \"lancedb\"\r\n      ],\r\n      \"contra_patterns\": []\r\n    },\r\n    {\r\n      \"id\": \"G07\",\r\n      \"truth\": true,\r\n      \"section\": \"adrs\",\r\n      \"kind\": \"real\",\r\n      \"subject\": \"index_version\",\r\n      \"value\": \"v2\",\r\n  ",
+     "score": 0.015625
+    },
+    {
+     "file": "install.py",
+     "text": "// Scope: function_part | giant_function_part | d:.project.mscodebase.install.py\n// File: D:\\Project\\MSCodeBase\\install.py\n// [Part 1]\ndef step_gguf(lines, lang):\r\n    \"\"\"Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3.\"\"\"\r\n    from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir\r\n\r\n    all_ok = True\r\n    zed_models_dir = ZED_EXT_DIR / \"models\"\r\n\r\n    for key in [\"multilingual-e5-small\", \"bge-reranker-v2-m3\"]:\r\n        fname = GGUF_MODELS[key][\"file\"]\r\n        zed_gguf = zed_models_dir / fname\r\n        if zed_gguf.exists():\r\n         \n...",
+     "score": 0.01639344262295082
+    },
+    {
+     "file": "install.py",
+     "text": "// Scope: function_part | giant_function_part | d:.project.mscodebase.install.py\n// File: D:\\Project\\MSCodeBase\\install.py\n// [Part 1]\ndef step_models(lines, lang):\r\n    \"\"\"Скачивает ONNX-модели: multilingual-e5-small-int8 (embedder) + bge-reranker-v2-m3.\r\n\r\n    Проверяет по порядку: ZED_EXT_DIR -> общий кэш ~/.cache/mscodebase -> PROJECT_ROOT.\r\n    Найдено в (2) или (3) -> копирует в (1). Не найдено нигде -> скачивает.\r\n    \"\"\"\r\n    SHARED_DIR = Path.home() / \".cache\" / \"mscodebase\" / \"models\"\r\n    models = {\r\n        \"multilingual-e5-small-int8\": (\"keisuke-miyako/multilingual-e5-small-onnx-int8\", \"embedding\", 113),\r\n        \"\n...",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/interfaces/embedder.py",
+     "text": "// Scope: function | function_definition | core.interfaces.embedder\n// File: D:\\Project\\MSCodeBase\\src\\core\\interfaces\\embedder.py | Context: IEmbedder\ndef get_embedding_dim(self) -> int:\n        \"\"\"Размерность вектора (768 для E5-base, 1024 для BGE-M3).\"\"\"\n        raise NotImplementedError",
+     "score": 0.016129032258064516
+    },
+    {
+     "file": "src/mcp/tools/context_tool.py",
+     "text": "// Scope: function | function_definition | mcp.tools.context_tool\n// File: D:\\Project\\MSCodeBase\\src\\mcp\\tools\\context_tool.py | Context: GetContextTool\ndef _section_memory(self) -> Optional[Dict[str, Any]]:\r\n        \"\"\"memory секция: топ-8 узлов из project memory.\"\"\"\r\n        try:\r\n            mem = self._store.load_memory()\r\n",
+     "score": 0.014925373134328358
+    },
+    {
+     "file": "src/core/search/utils.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.utils\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\utils.py\n// [Part 1]\ndef _extract_key_terms(results: List[dict], max_terms: int = 5) -> List[str]:\r\n    \"\"\"Извлекает ключевые термины из результатов поиска для уточнения запроса.\r\n\r\n    Анализирует текст топ-результатов, выделяя редкие, но значимые термины,\r\n    которые могут улучшить поиск на следующей итерации.\r\n\r\n    Args:\r\n        results: Результаты поиска\r\n        max_terms: Максимальное число терминов для извлечения\r\n\r\n    Returns:\r\n        Список ключевых терминов\r\n    \"\"\"\r\n    if not results:\r\n        retur\n...",
+     "score": 0.015625
+    },
+    {
+     "file": "experiments/2E_evidence_ladder/graph_context_builder.py",
+     "text": "// Scope: function | function_definition | d:.project.mscodebase.experiments.2e_evidence_ladder.graph_context_builder.py\n// File: D:\\Project\\MSCodeBase\\experiments\\2E_evidence_ladder\\graph_context_builder.py\ndef _ast_top_level(path: Path) -> list[tuple[str, int]]:\r\n    \"\"\"Топ-уровневые классы/функции файла: [(name, lineno)].\"\"\"\r\n    try:\r\n        tree = ast.parse(path.read_text(encoding=\"utf-8\", errors=\"replace\"))\r\n",
+     "score": 0.014492753623188406
+    },
+    {
+     "file": "src/core/task_queue.py",
+     "text": "// Scope: function | function_definition | core.task_queue\n// File: D:\\Project\\MSCodeBase\\src\\core\\task_queue.py | Context: TaskQueue\nasync def _cleanup_loop(self):\r\n        \"\"\"Фоновый цикл очистки старых результатов.\"\"\"\r\n        while True:\r\n            try:\r\n",
+     "score": 0.015151515151515152
+    },
+    {
+     "file": "src/core/search/agentic_search.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.agentic_search\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\agentic_search.py | Context: AgenticSearchMixin\n// [Part 1]\ndef deep_search(self, query: str, limit: int = 8) -> str:\r\n        \"\"\"Agentic Deep Search для MCP-инструмента.\r\n\r\n        Итеративный поиск с уточнением запроса на основе найденных результатов.\r\n        Возвращает форматированную строку для MCP.\r\n\r\n        Args:\r\n            query: Поисковый запрос\r\n            limit: Максимальное число результатов\r\n        \"\"\"\r\n        if self._reindex_fast_fail():\r\n            return \"\"\r\n        try:\r\n            results, metadata = self.agentic_deep_search(\r\n\n...",
+     "score": 0.014705882352941176
+    }
+   ]
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "recall_rank": 1,
+   "ms": 268.1694999919273,
+   "candidates": [
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\n// [Part 1]\ndef _bm25_search(self, query: str, limit: int = 5) -> List[dict]:\n        \"\"\"Полнотекстовый поиск BM25 по текущей базе.\"\"\"\n        self._build_bm25_index()\n        if not self._bm25:\n            return []\n\n        query_tokens = _tokenize(query, self._tokenizer_re)\n        scores: Dict[str, float] = {}\n\n        for doc_id in self._bm25_ids:\n            scores[doc_id] = 0.0\n            for token in query_tokens:\n                scores[doc_id] += self._bm25[doc_id].get(token, 0.0)\n\n        # Сорти\n...",
+     "score": 0.03278688524590164
+    },
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\n// [Part 1]\ndef _build_bm25_index(self) -> None:\n        \"\"\"Ленивая инициализация BM25 индекса из текущей таблицы LanceDB.\n\n        Потокобезопасна: использует _bm25_lock для предотвращения конкурентного\n        построения индекса из нескольких потоков.\n        Если таблица повреждена или пуста — BM25 остаётся пустым (degraded mode),\n        поиск продолжит работу только через векторный поиск.\n        \"\"\"\n        if self._bm25 is not None:\n            return\n\n        with self._bm25_lock:\n            # Doub\n...",
+     "score": 0.030834914611005692
+    },
+    {
+     "file": "src/core/commit_memory.py",
+     "text": "// Scope: function | function_definition | core.commit_memory\n// File: D:\\Project\\MSCodeBase\\src\\core\\commit_memory.py | Context: CommitMemory\ndef _extract_keywords(self, text: str) -> List[str]:\n        \"\"\"Извлекает ключевые слова из текста ошибки.\"\"\"\n        # Убираем общие слова\n        stop_words = {\n",
+     "score": 0.03007688828584351
+    },
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function | function_definition | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\nasync def _bm25_search_async(self, query: str, limit: int = 5) -> List[dict]:\n        \"\"\"Асинхронная обёртка для BM25 поиска (не блокирует event loop).\"\"\"\n        return await asyncio.to_thread(self._bm25_search, query, limit)",
+     "score": 0.015873015873015872
+    },
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function | function_definition | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\ndef reindex(self):\n        \"\"\"Сбрасывает BM25-индекс, forcing полную перестройку при следующем поиске.\"\"\"\n        with self._bm25_lock:\n            self._bm25 = None\n",
+     "score": 0.015625
+    },
+    {
+     "file": "src/core/search/trace.py",
+     "text": "// Scope: function | function_definition | core.search.trace\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\trace.py | Context: SearchTracer\ndef record_bm25_batch(self, bm25_results: List[dict]):\r\n        \"\"\"Этап 1: BM25 сырые результаты с рангами.\"\"\"\r\n        if not self.enabled:\r\n            return\r\n",
+     "score": 0.015384615384615385
+    },
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function | function_definition | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\ndef _reset_bm25(self) -> None:\n        \"\"\"Quick BM25 invalidation for meta-patching.\n\n        Called by Indexer.apply_file_move after a file rename\n",
+     "score": 0.015151515151515152
+    },
+    {
+     "file": "src/core/search/utils.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.utils\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\utils.py\n// [Part 1]\ndef _extract_key_terms(results: List[dict], max_terms: int = 5) -> List[str]:\r\n    \"\"\"Извлекает ключевые термины из результатов поиска для уточнения запроса.\r\n\r\n    Анализирует текст топ-результатов, выделяя редкие, но значимые термины,\r\n    которые могут улучшить поиск на следующей итерации.\r\n\r\n    Args:\r\n        results: Результаты поиска\r\n        max_terms: Максимальное число терминов для извлечения\r\n\r\n    Returns:\r\n        Список ключевых терминов\r\n    \"\"\"\r\n    if not results:\r\n        retur\n...",
+     "score": 0.014705882352941176
+    },
+    {
+     "file": "src/core/search/bm25.py",
+     "text": "// Scope: function_part | giant_function_part | core.search.bm25\n// File: D:\\Project\\MSCodeBase\\src\\core\\search\\bm25.py | Context: BM25Mixin\n// [Part 1]\ndef incremental_update_bm25(self, new_chunks: List[dict]) -> None:\n        \"\"\"Инкрементально обновляет BM25 индекс при добавлении новых чанков.\n\n        Вместо полной перестройки индекса (что дорого при большом объёме данных)\n        добавляет только новые документы в существующий индекс.\n\n        Args:\n            new_chunks: Список новых чанков с ключами 'file_path', 'chunk_index', 'text'.\n                Каждый элемент должен содержать как минимум:\n                - file_path: относительный п\n...",
+     "score": 0.014492753623188406
+    },
+    {
+     "file": "scripts/benchmark_search_stages.py",
+     "text": "// Scope: function | function_definition | benchmark_search_stages\n// File: D:\\Project\\MSCodeBase\\scripts\\benchmark_search_stages.py\nasync def time_bm25(searcher, query, limit):\r\n    t0 = time.perf_counter()\r\n    res = await searcher._bm25_search_async(query, limit=limit)\r\n    return time.perf_counter() - t0, res",
+     "score": 0.014285714285714285
+    }
+   ]
+  }
+ ]
+}
