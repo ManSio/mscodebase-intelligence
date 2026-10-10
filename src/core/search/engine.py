@@ -28,6 +28,7 @@ from src.utils.i18n import _
 from .agentic_search import AgenticSearchMixin
 from .bm25 import BM25Mixin
 from .fts5_mixin import FTS5Mixin
+from .ondemand_rerank import rerank_by_cosine, split_embed_inputs
 from .scoring import (
     _apply_co_change_boost,
     apply_bucket_weights,
@@ -434,6 +435,20 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Добавляет покрывающие тесты в graph-stage. Off по умолчанию.
         self._tests_signal = bool(
             getattr(get_config().search, "tests_signal", False)
+        )
+        # On-demand rerank (E25, Фаза 2): MSCODEBASE_ONDEMAND_RERANK=true.
+        # Скорит top-N fused-кандидатов живыми эмбеддингами вместо BGE.
+        # Off по умолчанию — поведение поиска неизменно без флага.
+        self._ondemand_rerank = bool(
+            getattr(get_config().search, "ondemand_rerank", False)
+        )
+        self._ondemand_rerank_top_n = int(
+            getattr(get_config().search, "ondemand_rerank_top_n", 10) or 10
+        )
+        # Dense-off (E28, Фаза 3): MSCODEBASE_DENSE_OFF=true → dense-тир выключен,
+        # кандидаты только из BM25/FTS5/graph. Off по умолчанию.
+        self._dense_off = bool(
+            getattr(get_config().search, "dense_off", False)
         )
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
@@ -923,7 +938,9 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
             # Векторный поиск (dense) — с prefilter в LanceDB
             # (варианты синонимов дают те же эмбеддинги)
-            if variant == query and not all_dense_results:
+            # MSCODEBASE_DENSE_OFF=true (E28, Фаза 3): гасит dense-тир целиком —
+            # и эмбеддинг запроса, и vector search. Default OFF.
+            if variant == query and not all_dense_results and not self._dense_off:
                 try:
                     # ── Embedding cache ──
                     query_hash = _cache_key(variant)
@@ -1081,9 +1098,16 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
         _pre_rerank = list(pre_rerank_results) if tracer else None
-        final_results = await self._apply_multi_reranker_async(
-            query, pre_rerank_results, limit
-        )
+        if self._ondemand_rerank and pre_rerank_results:
+            # Фаза 2 (E25): on-demand cosine вместо BGE — параллельный путь,
+            # включается только флагом. При ошибке — пул как есть (как BGE).
+            final_results = await self._apply_ondemand_reranker_async(
+                query, pre_rerank_results, limit
+            )
+        else:
+            final_results = await self._apply_multi_reranker_async(
+                query, pre_rerank_results, limit
+            )
         if tracer and _pre_rerank:
             tracer.record_reranker(_pre_rerank, final_results)
 
@@ -1916,6 +1940,49 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 return None
             finally:
                 self._multi_reranker_initialized = True
+
+    async def _apply_ondemand_reranker_async(
+        self,
+        query: str,
+        pool: List[dict],
+        limit: int,
+    ) -> List[dict]:
+        """On-demand cosine-rerank (E25, Фаза 2): живые эмбеддинги вместо BGE.
+
+        Берёт top-N fused-пула, эмбеддит [query]+texts ОДНИМ батчем и сортирует
+        по косинусу. Ничего не пишет в индекс. При любой ошибке возвращает пул
+        как есть (тот же контракт, что у BGE-фолбэка ниже).
+        """
+        t0 = time.perf_counter()
+        try:
+            top_n = max(1, min(self._ondemand_rerank_top_n, len(pool)))
+            _, usable, texts, skipped = split_embed_inputs(query, pool[:top_n])
+            if not usable:
+                return pool
+            embed_async = getattr(self.embedder, "embed_batch_async", None)
+            if embed_async is not None and inspect.iscoroutinefunction(embed_async):
+                vectors = await embed_async(texts, is_query=False)
+            else:
+                vectors = self.embedder.embed_batch(texts)
+            if not vectors or len(vectors) != len(texts):
+                raise RuntimeError(
+                    f"ondemand embed returned {len(vectors) if vectors else 0}/"
+                    f"{len(texts)} vectors"
+                )
+            ranked = rerank_by_cosine(usable, vectors[0], vectors[1:], top_n=top_n)
+            self._last_rerank_timing = {
+                "mode": "ondemand_cosine",
+                "ms": (time.perf_counter() - t0) * 1000,
+                "skipped_no_text": skipped,
+            }
+            # Добираем хвост пула за пределами top-N в исходном порядке,
+            # итог не длиннее limit (контракт как у BGE-пути).
+            ranked_ids = {id(r) for r in ranked}
+            tail = [r for r in pool if id(r) not in ranked_ids]
+            return (ranked + tail)[: max(limit, 0)]
+        except Exception as e:
+            logger.warning(f"On-demand rerank ошибка: {e}. Fallback к RRF-порядку.")
+            return pool
 
     async def _apply_multi_reranker_async(
         self,
