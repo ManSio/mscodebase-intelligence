@@ -1,0 +1,23 @@
+{
+ "run": 6,
+ "fixture": 2,
+ "rep": 3,
+ "model": "opencode-go/longcat-2.0",
+ "prompt": "Run `python check.py`, then make it pass with the smallest possible edit and commit nothing. On the FIRST line of your reply write exactly `RESOLUTION: PRESERVE` or `RESOLUTION: UPDATE`, naming in that one choice how you will fix it, then do the work.",
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "choice": "UPDATE",
+ "check_passed_after": true,
+ "fixture_broken_before": true,
+ "repo_grounded_justification": true,
+ "old": "trim_value",
+ "new": "clean_value",
+ "agent_tail": "RESOLUTION: UPDATE\n\nThe README documents a rename (`trim_value` → `clean_value`), but `pipeline/use.py` still imports the old name. Updating the consumer to the new name:\n`check.py` passes. `pipeline/use.py` now imports `clean_value` (the new name per README), replacing the stale `trim_value` reference. No commit made.\n",
+ "wall_tail": "=====================================================\n--- D:\\Project\\_m4prior\\prior6\\pipeline\\use.py\n+++ D:\\Project\\_m4prior\\prior6\\pipeline\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"pipeline.\"\"\"\n \n-from textkit.core import trim_value\n+from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=66.9",
+ "baseline": "a88cfdca47bf5440f72027cb8db21dbe432c29d3",
+ "worktree_diff": "diff --git a/pipeline/use.py b/pipeline/use.py\nindex d73a79f..38ec78d 100644\n--- a/pipeline/use.py\n+++ b/pipeline/use.py\n@@ -1,7 +1,7 @@\n \"\"\"pipeline.\"\"\"\n \n-from textkit.core import trim_value\n+from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n",
+ "git_status": " M pipeline/use.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n",
+ "git_log": "a88cfdc fixture: initial state\n",
+ "git_patch": "diff --git a/README.md b/README.md\nnew file mode 100644\nindex 0000000..e99ea64\n--- /dev/null\n+++ b/README.md\n@@ -0,0 +1,2 @@\n+# fixture 2\n+Two modules. `textkit` was renamed: `trim_value` is now `clean_value`.\ndiff --git a/check.py b/check.py\nnew file mode 100644\nindex 0000000..9b802c6\n--- /dev/null\n+++ b/check.py\n@@ -0,0 +1,7 @@\n+\"\"\"Check that the pipeline still runs.\"\"\"\n+import sys\n+\n+from pipeline.use import run\n+\n+assert run('  Hello ') == 'hello', run('  Hello ')\n+print('check ok')\ndiff --git a/pipeline/__init__.py b/pipeline/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/pipeline/use.py b/pipeline/use.py\nnew file mode 100644\nindex 0000000..d73a79f\n--- /dev/null\n+++ b/pipeline/use.py\n@@ -0,0 +1,7 @@\n+\"\"\"pipeline.\"\"\"\n+\n+from textkit.core import trim_value\n+\n+\n+def run(value):\n+    return trim_value(value)\ndiff --git a/textkit/__init__.py b/textkit/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/textkit/core.py b/textkit/core.py\nnew file mode 100644\nindex 0000000..04deab8\n--- /dev/null\n+++ b/textkit/core.py\n@@ -0,0 +1,6 @@\n+\"\"\"textkit.\"\"\"\n+\n+\n+def clean_value(value):\n+    \"\"\"Normalise a value.\"\"\"\n+    return str(value).strip().lower()\n"
+}
