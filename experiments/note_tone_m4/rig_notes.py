@@ -121,7 +121,7 @@ def verify_hook_runs(dest: Path) -> None:
     env = dict(os.environ, M4_NOTE="SENTINEL-NOTE-XYZ")
     p = subprocess.run(["git", "commit", "-m", "control"], cwd=str(ctl),
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", env=env)
+                       errors="replace", env=env, timeout=120)
     probe.rmtree_force(ctl)
     if p.returncode != 0:
         raise RuntimeError(f"advisory hook blocked a commit (rc={p.returncode}); "
@@ -172,6 +172,24 @@ def telemetry(data_dir: Path) -> list[dict]:
     return rows
 
 
+def _kill_tree(proc) -> None:
+    """Kill the whole process tree, then the parent.
+
+    proc.kill() alone leaves grandchildren holding our pipes, and communicate()
+    then hangs forever (measured once: 25 min, zero output, zero artifact).
+    taskkill /T takes the tree; proc.kill is the fallback.
+    """
+    try:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True, timeout=60)
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def run_agent(dest: Path, title: str, note: str, data_dir: Path) -> tuple[int, str, str]:
     env = dict(os.environ)
     env["M4_NOTE"] = note
@@ -189,8 +207,11 @@ def run_agent(dest: Path, title: str, note: str, data_dir: Path) -> tuple[int, s
         out, err = proc.communicate(timeout=TIMEOUT_S)
         rc = proc.returncode
     except subprocess.TimeoutExpired:
-        proc.kill()
-        out, err = proc.communicate()
+        _kill_tree(proc)
+        try:
+            out, err = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
         rc = -9
     return rc, out or "", f"{err or ''}\n[wall_s]={time.time() - t0:.1f}"
 

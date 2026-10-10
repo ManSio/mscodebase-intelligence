@@ -137,6 +137,24 @@ def check_fails(dest: Path, fx: dict) -> dict:
     return dict(rc=p.returncode, out=(p.stdout or "")[-200:], err=(p.stderr or "")[-200:])
 
 
+def _kill_tree(proc) -> None:
+    """Kill the whole process tree, then the parent.
+
+    proc.kill() alone leaves grandchildren holding our pipes, and communicate()
+    then hangs forever (measured once: 25 min, zero output, zero artifact).
+    taskkill /T takes the tree; proc.kill is the fallback.
+    """
+    try:
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                       capture_output=True, timeout=60)
+    except Exception:
+        pass
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+
 def run_agent(dest: Path, title: str, attempts: int = 3) -> tuple[int, str, str, int]:
     """Run the agent, retrying transport failures.
 
@@ -161,8 +179,11 @@ def run_agent(dest: Path, title: str, attempts: int = 3) -> tuple[int, str, str,
             out, err = proc.communicate(timeout=TIMEOUT_S)
             rc = proc.returncode
         except subprocess.TimeoutExpired:
-            proc.kill()
-            out, err = proc.communicate()
+            _kill_tree(proc)
+            try:
+                out, err = proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                out, err = "", ""
             rc = -9
         out = out or ""
         err = f"{err or ''}\n[wall_s]={time.time() - t0:.1f}"
@@ -285,5 +306,57 @@ def main() -> int:
     return 0
 
 
+def selftest() -> int:
+    """Zero-cost preflight: every free invariant this rig depends on.
+
+    Must pass BEFORE any money is spent. Each check names the paid failure it
+    prevents (all of them happened at least once this session).
+    """
+    from pathlib import Path as _P
+
+    ok = True
+
+    def check(cond: bool, msg: str) -> None:
+        nonlocal ok
+        print(("PASS " if cond else "FAIL ") + msg)
+        ok = ok and cond
+
+    dest = _P(r"D:\Project\_m4selftest")
+    for idx in range(3):
+        fx = fixture(idx)
+        build(dest, fx)
+        pre = check_fails(dest, fx)
+        check(pre["rc"] != 0, f"fixture {idx + 1} is actually broken before the agent")
+        probe.rmtree_force(dest)
+    # both resolutions validate (else the choice is fake)
+    fx = fixture(0)
+    build(dest, fx)
+    core = dest / fx["mod_a"] / "core.py"
+    core.write_text(core.read_text(encoding="utf-8")
+                    + f"\n\n{fx['old']} = {fx['new']}\n", encoding="utf-8")
+    check(check_fails(dest, fx)["rc"] == 0, "PRESERVE resolution makes check pass")
+    build(dest, fx)
+    use = dest / fx["mod_b"] / "use.py"
+    use.write_text(use.read_text(encoding="utf-8").replace(fx["old"], fx["new"]),
+                   encoding="utf-8")
+    check(check_fails(dest, fx)["rc"] == 0, "UPDATE resolution makes check pass")
+    probe.rmtree_force(dest)
+    check(classify_choice("RESOLUTION: PRESERVE\nbecause") == "PRESERVE",
+          "choice parser accepts PRESERVE")
+    check(classify_choice("resolution: update") == "UPDATE",
+          "choice parser accepts lowercase update")
+    check(classify_choice("I did some work, no token here") == "UNDECLARED",
+          "choice parser reports UNDECLARED (never guessed)")
+    check("RESOLUTION: PRESERVE" in PROMPT and "RESOLUTION: UPDATE" in PROMPT,
+          "prompt demands the forced choice")
+    check(MODEL == "opencode-go/longcat-2.0", "model pinned (no silent fallback)")
+    print("SELFTEST:", "ALL PASS" if ok else "FAIL — do not spend")
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys as _sys
+
+    if "--selftest" in _sys.argv:
+        _sys.exit(selftest())
+    _sys.exit(main())

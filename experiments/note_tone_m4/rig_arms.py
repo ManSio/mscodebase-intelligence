@@ -198,5 +198,37 @@ def main() -> int:
     return 4
 
 
+def selftest() -> int:
+    """Zero-cost preflight. Must pass BEFORE any money is spent."""
+    from pathlib import Path as _P
+
+    ok = True
+
+    def check(cond: bool, msg: str) -> None:
+        nonlocal ok
+        print(("PASS " if cond else "FAIL ") + msg)
+        ok = ok and cond
+
+    lens = {a: len(n) for a, n in ARMS}
+    check(max(lens.values()) / min(lens.values()) <= 1.10,
+          f"note lengths matched {lens} (phrasing must be the variable, not length)")
+    fx = prior.fixture(0)
+    dest = _P(r"D:\Project\_m4selftest")
+    for arm, note in ARMS:
+        build_with_note(dest, fx, note)
+        pre = prior.check_fails(dest, fx)
+        check(pre["rc"] != 0, f"{arm}: fixture broken before agent")
+        check("house style" in (pre["out"] or "").lower(),
+              f"{arm}: note reaches the check output (delivery channel alive)")
+        check((dest / "HOUSE_STYLE.md").exists(), f"{arm}: project-file surface present")
+        probe.rmtree_force(dest)
+    print("SELFTEST:", "ALL PASS" if ok else "FAIL — do not spend")
+    return 0 if ok else 1
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import sys as _sys
+
+    if "--selftest" in _sys.argv:
+        _sys.exit(selftest())
+    _sys.exit(main())
