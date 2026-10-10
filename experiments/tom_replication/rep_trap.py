@@ -418,6 +418,8 @@ def main() -> int:
                     help="comma-separated task ids to run (default: all)")
     ap.add_argument("--start-n", type=int, default=0,
                     help="first run number (to continue without overwriting)")
+    ap.add_argument("--rep-start", type=int, default=1,
+                    help="first rep number (to add reps without redoing)")
     a = ap.parse_args()
     if a.selftest:
         return selftest()
@@ -431,7 +433,7 @@ def main() -> int:
     rows, n = [], a.start_n
     for task in tlist:
         for arm in ARMS:
-            for rep in range(1, (a.reps if a.full else 1) + 1):
+            for rep in range(a.rep_start, (a.reps if a.full else 1) + 1):
                 n += 1
                 art = one_run(task, arm, rep, n)
                 rows.append(art)
