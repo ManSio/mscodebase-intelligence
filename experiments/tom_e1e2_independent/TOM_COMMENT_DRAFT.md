@@ -181,6 +181,18 @@ refuse-once in testing, not in this release): it bounds our refusal-arm null
 to the current release, and we will re-run that arm when refuse-once ships if
 you want it measured from outside.
 
+What our numbers are not, stated plainly: all attacks above are fixed probes,
+so every rate is a lower bound — an attacker who searches (cf. Governance
+Decay: fixed 0% to optimized 65–100%) would do better, and we did not measure
+that ceiling. All behavioral runs are single acts around ~70 seconds; hour-long
+live sessions were simulated by ledger time-travel, not lived. Everything
+behavioral is one model (longcat-2.0) — Claude/GPT/Qwen on the same tasks is
+your territory, not ours. We measured the dispatcher in isolation, never the
+full hook-to-agent-reading loop, so your "shapes the next step" integration
+with Claude Code is unverified from our side. Parallel-act races, POSIX vs
+Windows paths, and the catalogue as a read surface are named but unmeasured
+(low ROI at our scale).
+
 Everything above is committed with the scripts that produced it wherever the
 code is ours; your files were read from a frozen mirror that verifies clean.
 Hashes and row counts on request. Nothing owed either way — use what survives
