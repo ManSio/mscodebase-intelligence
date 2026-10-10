@@ -3,6 +3,34 @@ from frozen inputs (87 files, hashed before any analysis) with our own code, and
 every number carries its denominator. Where we were wrong along the way, it is
 stated next to the number, not in a footnote.
 
+## Scope: what ran where (read this first)
+
+- Deterministic checks (E1/E2 re-derivation, overlap, delivery, order, red team):
+  no model anywhere. Reproducible by running the scripts.
+- Behavioral runs (the replication nulls below): **opencode-go/longcat-2.0,
+  variant default, temperature default**, 77 sessions, all served by the requested
+  model (verified in the session DB — no silent fallback), run 2026-10-10.
+  Your E1 ran on Claude Sonnet 5 and E2-C3 on Haiku 4.5, so our nulls are
+  cross-model non-replication, not same-model refutation.
+- Provider ceiling: our provider drops sessions past ~200s. **17 of 68 runs (25%)
+  never finished** (rc=-9 at our 185s timeout); their partial evidence is included
+  where present, and they count in denominators.
+- Note delivery was attempted in **47 of 68 runs** (the wrapper fired); the rest
+  never reached a wrapped tool (bypasses, stalls). The contrast below is over
+  runs where the instrument could act, and the delivery rate itself is reported.
+- Harness scaffolding, identical across arms: one line telling the agent to use
+  the shell if a read is refused (opencode denies *.env reads by default);
+  a scoped permission override for experiment runs only (fixture .env files hold
+  no secrets); dual sh/.cmd wrappers (the agent shell is PowerShell); a job.py
+  copy of your svc_job.py (your svc.py references job.py, the bundle ships
+  svc_job.py); generated per-trap inputs your bundle omits (t1 100KB migration,
+  t3 30 tickets + .env with the lab_server port).
+- A second agent re-derived the five technical claims with its own code without
+  opening our verdicts: 5/5 agree.
+- Our instrument is proven able to detect note effects: on a forced-choice task
+  on our stack, note direction steers 1.000 vs 0.000 (18 runs). So the nulls
+  below are not a broken-instrument artifact.
+
 ## What reproduces exactly
 
 **E1/E2.** Our independent re-implementation, written from the prereg text without
@@ -107,10 +135,14 @@ next to the number it touched.
 ## Caveats we keep attached
 
 Order checked on 3 acts; the seven words have no deployed binding to test in
-combat; our behavioral replication on our own agent (44 runs advisory + 22
-refusal-flavored) found no hit difference (0.600 vs 0.529; 0.500 vs 0.667) —
-stated as non-replication on a different stack, not refutation; the benign
-battery is 10 everyday acts.
+combat; our behavioral replication on longcat-2.0 (44 runs advisory + 22
+refusal-flavored) found no hit difference (0.600 vs 0.529 with approach 15/22
+vs 17/22; 0.500 vs 0.667 with approach 4/11 vs 9/11) — stated as
+non-replication on a different stack, not refutation; the approach gap in the
+refusal arm has no cite evidence (tails show bypasses and tool-discovery
+stalls, never the note), so it is noise, not a mechanism; the benign
+battery is 10 everyday acts; 17/68 runs timed out at the provider ceiling and
+are counted, not dropped.
 
 Everything above is committed with the scripts that produced it wherever the
 code is ours; your files were read from a frozen mirror that verifies clean.
