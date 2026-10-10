@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 6,
+ "n_weak": 1,
+ "fixture": 2,
+ "rep": 3,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to clean_value in pipeline/use.py",
+ "wall_tail": "y\n+++ D:\\Project\\_m4behav\\s3_6\\pipeline\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"pipeline.\"\"\"\n \n-from textkit.core import trim_value\n+from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=115.7",
+ "agent_tail": "RESOLUTION: PRESERVE — `pipeline/use.py` imports a non-existent name. The library function is `clean_value`, which already does exactly what the test expects (`.strip().lower()`). Smallest fix: fix the caller, not the library.\nDone. `check.py` passes with a one-line rename in `pipeline/use.py:3,7` — using the existing `clean_value` from `textkit.core` instead of the non-existent `trim_value`. No commit made.\n"
+}

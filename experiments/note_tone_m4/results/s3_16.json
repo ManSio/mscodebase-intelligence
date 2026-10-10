@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 16,
+ "n_weak": 5,
+ "fixture": 3,
+ "rep": 1,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias slugify=make_slug added in util/core.py",
+ "wall_tail": "==================\n--- D:\\Project\\_m4behav\\s3_16\\util\\core.py\n+++ D:\\Project\\_m4behav\\s3_16\\util\\core.py\n@@ -3,4 +3,7 @@\n \n def make_slug(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+slugify = make_slug\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=39.5",
+ "agent_tail": "RESOLUTION: PRESERVE\nDone. Added `slugify = make_slug` as an alias in `util/core.py:7` — preserves the existing `make_slug` function while exposing the name `service/use.py` imports. `check.py` passes.\n"
+}

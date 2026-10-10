@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 18,
+ "n_weak": 5,
+ "fixture": 3,
+ "rep": 3,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 1)",
+ "wall_tail": "=======\n--- D:\\Project\\_m4behav\\s3_18\\util\\core.py\n+++ D:\\Project\\_m4behav\\s3_18\\util\\core.py\n@@ -1,6 +1,6 @@\n \"\"\"util.\"\"\"\n \n \n-def make_slug(value):\n+def slugify(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=42.7",
+ "agent_tail": "RESOLUTION: PRESERVE — rename `make_slug` to `slugify` in `util/core.py` so the existing import keeps working.\n`check.py` passes. Renamed `make_slug` → `slugify` in `util/core.py:4` to match the import in `service/use.py`. No commit made.\n"
+}

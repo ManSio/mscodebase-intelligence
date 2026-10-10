@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 4,
+ "n_weak": 1,
+ "fixture": 2,
+ "rep": 1,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 4)",
+ "wall_tail": ".py\n+++ D:\\Project\\_m4behav\\s3_4\\textkit\\core.py\n@@ -1,7 +1,10 @@\n \"\"\"textkit.\"\"\"\n \n \n def trim_value(value):\n+    return clean_value(value)\n+\n+\n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=105.7",
+ "agent_tail": "`textkit/core.py` has `clean_value` but `pipeline/use.py` imports a non-existent `trim_value`. The real implementation already exists — the consumer just references the wrong name.\n\nRESOLUTION: PRESERVE\nThat edit was wrong — it creates an invalid function definition. Let me fix it:\nDone. Added `trim_value` as a thin wrapper around the existing `clean_value` in `textkit/core.py:4`, preserving the API that `pipeline/use.py` expects. `check.py` passes.\n"
+}

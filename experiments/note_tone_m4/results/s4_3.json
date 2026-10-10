@@ -1,0 +1,11 @@
+{
+ "exp": "spurious",
+ "run": 3,
+ "arm": "WARNING",
+ "fixture": 3,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to make_slug in service/use.py",
+ "wall_tail": "\\s4_3\\service\\use.py\n+++ D:\\Project\\_m4behav\\s4_3\\service\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"service.\"\"\"\n \n-from util.core import slugify\n+from util.core import make_slug\n \n \n def run(value):\n-    return slugify(value)\n+    return make_slug(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=49.2",
+ "agent_tail": "`RESOLUTION: PRESERVE`\n\nThe function in `util/core.py` was named `make_slug`, not `slugify`. Fixed the import and call site in `service\\use.py` to use the existing `make_slug`.\n"
+}

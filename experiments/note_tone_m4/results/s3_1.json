@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 1,
+ "n_weak": 1,
+ "fixture": 1,
+ "rep": 1,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to normalize_v2 in app/use.py",
+ "wall_tail": "- D:\\Project\\_m4behav\\s3_1\\app\\use.py\n+++ D:\\Project\\_m4behav\\s3_1\\app\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"app.\"\"\"\n \n-from core.core import normalize\n+from core.core import normalize_v2 as normalize\n \n \n def run(value):\n     return normalize(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=48.7",
+ "agent_tail": "RESOLUTION: UPDATE\n\nThe core function was renamed to `normalize_v2`; the consumer `app/use.py` still imports the old name. Updating the consumer to match the producer.\nPassing. One-line edit in `app/use.py:3` — aliased `normalize_v2` to `normalize` so the consumer matches the core's current API. No commit.\n"
+}

@@ -51,8 +51,17 @@ def classify_from_patch(diff: str, untracked: dict | None, old: str, new: str) -
     repointed = [f for f, t in added
                  if f and f.endswith("use.py")
                  and any(m.group(1) == new for m in [IMPORT_RE.search(t)] if m)]
+    # Wrapper functions keep the old name callable by delegating to the new one
+    # (e.g. `def trim_value(v): return clean_value(v)`). Functionally PRESERVE:
+    # existing callers keep working. Found in the wild in s4 runs 1-2, where the
+    # classifier first reported AMBIGUOUS and was wrong.
+    wrapper = [f for f, t in added
+               if re.search(rf"^\s*def\s+{re.escape(old)}\s*\(", t)
+               and new in "\n".join(t2 for _, t2 in added)]
     if alias and not repointed:
         return "PRESERVE", f"alias {old}={new} added in {alias[0]}"
+    if wrapper and not repointed:
+        return "PRESERVE", f"wrapper def {old}() delegating to {new} in {wrapper[0]}"
     if repointed and not alias:
         return "UPDATE", f"import repointed to {new} in {repointed[0]}"
     if alias and repointed:

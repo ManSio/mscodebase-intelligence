@@ -1,0 +1,11 @@
+{
+ "exp": "spurious",
+ "run": 6,
+ "arm": "NONE",
+ "fixture": 3,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias slugify=make_slug added in util/core.py",
+ "wall_tail": "======================\n--- D:\\Project\\_m4behav\\s4_6\\util\\core.py\n+++ D:\\Project\\_m4behav\\s4_6\\util\\core.py\n@@ -3,4 +3,6 @@\n \n def make_slug(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+slugify = make_slug\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=44.8",
+ "agent_tail": "RESOLUTION: PRESERVE — add `slugify` as an alias in `util/core.py` (1 line, vs 2 lines to update the import + call site).\n`check.py` passes. Added one line (`slugify = make_slug`) to `util/core.py:7` — preserves the existing function name and satisfies the import in `service/use.py`. No commit made.\n"
+}
