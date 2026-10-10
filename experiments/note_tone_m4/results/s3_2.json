@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 2,
+ "n_weak": 1,
+ "fixture": 1,
+ "rep": 2,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 1)",
+ "wall_tail": "====\n--- D:\\Project\\_m4behav\\s3_2\\core\\core.py\n+++ D:\\Project\\_m4behav\\s3_2\\core\\core.py\n@@ -1,6 +1,6 @@\n \"\"\"core.\"\"\"\n \n \n-def normalize_v2(value):\n+def normalize(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=43.9",
+ "agent_tail": "`normalize_v2` already does the right thing; the consumer expects the name `normalize`. Smallest edit is one line: rename the function in `core/core.py`.\nRESOLUTION: PRESERVE\n\nRenamed `normalize_v2` → `normalize` in `core/core.py:4` — the body already implemented the correct behavior (`strip().lower()`), and `app/use.py` + `check.py` both depend on the original name. One-line edit, no API break.\n\n`check.py` passes.\n"
+}

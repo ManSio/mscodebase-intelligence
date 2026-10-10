@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 13,
+ "n_weak": 5,
+ "fixture": 2,
+ "rep": 1,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias trim_value=clean_value added in textkit/core.py",
+ "wall_tail": "=====\n--- D:\\Project\\_m4behav\\s3_13\\textkit\\core.py\n+++ D:\\Project\\_m4behav\\s3_13\\textkit\\core.py\n@@ -3,4 +3,7 @@\n \n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+trim_value = clean_value\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=46.1",
+ "agent_tail": "RESOLUTION: PRESERVE\n\nThe import in `pipeline/use.py` references `trim_value`, but `textkit/core.py` only defines `clean_value` (which does the exact same thing). Smallest fix: add an alias in `textkit/core.py`.\nDone. Added `trim_value = clean_value` as an alias in `textkit/core.py` — 1 line, preserves the existing import contract in `pipeline/use.py`. Check passes.\n"
+}

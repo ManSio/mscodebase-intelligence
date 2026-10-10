@@ -1,0 +1,16 @@
+{
+ "exp": "habituation",
+ "run": 5,
+ "rc": 0,
+ "per_defect": [
+  "FIX",
+  "FIX",
+  "FIX"
+ ],
+ "n_fixed": 3,
+ "n_commits": 0,
+ "wall_tail": "mRead pkg3/caller.py\n\u001b[0m\n\u001b[0m$ \u001b[0mpython -c \"from pkg1.caller import call_it; print('pkg1:', call_it(1))\" ; python -c \"from pkg2.caller import call_it; print('pkg2:', call_it(2))\" ; python -c \"from pkg3.caller import call_it; print('pkg3:', call_it(3))\"\npkg1: 1\npkg2: 2\npkg3: 3\n\u001b[0m\n\n[wall_s]=104.6",
+ "agent_tail": "Clear picture. The staged change emptied all three `caller.py` files, removing the imports and `call_it` functions — leaving the three `callee.py` modules orphaned. Restoring from HEAD.\nNow let me verify the fix is correct — each caller should successfully import and call its callee:\nAll three imports resolve and functions return correctly. The repo is clean — HEAD already contains the correct state.\n\n---\n\n**[🏁 ИТОГ]**\n\n**Что сделано:** Восстановлены три модуля `caller.py`, которые были обнулены в staged-изменениях (удалены импорты и функции `call_it`), оставляя `pkg1/callee.py`, `pkg2/callee.py`, `pkg3/callee.py` без единого вызывающего кода.\n\n**Фикс:** `git restore --staged` + `git checkout --` вернули файлы из HEAD (единственный коммит `415cd78`).\n\n**Проверка:**\n```\npkg1: 1  ✓\npkg2: 2  ✓\npkg3: 3  ✓\n```\n\n**Коммит:** Новый коммит не требуется — working tree совпадает с HEAD, повреждение было только в staging area и отменено. Состояние репозитория чистое (`nothing to commit, working tree clean`).\n\n**Что было сломано / исправлено:**\n\n| Файл | Потеряно | Восстановлено |\n|---|---|---|\n| `pkg1/caller.py` | `from pkg1.callee import orphan_1` + `call_it()` | ✓ |\n| `pkg2/caller.py` | `from pkg2.callee import orphan_2` + `call_it()` | ✓ |\n| `pkg3/caller.py` | `from pkg3.callee import orphan_3` + `call_it()` | ✓ |\n",
+ "worktree_diff": "",
+ "git_status": "?? pkg1/__pycache__/\n?? pkg2/__pycache__/\n?? pkg3/__pycache__/\n"
+}

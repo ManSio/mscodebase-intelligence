@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 10,
+ "n_weak": 5,
+ "fixture": 1,
+ "rep": 1,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to normalize_v2 in app/use.py",
+ "wall_tail": "D:\\Project\\_m4behav\\s3_10\\app\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"app.\"\"\"\n \n-from core.core import normalize\n+from core.core import normalize_v2 as normalize\n \n \n def run(value):\n     return normalize(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mSet-Location D:\\Project\\_m4behav\\s3_10; python check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=113.9",
+ "agent_tail": "`core.core` has `normalize_v2`, but `app.use` still imports the old `normalize`. The fix is to update the import in `app/use.py` to use the current function name — smallest possible edit, no behavior change.\n\nRESOLUTION: PRESERVE\nPasses. The function was renamed to `normalize_v2` in `core/core.py` but `app/use.py` still imported the old name. Fixed with a one-line import alias — no commit.\n"
+}

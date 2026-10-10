@@ -1,0 +1,11 @@
+{
+ "exp": "spurious",
+ "run": 5,
+ "arm": "NONE",
+ "fixture": 2,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to clean_value in pipeline/use.py",
+ "wall_tail": "=============\n--- D:\\Project\\_m4behav\\s4_5\\pipeline\\use.py\n+++ D:\\Project\\_m4behav\\s4_5\\pipeline\\use.py\n@@ -3,5 +3,5 @@\n from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=43.7",
+ "agent_tail": "RESOLUTION: PRESERVE\nPasses. One-line import fix + corresponding call site in `pipeline/use.py` — imported `clean_value` (which exists) instead of the non-existent `trim_value`.\n"
+}
