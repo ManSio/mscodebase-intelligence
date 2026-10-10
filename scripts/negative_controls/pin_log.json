@@ -106,5 +106,14 @@
       "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-10-07T22:42:30Z",
+    "reason": "stale_config: version_ignore_files + experiments/embeddinggemma2_eval/SOURCES.md (3rd-party provenance, FP 0.6.0); stale_check: POSIX path canon P-023",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "7609faea603ee03f1b9e34b4b30f3369b53d75f7dbcde291abefdee3fc1c71b8",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

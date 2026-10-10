@@ -1382,7 +1382,14 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         if mode == self.MODE_FAST:
             # FAST: embed + vector + FTS5 (без реранкера, но с bucketing)
             t1 = time.perf_counter()
-            query_vector = self.embedder.embed(query)
+            # E24 (2026-10-08): без обёртки смерть эмбеддера роняла весь fast
+            # (10/10 ERR), тогда как quality деградирует (engine.py:963).
+            # Контракт выравниваем: нет вектора — идём на FTS5+граф.
+            try:
+                query_vector = self.embedder.embed(query)
+            except Exception as e:
+                logger.warning(f"Fast mode: embedder unavailable, dense skipped: {e}")
+                query_vector = None
             timing["embed_ms"] = (time.perf_counter() - t1) * 1000
 
             if query_vector:
