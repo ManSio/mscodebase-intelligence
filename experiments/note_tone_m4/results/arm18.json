@@ -17,5 +17,7 @@
  "wall_tail": "     return str(value).strip().lower()\n+\n+\n+slugify = make_slug\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=91.6",
  "baseline": "0b0156097f3ae1182309ff70147a174e08980795",
  "worktree_diff": "diff --git a/util/core.py b/util/core.py\nindex 25247f6..d5367f3 100644\n--- a/util/core.py\n+++ b/util/core.py\n@@ -4,3 +4,6 @@\n def make_slug(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+slugify = make_slug\n",
- "git_status": " M util/core.py\n?? service/__pycache__/\n?? util/__pycache__/\n"
+ "git_status": " M util/core.py\n?? service/__pycache__/\n?? util/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias slugify=make_slug added in util/core.py"
 }

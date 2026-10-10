@@ -17,5 +17,7 @@
  "wall_tail": "tibility alias: public name preserved\n+trim_value = clean_value\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=42.2",
  "baseline": "31ae4deee1c115d69db8c19994aebdb3c145ce74",
  "worktree_diff": "diff --git a/textkit/core.py b/textkit/core.py\nindex 04deab8..6e1fb6c 100644\n--- a/textkit/core.py\n+++ b/textkit/core.py\n@@ -4,3 +4,6 @@\n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+# compatibility alias: public name preserved\n+trim_value = clean_value\n",
- "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n"
+ "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias trim_value=clean_value added in textkit/core.py"
 }
