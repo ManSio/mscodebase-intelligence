@@ -1,0 +1,118 @@
+Tom — the full independent pass, then the holes. Everything below was derived
+from frozen inputs (87 files, hashed before any analysis) with our own code, and
+every number carries its denominator. Where we were wrong along the way, it is
+stated next to the number, not in a footnote.
+
+## What reproduces exactly
+
+**E1/E2.** Our independent re-implementation, written from the prereg text without
+reading your analysis code first: E1 delta -0.3056, 95% CI [-0.5, -0.1111], SUPPORT,
+108/111 rows banked, 12/12 tasks, approach 0.972 vs 0.972. E2: C1 -0.0556 and C2
+-0.1111, both INCONCLUSIVE; C3 -0.5455, Bonferroni 98.33% CI [-0.8485, -0.2727],
+SUPPORT on 11 of 12 included tasks. All three agree with your published numbers
+to four decimals. A label-permutation control collapses E1 to -0.003, so the
+contrast measures arm identity, not arithmetic.
+
+**overlap().** Re-implemented from your spec (Jaccard over lowercase \w{3,},
+essence cut at 1500 chars before lowercasing, 0.0 on empty): **416/416 rows**
+reproduce, and **26/26** entry hashes verify against crystal-memory @ fe4e465.
+A collapsed tokenizer matches 0/171 fraction-valued rows, so the check
+discriminates. One correction to our own earlier claim: we first reported 16
+rows unverifiable because our terminal rendered the SYNTHETIC-unicode text as
+ASCII mush and we concluded the text was absent. It sits in your frozen
+generator; with the real text the hash matches and all 16 agree (including the
+4/9 unicode-tokenization control). There was no hole — our extraction was wrong.
+
+**Delivery + order.** Your dispatcher on our isolated store (the 3 starters, the
+entire deployable population at fe4e465), scored from your own eligibility and
+delivery logs, no model in the loop: **30/30 checks**. Short keys (eval/ssh/ssm/
+tsc) match only as words; symbolic keys match verbatim with the pipe load-bearing
+(same words without it: empty); long keys keep substring semantics; the seven
+generic words add nobody; must-match-nothing acts are empty; order on 3
+two-candidate acts equals our independent word-overlap computation 3/3 and is
+stable across repeats.
+
+## What breaks
+
+**1. Weaponized crystals fire with zero content checks.** A crystal file with a
+`git status` binding and an exfiltration instruction loads 1/1 with no complaint
+and delivers 1/1. We grepped for verification machinery: `invalid_bindings` is
+structural only, `_ledger_signature` is a cache key, `_redacted` is fail-open
+credential scrubbing on output. There is no signature, no trust authority, no
+content check. Your crystals are a static trusted textbook in the design; nothing
+in the code treats them as untrusted input. MPBench (50% poisoning ASR, prompt-
+injection defenses structurally blind to it) suggests this is the highest-leverage
+item on this list.
+
+**2. Length-5 substring hole, 5/5.** Keys of exactly length 5 (`|tail`, `|head`,
+`|grep`, `cargo`, `<<EOF`) stayed on substrings while shorter keys got boundaries:
+`escargot` fires green-tests via `cargo`; `log|tailspin`, `cmd|headache`,
+`cmd|grepable`, `<<EOFILE` fire exit-code. Natural text, wrong warnings.
+
+**3. Text-level invisibles, 6/6 silent.** No normalization anywhere: Cyrillic
+homoglyphs (`еval`), zero-width/thin spaces inside keys, and fullwidth forms all
+pass silently, while case folds correctly. This cannot be fixed by adding keys —
+only by normalizing input before comparison.
+
+**4. Attention deflection by budget, demonstrated end to end.** 1 large critical
+note (~2100 chars, ~zero overlap) against 12 small weak ones (~340 chars, high
+overlap) sharing one act: the critical is starved 1/1 with its text absent from
+the output, 11 weaks delivered. Dissection: candidate order follows overlap
+honestly — the greedy best-fit packer takes small pieces first. So a swarm of
+small high-overlap weaks crowds out a large critical, while a small critical
+survives by the same best-fit rule (also measured). For your "order over volume"
+thesis: the order is honest, the budget is not.
+
+**5. Repeat silence, measured to the key.** Same dangerous act twice in one
+session: [delivered, empty]. The backoff key is per act TYPE (`act:bash:<name>`),
+so after one firing, any bash act in the window is suppressed for that crystal.
+The session cap fires exactly at seen=3 (control seen=2 delivers). Forged-clock
+tests separate the two: ageing releases backoff but not the cap; fresh sessions
+speak (cap is per-session). A single trivial act buys minutes of silence.
+
+**6. Rotation beats relevance on repeats.** After one delivery, an act 3x more
+relevant to the heard crystal (overlap 0.065 vs 0.021) still ranks the unheard
+one first — `seen` leads the sort key unconditionally.
+
+**7. The seven-word rule has no deployed effect.** Ablation plus a full 25-key
+inventory: 0/25 deployed keys depend on the set. A synthetic guard-key crystal
+proves the mechanism works (word matches, glued does not) — there is just
+nothing for it to apply to. It will matter only if future crystals take those
+words as keys.
+
+**8. Scale is linear into pain.** 100/1000/5000 synthetic crystals: load
+0.87/8.02/39.07s, match 0.034/0.326/1.735s per act (~0.35ms/crystal). The 500ms
+pain threshold falls around ~1400 crystals. At that size the hook lags every
+keystroke, and hooks that lag get disabled.
+
+## What we checked and found fine
+
+Benign battery 0/10 deliveries; no ReDoS (10MB ctx in 0.4s); heredoc bodies are
+scanned; background `&` does not hide; corrupted ledger and broken crystal files
+fail open (returned/delivered and skipped-silently — noted here rather than
+under findings because for a fence that direction deserves its own discussion);
+no expired flags or tiers on the deployed set.
+
+## Our errors along the way (all corrected in the reports)
+
+A leftover loop variable compared a foreign input 416 times and printed a
+convincing "397 agreements"; a `.strip()` shifted the 1500-char cut window by one
+char; a scanner printed 0/0 and looked like a pass; two B1 rows contained `go
+build` and fired on that instead of the tested obfuscation; a cap test forged
+the ledger without the schema key and measured an empty file; an ablation was
+vacuous by construction. Each was caught by a gate (positive/negative controls,
+hash re-verification, a control that must fail), and each correction is recorded
+next to the number it touched.
+
+## Caveats we keep attached
+
+Order checked on 3 acts; the seven words have no deployed binding to test in
+combat; our behavioral replication on our own agent (44 runs advisory + 22
+refusal-flavored) found no hit difference (0.600 vs 0.529; 0.500 vs 0.667) —
+stated as non-replication on a different stack, not refutation; the benign
+battery is 10 everyday acts.
+
+Everything above is committed with the scripts that produced it wherever the
+code is ours; your files were read from a frozen mirror that verifies clean.
+Hashes and row counts on request. Nothing owed either way — use what survives
+your own re-derivation.
