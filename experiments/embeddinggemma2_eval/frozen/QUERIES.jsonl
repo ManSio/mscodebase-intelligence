@@ -1,0 +1,18 @@
+{"expect": "src/core/indexing/freshness.py", "id": "Q01", "query": "как работает hot-reload свежести индекса при изменении файлов", "type": "gold"}
+{"expect": "src/core/indexing/db_manager.py", "id": "Q02", "query": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB", "type": "gold"}
+{"expect": "src/core/indexing/db_writer.py", "id": "Q03", "query": "когда таблица пересоздаётся при schema mismatch полный rebuild", "type": "gold"}
+{"expect": "src/core/search/engine.py", "id": "Q04", "query": "векторный поиск похожих чанков по индексу через LanceDB distance", "type": "gold"}
+{"expect": "src/core/intelligence/verify_on_read.py", "id": "Q05", "query": "ленивая проверка факта памяти verify on read статус ADR", "type": "gold"}
+{"expect": "src/providers/embedder/remote_embedder.py", "id": "Q06", "query": "удалённый эмбеддинг через HTTP API llama server batch", "type": "gold"}
+{"expect": "src/core/indexing/project_indexer_registry.py", "id": "Q07", "query": "per project indexer registry multi window пулы по путям проектов", "type": "gold"}
+{"expect": "src/mcp/tools/indexing_tools.py", "id": "Q08", "query": "переиндексация одного изменённого файла notify change rate limit", "type": "gold"}
+{"expect": "src/providers/reranker/search_result_reranker.py", "id": "Q09", "query": "ранжирование результатов реранкером BGE M3 перестановка топ", "type": "gold"}
+{"expect": "src/core/search/bm25.py", "id": "Q10", "query": "bm25 ключевые слова медленный но точный полнотекстовый", "type": "gold"}
+{"expect": "src/providers/reranker/multi_provider.py", "id": "Q11", "query": "чат через LM Studio и Ollama реранкинг эмбеддинг многопровайдерный", "type": "gold"}
+{"expect": "src/providers/reranker/llama_install.py", "id": "Q12", "query": "скачивание GGUF моделей эмбеддинг реранкер установка llama сервер", "type": "gold"}
+{"expect": "src/core/di_container.py", "id": "Q13", "query": "сборка сервисов dependency injection фабрика indexer создание коллекции", "type": "gold"}
+{"expect": "src/config/settings.py", "id": "Q14", "query": "конфигурация настроек индекса чанк размер оверлап переменные окружения", "type": "gold"}
+{"expect": "src/core/indexing/index_project_runner.py", "id": "Q15", "query": "переиндексация продолжение записи resume порциями known hashes", "type": "gold"}
+{"expect": "src/core/indexing/parser.py", "id": "Q16", "query": "парсер исходников чанки большие тексты фолбэк строки перекрытие", "type": "gold"}
+{"expect": "src/core/search/bm25.py", "id": "POS_1", "query": "src/core/search/bm25.py", "type": "positive"}
+{"expect": "NONE", "id": "NEG_1", "query": "рецепт борща со сметаной и чесноком на ужин", "type": "negative"}

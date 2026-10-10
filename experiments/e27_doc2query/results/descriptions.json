@@ -1,0 +1,191 @@
+{
+ "src/config/settings.py": {
+  "desc": "Файл src/config/settings.py — центральное управление конфигурацией системных компонентов, использующие переменные окружения с разумными значениями по умолчанию.",
+  "sec": 11.5,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/artifact_paths.py": {
+  "desc": "Файл src/core/artifact_paths.py — это файл, который определяет точку вычисления артефактов MCP (Задача 4/5).",
+  "sec": 4.6,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/consistency.py": {
+  "desc": "Файл src/core/consistency.py определяет модель состояний согласованности артефактов MCP, обеспечивающих их стабильность между доменами (source, index, graph, symbols, memory).",
+  "sec": 13.9,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/di_container.py": {
+  "desc": "Файл реализует Dependency Injection Container для MSCodeBase, устраняя проблемы тройной инициализации через один ресурсный registry.",
+  "sec": 11.1,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/db_manager.py": {
+  "desc": "Файл определяет класс LanceDBManager, который управляет подключением к LanceDB, созданием таблиц и миграциями, а также обеспечивает автоматизацию схематических изменений.",
+  "sec": 9.8,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/db_writer.py": {
+  "desc": "Файл src/core/indexing/db_writer.py — управляет записью чанков в LanceDB с атомарностью и кэш-синхронизацией.",
+  "sec": 9.2,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/freshness.py": {
+  "desc": "Файл FreshnessChecker проверяет актуальность индекса (Incremental Hot-Reload) на диске, сравнивая файлы с таблицей и управляя переиндексированием новых/изменённых файлов.",
+  "sec": 9.9,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/index_parser.py": {
+  "desc": "Файл IndexParser — чистый парсер, читает файл, преобразует его в AST и возвращает данные без интеграции с БД, SymbolIndex или эмбеддинг.",
+  "sec": 21.5,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/index_project_runner.py": {
+  "desc": "Файл описывает процесс индексации проекта с использованием фаз парсинга, батч-эмбеддинга и записи с PID-закрытием.",
+  "sec": 11.8,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/indexer.py": {
+  "desc": "Файл предназначен для настройки индекса на LanceDB с автоматическим очисткой (применяется для обработки проектных данных).",
+  "sec": 9.0,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/parser.py": {
+  "desc": "Файл src/core/indexing/parser.py — файл для парсинга кода через Tree-sitter с контекстным чанкингом и надежным fallback.",
+  "sec": 3.2,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/indexing/project_indexer_registry.py": {
+  "desc": "Файл проектной индексации для многопроектной работы с Zed, обеспечивающей лакомый создание индексов и управление линейными и кэшированными соединениями LanceDB.",
+  "sec": 10.7,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/instruction_scan.py": {
+  "desc": "Файл предназначен для анализа инструкционных паттернов в тексте чанков, используя регулярные выражения для выявления рисков, таких как переплетение ролей и выполнение команд.",
+  "sec": 16.9,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/intelligence/verify_on_read.py": {
+  "desc": "Файл src/core/intelligence/verify_on_read.py — файл с описанием ленивой проверки узлов при ИЗВЛЕЧЕНИИ (retrieval), до формирования системного промпта.",
+  "sec": 4.6,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/search/bm25.py": {
+  "desc": "BM25Mixin is a mixin for adding sparse-retrieval capabilities to a search engine.",
+  "sec": 11.0,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/search/engine.py": {
+  "desc": "Файл предоставляет основные инструменты для работы с асинхронными и синхронными операциями, включая общий_executor и подмодули для индексации и анализа запросов.",
+  "sec": 16.6,
+  "retried": true,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/core/search/graph_adapter_pure.py": {
+  "desc": "Файл содержит реализацию Pure-методов SymbolIndexAdapter для PropertyGraph-контуров, обеспечивающих автоматизацию добавления файловых узлов и ссылок.",
+  "sec": 8.3,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/mcp/server.py": {
+  "desc": "Файл src/mcp/server.py — чистый IoC-ориентированный сервер с DI-контейнером, обеспечивающий регистрацию инструментов в отдельных классах, а бизнес-логику чисто.",
+  "sec": 9.0,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/mcp/server_tools.py": {
+  "desc": "Файл src/mcp/server_tools.py — регистрация MCP-инструментов, включая 31 core- и 16 интеллектуальных, 13 inline- и 4 dev- инструментов, всего 64.",
+  "sec": 7.5,
+  "retried": true,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/mcp/tools/indexing_tools.py": {
+  "desc": "Файл содержит индексационные инструменты, включая notify_change, с использованием debounce_batch и ограничения по запросам.",
+  "sec": 6.9,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/embedder/remote_embedder.py": {
+  "desc": "Файл содержит реализацию RemoteEmbedder для адаптивного эмбедирования, использующего внешние API с определенными ограничениями.",
+  "sec": 2.7,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/reranker/llama_install.py": {
+  "desc": "",
+  "sec": 5.0,
+  "retried": true,
+  "short": true,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/reranker/llama_runner.py": {
+  "desc": "Файл src/providers/reranker/llama_runner.py — это файл, который управляет процессом Llama-Server как подпроцесс, обеспечивая автоматизацию его жизненного цикла.",
+  "sec": 2.9,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/reranker/multi_provider.py": {
+  "desc": "Это файл реализации одностадийного cross-encoder реранкеров, использующего бенчмарковую архитектуру для упрощения процесса.",
+  "sec": 8.2,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/reranker/reranker_scoring.py": {
+  "desc": "Файл содержит скрипт для упрощения работы с реранкером, включая вычисление косинусной симметрии и проверку скоров.",
+  "sec": 2.7,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/providers/reranker/search_result_reranker.py": {
+  "desc": "Файл содержит реализацию класса SearchResultReranker, который комбинирует BM25 и векторные результаты для переранжирования поисковых результатов, сохранён для обратной совместимости.",
+  "sec": 6.6,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ },
+ "src/utils/ui_formatter.py": {
+  "desc": "Файл src/utils/ui_formatter.py — это Python-файл, который содержит реализацию различных функций для создания и форматирования пользовательского интерфейса (UI) для инструментов MSCodeBase.",
+  "sec": 3.1,
+  "retried": false,
+  "short": false,
+  "sampling": "t0.2/s42,retry t0.2/s43"
+ }
+}

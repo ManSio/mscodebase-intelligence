@@ -1,0 +1,163 @@
+{
+  "key": "e18_e5",
+  "gguf": "multilingual-e5-small-Q8_0.gguf",
+  "note": "prod control, same session",
+  "dim_full": 384,
+  "max_input_tokens": 480,
+  "ram_wss_mb": 91.765625,
+  "throughput": [
+    {
+      "batch": 1,
+      "ch_s": 9.956310066526008,
+      "tok_s": 3803.6791976376207,
+      "p50_req_ms": 93.9383499789983
+    },
+    {
+      "batch": 4,
+      "ch_s": 11.126890845157858,
+      "tok_s": 4250.884409918641,
+      "p50_req_ms": 354.34070002520457
+    },
+    {
+      "batch": 8,
+      "ch_s": 8.039706099158566,
+      "tok_s": 3071.4654967711335,
+      "p50_req_ms": 793.0153250053991
+    },
+    {
+      "batch": 16,
+      "ch_s": 10.274274201428874,
+      "tok_s": 3925.153273619956,
+      "p50_req_ms": 1312.5800499838078
+    },
+    {
+      "batch": 32,
+      "ch_s": 10.692404990126278,
+      "tok_s": 4084.8947212278727,
+      "p50_req_ms": 2518.9320000063162
+    }
+  ],
+  "chunk_sweep": [
+    {
+      "target_tokens": 128,
+      "actual_tokens_mean": 105,
+      "ch_s": 28.212803534034936,
+      "tok_s": 2976.4507728406857,
+      "req_ms": 283.5592000046745,
+      "dim": 384
+    },
+    {
+      "target_tokens": 256,
+      "actual_tokens_mean": 217,
+      "ch_s": 19.47199732263212,
+      "tok_s": 4232.725418007157,
+      "req_ms": 410.84639995824546,
+      "dim": 384
+    },
+    {
+      "target_tokens": 384,
+      "actual_tokens_mean": 344,
+      "ch_s": 11.956789954796271,
+      "tok_s": 4117.619540682966,
+      "req_ms": 669.0758999902755,
+      "dim": 384
+    }
+  ],
+  "quality": {
+    "q_dim": 384,
+    "n_queries": 17,
+    "n_chunks": 81,
+    "hit@1_file": 0.058823529411764705,
+    "hit@5_file": 0.23529411764705882,
+    "mrr_file": 0.20692678003602372,
+    "hit@1_chunk": 0.058823529411764705,
+    "hit@5_chunk": 0.23529411764705882,
+    "mrr_chunk": 0.20692678003602372,
+    "per_query_h1f": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "mrl": [
+    {
+      "dim": 256,
+      "mode": "e14style",
+      "hit@1": 0.058823529411764705,
+      "hit@5": 0.23529411764705882,
+      "mrr": 0.16769456413719616
+    },
+    {
+      "dim": 256,
+      "mode": "renorm",
+      "hit@1": 0.058823529411764705,
+      "hit@5": 0.35294117647058826,
+      "mrr": 0.20313869943684743
+    },
+    {
+      "dim": 128,
+      "mode": "e14style",
+      "hit@1": 0.0,
+      "hit@5": 0.29411764705882354,
+      "mrr": 0.14369577186836213
+    },
+    {
+      "dim": 128,
+      "mode": "renorm",
+      "hit@1": 0.058823529411764705,
+      "hit@5": 0.23529411764705882,
+      "mrr": 0.16680648776908172
+    }
+  ],
+  "controls": {
+    "pos_queries": [
+      "POS_1"
+    ],
+    "neg": [
+      {
+        "id": "NEG_1",
+        "max_sim": 0.882870614528656,
+        "top3": [
+          [
+            0.882870614528656,
+            "src/providers/embedder/remote_embedder.py"
+          ],
+          [
+            0.8823719620704651,
+            "src/core/intelligence/verify_on_read.py"
+          ],
+          [
+            0.8797825574874878,
+            "src/mcp/server.py"
+          ]
+        ]
+      }
+    ]
+  },
+  "env": {
+    "cpu_threads": 10,
+    "ubatch": 512,
+    "ctx": 2048,
+    "kv": "q4_0",
+    "pooling": "mean",
+    "chunk_tokens": 420,
+    "qual_tokens": 400,
+    "prefix": "none",
+    "llama_exe": "D:\\Project\\MSCodeBase\\experiments\\embeddinggemma2_eval\\llama-b11476\\llama-server.exe",
+    "llama_version": "version: 0.6.0-dev (build 11476, commit 988190680)"
+  }
+}
