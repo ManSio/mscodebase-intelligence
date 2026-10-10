@@ -68,9 +68,14 @@ and delivers 1/1. We grepped for verification machinery: `invalid_bindings` is
 structural only, `_ledger_signature` is a cache key, `_redacted` is fail-open
 credential scrubbing on output. There is no signature, no trust authority, no
 content check. Your crystals are a static trusted textbook in the design; nothing
-in the code treats them as untrusted input. MPBench (50% poisoning ASR, prompt-
-injection defenses structurally blind to it) suggests this is the highest-leverage
-item on this list.
+in the code treats them as untrusted input. The closest measured analogues —
+MPBench (~50% poisoning ASR on embedding-retrieval agent memories, with prompt-
+injection defenses structurally blind to the memory-poisoning channel) and
+AgentPoison (arXiv:2407.12784: 82% retrieval / 63% end-to-end at <0.1% poison
+rate, <1% benign impact) — suggest this is the highest-leverage item on this
+list, with one honest boundary: both benchmarks attack embedding-retrieval
+memories, while your store matches by substring/regex, so their rates are
+context for the threat class, not transferable numbers for your system.
 
 **2. Length-5 substring hole, 5/5.** Keys of exactly length 5 (`|tail`, `|head`,
 `|grep`, `cargo`, `<<EOF`) stayed on substrings while shorter keys got boundaries:
