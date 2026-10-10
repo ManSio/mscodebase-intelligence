@@ -135,14 +135,20 @@ next to the number it touched.
 ## Caveats we keep attached
 
 Order checked on 3 acts; the seven words have no deployed binding to test in
-combat; our behavioral replication on longcat-2.0 (44 runs advisory + 22
-refusal-flavored) found no hit difference (0.600 vs 0.529 with approach 15/22
-vs 17/22; 0.500 vs 0.667 with approach 4/11 vs 9/11) — stated as
-non-replication on a different stack, not refutation; the approach gap in the
-refusal arm has no cite evidence (tails show bypasses and tool-discovery
-stalls, never the note), so it is noise, not a mechanism; the benign
-battery is 10 everyday acts; 17/68 runs timed out at the provider ceiling and
-are counted, not dropped.
+combat; t3a is EXCLUDED from the pooled contrast (both agents bypassed the
+wrapped stand-ins with direct urllib calls, so the note never arrived in either
+arm — kept as a separate delivery-coverage finding: both hit your quota wall,
+which is precisely the behavior the trap wants, through an uninstrumented
+path); the blind repeat control is vacuous (0 candidates both times — `guard`
+has no binding, so it proves determinism on empty, with repeatability on
+non-empty sets coming from the ordering pairs instead); our behavioral
+replication on longcat-2.0 (44 runs advisory + 22 refusal-flavored) found no
+hit difference (0.600 vs 0.529 with approach 15/22 vs 17/22; 0.500 vs 0.667
+with approach 4/11 vs 9/11) — stated as non-replication on a different stack,
+not refutation; the approach gap in the refusal arm has no cite evidence
+(tails show bypasses and tool-discovery stalls, never the note), so it is
+noise, not a mechanism; the benign battery is 10 everyday acts; 17/68 runs
+timed out at the provider ceiling and are counted, not dropped.
 
 Everything above is committed with the scripts that produced it wherever the
 code is ours; your files were read from a frozen mirror that verifies clean.
