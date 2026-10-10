@@ -109,9 +109,11 @@ nothing for it to apply to. It will matter only if future crystals take those
 words as keys.
 
 **8. Scale is linear into pain.** 100/1000/5000 synthetic crystals: load
-0.87/8.02/39.07s, match 0.034/0.326/1.735s per act (~0.35ms/crystal). The 500ms
-pain threshold falls around ~1400 crystals. At that size the hook lags every
-keystroke, and hooks that lag get disabled.
+0.87/8.02/39.07s, match 0.034/0.326/1.735s per act (~0.35ms/crystal). A spot
+re-check reproduces the same order and linearity (n=1000: 7.99s/0.344s; n=100
+varies 0.11–0.87s with machine state, so treat small-n absolutes as noisy).
+The 500ms pain threshold falls around ~1400 crystals. At that size the hook lags
+every keystroke, and hooks that lag get disabled.
 
 ## What we checked and found fine
 
