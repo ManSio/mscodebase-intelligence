@@ -1,0 +1,51 @@
+{
+ "defender_rt": "False",
+ "A_scale": [
+  {
+   "n": 100,
+   "load_s": 0.0321,
+   "load_us_per_file": 321.1,
+   "candidates_repo_s": 0.0312,
+   "true_match_s": 0.00022,
+   "true_match_us_per_crystal": 2.199,
+   "essence_chars": 1335
+  },
+  {
+   "n": 1000,
+   "load_s": 0.3177,
+   "load_us_per_file": 317.7,
+   "candidates_repo_s": 0.3134,
+   "true_match_s": 0.00206,
+   "true_match_us_per_crystal": 2.064,
+   "essence_chars": 1335
+  },
+  {
+   "n": 5000,
+   "load_s": 1.616,
+   "load_us_per_file": 323.2,
+   "candidates_repo_s": 1.6681,
+   "true_match_s": 0.01105,
+   "true_match_us_per_crystal": 2.211,
+   "essence_chars": 1335
+  }
+ ],
+ "B_ledger": [
+  {
+   "entries": 3,
+   "due_for_s": 0.0027
+  },
+  {
+   "entries": 2002,
+   "due_for_s": 0.0065
+  },
+  {
+   "entries": 20002,
+   "due_for_s": 0.0547
+  },
+  {
+   "entries": 40002,
+   "due_for_s": 0.1099
+  }
+ ],
+ "C_ctx10mb_s": 0.486
+}
