@@ -1,0 +1,4 @@
+{"label": "on1", "n": 1000, "nonce": "abc", "load_cold_s": 10.3045, "load_warm_s": 0.5604, "candidates_repo_s": 0.4869, "candidates_preloaded_s": 0.00386, "load_cold_us_per_file": 10304.5, "match_us_per_crystal": 3.861}
+{"label": "on2", "n": 1000, "nonce": "def", "load_cold_s": 8.9341, "load_warm_s": 0.3752, "candidates_repo_s": 0.3541, "candidates_preloaded_s": 0.0021, "load_cold_us_per_file": 8934.1, "match_us_per_crystal": 2.101}
+{"label": "off1", "n": 1000, "nonce": "ghi", "load_cold_s": 0.3176, "load_warm_s": 0.3236, "candidates_repo_s": 0.3212, "candidates_preloaded_s": 0.00217, "load_cold_us_per_file": 317.6, "match_us_per_crystal": 2.173}
+{"label": "off2", "n": 1000, "nonce": "jkl", "load_cold_s": 0.331, "load_warm_s": 0.3298, "candidates_repo_s": 0.321, "candidates_preloaded_s": 0.00214, "load_cold_us_per_file": 331.0, "match_us_per_crystal": 2.143}
