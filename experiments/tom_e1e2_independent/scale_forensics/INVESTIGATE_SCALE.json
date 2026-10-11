@@ -1,0 +1,66 @@
+{
+ "template_chars": 2920,
+ "head_bytes": 4096,
+ "ctrls": {
+  "sleep_50ms": 0.0503,
+  "empty_load_s": 0.00041,
+  "empty_load_n": 0,
+  "empty_candidates": 0
+ },
+ "rows": [
+  {
+   "n": 100,
+   "walk_s": 0.0004,
+   "stat_s": 0.002,
+   "open_head_s": 0.0141,
+   "open_full_s": 0.0126,
+   "parse_binding_s": 0.0011,
+   "essence_s": 0.0003,
+   "load_cold_s": 0.0289,
+   "load_warm_s": 0.03,
+   "candidates_repo_s": 0.0302,
+   "candidates_preloaded_s": 0.00022,
+   "per_file_load_cold_us": 288.8,
+   "per_file_load_warm_us": 299.8,
+   "per_crystal_match_us": 2.161,
+   "essence_chars": 1335,
+   "loaded_n": 100
+  },
+  {
+   "n": 1000,
+   "walk_s": 0.0016,
+   "stat_s": 0.0127,
+   "open_head_s": 0.1357,
+   "open_full_s": 0.1293,
+   "parse_binding_s": 0.0088,
+   "essence_s": 0.0038,
+   "load_cold_s": 0.3012,
+   "load_warm_s": 0.3035,
+   "candidates_repo_s": 0.3114,
+   "candidates_preloaded_s": 0.00221,
+   "per_file_load_cold_us": 301.2,
+   "per_file_load_warm_us": 303.5,
+   "per_crystal_match_us": 2.208,
+   "essence_chars": 1335,
+   "loaded_n": 1000
+  },
+  {
+   "n": 5000,
+   "walk_s": 0.0071,
+   "stat_s": 0.0707,
+   "open_head_s": 0.7091,
+   "open_full_s": 0.6772,
+   "parse_binding_s": 0.045,
+   "essence_s": 0.018,
+   "load_cold_s": 1.5486,
+   "load_warm_s": 1.5471,
+   "candidates_repo_s": 1.5916,
+   "candidates_preloaded_s": 0.01026,
+   "per_file_load_cold_us": 309.7,
+   "per_file_load_warm_us": 309.4,
+   "per_crystal_match_us": 2.051,
+   "essence_chars": 1335,
+   "loaded_n": 5000
+  }
+ ]
+}

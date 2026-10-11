@@ -182,6 +182,22 @@ plain fact from code, wobbled on a judgement» ↔ наш «записки дв�
 verifiability как граница. Предложил прогнать Claude/Qwen/GPT на наших
 задачах.
 
+## Глава 20. Расследование расхождения масштаба (11.10)
+
+Разрыв 100–200× с Томом объяснён полностью, алгоритм не при чём.
+A/B в одной сессии (n=1000, RT ON vs OFF, свежие файлы с nonce):
+RT ON 8.9–10.3 мс/файл, RT OFF 0.32 мс/файл — множитель 28–32×.
+Windows Defender real-time сканирует каждый файл при первом открытии.
+Второе: наш «matching» (0.35 ms/крист.) был повторной загрузкой —
+candidates() зовёт load_crystals (:416); чистое совпадение 2.1 µs/крист.
+≈ Тома 3 µs. Диск — один NVMe (H3 refuted), размер 1335 vs 1000 = 1.3×
+(H4 refuted), остаток 8.7× — Windows open-overhead (H5 refuted).
+Контроли: RT-ON как positive, пустой склад как negative, обратимость
+on/on/off/off. Red Team 5 атак разобран. Артефакты:
+scale_forensics/{investigate_scale.py, ab_def.py, INVESTIGATE_SCALE.json,
+AB_DEFENDER.jsonl}; отчёт RESULTS_SCALE_FORENSICS.md.
+Действие: наше 0.35 ms/кристалл ОТОЗВАНО; Тому — граница замера.
+
 ## Что осталось
 
 ~~Финальный комментарий в тред~~ — сделано. Открыто: re-run refusal при refuse-once; PR #78 ждёт решения (сливать/ревью). — только по слову владельца, в самом конце.
