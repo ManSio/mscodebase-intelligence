@@ -140,6 +140,48 @@ judgements-свежие (7 с 04.10), ANP2 identity (11), router (3), refund (13
 R1 McNemar 3-против-2 при 5+4 согласиях (p=1.0): ноль подтверждён строго, а не
 только pooled. paired_tables.json.
 
+## Глава 19. Том ответил трижды (11.10) — разбор для владельца
+
+В issue tjonesit/crystals#1 после нашего поста — 3 ответа:
+00:28 (3080), 00:37 (951), 02:10 (1991).
+
+**Воспроизвёл у себя** (вызов реальной matches_ctx): length-5 дыра
+(cargo/escargot, |tail/log|tailspin, <<eof/<<EOFILE) и нормализация
+(zero-width в ssh, кириллическая ѕ, thin space в git status). Починил:
+crystal-memory `7a129db` + crystals `b86edc7` (в commit-сообщении стоит
+«Found by Mikhail (@ManSio)»); CHANGELOG-2026-10-10.md. НОВОЕ от них:
+наивный фикс `len(k)<=5` глушил symbol-ended префикс `post-` на
+POST-notes.md — поймали реплеем 100 реальных актов. Это их находка поверх
+нашей.
+
+**Подтвердил чтением** (не баг, дизайн-вопрос): backoff-часы ключуются
+`act:<type>:<crystal>` (line 790), seen во главе сортировки — нарочно.
+
+**Перевывел в 3-м ответе** на живых функциях (load_crystals, candidates,
+order, pack, due_for), temp-склад, проверил что живые склад/леджер фикстур
+не содержат:
+- Budget starvation — воспроизведён для ОДНОГО акта; на следующем акте
+  крупный пришёл целиком. Механизм = tie-break по длине essence в order().
+  Наша формулировка держится, но «lasts one act» — их уточнение, у нас
+  не проверено (мы мерили один акт).
+- Repeat silence — воспроизведён (ключ act:<type>:<crystal>, 6 мин,
+  write не задет).
+- Scale — РАСХОЖДЕНИЕ 100–200×: их load 0.0037/0.035/0.18s при
+  100/1000/5000 и ~0.003 ms/crystal; наши 0.87/8.02/39.07s и ~0.35 ms.
+  Мы должны ему границу замера. Наш замер: time.time() вокруг
+  load_crystals(str(store)) и вокруг candidates(repo=...) — причём
+  candidates() ВНУТРИ снова зовёт load_crystals (line 416), так что наш
+  «matching» включал тёплую повторную загрузку. Плюс наши essence 2932
+  символа против их ~1000, и хост Windows (INSTALL.md объявляет macOS/Linux,
+  Windows untested — §19.7).
+
+**Наши поведенческие нули:** он примет как cross-model non-replication на
+longcat-2.0, не как refutation. Сходимость: «decision model steady on a
+plain fact from code, wobbled on a judgement» ↔ наш «записки двигают
+открытый выбор и молчат там, где проверка сама называет ответ» —
+verifiability как граница. Предложил прогнать Claude/Qwen/GPT на наших
+задачах.
+
 ## Что осталось
 
 ~~Финальный комментарий в тред~~ — сделано. Открыто: re-run refusal при refuse-once; PR #78 ждёт решения (сливать/ревью). — только по слову владельца, в самом конце.
