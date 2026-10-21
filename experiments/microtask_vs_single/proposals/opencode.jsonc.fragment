@@ -9,7 +9,21 @@
   "small_model": "opencode-go/minimax-m3.1-flash-free",
 
   "agent": {
-    "local-executor": {
+    "pipeline-orchestrator": {
+      "description": "Routes coding work to the microtask pipeline and trusts its receipts",
+      "mode": "primary",
+      "model": "opencode-go/minimax-m3.1-flash-free",
+      "steps": 24,
+      "permission": {
+        "edit": "deny",
+        "shell": "deny",
+        "task": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "read": "allow"
+      },
+      "prompt": "You route coding work through the pipeline_run MCP tool.\n\nRules:\n- For any coding task, call pipeline_run with: task, repo, test_files (the tests that must pass) and source_file (the production file to change).\n- The tool returns machine-checked receipts: a receipt is PASS only when the acceptance command exited 0 and the test file was not modified. Trust the receipt; do not re-run the tests yourself.\n- Never paste diffs or file contents into your answers.\n- If the tool reports blocked or a violation, report that honestly instead of working around it."
+    },    "local-executor": {
       "description": "Executes one bounded unit of work on a local model and returns a receipt",
       "mode": "subagent",
       "model": "opencode-go/minimax-m3.1-flash-free",
@@ -54,11 +68,11 @@
     }
   },
 
-  "//mcp": "The deterministic pipeline as ONE tool. The orchestrator sees one tool, one receipt, one short summary — never the children's artifacts.",
+  "//mcp": "The deterministic pipeline as ONE tool. The orchestrator sees one tool, one receipt, one short summary — never the children's artifacts. The server lives in tools/microtask_pipeline/ (a tool of this repo).",
   "mcp": {
     "pipeline": {
       "type": "local",
-      "command": ["python", "experiments/microtask_vs_single/pipeline/mcp_server.py"],
+      "command": ["python", "D:/Project/MSCodeBase/tools/microtask_pipeline/mcp_server.py"],
       "enabled": true
     }
   },

@@ -114,7 +114,7 @@ levers, in order of expected effect:
 
 ## 7. Integration into OpenCode
 
-* `pipeline/mcp_server.py` — MCP stdio server exposing one tool, `pipeline_run`.
+* `tools/microtask_pipeline/mcp_server.py` — MCP stdio server exposing one tool, `pipeline_run`. The pipeline lives in its own folder as a **tool of this repository** (not inside the experiment), so it can be wired into OpenCode and kept under the repo's test suite: `tests/test_microtask_pipeline.py` and `tests/test_microtask_pipeline_red_team.py` (the red team runs on every test run, so a guard that stops working fails the build).
 * `proposals/opencode.jsonc.fragment` — provider `lmstudio-remote`
   (`http://192.168.2.5:1234/v1`, model `google/gemma-4-26b-a4b-qat`,
   `limit.context 8192`), the `mcp.pipeline` entry, and the agents.
