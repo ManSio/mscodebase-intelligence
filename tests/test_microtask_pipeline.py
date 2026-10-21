@@ -174,6 +174,46 @@ def test_relevant_slice_finds_the_function_the_test_calls(repo):
     assert "target_helper" in context
 
 
+def test_relevant_slice_keeps_a_multi_line_signature_body(tmp_path):
+    """Regression: the audit showed the model only receiving a signature.
+
+    An indentation-based block guess stops at the closing line of a multi-line
+    signature, so the body was cut and the model had nothing to fix. The slice
+    must come from the AST.
+    """
+    source = (
+        "def run_bounded(\n"
+        "    fn,\n"
+        "    timeout,\n"
+        "    *,\n"
+        "    default=None,\n"
+        ") -> Any:\n"
+        '    """Doc."""\n'
+        "    if 'error' in box:\n"
+        "        raise box['error']\n"
+        "    return box['result']\n"
+    )
+    blocks = engine._ast_blocks(source.splitlines(keepends=True), {"run_bounded"}, 80)
+    joined = "".join(blocks)
+    assert "return box['result']" in joined
+    assert "if 'error' in box" in joined
+
+
+def test_brief_of_a_real_function_includes_its_body(tmp_path):
+    source = (
+        "def compute(\n"
+        "    values,\n"
+        ") -> int:\n"
+        "    total = 0\n"
+        "    for value in values:\n"
+        "        total += value\n"
+        "    return total\n"
+    )
+    lines = source.splitlines(keepends=True)
+    blocks = engine._ast_blocks(lines, {"compute"}, 80)
+    assert "total += value" in "".join(blocks)
+
+
 # ── receipts and the verdict ───────────────────────────────────────────────
 
 
