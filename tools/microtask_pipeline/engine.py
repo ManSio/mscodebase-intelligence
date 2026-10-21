@@ -891,25 +891,35 @@ def relevant_slice(file_lines: list[str], identifiers: list[str], max_lines: int
     an unrelated script ("seems to be a diagnostic report script"). The code
     layer resolves the identifiers named by the failing test and shows those
     blocks instead.
+
+    The blocks come from the AST when the file is Python: an indentation-based
+    guess stops at the closing line of a multi-line signature (the audit found
+    exactly that — the model received a signature and no body).
     """
     wanted = {name for name in identifiers if name}
-    blocks: list[str] = []
+    blocks = _ast_blocks(file_lines, wanted, max_lines)
+    if blocks:
+        return "\n".join(blocks)
+    # fallback for non-Python files: a line-based block guess that also
+    # follows bracket continuations
+    blocks = []
     index = 0
     while index < len(file_lines) and len(blocks) < max_lines:
         line = file_lines[index]
         stripped = line.strip()
-        if stripped.startswith(("def ", "class ")) and any(
+        if stripped.startswith(("def ", "class ", "function ", "fn ")) and any(
             name in stripped for name in wanted
         ):
             indent = len(line) - len(line.lstrip())
             block = [line]
             cursor = index + 1
+            depth = line.count("(") - line.count(")")
             while cursor < len(file_lines) and len(block) < max_lines:
                 nxt = file_lines[cursor]
-                if nxt.strip() and (len(nxt) - len(nxt.lstrip())) <= indent and not nxt.strip().startswith(
-                    ("#", '"', "'")
-                ):
-                    break
+                depth += nxt.count("(") - nxt.count(")")
+                if depth <= 0 and nxt.strip() and (len(nxt) - len(nxt.lstrip())) <= indent:
+                    if not nxt.strip().startswith(("#", '"', "'")):
+                        break
                 block.append(nxt)
                 cursor += 1
             blocks.extend(block)
@@ -919,11 +929,34 @@ def relevant_slice(file_lines: list[str], identifiers: list[str], max_lines: int
         index += 1
     if blocks:
         return "\n".join(blocks)
-    # fallback: lines that mention the identifiers
     hits = [line for line in file_lines if any(name in line for name in wanted)]
     if hits:
         return "\n".join(hits[:max_lines])
     return "\n".join(file_lines[:12])
+
+
+def _ast_blocks(file_lines: list[str], wanted: set[str], max_lines: int) -> list[str]:
+    """Exact source of the defs/classes whose names the test mentions."""
+    text = "".join(line if line.endswith("\n") else line + "\n" for line in file_lines)
+    try:
+        import ast
+
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return []
+    blocks: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if node.name not in wanted:
+            continue
+        start = max(0, node.lineno - 1)
+        end = min(len(file_lines), node.end_lineno or node.lineno)
+        blocks.extend(file_lines[start:end])
+        blocks.append("    …")
+        if len(blocks) >= max_lines:
+            break
+    return blocks
 
 
 def _identifiers_of(test_body: str) -> list[str]:
@@ -966,7 +999,7 @@ def _context_for(
             line for line in test_lines if line.strip().startswith(("def test_", "assert"))
         )[:800]
 
-    for limit in (MAX_READ_LINES, 24, 18, 12, 8, 4):
+    for limit in (80, 60, 40, 30, 24, 12, 8, 4):
         snippet = relevant_slice(file_lines, _identifiers_of(test_hint), limit)
         context = (
             f"file to edit: {microtask.file}\n"
