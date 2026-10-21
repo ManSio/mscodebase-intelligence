@@ -9,7 +9,7 @@ Protocol: MCP over stdio, line-delimited JSON-RPC, stdlib only.
 from __future__ import annotations
 
 import json
-import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -19,9 +19,42 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from engine import Executor, run_task  # noqa: E402
 
-PRISTINE = Path(os.environ.get("MSC_PIPELINE_PRISTINE", "")).resolve() if os.environ.get(
-    "MSC_PIPELINE_PRISTINE"
-) else None
+EXPERIMENT = Path(__file__).resolve().parents[1]
+RUNS = EXPERIMENT / "runs"
+
+
+def make_pristine(repo: Path, dest: Path) -> Path:
+    """A pristine copy of the tracked tree, taken before the run.
+
+    The pipeline needs it for two things: restoring a tampered test file and
+    telling "changed" from "not changed". `git archive HEAD` gives exactly the
+    tracked files, without the working copies of other sessions.
+    """
+    if dest.exists():
+        return dest
+    dest.mkdir(parents=True, exist_ok=True)
+    try:
+        blob = subprocess.run(
+            ["git", "archive", "--format=tar", "HEAD"],
+            cwd=str(repo),
+            capture_output=True,
+            timeout=300,
+        ).stdout
+        if blob:
+            import io
+            import tarfile
+
+            with tarfile.open(fileobj=io.BytesIO(blob)) as tar:
+                tar.extractall(dest)
+            return dest
+    except (OSError, subprocess.SubprocessError):
+        pass
+    # fallback: copy the working tree
+    import shutil
+
+    shutil.copytree(repo, dest, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(".git", "__pycache__", ".pytest_cache"))
+    return dest
 
 
 def respond(msg_id, result: dict) -> None:
@@ -32,10 +65,24 @@ def respond(msg_id, result: dict) -> None:
 def tool_run(args: dict) -> dict:
     task = str(args.get("task", ""))
     repo = Path(str(args.get("repo", "."))).resolve()
-    pristine = Path(str(args.get("pristine") or PRISTINE or repo)).resolve()
-    test_files = args.get("test_files") or None
+    run_id = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    run_dir = RUNS / f"mcp-{run_id}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    pristine = Path(str(args["pristine"])).resolve() if args.get("pristine") else make_pristine(
+        repo, run_dir / "pristine"
+    )
+    pairs = None
+    if args.get("test_files"):
+        pairs = []
+        for test_rel in args["test_files"]:
+            src = args.get("source_file")
+            pairs.append((str(src), str(test_rel)))
     executor = Executor()
-    payload = run_task(task, repo, pristine, executor, test_files=test_files)
+    payload = run_task(task, repo, pristine, executor, pairs=pairs)
+    payload["run_dir"] = str(run_dir)
+    (run_dir / "result.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return payload
 
 
@@ -79,12 +126,16 @@ def main() -> int:
                                     "repo": {"type": "string", "description": "repo root"},
                                     "pristine": {
                                         "type": "string",
-                                        "description": "pristine copy for scope/test-tamper checks",
+                                        "description": "optional pristine copy; by default it is taken from git HEAD",
                                     },
                                     "test_files": {
                                         "type": "array",
                                         "items": {"type": "string"},
-                                        "description": "scope: the test files this task touches",
+                                        "description": "scope: the test files this task must satisfy",
+                                    },
+                                    "source_file": {
+                                        "type": "string",
+                                        "description": "the production file to change (when test_files is given)",
                                     },
                                 },
                                 "required": ["task", "repo"],

@@ -286,6 +286,7 @@ class Guard:
             if original.read_bytes() != path.read_bytes():
                 path.write_bytes(original.read_bytes())
                 restored.append(rel)
+                self.note(f"test file restored after tampering: {rel}")
         return restored
 
     def note(self, message: str) -> None:
@@ -482,6 +483,9 @@ def apply_unified_diff(original: str, diff_text: str) -> tuple[str | None, str]:
         new_block = [line[1:] for line in hunk if line.startswith((" ", "+"))]
         if not old_block:
             return None, "hunk has no context"
+        # the diff text has no line terminators of its own: restore them
+        old_block = [line if line.endswith("\n") else line + "\n" for line in old_block]
+        new_block = [line if line.endswith("\n") else line + "\n" for line in new_block]
         # find the old block in the remaining lines
         def norm(items: list[str]) -> list[str]:
             return [re.sub(r"[ \t]+", " ", item).rstrip("\n") for item in items]
@@ -843,9 +847,7 @@ def run_task(
                 break
             feedback = (check.get("tail") or "")[-600:]
         # the code layer decides, not the model
-        restored = guard.restore_tests()
-        if restored:
-            guard.note(f"test files restored after tampering: {restored}")
+        restored = guard.restore_tests()  # also records the violation
         verify = verify_step(microtask, repo)
         artifact = repo / microtask.file
         original = pristine / microtask.file

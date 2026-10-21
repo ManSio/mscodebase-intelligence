@@ -150,13 +150,17 @@ def main() -> int:
         # A6 test tampering is undone before the verdict
         original = (repo / "tests" / "test_mod.py").read_text(encoding="utf-8")
         (repo / "tests" / "test_mod.py").write_text("def test_f():\n    assert True\n", encoding="utf-8")
+        before_violations = len(guard.violations)
         restored = guard.restore_tests()
         after = (repo / "tests" / "test_mod.py").read_text(encoding="utf-8")
         report(
             "A6 tampered test is restored before verification",
-            "test file restored, violation recorded",
-            f"restored={restored}, violation={guard.violations[-1] if guard.violations else None}",
-            bool(restored) and after == original and bool(guard.violations),
+            "test file restored AND a violation recorded for it",
+            f"restored={restored}, new_violations={guard.violations[before_violations:]}",
+            bool(restored)
+            and after == original
+            and len(guard.violations) > before_violations
+            and any("restored after tampering" in v for v in guard.violations[before_violations:]),
         )
 
         # A7 unknown tool
