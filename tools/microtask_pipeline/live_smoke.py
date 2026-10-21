@@ -18,7 +18,15 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "harness"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parents[2]
+        / "experiments"
+        / "microtask_vs_single"
+        / "harness"
+    ),
+)
 
 from corpus_tasks import load_task, prepare  # noqa: E402
 from engine import Executor, run_task  # noqa: E402

@@ -9,6 +9,7 @@ Protocol: MCP over stdio, line-delimited JSON-RPC, stdlib only.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -19,8 +20,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from engine import Executor, run_task  # noqa: E402
 
-EXPERIMENT = Path(__file__).resolve().parents[1]
-RUNS = EXPERIMENT / "runs"
+REPO = Path(__file__).resolve().parents[2]
+RUNS = Path(
+    os.environ.get("MSC_PIPELINE_RUNS", str(REPO / "tools" / "microtask_pipeline" / "runs"))
+)
 
 
 def make_pristine(repo: Path, dest: Path) -> Path:
