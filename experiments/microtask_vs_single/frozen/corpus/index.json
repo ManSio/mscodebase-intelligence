@@ -1,0 +1,17 @@
+{
+  "n_tasks": 12,
+  "tasks": [
+    "c4c9296fdc_file_guard",
+    "11c88afca6_bootstrap_entities",
+    "8a05b599f6_verify_on_read",
+    "ed0f88004b_context_tool",
+    "6e63f85ac3_cypher_executor",
+    "001f7d3a41_write_tools",
+    "a7c221f88d_parser",
+    "9b66fbed2a_parser",
+    "32f1166290_index_project_runner",
+    "17e65663b7_health",
+    "e7dc645652_project_resolution",
+    "01d1cce11d_codebase_tool"
+  ]
+}

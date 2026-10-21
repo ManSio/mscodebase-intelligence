@@ -1,0 +1,80 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "//": "PROPOSAL — merge into ~/.config/opencode/opencode.jsonc by hand. Verified keys: subagent_depth, small_model, agent.*.model/steps/permission.task, mcp.* (local). Nothing here is applied by the harness.",
+
+  "subagent_depth": 2,
+
+  "//small_model": "Free OpenCode-account model for OpenCode's own title/summary calls. Swap for a local 1.5B when one is installed — it keeps those calls off the metered path.",
+  "small_model": "opencode-go/minimax-m3.1-flash-free",
+
+  "agent": {
+    "local-executor": {
+      "description": "Executes one bounded unit of work on a local model and returns a receipt",
+      "mode": "subagent",
+      "model": "opencode-go/minimax-m3.1-flash-free",
+      "temperature": 0.1,
+      "steps": 4,
+      "hidden": true,
+      "permission": {
+        "task": { "*": "deny", "micro-*": "allow" },
+        "read": "allow",
+        "edit": { "*": "deny", "src/**": "allow" },
+        "shell": { "*": "deny", "python -m pytest *": "allow" },
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+    "micro-worker": {
+      "description": "One-shot worker for a single micro-change inside one file",
+      "mode": "subagent",
+      "model": "opencode-go/minimax-m3.1-flash-free",
+      "temperature": 0,
+      "steps": 2,
+      "hidden": true,
+      "permission": {
+        "task": "deny",
+        "read": "allow",
+        "edit": { "*": "deny", "src/**": "allow" },
+        "shell": { "*": "deny", "python -m pytest *": "allow" },
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+    "orchestrator": {
+      "description": "Top-level planner: decomposes the task, delegates microtasks, accepts the receipt",
+      "mode": "primary",
+      "model": "opencode-go/minimax-m3.1-flash-free",
+      "steps": 12,
+      "permission": {
+        "task": { "*": "deny", "local-executor": "allow" },
+        "edit": "deny",
+        "shell": { "*": "deny", "git diff*": "allow", "git status*": "allow" }
+      }
+    }
+  },
+
+  "//mcp": "The deterministic pipeline as ONE tool. The orchestrator sees one tool, one receipt, one short summary — never the children's artifacts.",
+  "mcp": {
+    "pipeline": {
+      "type": "local",
+      "command": ["python", "experiments/microtask_vs_single/pipeline/mcp_server.py"],
+      "enabled": true
+    }
+  },
+
+  "//llama_cpp": "Local executor provider. Only valid once a code GGUF is downloaded and llama-server is running. The model id must match GET /v1/models. limit.context declares the budget, so OpenCode itself respects it.",
+  "provider": {
+    "lmstudio-remote": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Gemma 4 26B A4B QAT (our LM Studio server)",
+      "options": { "baseURL": "http://192.168.2.5:1234/v1", "apiKey": "{env:LMSTUDIO_KEY}" },
+      "models": {
+        "google/gemma-4-26b-a4b-qat": {
+          "name": "Gemma 4 26B A4B QAT",
+          "limit": { "context": 8192, "output": 2048 }
+        }
+      }
+    }
+  }
+}

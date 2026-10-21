@@ -1,0 +1,43 @@
+{
+  "task_id": "9b66fbed2a_parser",
+  "source": "own-repo-history",
+  "parent_sha": "32bc586266a796c2a0b418826f10fa6d814d7966",
+  "fix_sha": "9b66fbed2a5927baed265a1d77336290a8772006",
+  "subject": "feat(indexing): per-language grammar maps for imports, calls, assigns, conditions",
+  "src_file": "src/core/indexing/parser.py",
+  "src_files": [
+    "src/core/indexing/parser.py"
+  ],
+  "test_file": "tests/test_assignments.py",
+  "test_files": [
+    "tests/test_assignments.py",
+    "tests/test_symbol_index_call_graph.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_assignments.py::TestMultiLanguage::test_php_assign",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangCalls::test_dart_constructor_callee",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangCalls::test_java_method_invocation_callee",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangCalls::test_php_calls",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangCalls::test_ruby_call",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangCalls::test_swift_call_expression",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_c_preproc_include",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_cpp_preproc_include",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_dart_import_no_dup",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_kotlin_import_no_keyword_dup",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_php_namespace_use",
+    "tests/test_symbol_index_call_graph.py::TestMultiLangImports::test_ruby_require"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}
