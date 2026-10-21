@@ -106,5 +106,14 @@
       "stale_detector": "02a8f1d61a14656f044c4e4a796453601a5974d34b7810a37d254a6b7ed9de73",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-10-21T21:40:28Z",
+    "reason": "re-prove after the stale detector changed: it now judges only tracked/staged docs (untracked drafts of a parallel session must not block an unrelated commit)",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "bf6c55029546b0d5a1f036cfc6285650a3e9105de319da70d9df33f29d005f68",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

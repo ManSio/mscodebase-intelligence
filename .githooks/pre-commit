@@ -119,7 +119,9 @@ def main():
               "покрытие этого коммита обязана взять CI.", flush=True)
 
     all_ok &= run_script("scripts/verify_diary.py", "verify_diary", diary_args)
-    all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
+    # --staged: гейт судит КОММИТ, а не всё рабочее дерево — иначе чужие
+    # незастейдженные драфты параллельной сессии блокируют чужой коммит (§21).
+    all_ok &= run_script("scripts/stale_detector.py", "stale_detector", ["--staged"])
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
     all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
