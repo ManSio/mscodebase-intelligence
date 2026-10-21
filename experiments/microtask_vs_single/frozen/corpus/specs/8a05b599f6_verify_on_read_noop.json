@@ -1,0 +1,13 @@
+{
+  "task_id": "8a05b599f6_verify_on_read_noop",
+  "class": "no-op",
+  "snapshot_sha": "8a05b599f69842d668d410697dfbeca4e2960aa6",
+  "src_file": "src/core/intelligence/verify_on_read.py",
+  "test_file": "tests/test_verify_on_read.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_verify_on_read.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/core/intelligence/verify_on_read.py",
+  "unchanged_sha": "b6af1cec2a059625b1b24691bfb6785a162c10140a56fc415590c85f3508a650",
+  "text": "Check that `src/core/intelligence/verify_on_read.py` already behaves the way its own test file `tests/test_verify_on_read.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}

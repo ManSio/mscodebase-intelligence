@@ -1,0 +1,14 @@
+{
+  "_note": "Reference plan authored by the experiment designer as a compiler test vector. It is NOT the planner's output. The planner sees only frozen/prompts/planner.md, the task file and the repo.",
+  "tasks": [
+    {
+      "id": "T1",
+      "goal": "Return the arithmetic mean of the values and reject an empty input.",
+      "symbol": "tinycalc.core.mean",
+      "files": ["tinycalc/core.py"],
+      "depends_on": [],
+      "acceptance": "python -m pytest tests/test_public.py::test_mean_basic -q",
+      "max_steps": 3
+    }
+  ]
+}
