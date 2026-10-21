@@ -9,7 +9,9 @@
     "WISDOM.md",
     "owp_rfc_001_v04.md",
     "owp_github_discussion_draft.md",
-    "ARCLUX_AUDIT_2026-08-26.md"
+    "ARCLUX_AUDIT_2026-08-26.md",
+    "RESEARCH_SUBAGENTS_OPENCODE.md",
+    ".agent_task_state_microtask.md"
   ],
   "exclude_dirs": [
     "research",
@@ -22,7 +24,8 @@
     ".venv",
     "archive",
     "blog",
-    "ISSUES"
+    "ISSUES",
+    "microtask_vs_single"
   ],
   "version_exclude_patterns": [
     "127\\.0\\.0",
