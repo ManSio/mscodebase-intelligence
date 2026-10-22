@@ -129,7 +129,10 @@ def is_in_stale_ignore(text: str, line_num: int) -> bool:
 def scan_doc(doc_path: Path, project_root: Path, actual_version: str,
              config: StaleConfig) -> Optional[DocReport]:
     """Scan one doc for version drift."""
-    rel = str(doc_path.relative_to(project_root))
+    # P-023 (2026-10-08): Path.relative_to даёт backslashes на Windows —
+    # version_ignore_files/severity_overrides с '/' молча не матчились
+    # (ложный FP на сторонней версии в SOURCES.md). Каноника — POSIX.
+    rel = str(doc_path.relative_to(project_root)).replace("\\", "/")
     if should_skip_file(rel, config):
         return None
 

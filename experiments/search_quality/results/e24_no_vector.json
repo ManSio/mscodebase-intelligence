@@ -1,0 +1,166 @@
+{
+ "fast": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "ms": -1,
+   "h1": 0,
+   "h5": 0,
+   "top": "ERR RuntimeError: Embedder failed: mode=fallback, ov_compiled=False, onnx_client=False"
+  }
+ ],
+ "quality": [
+  {
+   "q": "как работает hot-reload свежести индекса при изменении файлов",
+   "exp": "src/core/indexing/freshness.py",
+   "ms": 7353.458400000818,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/indexing/freshness.py"
+  },
+  {
+   "q": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+   "exp": "src/core/indexing/db_manager.py",
+   "ms": 231.70539998682216,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/indexing/indexer_table.py"
+  },
+  {
+   "q": "когда таблица пересоздаётся при schema mismatch полный rebuild",
+   "exp": "src/core/indexing/db_writer.py",
+   "ms": 1375.5470999749377,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/project_resolution.py"
+  },
+  {
+   "q": "векторный поиск похожих чанков по индексу через LanceDB distance",
+   "exp": "src/core/search/engine.py",
+   "ms": 207.71959994453937,
+   "h1": 0,
+   "h5": 0,
+   "top": "src/core/search/bm25.py"
+  },
+  {
+   "q": "ленивая проверка факта памяти verify on read статус ADR",
+   "exp": "src/core/intelligence/verify_on_read.py",
+   "ms": 1561.9495999999344,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/intelligence/verify_on_read.py"
+  },
+  {
+   "q": "удалённый эмбеддинг через HTTP API llama server batch",
+   "exp": "src/providers/embedder/remote_embedder.py",
+   "ms": 171.70529998838902,
+   "h1": 0,
+   "h5": 3,
+   "top": "experiments/root_cause_eval/incident_dataset_full.json"
+  },
+  {
+   "q": "per project indexer registry multi window пулы по путям проектов",
+   "exp": "src/core/indexing/project_indexer_registry.py",
+   "ms": 1172.4948999471962,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/indexing/project_indexer_registry.py"
+  },
+  {
+   "q": "переиндексация одного изменённого файла notify change rate limit",
+   "exp": "src/mcp/tools/indexing_tools.py",
+   "ms": 160.13219999149442,
+   "h1": 0,
+   "h5": 0,
+   "top": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "q": "ранжирование результатов реранкером BGE M3 перестановка топ",
+   "exp": "src/providers/reranker/search_result_reranker.py",
+   "ms": 1949.25330003025,
+   "h1": 0,
+   "h5": 0,
+   "top": "experiments/1V_memory_contamination/memory_contamination_facts_v3_generated.json"
+  },
+  {
+   "q": "bm25 ключевые слова медленный но точный полнотекстовый",
+   "exp": "src/core/search/bm25.py",
+   "ms": 178.10620000818744,
+   "h1": 1,
+   "h5": 1,
+   "top": "src/core/search/bm25.py"
+  }
+ ]
+}

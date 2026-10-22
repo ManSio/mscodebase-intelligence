@@ -1,0 +1,279 @@
+{
+ "summary": {
+  "arm": "A(dense_on)",
+  "n": 33,
+  "hit1": 11,
+  "hit5": 15,
+  "errors": 0,
+  "hit1_pct": 33.3,
+  "hit5_pct": 45.5,
+  "mean_ms": 3534.3,
+  "wall_s": 116.6
+ },
+ "cases": [
+  {
+   "id": "F5S-01",
+   "gold": "src/core/rate_limiter.py",
+   "ms": 9696.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-02",
+   "gold": "src/core/redact.py",
+   "ms": 651.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/redact.py"
+  },
+  {
+   "id": "F5S-03",
+   "gold": "src/core/gitignore_parser.py",
+   "ms": 4091.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-04",
+   "gold": "src/core/embedder_lease.py",
+   "ms": 562.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-05",
+   "gold": "src/core/reindex_ledger.py",
+   "ms": 4996.1,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-06",
+   "gold": "src/core/quiet_break_gate.py",
+   "ms": 666.9,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/quiet_break_gate.py"
+  },
+  {
+   "id": "F5S-07",
+   "gold": "src/providers/reranker/reranker_scoring.py",
+   "ms": 20255.0,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/reranker_scoring.py"
+  },
+  {
+   "id": "F5S-08",
+   "gold": "src/core/error_envelope.py",
+   "ms": 639.5,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-09",
+   "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+   "ms": 5848.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_judge/mapping.json"
+  },
+  {
+   "id": "F5S-10",
+   "gold": "docs/en/SEARCH_PIPELINE.md",
+   "ms": 575.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/prompt_robustness/frozen/matcher_calibration.json"
+  },
+  {
+   "id": "F5S-11",
+   "gold": "docs/TRUST_BOUNDARY.md",
+   "ms": 5588.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "EXPERIMENTS_LOG.md"
+  },
+  {
+   "id": "F5S-12",
+   "gold": "docs/en/TELEMETRY.md",
+   "ms": 436.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_smoke_answers.json"
+  },
+  {
+   "id": "F5S-13",
+   "gold": "docs/adr/0003-verify-on-read.md",
+   "ms": 6007.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-14",
+   "gold": "docs/en/HANDFOFF.md",
+   "ms": 483.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "tests/conftest.py"
+  },
+  {
+   "id": "F5S-15",
+   "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+   "ms": 4202.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "docs/ru/ZED_WINDOWS_QUIRKS.md"
+  },
+  {
+   "id": "F5S-16",
+   "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+   "ms": 469.5,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_smoke_answers.json"
+  },
+  {
+   "id": "TR-R1",
+   "gold": "src/core/indexing/db_writer.py",
+   "ms": 6318.7,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/misc_probes/exp_in_situ_parse_timeout.py"
+  },
+  {
+   "id": "TR-R2",
+   "gold": "src/core/artifact_gc.py",
+   "ms": 480.5,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/log_manager.py"
+  },
+  {
+   "id": "TR-R3",
+   "gold": "src/providers/reranker/llama_install.py",
+   "ms": 5173.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/llama_install.py"
+  },
+  {
+   "id": "TR-R4",
+   "gold": "src/providers/reranker/llama_runner.py",
+   "ms": 586.6,
+   "hit1": false,
+   "hit5": true,
+   "top1": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "id": "TR-R5",
+   "gold": "src/providers/embedder/remote_embedder.py",
+   "ms": 4533.6,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/embedder/remote_embedder.py"
+  },
+  {
+   "id": "TR-R6",
+   "gold": "src/core/graph.py",
+   "ms": 592.4,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/graph.py"
+  },
+  {
+   "id": "TR-R8",
+   "gold": "src/core/search/cypher_sql.py",
+   "ms": 5243.0,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/cypher_sql.py"
+  },
+  {
+   "id": "TR-R9",
+   "gold": "src/core/bootstrap_tests.py",
+   "ms": 524.1,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/a2_link_rate.py"
+  },
+  {
+   "id": "TR-R10",
+   "gold": "src/core/indexing/freshness.py",
+   "ms": 4514.8,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/freshness.py"
+  },
+  {
+   "id": "TR-P1",
+   "gold": "src/core/indexing/parser.py",
+   "ms": 718.3,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/parser.py"
+  },
+  {
+   "id": "TR-P2",
+   "gold": "src/core/search/engine.py",
+   "ms": 6186.6,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/engine.py"
+  },
+  {
+   "id": "E2E-02",
+   "gold": "src/core/indexing/db_manager.py",
+   "ms": 518.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/indexing/index_guard.py"
+  },
+  {
+   "id": "E2E-05",
+   "gold": "src/core/intelligence/verify_on_read.py",
+   "ms": 4452.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "docs/adr/0003-verify-on-read.md"
+  },
+  {
+   "id": "E2E-07",
+   "gold": "src/core/indexing/project_indexer_registry.py",
+   "ms": 394.6,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/multi_project_searcher.py"
+  },
+  {
+   "id": "E2E-08",
+   "gold": "src/mcp/tools/indexing_tools.py",
+   "ms": 6331.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/context_engine/results_tasks_v3.json"
+  },
+  {
+   "id": "E2E-09",
+   "gold": "src/providers/reranker/search_result_reranker.py",
+   "ms": 354.7,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_smoke_answers.json"
+  },
+  {
+   "id": "E2E-10",
+   "gold": "src/core/search/bm25.py",
+   "ms": 4536.8,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/bm25.py"
+  }
+ ]
+}

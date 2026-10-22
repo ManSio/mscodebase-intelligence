@@ -1,0 +1,155 @@
+{
+ "queries": {
+  "P3_orig": {
+   "query": "ArtifactGC _cleanup_old_projects 30d 90d 7d retention_policy",
+   "logits": {
+    "gold_doc": 0.7880698442459106,
+    "gold_code": -6.444812774658203,
+    "distr_engine": -10.041930198669434,
+    "distr_settings": -10.663209915161133,
+    "distr_diary": -6.093839645385742
+   },
+   "sigmoid": {
+    "gold_doc": 0.6874,
+    "gold_code": 0.0016,
+    "distr_engine": 0.0,
+    "distr_settings": 0.0,
+    "distr_diary": 0.0023
+   },
+   "rank": [
+    "gold_doc",
+    "distr_diary",
+    "gold_code",
+    "distr_engine",
+    "distr_settings"
+   ]
+  },
+  "R2_orig": {
+   "query": "ArtifactGC 30d projects 90d telemetry 7d logs retention",
+   "logits": {
+    "gold_doc": 1.4550944566726685,
+    "gold_code": -5.0061869621276855,
+    "distr_engine": -8.402853965759277,
+    "distr_settings": -10.299126625061035,
+    "distr_diary": -6.017618656158447
+   },
+   "sigmoid": {
+    "gold_doc": 0.8108,
+    "gold_code": 0.0067,
+    "distr_engine": 0.0002,
+    "distr_settings": 0.0,
+    "distr_diary": 0.0024
+   },
+   "rank": [
+    "gold_doc",
+    "gold_code",
+    "distr_diary",
+    "distr_engine",
+    "distr_settings"
+   ]
+  },
+  "short": {
+   "query": "ArtifactGC",
+   "logits": {
+    "gold_doc": 2.2785263061523438,
+    "gold_code": -7.584114074707031,
+    "distr_engine": -6.615355491638184,
+    "distr_settings": -7.751883029937744,
+    "distr_diary": -5.450006484985352
+   },
+   "sigmoid": {
+    "gold_doc": 0.9071,
+    "gold_code": 0.0005,
+    "distr_engine": 0.0013,
+    "distr_settings": 0.0004,
+    "distr_diary": 0.0043
+   },
+   "rank": [
+    "gold_doc",
+    "distr_diary",
+    "distr_engine",
+    "gold_code",
+    "distr_settings"
+   ]
+  },
+  "keyword": {
+   "query": "ArtifactGC cleanup old projects retention days",
+   "logits": {
+    "gold_doc": 3.432910680770874,
+    "gold_code": -4.4543962478637695,
+    "distr_engine": -10.128113746643066,
+    "distr_settings": -10.337459564208984,
+    "distr_diary": -6.087577819824219
+   },
+   "sigmoid": {
+    "gold_doc": 0.9687,
+    "gold_code": 0.0115,
+    "distr_engine": 0.0,
+    "distr_settings": 0.0,
+    "distr_diary": 0.0023
+   },
+   "rank": [
+    "gold_doc",
+    "gold_code",
+    "distr_diary",
+    "distr_engine",
+    "distr_settings"
+   ]
+  },
+  "defform": {
+   "query": "What is the ArtifactGC retention policy for old projects telemetry logs",
+   "logits": {
+    "gold_doc": 1.7452340126037598,
+    "gold_code": -7.936079502105713,
+    "distr_engine": -9.989875793457031,
+    "distr_settings": -10.9386625289917,
+    "distr_diary": -7.29052734375
+   },
+   "sigmoid": {
+    "gold_doc": 0.8514,
+    "gold_code": 0.0004,
+    "distr_engine": 0.0,
+    "distr_settings": 0.0,
+    "distr_diary": 0.0007
+   },
+   "rank": [
+    "gold_doc",
+    "distr_diary",
+    "gold_code",
+    "distr_engine",
+    "distr_settings"
+   ]
+  },
+  "real_symbols": {
+   "query": "ArtifactGC prune_stale_artifacts project_max_age_days telemetry_max_age_days",
+   "logits": {
+    "gold_doc": 4.755861282348633,
+    "gold_code": -7.226933479309082,
+    "distr_engine": -6.984439373016357,
+    "distr_settings": -9.468976974487305,
+    "distr_diary": -5.173090934753418
+   },
+   "sigmoid": {
+    "gold_doc": 0.9915,
+    "gold_code": 0.0007,
+    "distr_engine": 0.0009,
+    "distr_settings": 0.0001,
+    "distr_diary": 0.0056
+   },
+   "rank": [
+    "gold_doc",
+    "distr_diary",
+    "distr_engine",
+    "gold_code",
+    "distr_settings"
+   ]
+  }
+ },
+ "passage_lens": {
+  "gold_doc": 800,
+  "gold_code": 800,
+  "distr_engine": 800,
+  "distr_settings": 797,
+  "distr_diary": 800
+ }
+}
