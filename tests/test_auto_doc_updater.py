@@ -181,3 +181,88 @@ def test_update_readme_tools_count_is_env_independent(tmp_path, monkeypatch):
     text = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "## 🔧 MCP Tools (4 total)" in text  # базовое число (не 5)
     assert "#mcp-tools-4-total" in text
+
+
+def test_archive_old_entries_moves_stale_sections(tmp_path):
+    """_archive_old_entries: раздел старше 1 месяца уходит в архив."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        "## [2026-09-15] — старая запись\n- текст старой записи\n"
+        "## [2026-10-20] — новая запись\n- текст новой записи\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+    result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+
+    assert "2026-09-15" not in result
+    assert "2026-10-20" in result
+
+    archive_dir = root / "docs" / "archive"
+    arch = archive_dir / "KNOWN_ISSUES_2026_09.md"
+    assert arch.exists()
+    assert "2026-09-15" in arch.read_text(encoding="utf-8")
+
+
+def test_archive_old_entries_keeps_current_month(tmp_path):
+    """_archive_old_entries: записи текущего месяца остаются в живом файле."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        "## [2026-10-01] — октябрь\n- запись октября\n"
+        "## [2026-10-22] — сегодня\n- запись сегодня\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+    result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+
+    assert "2026-10-01" in result
+    assert "2026-10-22" in result
+    assert not (root / "docs" / "archive").exists()
+
+
+def test_archive_old_entries_idempotent(tmp_path):
+    """_archive_old_entries: повторный прогон не дублирует архив."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        "## [2026-09-15] — старая запись\n- текст\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+
+    result1 = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+    result2 = updater._archive_old_entries(known, result1)
+
+    assert "2026-09-15" not in result2
+    arch = root / "docs" / "archive" / "KNOWN_ISSUES_2026_09.md"
+    content = arch.read_text(encoding="utf-8")
+    assert content.count("2026-09-15") == 1
+
+
+def test_sync_known_issues_archives_when_over_limit(tmp_path):
+    """_sync_known_issues: архивирует когда файл > 300 строк перед добавлением."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    (root / "AGENT_DIARY.md").write_text(
+        "## [2026-10-25] — новый баг\n- описание бага с fix внутри\n",
+        encoding="utf-8",
+    )
+    lines = ["# KNOWN ISSUES", ""]
+    for i in range(348):
+        lines.append("## [2026-09-10] — старая запись\n- текст строки %d\n" % i)
+    known_path = root / "KNOWN_ISSUES.md"
+    known_path.write_text("\n".join(lines), encoding="utf-8")
+
+    updater = AutoDocUpdater()
+    updater._sync_known_issues(root)
+
+    live_lines = known_path.read_text(encoding="utf-8").splitlines()
+    assert len(live_lines) <= 300, f"живой файл {len(live_lines)} строк > 300"
+    assert "2026-10-25" in "\n".join(live_lines)
