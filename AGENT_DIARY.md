@@ -433,7 +433,7 @@
 
 ---
 ## [2026-09-09] — H2: .h заголовки C включены в AST-индексацию (PARSE_EXTENSIONS + C-парсер)
-**Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
+**Status:** Fixed (commit not found in history; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
 **Root Cause:** ".h" был в INDEX_EXTENSIONS (вектор-чанкинг шёл), но НЕ в PARSE_EXTENSIONS → CodeParser.parse_file возвращал [], [] (parser.py:438). C-заголовки без AST: нет импортов (#include), вызовов, присваиваний, condition_path. E-S1 live-проба (2026-09-09): curl 65/300 файлов с #include дали 0 рёбер — преимущественно .h; dart-http .c 0/9.
 **Fix:** (1) extensions.py PARSE_EXTENSIONS: ".c" → ".c", ".h". (2) parser.py: регистрация `self.parsers[".h"] = <C-парсер>` (tree_sitter_c, не cpp — .h = C). (3) Карты языка по аналогии с ".c": `_EXT_TO_ENV_LANG` {".h": "c"}, IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator, assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/do/switch/case/conditional_expression). (4) +1 тест `test_h_header_preproc_include` (57 passed в файле; full gate-zero через pre-commit). Red Team: прототип-only .h → fallback-line-chunking (не ломается), пустой .h → 0, .hpp остаётся CPP (другая карта не тронута).
 **Guard:** интервал "вектор индексируется, AST нет" (INDEX_EXTENSIONS \ PARSE_EXTENSIONS) — проверять BATCH-check'ом при добавлении языка; тест на каждый новый suffix в PARSE_EXTENSIONS.
@@ -582,7 +582,7 @@
 - **system_alerts:** `AlertStore` (src/core/intelligence/alert_store.py, JSON вне проекта в <data_root>/projects/<hash>/intelligence/, threading.Lock т.к. несколько event-loop'ов, дедуп по kind+payload, атомарный collect_and_clear limit=5). Источники: (a) stale — `mark_stale("memory")` в notify_change ТОЛЬКО при переходе →STALE (не спамим на каждый save; reason меняется и дедуп по payload не спасёт); (b) starved — idle VOR-проход и `intel_get_project_memory` для узлов видимы ≥2 циклов (MATCHED>0, DELIVERED=0). Доставка: `format_system_alerts` prepend в `intel_get_project_memory` (tools_reg) + секция в `intel_explain_project_state` (server_tools, try/except — алерты не роняют диагноз).
 **Tests:** 11 в test_alert_store.py (push/collect/clear одноразовость/дедуп/limit/corrupt-json/гонка 2 threading-потоков 20 alerts/per-project изоляция/синглтон по resolved path/orphan) + 3 в test_ui_formatter_memory (empty/alerts render/payload limit 3). Полный pytest 1689 passed / 5 skipped / 91 deselected (180.8s); ruff clean после --fix; architecture_linter «Все инварианты соблюдены».
 **Red Team:** (1) дубль-доставка при гонке двух MCP-тулов — collect_and_clear атомарный (первый забрал, второй — пусто); (2) спам на каждый notify_change — alert только при первом переходе →STALE; (3) токен-оверхед — limit=5, payload до 3 ключей; (4) коррапт JSON — graceful reset; (5) multi-window — per-project store. 5/5 с защитой.
-**Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — отдельный коммит 0301fa93 (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
+**Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — commit not found in history (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1689 passed / 91 deselected (Windows, без e2e/shadow-маркеров — llama недоступен, slow/benchmark отсечены addopts).
 
 ## [2026-09-11] — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
