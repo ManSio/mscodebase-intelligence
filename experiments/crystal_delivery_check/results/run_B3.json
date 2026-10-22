@@ -1,0 +1,169 @@
+{
+ "act": "bash",
+ "act_id": "B3",
+ "ctx": "pytest tests/ -k duplicate_runs",
+ "ctx_len": 31,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "headed": [],
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "headed": [],
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "headed": [],
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "dupruns.md"
+     ],
+     "delivered": [
+      "dupruns.md"
+     ],
+     "essence_len": {
+      "dupruns.md": 159
+     },
+     "headed": [],
+     "ordered": [
+      "dupruns.md"
+     ],
+     "overlap": {
+      "dupruns.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

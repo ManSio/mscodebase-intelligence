@@ -1,0 +1,169 @@
+{
+ "act": "write",
+ "act_id": "E1",
+ "ctx": "docs/research/note.md a note about a widget and its tests",
+ "ctx_len": 57,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "widget.md"
+     ],
+     "delivered": [
+      "widget.md"
+     ],
+     "essence_len": {
+      "widget.md": 161
+     },
+     "headed": [],
+     "ordered": [
+      "widget.md"
+     ],
+     "overlap": {
+      "widget.md": 0.14285714285714285
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": "docs/research/note.md"
+}

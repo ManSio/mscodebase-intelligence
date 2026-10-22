@@ -1,0 +1,169 @@
+{
+ "act": "bash",
+ "act_id": "C1a",
+ "ctx": "npm run build --mode bench",
+ "ctx_len": 26,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "headed": [],
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "headed": [],
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "headed": [],
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "bench.md"
+     ],
+     "delivered": [
+      "bench.md"
+     ],
+     "essence_len": {
+      "bench.md": 80
+     },
+     "headed": [],
+     "ordered": [
+      "bench.md"
+     ],
+     "overlap": {
+      "bench.md": 0.25
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

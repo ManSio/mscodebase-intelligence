@@ -1,0 +1,89 @@
+{
+ "act": "write",
+ "act_id": "E2",
+ "ctx": "docs/research/note.md filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. filler. and here we mention a widget once, deep in the body",
+ "ctx_len": 3273,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": "docs/research/note.md"
+}

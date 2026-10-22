@@ -1,0 +1,89 @@
+{
+ "act": "bash",
+ "act_id": "A3",
+ "ctx": "git commit -m \"guardrails update\"",
+ "ctx_len": 33,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    },
+    "armB": {
+     "candidates": [],
+     "delivered": [],
+     "essence_len": {},
+     "headed": [],
+     "ordered": [],
+     "overlap": {},
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

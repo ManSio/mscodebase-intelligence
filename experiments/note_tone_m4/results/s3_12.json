@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 12,
+ "n_weak": 5,
+ "fixture": 1,
+ "rep": 3,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias normalize=normalize_v2 added in core/core.py",
+ "wall_tail": "==========\n--- D:\\Project\\_m4behav\\s3_12\\core\\core.py\n+++ D:\\Project\\_m4behav\\s3_12\\core\\core.py\n@@ -3,4 +3,7 @@\n \n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=56.4",
+ "agent_tail": "RESOLUTION: PRESURE\n\nThe function was renamed to `normalize_v2` in `core/core.py`, but `app/use.py` still imports `normalize`. Smallest fix: add an alias in `core/core.py` to preserve the public API name.\n`check.py` passes. Added `normalize = normalize_v2` in `core/core.py:7` — preserves the existing import name `normalize` used by `app/use.py`. No commit made.\n"
+}

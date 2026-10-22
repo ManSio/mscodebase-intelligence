@@ -1,0 +1,22 @@
+{
+ "run": 2,
+ "arm": "H1_IMPERATIVE",
+ "fixture": 1,
+ "rep": 2,
+ "note": "House style: a rename is a breaking change. Update the call sites to the new name. Do not keep the old name working with an alias.",
+ "note_len": 130,
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "prose": "UPDATE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "The function was renamed `normalize` → `normalize_v2` in `core/core.py`, but `app/use.py` still imports the old name. House style says: **update the call sites, don't alias the old name**. Let me check for other callers first.\nOnly one call site. README confirms the rename was intentional. Updating the call site to the new name.\nRESOLUTION: UPDATE\n\n`app/use.py:3,7` — changed `normalize` → `normalize_v2` to match the rename in `core/core.py`. Single call site, no alias, per house style.\n",
+ "wall_tail": "e):\n-    return normalize(value)\n+    return normalize_v2(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a rename is a breaking change. Update the call sites to the new name. Do not keep the old name working with an alias.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=48.8",
+ "worktree_diff": "diff --git a/app/use.py b/app/use.py\nindex 5a78d01..75186ce 100644\n--- a/app/use.py\n+++ b/app/use.py\n@@ -1,7 +1,7 @@\n \"\"\"app.\"\"\"\n \n-from core.core import normalize\n+from core.core import normalize_v2\n \n \n def run(value):\n-    return normalize(value)\n+    return normalize_v2(value)\n",
+ "git_status": " M app/use.py\n?? app/__pycache__/\n?? core/__pycache__/\n",
+ "artifact": "UPDATE",
+ "evidence": "import repointed to normalize_v2 in app/use.py"
+}

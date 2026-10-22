@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 15,
+ "n_weak": 5,
+ "fixture": 2,
+ "rep": 3,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to clean_value in pipeline/use.py",
+ "wall_tail": "y\n+++ D:\\Project\\_m4behav\\s3_15\\pipeline\\use.py\n@@ -1,7 +1,7 @@\n \"\"\"pipeline.\"\"\"\n \n-from textkit.core import trim_value\n+from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=47.6",
+ "agent_tail": "RESOLUTION: PRESERVE\n\n`textkit/core.py` defines `clean_value` (the canonical, descriptive name). `pipeline/use.py` was importing the old name `trim_value`. Updated the import and call site in `pipeline/use.py` to use `clean_value`. `check.py` passes.\n"
+}

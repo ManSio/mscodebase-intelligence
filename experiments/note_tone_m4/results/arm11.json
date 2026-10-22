@@ -1,0 +1,23 @@
+{
+ "run": 11,
+ "arm": "V2_PRESERVE",
+ "fixture": 1,
+ "rep": 2,
+ "note": "House style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.",
+ "note_len": 131,
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "prose": "PRESERVE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "RESOLUTION: PRESERVE\n\nThe function was renamed from `normalize` to `normalize_v2`. House style says: keep the old name working via a compatibility alias, don't edit call sites. So I add the alias in `core/core.py`.\n✅ `check.py` passes. Added a compatibility alias `normalize = normalize_v2` in `core/core.py` — preserves the old public name, no call sites touched, nothing committed.\n",
+ "wall_tail": "return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=46.3",
+ "baseline": "881adef3519fdca1477281a2fd383f4bf0dbba49",
+ "worktree_diff": "diff --git a/core/core.py b/core/core.py\nindex 57b4be1..7bc6b95 100644\n--- a/core/core.py\n+++ b/core/core.py\n@@ -4,3 +4,6 @@\n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n",
+ "git_status": " M core/core.py\n?? app/__pycache__/\n?? core/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias normalize=normalize_v2 added in core/core.py"
+}

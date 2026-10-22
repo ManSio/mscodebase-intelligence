@@ -1,0 +1,40 @@
+{
+ "run": 3,
+ "arm": "V1",
+ "rep": 3,
+ "valid": true,
+ "plant": {
+  "checks": {
+   "caller_staged": true,
+   "diff_removes_import": true,
+   "diff_removes_call": true,
+   "def_survives": true,
+   "call_gone": true
+  },
+  "held": true,
+  "diff_bytes": 249,
+  "staged_files": [
+   "pkg/caller.py"
+  ]
+ },
+ "baseline": "6f11619b58513cb6b4cbba4e33db4b06db4adfb9",
+ "rc": 0,
+ "model": "opencode-go/longcat-2.0",
+ "note": "GRAPH-GATE (advisory): this commit isolates `orphan_helper` (pkg/callee.py) — its last caller\nin pkg/caller.py is removed. Fix it now: re-add the call or delete the symbol. Do not leave\nit as is.",
+ "wall_tail": "enced.\"\nGRAPH-GATE (advisory): this commit isolates `orphan_helper` (pkg/callee.py) — its last caller\nin pkg/caller.py is removed. Fix it now: re-add the call or delete the symbol. Do not leave\nit as is.\n[master ee4b0ec] chore: remove caller module\n 1 file changed, 7 deletions(-)\n\u001b[0m\n\n[wall_s]=77.8",
+ "outcome": "NO-FIX",
+ "commit": "ee4b0ecef64fac9b74696e2f8ec12c5ea1948e17",
+ "touched": [
+  "pkg/caller.py"
+ ],
+ "n_agent_commits": 1,
+ "telemetry_rows": 0,
+ "iso_rows": 0,
+ "fired_advisory": 0,
+ "delivered": 0,
+ "note_in_output": false,
+ "agent_tail": "Let me understand the codebase before committing.\nCommitted as `ee4b0ec`.\n\n**Notable observations:**\n\n1. **This is a fixture repo** — its README states it exists to test whether agents notice a staged deletion that removes the *last caller* of a still-defined symbol.\n\n2. **The deletion orphans `orphan_helper`** — `pkg/caller.py` was the only consumer of `orphan_helper` from `pkg/callee.py`. After the commit, that function is defined but never called. The git hook caught it and emitted a GRAPH-GATE advisory.\n\n3. **`other_helper` was already orphaned** — even before this commit, `other_helper` in `callee.py` had zero callers. Its own docstring admits it exists only to \"keep this module from looking empty,\" so it may be intentional dead code or a fixture artifact.\n\n4. **Single-commit history** — the repo has only one prior commit (`6f11619 fixture: initial state`), so this orphan was created in the very first change after initialization.\n\nThe hook did its job — it flagged the isolated symbol at commit time.\n",
+ "telemetry": [],
+ "git_show": "ee4b0ecef64fac9b74696e2f8ec12c5ea1948e17\nchore: remove caller module\n\ndiff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n",
+ "git_patch": "diff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n"
+}

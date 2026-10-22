@@ -1,0 +1,11 @@
+{
+ "exp": "spurious",
+ "run": 1,
+ "arm": "WARNING",
+ "fixture": 1,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 1)",
+ "wall_tail": "_1\\core\\core.py\n+++ D:\\Project\\_m4behav\\s4_1\\core\\core.py\n@@ -1,6 +1,6 @@\n \"\"\"core.\"\"\"\n \n \n-def normalize_v2(value):\n+def normalize(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n\n\u001b[0m\n\u001b[0m$ \u001b[0mcd \"D:\\Project\\_m4behav\\s4_1\"; python check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=55.5",
+ "agent_tail": "The error: `app/use.py` imports `normalize` but `core/core.py` defines `normalize_v2`. Smallest fix is to align the function name with what the caller expects.\nCheck passes.\n\nRESOLUTION: PRESERVE\n\nRenamed `normalize_v2` → `normalize` in `core/core.py:4` to match the import in `app/use.py`. The caller's contract was the source of truth; the implementation's name was the mismatch.\n"
+}

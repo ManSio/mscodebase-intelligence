@@ -1,0 +1,23 @@
+{
+ "run": 14,
+ "arm": "V2_PRESERVE",
+ "fixture": 2,
+ "rep": 2,
+ "note": "House style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.",
+ "note_len": 131,
+ "rc": 0,
+ "attempt": 2,
+ "harness_fail": false,
+ "prose": "PRESERVE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "trim_value",
+ "new": "clean_value",
+ "agent_tail": "RESOLUTION: PRESERVE\n\n`trim_value` was renamed to `clean_value`, breaking the import. Per house style, I'll add a compatibility alias — no call site edits.\nDone. Added `trim_value = clean_value` as a compatibility alias in `textkit/core.py` — one line, no call sites touched. `check.py` passes.\n",
+ "wall_tail": "tibility alias: public name preserved\n+trim_value = clean_value\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=42.2",
+ "baseline": "31ae4deee1c115d69db8c19994aebdb3c145ce74",
+ "worktree_diff": "diff --git a/textkit/core.py b/textkit/core.py\nindex 04deab8..6e1fb6c 100644\n--- a/textkit/core.py\n+++ b/textkit/core.py\n@@ -4,3 +4,6 @@\n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+# compatibility alias: public name preserved\n+trim_value = clean_value\n",
+ "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias trim_value=clean_value added in textkit/core.py"
+}

@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 14,
+ "n_weak": 5,
+ "fixture": 2,
+ "rep": 2,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to clean_value in pipeline/use.py",
+ "wall_tail": "===========\n--- D:\\Project\\_m4behav\\s3_14\\pipeline\\use.py\n+++ D:\\Project\\_m4behav\\s3_14\\pipeline\\use.py\n@@ -3,5 +3,5 @@\n from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=45.9",
+ "agent_tail": "RESOLUTION: PRESERVE\n\nThe consumer (`pipeline/use.py`) references a name that doesn't exist (`trim_value`), but the producer (`textkit/core.py`) has a functionally identical function (`clean_value`). The smallest edit is to align the consumer with the existing producer.\nPasses. Two-line fix in `pipeline/use.py`: import and call renamed from `trim_value` → `clean_value` to match the existing `textkit.core` API.\n"
+}

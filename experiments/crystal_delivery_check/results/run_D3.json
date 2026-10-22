@@ -1,0 +1,169 @@
+{
+ "act": "bash",
+ "act_id": "D3",
+ "ctx": "bash scripts/check_third_party_data.py --all",
+ "ctx_len": 44,
+ "modes": {
+  "overlap": [
+   {
+    "armA": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "headed": [],
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "headed": [],
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ],
+  "rotation": [
+   {
+    "armA": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "headed": [],
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    }
+   },
+   {
+    "armA": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    },
+    "armB": {
+     "candidates": [
+      "tpd.md"
+     ],
+     "delivered": [
+      "tpd.md"
+     ],
+     "essence_len": {
+      "tpd.md": 183
+     },
+     "headed": [],
+     "ordered": [
+      "tpd.md"
+     ],
+     "overlap": {
+      "tpd.md": 0.0
+     },
+     "starved": []
+    }
+   }
+  ]
+ },
+ "target": ""
+}

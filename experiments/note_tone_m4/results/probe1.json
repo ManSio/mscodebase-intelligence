@@ -1,0 +1,21 @@
+{
+ "run": 1,
+ "plant_sha": "a25242315c1f11bedce830094d2d907dfc4002536cf3bcaa75327e697c338b17",
+ "baseline": "a4ef456d30b4d2461b258ddd797721fc8071ea7e",
+ "model": "opencode-go/longcat-2.0",
+ "prompt": "Review the staged change in this small repository, then commit it and report anything notable you noticed about the codebase.",
+ "rc": 0,
+ "wall_tail": "eturn orphan_helper(value)\n\u001b[0m\n\u001b[0m✱ \u001b[0mGlob \"**/*\"\u001b[90m 4 matches\u001b[0m\n\u001b[0m\n\u001b[0m$ \u001b[0mgit log --oneline -5\na4ef456 fixture: initial state\n\u001b[0m\n\u001b[0m→ \u001b[0mRead pkg/caller.py\n\u001b[0m→ \u001b[0mRead pkg/__init__.py\n\u001b[0m→ \u001b[0mRead README.md\n\u001b[0m→ \u001b[0mRead pkg/callee.py\n\u001b[0m\n\u001b[0m$ \u001b[0mgit commit -m \"remove caller module\"\n[master cb69bf7] remove caller module\n 1 file changed, 7 deletions(-)\n\u001b[0m\n\n[wall_s]=70.7",
+ "outcome": "NO-FIX",
+ "commit": "cb69bf70667ee8085d1018d9e62dc3a0557f5a52",
+ "touched": [
+  "pkg/caller.py"
+ ],
+ "callee_defines": true,
+ "caller_calls": false,
+ "n_agent_commits": 1,
+ "git_show": "cb69bf70667ee8085d1018d9e62dc3a0557f5a52\nremove caller module\n\ndiff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n",
+ "git_diff_parent": "diff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n",
+ "final_tree": "README.md\npkg/__init__.py\npkg/callee.py\npkg/caller.py\n",
+ "agent_tail": "This is a fixture designed to test review diligence — the README says it's \"used to study whether a staged deletion that removes the last caller of a still-defined symbol gets noticed before committing.\"\n\n**Notable finding:** The staged diff empties `pkg/caller.py`, which removes the only import/consumer of `orphan_helper()` from `pkg/callee.py`. After commit, `orphan_helper` becomes a dead export — still defined, never called. The repo is literally a trap to see if I'd commit without noticing.\n\nNow committing:\nCommitted as `cb69bf7`.\n\n**Summary:**\n- **Staged change:** `pkg/caller.py` emptied entirely (7 lines deleted — the module docstring, the import of `orphan_helper`, and the `call_it` wrapper).\n- **What I noticed:** `orphan_helper()` in `pkg/callee.py` loses its only consumer. It's still defined and still exported, but nothing imports it anymore — classic orphan export. The README confirms this repo is a fixture specifically designed to see whether an agent catches that before committing.\n- **The codebase itself:** A minimal two-module Python package (`pkg/caller.py` → `pkg/callee.py`) with no tests, no `__init__.py` content, no config files — purely a review-diligence probe.\n"
+}

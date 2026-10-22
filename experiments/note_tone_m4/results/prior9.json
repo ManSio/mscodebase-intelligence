@@ -1,0 +1,23 @@
+{
+ "run": 9,
+ "fixture": 3,
+ "rep": 3,
+ "model": "opencode-go/longcat-2.0",
+ "prompt": "Run `python check.py`, then make it pass with the smallest possible edit and commit nothing. On the FIRST line of your reply write exactly `RESOLUTION: PRESERVE` or `RESOLUTION: UPDATE`, naming in that one choice how you will fix it, then do the work.",
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "choice": "PRESERVE",
+ "check_passed_after": true,
+ "fixture_broken_before": true,
+ "repo_grounded_justification": true,
+ "old": "slugify",
+ "new": "make_slug",
+ "agent_tail": "The error: `util/core.py` has `make_slug`, but `use.py` imports `slugify`. The smallest fix — add an alias without touching the existing function.\n\n`RESOLUTION: PRESERVE` — keep `make_slug` as the canonical name and expose `slugify` as an alias.\nPasses. Added one line (`slugify = make_slug`) to `util/core.py:7` — existing function and name unchanged, alias resolves the import. No commit.\n",
+ "wall_tail": "y\nIndex: D:\\Project\\_m4prior\\prior9\\util\\core.py\n===================================================================\n--- D:\\Project\\_m4prior\\prior9\\util\\core.py\n+++ D:\\Project\\_m4prior\\prior9\\util\\core.py\n@@ -3,4 +3,7 @@\n \n def make_slug(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+slugify = make_slug\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=49.3",
+ "baseline": "848bc63dc163904cab4672422650a64c47c16582",
+ "worktree_diff": "diff --git a/util/core.py b/util/core.py\nindex 25247f6..d5367f3 100644\n--- a/util/core.py\n+++ b/util/core.py\n@@ -4,3 +4,6 @@\n def make_slug(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+slugify = make_slug\n",
+ "git_status": " M util/core.py\n?? service/__pycache__/\n?? util/__pycache__/\n",
+ "git_log": "848bc63 fixture: initial state\n",
+ "git_patch": "diff --git a/README.md b/README.md\nnew file mode 100644\nindex 0000000..3a7095e\n--- /dev/null\n+++ b/README.md\n@@ -0,0 +1,2 @@\n+# fixture 3\n+Two modules. `util` was renamed: `slugify` is now `make_slug`.\ndiff --git a/check.py b/check.py\nnew file mode 100644\nindex 0000000..7bf0a24\n--- /dev/null\n+++ b/check.py\n@@ -0,0 +1,7 @@\n+\"\"\"Check that the pipeline still runs.\"\"\"\n+import sys\n+\n+from service.use import run\n+\n+assert run('  Hello ') == 'hello', run('  Hello ')\n+print('check ok')\ndiff --git a/service/__init__.py b/service/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/service/use.py b/service/use.py\nnew file mode 100644\nindex 0000000..0989fa7\n--- /dev/null\n+++ b/service/use.py\n@@ -0,0 +1,7 @@\n+\"\"\"service.\"\"\"\n+\n+from util.core import slugify\n+\n+\n+def run(value):\n+    return slugify(value)\ndiff --git a/util/__init__.py b/util/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/util/core.py b/util/core.py\nnew file mode 100644\nindex 0000000..25247f6\n--- /dev/null\n+++ b/util/core.py\n@@ -0,0 +1,6 @@\n+\"\"\"util.\"\"\"\n+\n+\n+def make_slug(value):\n+    \"\"\"Normalise a value.\"\"\"\n+    return str(value).strip().lower()\n"
+}

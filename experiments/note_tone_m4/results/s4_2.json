@@ -1,0 +1,11 @@
+{
+ "exp": "spurious",
+ "run": 2,
+ "arm": "WARNING",
+ "fixture": 2,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 5)",
+ "wall_tail": "\\_m4behav\\s4_2\\textkit\\core.py\n@@ -3,4 +3,9 @@\n \n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+def trim_value(value):\n+    \"\"\"Normalise a value (alias).\"\"\"\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=47.1",
+ "agent_tail": "RESOLUTION: PRESERVE — `pipeline/use.py` expects `trim_value` from `textkit.core`, but only `clean_value` exists. Smallest fix: add `trim_value` to `textkit.core` (one line, consumer untouched).\n✅ `check ok`. Added `trim_value` as a one-line alias to `textkit.core`, leaving `pipeline/use.py` unchanged. No commit made.\n"
+}

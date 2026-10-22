@@ -1,0 +1,4 @@
+{"t":1791415886657,"kind":"init","directory":"D:\\Project\\_m4runs\\full30","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\30e461f6\\gate_telemetry.jsonl"}
+{"t":1791415918056,"gate":"stale","mode":"off","act":"bash git commit -m \"chore(fixture): empty pkg/caller.py (M4 planted orphan cleared)\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791415918057,"gate":"isolation","mode":"off","act":"bash git commit -m \"chore(fixture): empty pkg/caller.py (M4 planted orphan cleared)\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791416009344,"kind":"init","directory":"D:\\Project\\_m4runs\\full30","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\30e461f6\\gate_telemetry.jsonl"}

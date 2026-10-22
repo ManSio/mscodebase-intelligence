@@ -1,0 +1,8 @@
+{"t":1791407318200,"kind":"init","directory":"D:\\Project\\_m4runs\\full15","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\c87342fb\\gate_telemetry.jsonl"}
+{"t":1791407355901,"gate":"stale","mode":"off","act":"bash git commit -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407355901,"gate":"isolation","mode":"off","act":"bash git commit -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407778859,"gate":"stale","mode":"off","act":"bash git commit --skip-gate-zero -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407778860,"gate":"isolation","mode":"off","act":"bash git commit --skip-gate-zero -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407786225,"gate":"stale","mode":"off","act":"bash git commit --no-verify -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","drift":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407786226,"gate":"isolation","mode":"off","act":"bash git commit --no-verify -m \"chore(fixture): remove planted M4 caller for orphan_helper\"","count":0,"delivered":false,"reason":"skipped_off","latency_ms":0}
+{"t":1791407792584,"kind":"init","directory":"D:\\Project\\_m4runs\\full15","stale":"off","isolation":"off","log":"C:\\Users\\misha\\AppData\\Local\\mscodebase\\projects\\c87342fb\\gate_telemetry.jsonl"}

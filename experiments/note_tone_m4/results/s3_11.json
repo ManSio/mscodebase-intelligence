@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 11,
+ "n_weak": 5,
+ "fixture": 1,
+ "rep": 2,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias normalize=normalize_v2 added in core/core.py",
+ "wall_tail": "==========\n--- D:\\Project\\_m4behav\\s3_11\\core\\core.py\n+++ D:\\Project\\_m4behav\\s3_11\\core\\core.py\n@@ -3,4 +3,7 @@\n \n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=52.8",
+ "agent_tail": "RESOLUTION: PRESERVE\n\n`core/core.py` had renamed the function to `normalize_v2` but `app/use.py` still imported the old name `normalize`. Smallest fix: add one line aliasing `normalize = normalize_v2` in `core/core.py`, preserving the existing public import contract.\n\n```\nnormalize = normalize_v2  # added at core/core.py:8\n```\n\nVerification: `python check.py` → `check ok`. No commit made.\n"
+}

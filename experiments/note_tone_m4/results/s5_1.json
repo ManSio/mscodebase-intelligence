@@ -1,0 +1,16 @@
+{
+ "exp": "habituation",
+ "run": 1,
+ "rc": -9,
+ "per_defect": [
+  "FIX",
+  "FIX",
+  "FIX"
+ ],
+ "n_fixed": 3,
+ "n_commits": 0,
+ "wall_tail": "er.py\n\u001b[0m\n\u001b[0m$ \u001b[0mgit diff --cached\n(no output)\n\u001b[0m\n\u001b[0m$ \u001b[0mgit diff HEAD\n(no output)\n\u001b[0m\n\u001b[0m$ \u001b[0mgit config --get core.hooksPath\n(no output)\n\u001b[0m\n\u001b[0m$ \u001b[0mTest-Path -LiteralPath \"D:\\Project\\_m4behav\\s5_1\\.git\\hooks\\pre-commit\"\nTrue\n\u001b[0m\n\u001b[0m→ \u001b[0mRead .git/hooks/pre-commit\n\n[wall_s]=185.2",
+ "agent_tail": "",
+ "worktree_diff": "",
+ "git_status": "?? pkg1/__pycache__/\n"
+}

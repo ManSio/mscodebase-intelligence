@@ -1,0 +1,16 @@
+{
+ "exp": "habituation",
+ "run": 3,
+ "rc": 0,
+ "per_defect": [
+  "FIX",
+  "FIX",
+  "FIX"
+ ],
+ "n_fixed": 3,
+ "n_commits": 1,
+ "wall_tail": "de 100644 pkg1/callee.py\n delete mode 100644 pkg1/caller.py\n delete mode 100644 pkg2/callee.py\n delete mode 100644 pkg2/caller.py\n delete mode 100644 pkg3/callee.py\n delete mode 100644 pkg3/caller.py\n\u001b[0m\n\u001b[0m$ \u001b[0mgit status\nOn branch master\nnothing to commit, working tree clean\n\u001b[0m\n\n[wall_s]=92.4",
+ "agent_tail": "Clear picture. Three packages, each with:\n- `callee.py` — has a function (`orphan_1/2/3`) that's never called\n- `caller.py` — **empty** (the caller was removed)\n- `__init__.py` — empty\n\nThe callees are dead code. Fix: remove the orphaned callees and the empty callers.\nThe staged diff shows the full history: the original callers imported the callees, then were emptied (staged), and now both are deleted. Let me stage the deletions and commit.\nDone. Committed `e44ec67`.\n\n**What was found:** Three packages (`pkg1`, `pkg2`, `pkg3`) each had a `callee.py` with a function (`orphan_1/2/3`) and a `caller.py` that was emptied — the callers were removed, leaving the callees as dead code.\n\n**Fix:** Removed all 6 dead files — the 3 orphaned callees and the 3 now-empty callers. The `__init__.py` files remain (empty package markers, harmless).\n\n**State:** Working tree clean, no remaining references to the deleted symbols.\n",
+ "worktree_diff": "diff --git a/pkg1/callee.py b/pkg1/callee.py\ndeleted file mode 100644\nindex d7422d8..0000000\n--- a/pkg1/callee.py\n+++ /dev/null\n@@ -1,5 +0,0 @@\n-\"\"\"Helper 1.\"\"\"\n-\n-\n-def orphan_1(v):\n-    return v\ndiff --git a/pkg1/caller.py b/pkg1/caller.py\ndeleted file mode 100644\nindex 92b2195..0000000\n--- a/pkg1/caller.py\n+++ /dev/null\n@@ -1,7 +0,0 @@\n-\"\"\"Caller 1.\"\"\"\n-\n-from pkg1.callee import orphan_1\n-\n-\n-def call_it(v):\n-    return orphan_1(v)\ndiff --git a/pkg2/callee.py b/pkg2/callee.py\ndeleted file mode 100644\nindex c3ba4d0..0000000\n--- a/pkg2/callee.py\n+++ /dev/null\n@@ -1,5 +0,0 @@\n-\"\"\"Helper 2.\"\"\"\n-\n-\n-def orphan_2(v):\n-    return v\ndiff --git a/pkg2/caller.py b/pkg2/caller.py\ndeleted file mode 100644\nindex 1909e1c..0000000\n--- a/pkg2/caller.py\n+++ /dev/null\n@@ -1,7 +0,0 @@\n-\"\"\"Caller 2.\"\"\"\n-\n-from pkg2.callee import orphan_2\n-\n-\n-def call_it(v):\n-    return orphan_2(v)\ndiff --git a/pkg3/callee.py b/pkg3/callee.py\ndeleted file mode 100644\nindex 52df41c..0000000\n--- a/pkg3/callee.py\n+++ /dev/null\n@@ -1,5 +0,0 @@\n-\"\"\"Helper 3.\"\"\"\n-\n-\n-def orphan_3(v):\n-    return v\ndiff --git a/pkg3/caller.py b/pkg3/caller.py\ndeleted file mode 100644\nindex edca2e0..0000000\n--- a/pkg3/caller.py\n+++ /dev/null\n@@ -1,7 +0,0 @@\n-\"\"\"Caller 3.\"\"\"\n-\n-from pkg3.callee import orphan_3\n-\n-\n-def call_it(v):\n-    return orphan_3(v)\n",
+ "git_status": ""
+}

@@ -1,0 +1,12 @@
+{
+ "exp": "swarm",
+ "run": 5,
+ "n_weak": 1,
+ "fixture": 2,
+ "rep": 2,
+ "rc": 0,
+ "choice": "UPDATE",
+ "evidence": "import repointed to clean_value in pipeline/use.py",
+ "wall_tail": "============\n--- D:\\Project\\_m4behav\\s3_5\\pipeline\\use.py\n+++ D:\\Project\\_m4behav\\s3_5\\pipeline\\use.py\n@@ -3,5 +3,5 @@\n from textkit.core import clean_value\n \n \n def run(value):\n-    return trim_value(value)\n+    return clean_value(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=117.2",
+ "agent_tail": "`RESOLUTION: PRESERVE` — the function exists as `clean_value` in `textkit/core.py`; the import in `pipeline/use.py` references a stale name. Fix the import to use the real function.\nPasses. Fixed `pipeline/use.py` by importing and calling `clean_value` (the actual function in `textkit/core.py`) instead of the non-existent `trim_value`. No commit made.\n"
+}

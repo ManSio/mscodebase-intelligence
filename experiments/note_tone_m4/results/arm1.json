@@ -1,0 +1,23 @@
+{
+ "run": 1,
+ "arm": "V1_UPDATE",
+ "fixture": 1,
+ "rep": 1,
+ "note": "House style: a rename is released as a breaking change. Update the call sites to the new name and do not add compatibility aliases.",
+ "note_len": 131,
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "prose": "UPDATE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "`RESOLUTION: UPDATE` — `normalize` was renamed to `normalize_v2`; per house style, update call sites to the new name, no compatibility alias.\nDone. `check.py` passes.\n\n- **What:** `normalize` → renamed to `normalize_v2` in `core/core.py`. `app/use.py` still imported the old name.\n- **Fix:** Two-line edit in `app/use.py` — import and call site updated to `normalize_v2`. No compatibility alias, per house style.\n- **Committed:** nothing (as instructed).\n",
+ "wall_tail": "):\n-    return normalize(value)\n+    return normalize_v2(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a rename is released as a breaking change. Update the call sites to the new name and do not add compatibility aliases.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=47.4",
+ "baseline": "e07501b51fb9782b797db0c94a9f6b84af59dca8",
+ "worktree_diff": "diff --git a/app/use.py b/app/use.py\nindex 5a78d01..75186ce 100644\n--- a/app/use.py\n+++ b/app/use.py\n@@ -1,7 +1,7 @@\n \"\"\"app.\"\"\"\n \n-from core.core import normalize\n+from core.core import normalize_v2\n \n \n def run(value):\n-    return normalize(value)\n+    return normalize_v2(value)\n",
+ "git_status": " M app/use.py\n?? app/__pycache__/\n?? core/__pycache__/\n",
+ "artifact": "UPDATE",
+ "evidence": "import repointed to normalize_v2 in app/use.py"
+}

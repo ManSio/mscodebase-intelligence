@@ -1,0 +1,23 @@
+{
+ "run": 15,
+ "arm": "V2_PRESERVE",
+ "fixture": 2,
+ "rep": 3,
+ "note": "House style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.",
+ "note_len": 131,
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "prose": "UNDECLARED",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "trim_value",
+ "new": "clean_value",
+ "agent_tail": "Check passes. Added `trim_value = clean_value` alias in `textkit/core.py:6` — preserving the public name without editing the call site in `pipeline/use.py`, per the house style rule.\n",
+ "wall_tail": "return str(value).strip().lower()\n+\n+\n+trim_value = clean_value\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=49.5",
+ "baseline": "36039895db25708f0a4cc27ea63f633f7e54499b",
+ "worktree_diff": "diff --git a/textkit/core.py b/textkit/core.py\nindex 04deab8..1e3ecaa 100644\n--- a/textkit/core.py\n+++ b/textkit/core.py\n@@ -4,3 +4,6 @@\n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+trim_value = clean_value\n",
+ "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias trim_value=clean_value added in textkit/core.py"
+}

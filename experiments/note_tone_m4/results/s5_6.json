@@ -1,0 +1,16 @@
+{
+ "exp": "habituation",
+ "run": 6,
+ "rc": 0,
+ "per_defect": [
+  "FIX",
+  "FIX",
+  "FIX"
+ ],
+ "n_fixed": 3,
+ "n_commits": 1,
+ "wall_tail": "un; print('pkg2:', run()); from pkg3.caller import run; print('pkg3:', run())\"\npkg1: 1\npkg2: 2\npkg3: 3\n\u001b[0m\n\u001b[0m$ \u001b[0mcd \"D:\\Project\\_m4behav\\s5_6\"; git log --oneline -3\n515abf2 fix(callers): restore imports for orphaned callees in pkg1, pkg2, pkg3\n453b7e3 fixture: initial state\n\u001b[0m\n\n[wall_s]=122.1",
+ "agent_tail": "pty — it should import and use the orphan from its sibling `callee.py`. That's why all three callees lost their last caller.\n\n**Fix:** populate each `caller.py` to import and use its callee.\nFix verified — all three orphans now have callers and runtime works. Now committing.\nThe staged version was the \"broken\" state (files emptied). My working tree has the fix. Let me stage the fix and commit.\nCommit succeeded (graph-gate advisory only — the remaining \"orphaned\" symbols are the `run` entry points and the unrelated dead `pkg/caller.py`, not the three callees we fixed).\n\nLet me verify the final state:\n---\n\n[🏁 ИТОГ]\n\n**Что сделано:** Восстановлены три оборванные цепочки вызова. Каждый `pkgN/caller.py` был пуст — теперь импортирует и вызывает функцию из соседнего `callee.py`.\n\n**Диагностика:** `arclux_detect` показал `unused_exports` на `orphan_1/2/3` — у всех трёх модулей пропал последний вызывающий. Причина: файлы `caller.py` были обнулены (staged как пустыe).\n\n**Изменённые файлы:**\n- `pkg1/caller.py` — импорт `orphan_1` + `run()`\n- `pkg2/caller.py` — импорт `orphan_2` + `run()`\n- `pkg3/caller.py` — импорт `orphan_3` + `run()`\n\n**Верификация:** `python -c \"from pkg1.caller import run; ...\"` → `pkg1: 1 / pkg2: 2 / pkg3: 3` — все три цепочки работают.\n\n**Подводный камень:** Отдельный мёртвый файл `pkg/caller.py` (0 байт, не относится к трём пакетам) остался — не часть задачи, не трогал.\n\n**Коммит:** `515abf2 fix(callers): restore imports for orphaned callees in pkg1, pkg2, pkg3`\n",
+ "worktree_diff": "diff --git a/pkg1/caller.py b/pkg1/caller.py\nindex 92b2195..78440ff 100644\n--- a/pkg1/caller.py\n+++ b/pkg1/caller.py\n@@ -3,5 +3,5 @@\n from pkg1.callee import orphan_1\n \n \n-def call_it(v):\n-    return orphan_1(v)\n+def run():\n+    return orphan_1(1)\ndiff --git a/pkg2/caller.py b/pkg2/caller.py\nindex 1909e1c..440b020 100644\n--- a/pkg2/caller.py\n+++ b/pkg2/caller.py\n@@ -3,5 +3,5 @@\n from pkg2.callee import orphan_2\n \n \n-def call_it(v):\n-    return orphan_2(v)\n+def run():\n+    return orphan_2(2)\ndiff --git a/pkg3/caller.py b/pkg3/caller.py\nindex edca2e0..74bb288 100644\n--- a/pkg3/caller.py\n+++ b/pkg3/caller.py\n@@ -3,5 +3,5 @@\n from pkg3.callee import orphan_3\n \n \n-def call_it(v):\n-    return orphan_3(v)\n+def run():\n+    return orphan_3(3)\n",
+ "git_status": "?? pkg1/__pycache__/\n?? pkg2/__pycache__/\n?? pkg3/__pycache__/\n"
+}

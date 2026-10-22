@@ -1,0 +1,23 @@
+{
+ "run": 13,
+ "arm": "V2_PRESERVE",
+ "fixture": 2,
+ "rep": 1,
+ "note": "House style: a public name is never removed. Keep the old name working by adding a compatibility alias, and do not edit call sites.",
+ "note_len": 131,
+ "rc": 0,
+ "attempt": 2,
+ "harness_fail": false,
+ "prose": "PRESERVE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "trim_value",
+ "new": "clean_value",
+ "agent_tail": "RESOLUTION: PRESERVE\n\nThe check already passes — `check.py` runs successfully, imports `pipeline.use.run`, asserts `run('  Hello ') == 'hello'` (which `trim_value` satisfies), and prints \"check ok\". No edit is needed; the smallest possible change is zero changes.\n",
+ "wall_tail": "moved. Keep the old name working by adding a compatibility alias, and do not edit call sites.\n--- end house style ---\ncheck ok\n\u001b[0m\n\u001b[0m✱ \u001b[0mGlob \"**/check.py\"\u001b[90m 1 match\u001b[0m\n\u001b[0m→ \u001b[0mRead check.py\n\u001b[0m✱ \u001b[0mGlob \"pipeline/**/*.py\"\u001b[90m 2 matches\u001b[0m\n\u001b[0m→ \u001b[0mRead pipeline/use.py\n\n[wall_s]=90.8",
+ "baseline": "9520e0404d3375c10c25aa3341f1d08039efb6fc",
+ "worktree_diff": "diff --git a/textkit/core.py b/textkit/core.py\nindex 04deab8..1e3ecaa 100644\n--- a/textkit/core.py\n+++ b/textkit/core.py\n@@ -4,3 +4,6 @@\n def clean_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+trim_value = clean_value\n",
+ "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n",
+ "artifact": "PRESERVE",
+ "evidence": "alias trim_value=clean_value added in textkit/core.py"
+}

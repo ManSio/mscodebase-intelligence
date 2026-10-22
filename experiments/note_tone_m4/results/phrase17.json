@@ -1,0 +1,22 @@
+{
+ "run": 17,
+ "arm": "H2_HEDGED",
+ "fixture": 3,
+ "rep": 2,
+ "note": "House style: a rename is usually treated as a breaking change here, so it may be worth updating the call sites to the new name instead.",
+ "note_len": 135,
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "prose": "UPDATE",
+ "note_delivered_in_check_output": true,
+ "check_passed_after": true,
+ "old": "slugify",
+ "new": "make_slug",
+ "agent_tail": "RESOLUTION: UPDATE\n\nUpdated `service/use.py:3,7` to import and call `make_slug` instead of the old name `slugify`, following the house style that renames are breaking changes and call sites should be updated to the new name. `python check.py` now passes.\n",
+ "wall_tail": "e):\n-    return slugify(value)\n+    return make_slug(value)\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\n--- house style ---\nHouse style: a rename is usually treated as a breaking change here, so it may be worth updating the call sites to the new name instead.\n--- end house style ---\ncheck ok\n\u001b[0m\n\n[wall_s]=39.2",
+ "worktree_diff": "diff --git a/service/use.py b/service/use.py\nindex 0989fa7..56642ee 100644\n--- a/service/use.py\n+++ b/service/use.py\n@@ -1,7 +1,7 @@\n \"\"\"service.\"\"\"\n \n-from util.core import slugify\n+from util.core import make_slug\n \n \n def run(value):\n-    return slugify(value)\n+    return make_slug(value)\n",
+ "git_status": " M service/use.py\n?? service/__pycache__/\n?? util/__pycache__/\n",
+ "artifact": "UPDATE",
+ "evidence": "import repointed to make_slug in service/use.py"
+}

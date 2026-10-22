@@ -1,0 +1,17 @@
+{
+ "run": 7,
+ "framing": "PREF",
+ "arm": "NONE",
+ "fixture": 1,
+ "rc": 0,
+ "choice": "PRESERVE",
+ "evidence": "alias normalize=normalize_v2 added in core/core.py",
+ "check_passed": true,
+ "check_modified": false,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "RESOLUTION: PRESERVE\n\nThe function is named `normalize_v2` but `app/use.py` imports `normalize`. Smallest fix: add an alias in `core/core.py` without renaming the original.\nPasses. Added `normalize = normalize_v2` alias in `core/core.py:7` — preserves the existing function name while satisfying the `normalize` import in `app/use.py`.\n",
+ "wall_tail": "============\n--- D:\\Project\\_m4asym\\asym7\\core\\core.py\n+++ D:\\Project\\_m4asym\\asym7\\core\\core.py\n@@ -3,4 +3,7 @@\n \n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=41.7",
+ "worktree_diff": "diff --git a/core/core.py b/core/core.py\nindex 57b4be1..7bc6b95 100644\n--- a/core/core.py\n+++ b/core/core.py\n@@ -4,3 +4,6 @@\n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n",
+ "git_status": " M core/core.py\n?? app/__pycache__/\n?? core/__pycache__/\n"
+}

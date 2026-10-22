@@ -1,0 +1,17 @@
+{
+ "run": 8,
+ "framing": "PREF",
+ "arm": "NONE",
+ "fixture": 2,
+ "rc": 0,
+ "choice": "AMBIGUOUS",
+ "evidence": "no recognised resolution (added lines from 1)",
+ "check_passed": true,
+ "check_modified": false,
+ "old": "trim_value",
+ "new": "clean_value",
+ "agent_tail": "`clean_value` is unused elsewhere — only defined. The smallest fix is to rename it to `trim_value` in `core.py`.\n\nRESOLUTION: UPDATE\nDone. Renamed `clean_value` → `trim_value` in `textkit/core.py:4` (1 word). `check.py` passes. Nothing committed.\n",
+ "wall_tail": "D:\\Project\\_m4asym\\asym8\\textkit\\core.py\n+++ D:\\Project\\_m4asym\\asym8\\textkit\\core.py\n@@ -1,6 +1,6 @@\n \"\"\"textkit.\"\"\"\n \n \n-def clean_value(value):\n+def trim_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=50.6",
+ "worktree_diff": "diff --git a/textkit/core.py b/textkit/core.py\nindex 04deab8..4601070 100644\n--- a/textkit/core.py\n+++ b/textkit/core.py\n@@ -1,6 +1,6 @@\n \"\"\"textkit.\"\"\"\n \n \n-def clean_value(value):\n+def trim_value(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n",
+ "git_status": " M textkit/core.py\n?? pipeline/__pycache__/\n?? textkit/__pycache__/\n"
+}

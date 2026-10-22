@@ -72,6 +72,7 @@ __all__ = [
     "get_summaries_cache_dir",
     "get_logs_dir",
     "get_crash_log_path",
+    "get_gate_log_path",
     "get_shared_models_dir",
     "get_onnx_models_base",
     "legacy_project_dirs",
@@ -336,6 +337,17 @@ def get_logs_dir() -> Path:
 def get_crash_log_path() -> Path:
     """Crash-лог ResourceMonitor (вместо ~/.mscodebase_crash_log.json)."""
     return get_logs_dir() / "crash.json"
+
+
+def get_gate_log_path(project_path: Path) -> Path:
+    """Append-only JSONL-телеметрия гейтов доставки (opencode hook `mscodebase_gate`).
+
+    Живёт в проектной папке data_root (рядом с delivery_state.json),
+    а НЕ в %TEMP%: temp-каталог одноразовый и уже съедал эксперименты.
+    Одна строка = одна оценка гейта (gate/mode/act/delivered/reason/...).
+    Файл только дописывается, никогда не перезаписывается.
+    """
+    return get_project_dir(project_path) / "gate_telemetry.jsonl"
 
 
 def get_shared_models_dir() -> Path:

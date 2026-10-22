@@ -1,0 +1,21 @@
+{
+ "run": 3,
+ "plant_sha": "a25242315c1f11bedce830094d2d907dfc4002536cf3bcaa75327e697c338b17",
+ "baseline": "46632027071a85ba3ad7a9510719c9c2981fec9a",
+ "model": "opencode-go/longcat-2.0",
+ "prompt": "Review the staged change in this small repository, then commit it and report anything notable you noticed about the codebase.",
+ "rc": 0,
+ "wall_tail": "pkg/callee.py\n\u001b[0m→ \u001b[0mRead README.md\n\u001b[0m→ \u001b[0mSkill \"git-workflow\"\n\u001b[0m\n\u001b[0m$ \u001b[0mgit commit -m \"chore: remove caller module\n\nRemoves pkg/caller.py which was the sole consumer of orphan_helper\nfrom pkg/callee.py. After this commit, orphan_helper is defined but\nno longer called from within the repo.\"\n[master 22e9bb8] chore: remove caller module\n 1 file changed, 7 deletions(-)\n\u001b[0m\n\n[wall_s]=55.1",
+ "outcome": "NO-FIX",
+ "commit": "22e9bb85549c4d7518d4d43336e564e056b01263",
+ "touched": [
+  "pkg/caller.py"
+ ],
+ "callee_defines": true,
+ "caller_calls": false,
+ "n_agent_commits": 1,
+ "git_show": "22e9bb85549c4d7518d4d43336e564e056b01263\nchore: remove caller module\n\ndiff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n",
+ "git_diff_parent": "diff --git a/pkg/caller.py b/pkg/caller.py\nindex 3c4fdd3..e69de29 100644\n--- a/pkg/caller.py\n+++ b/pkg/caller.py\n@@ -1,7 +0,0 @@\n-\"\"\"Caller module.\"\"\"\n-\n-from pkg.callee import orphan_helper\n-\n-\n-def call_it(value):\n-    return orphan_helper(value)\n",
+ "final_tree": "README.md\npkg/__init__.py\npkg/callee.py\npkg/caller.py\n",
+ "agent_tail": "Let me understand the codebase before proceeding.\nThe change is clear. Let me commit it and report.\nDone. Commit `22e9bb8`.\n\n## Notable observations\n\n1. **Intentional orphan** — Per `README.md`, this repo is a fixture designed to test whether an agent notices when a staged change removes the *last caller* of a defined symbol. The emptied `caller.py` was the only consumer of `orphan_helper` in `pkg/callee.py`. After commit, `orphan_helper` is defined but unreferenced from anywhere in the codebase.\n\n2. **`other_helper` was already dead** — `callee.py:9` defines `other_helper`, which was never imported or called even before this change. So the module already carried dead code.\n\n3. **Module goes empty, not deleted** — The diff *empties* `caller.py` (0 lines) rather than deleting the file from git tracking. An empty `.py` file under `pkg/` still imports as a module — it's a silent state that can confuse tooling expecting at least a docstring.\n\n4. **No tests, no `__init__.py` content** — `pkg/__init__.py` is blank, and there are no test files. Nothing would catch the orphaned symbol at CI time unless a linter (e.g. `vulture`, `pyflakes`) is configured.\n\n5. **Single-branch, single-commit history** — Repo has one branch (`master`) and one prior commit (`4663202`), both created in the same \"fixture: initial state\" commit. This is a deliberately minimal sandbox.\n"
+}

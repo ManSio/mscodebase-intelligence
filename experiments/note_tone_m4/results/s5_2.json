@@ -1,0 +1,16 @@
+{
+ "exp": "habituation",
+ "run": 2,
+ "rc": 0,
+ "per_defect": [
+  "FIX",
+  "FIX",
+  "FIX"
+ ],
+ "n_fixed": 3,
+ "n_commits": 0,
+ "wall_tail": "int(call_it(42))\"\n42\n\u001b[0m\n\u001b[0m$ \u001b[0mgit status\nOn branch master\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\tpkg1/__pycache__/\n\tpkg2/__pycache__/\n\tpkg3/__pycache__/\n\nnothing added to commit but untracked files present (use \"git add\" to track)\n\u001b[0m\n\n[wall_s]=96.2",
+ "agent_tail": "Clear picture. The staged changes emptied all three `caller.py` files, which makes the three `callee.py` modules orphaned (no callers). The fix is to restore the callers.\nAll three callers restored and working. Now commit.\nWorking tree is clean — the restored files match HEAD exactly, so there's nothing to commit. The fix is complete.\n\n[🏁 ИТОГ]\n\n**What was done:** Restored all three `caller.py` files (`pkg1/`, `pkg2/`, `pkg3/`) that had been emptied in the staged changes, which orphaned the three `callee.py` modules.\n\n**Root cause:** The staged diff removed the import + wrapper function from each `caller.py`, leaving `orphan_1`, `orphan_2`, `orphan_3` with zero callers.\n\n**Fix:** `git checkout HEAD -- pkg1/caller.py pkg2/caller.py pkg3/caller.py` — restored the original 7-line callers that import and delegate to their respective callees.\n\n**Verification:** All three packages import and execute correctly (`call_it(42) → 42`).\n\n**Commit:** Not needed — the restored files match the initial commit (`7d98134`) exactly. Working tree is clean.\n",
+ "worktree_diff": "",
+ "git_status": "?? pkg1/__pycache__/\n?? pkg2/__pycache__/\n?? pkg3/__pycache__/\n"
+}

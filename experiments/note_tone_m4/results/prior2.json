@@ -1,0 +1,23 @@
+{
+ "run": 2,
+ "fixture": 1,
+ "rep": 2,
+ "model": "opencode-go/longcat-2.0",
+ "prompt": "Run `python check.py`, then make it pass with the smallest possible edit and commit nothing. On the FIRST line of your reply write exactly `RESOLUTION: PRESERVE` or `RESOLUTION: UPDATE`, naming in that one choice how you will fix it, then do the work.",
+ "rc": 0,
+ "attempt": 1,
+ "harness_fail": false,
+ "choice": "PRESERVE",
+ "check_passed_after": true,
+ "fixture_broken_before": true,
+ "repo_grounded_justification": true,
+ "old": "normalize",
+ "new": "normalize_v2",
+ "agent_tail": "`core/core.py` has `normalize_v2` but `app/use.py` imports `normalize`. The smallest fix is a one-line alias.\n\nRESOLUTION: PRESERVE\nPasses. One line added — aliased `normalize = normalize_v2` in `core/core.py:7` to preserve the existing import contract. No commit made.\n",
+ "wall_tail": " D:\\Project\\_m4prior\\prior2\\core\\core.py\n===================================================================\n--- D:\\Project\\_m4prior\\prior2\\core\\core.py\n+++ D:\\Project\\_m4prior\\prior2\\core\\core.py\n@@ -3,4 +3,7 @@\n \n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n\n\u001b[0m\n\u001b[0m$ \u001b[0mpython check.py\ncheck ok\n\u001b[0m\n\n[wall_s]=72.0",
+ "baseline": "b7fe69dea2a438174bc5fb70c282b49b9279af8e",
+ "worktree_diff": "diff --git a/core/core.py b/core/core.py\nindex 57b4be1..7bc6b95 100644\n--- a/core/core.py\n+++ b/core/core.py\n@@ -4,3 +4,6 @@\n def normalize_v2(value):\n     \"\"\"Normalise a value.\"\"\"\n     return str(value).strip().lower()\n+\n+\n+normalize = normalize_v2\n",
+ "git_status": " M core/core.py\n?? app/__pycache__/\n?? core/__pycache__/\n",
+ "git_log": "b7fe69d fixture: initial state\n",
+ "git_patch": "diff --git a/README.md b/README.md\nnew file mode 100644\nindex 0000000..4857621\n--- /dev/null\n+++ b/README.md\n@@ -0,0 +1,2 @@\n+# fixture 1\n+Two modules. `core` was renamed: `normalize` is now `normalize_v2`.\ndiff --git a/app/__init__.py b/app/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/app/use.py b/app/use.py\nnew file mode 100644\nindex 0000000..5a78d01\n--- /dev/null\n+++ b/app/use.py\n@@ -0,0 +1,7 @@\n+\"\"\"app.\"\"\"\n+\n+from core.core import normalize\n+\n+\n+def run(value):\n+    return normalize(value)\ndiff --git a/check.py b/check.py\nnew file mode 100644\nindex 0000000..256939f\n--- /dev/null\n+++ b/check.py\n@@ -0,0 +1,7 @@\n+\"\"\"Check that the pipeline still runs.\"\"\"\n+import sys\n+\n+from app.use import run\n+\n+assert run('  Hello ') == 'hello', run('  Hello ')\n+print('check ok')\ndiff --git a/core/__init__.py b/core/__init__.py\nnew file mode 100644\nindex 0000000..e69de29\ndiff --git a/core/core.py b/core/core.py\nnew file mode 100644\nindex 0000000..57b4be1\n--- /dev/null\n+++ b/core/core.py\n@@ -0,0 +1,6 @@\n+\"\"\"core.\"\"\"\n+\n+\n+def normalize_v2(value):\n+    \"\"\"Normalise a value.\"\"\"\n+    return str(value).strip().lower()\n"
+}
