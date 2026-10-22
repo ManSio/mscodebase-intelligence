@@ -741,7 +741,7 @@ class ProjectIntelligenceLayer:
             job.status = "running"
             job.progress = 0.0
             self._reindex_last_progress_ts = time.time()
-            embedder_lease.touch("reindex_start")
+            embedder_lease.acquire(os.getpid(), "reindex_start")
             reindex_ledger.record("start", job_id=job_id, project=str(self.project_path))
 
             try:
@@ -772,7 +772,7 @@ class ProjectIntelligenceLayer:
                         current_file, files_done, files_total, phase
                     ):
                         self._reindex_last_progress_ts = time.time()
-                        embedder_lease.touch("reindex")
+                        embedder_lease.acquire(os.getpid(), "reindex")
                         if _phase_seen[0] != phase:
                             _phase_seen[0] = phase
                             reindex_ledger.record("phase", job_id=job_id, phase=phase)
@@ -918,6 +918,7 @@ class ProjectIntelligenceLayer:
                 # Очищаем активный job_id, чтобы разрешить следующий reindex
                 self._reindex_job_id = None
                 self._reindex_task = None
+                embedder_lease.release(os.getpid())
 
         self._reindex_task = asyncio.create_task(_run_reindex_job())
         return job_id
