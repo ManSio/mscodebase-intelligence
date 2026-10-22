@@ -1,0 +1,12 @@
+{
+  "task_id": "ed0f88004b_context_tool_block",
+  "class": "block",
+  "snapshot_sha": "abc5b0da4ce22f19167aa97b78561b52a85d3bbf",
+  "src_file": "src/mcp/tools/context_tool.py",
+  "test_file": "tests/test_context_sections.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "",
+  "hidden_test_ids": [],
+  "missing_test": "tests/test_missing_spec.py",
+  "text": "Make `tests/test_missing_spec.py` pass. That file is the only specification of the expected behaviour, and it is the only place the expected behaviour is written down."
+}

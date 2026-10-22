@@ -24,6 +24,11 @@ Phase 1 вызывали _parse_file_only() БЕЗ known_hashes → шли в в
 
 from __future__ import annotations
 
+import os as _os
+
+# Короткий таймаут для IVF-тестов (чтобы не ждать 300с по умолчанию).
+_os.environ.setdefault("MSCODEBASE_LINK_TIMEOUT_SEC", "2")
+
 import threading
 from pathlib import Path
 
@@ -293,3 +298,109 @@ def test_run_survives_single_cpu_host(tmp_path):
         count = runner.run(runner.project_path)
     assert count > 0, "run() на 1-CPU хосте не проиндексировал ни одного файла"
     assert len(parsed_calls) == 4, f"ожидали 4 файла, обработано {len(parsed_calls)}"
+
+
+# ─── IVF auto-disable (PR #6) ──────────────────────────────────────────────
+
+class _FakeTableHang:
+    """Таблица, которая висит на optimize/create_index (имитация нативного зависания)."""
+
+    def __init__(self, hang_optimize: bool = True, hang_create_index: bool = True):
+        self.hang_optimize = hang_optimize
+        self.hang_create_index = hang_create_index
+        self.optimize_calls = 0
+        self.create_index_calls = 0
+
+    def optimize(self, *args, **kwargs):
+        self.optimize_calls += 1
+        if self.hang_optimize:
+            import time as _t
+            _t.sleep(60)  # висим — run_bounded'abandonет
+
+    def create_index(self, *args, **kwargs):
+        self.create_index_calls += 1
+        if self.hang_create_index:
+            import time as _t
+            _t.sleep(60)
+
+    def list_indices(self):
+        return []
+
+    def drop_index(self, name):
+        pass
+
+    def count_rows(self):
+        return 5000  # > 1000, чтобы IVF фаза запустилась
+
+    def to_lance(self):
+        return self
+
+    def to_pandas(self, columns=None):
+        import pandas as pd
+        return pd.DataFrame(columns=columns or [])
+
+
+def _make_runner_with_ivf_hang(tmp_path, hang_optimize=True, max_abandons=3):
+    """Runner с таблицей, которая висит на IVF операциях."""
+    project = tmp_path / "project"
+    (project / "src").mkdir(parents=True, exist_ok=True)
+    rel = "src/mod.py"
+    (project / rel).write_text("def f():\n    return 1\n", encoding="utf-8")
+
+    def fake_parse_file_only(full_path, rel_path_str, source="filesystem", known_hashes=None):
+        return _make_parsed(rel_path_str)
+
+    def fake_prune(active):
+        return 0
+
+    def fake_get_status():
+        return {"total_chunks": 10}
+
+    dbm = _FakeDbManager()
+    runner = IndexProjectRunner(
+        parse_file_only=fake_parse_file_only,
+        write_file_records=lambda parsed, vecs: True,
+        embedder=_FakeEmbedder(),
+        file_guard=_FakeFileGuard(),
+        searcher=_FakeSearcher(),
+        table=_FakeTableHang(hang_optimize=hang_optimize, hang_create_index=True),
+        path_manager=_FakePathManager(),
+        project_path=project,
+        notification_broker=None,
+        summarizer=None,
+        db_manager=dbm,
+        db_writer=_FakeDbWriter(),
+    )
+    return runner
+
+
+def test_ivf_auto_disable_after_n_abandons(tmp_path):
+    """IVF отключается после _IVF_MAX_ABANDONS abandonnéв optimize/create_index."""
+    from src.core.indexing.index_project_runner import _IVF_MAX_ABANDONS
+    runner = _make_runner_with_ivf_hang(tmp_path)
+    for _ in range(_IVF_MAX_ABANDONS):
+        runner.run(runner.project_path)
+    # После达到 предела — IVF отключён
+    assert runner._ivf_disabled is True, "IVF должен быть отключен после превышения лимита"
+    assert runner._ivf_abandon_count >= _IVF_MAX_ABANDONS, (
+        f"ожидалось >= {_IVF_MAX_ABANDONS} abandonnéв, получено {runner._ivf_abandon_count}"
+    )
+
+
+def test_ivf_abandon_count_increments_on_timeout(tmp_path):
+    """Каждый abandon оптимизации увеличивает счётчик."""
+    runner = _make_runner_with_ivf_hang(tmp_path)
+    runner.run(runner.project_path)
+    assert runner._ivf_abandon_count >= 1, (
+        f"ожидался >= 1 abandon, получено {runner._ivf_abandon_count}"
+    )
+
+
+def test_ivf_not_disabled_when_no_hangs(tmp_path):
+    """Без зависаний IVF не отключается."""
+    runner, parsed_calls, _ = _make_runner(tmp_path, known_hashes={})
+    runner.run(runner.project_path)
+    assert runner._ivf_disabled is False, "IVF не должен быть отключен без зависаний"
+    assert runner._ivf_abandon_count == 0, (
+        f"ожидалось 0 abandов, получено {runner._ivf_abandon_count}"
+    )

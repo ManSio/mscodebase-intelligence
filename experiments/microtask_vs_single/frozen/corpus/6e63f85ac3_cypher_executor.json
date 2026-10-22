@@ -1,0 +1,41 @@
+{
+  "task_id": "6e63f85ac3_cypher_executor",
+  "source": "own-repo-history",
+  "parent_sha": "e51764a084215eff10791ab9380f4274ba86334d",
+  "fix_sha": "6e63f85ac327b5453aa23e87d050821e03bcd2ab",
+  "subject": "fix(cypher): translate collect() to json_group_array with typed decode (#29)",
+  "src_file": "src/core/search/cypher_executor.py",
+  "src_files": [
+    "src/core/search/cypher_executor.py",
+    "src/core/search/cypher_sql.py"
+  ],
+  "test_file": "tests/test_cypher_engine.py",
+  "test_files": [
+    "tests/test_cypher_engine.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_cypher_engine.py::TestCypherE2E::test_collect_edge_property_e2e",
+    "tests/test_cypher_engine.py::TestCypherE2E::test_collect_empty_match_returns_empty_list",
+    "tests/test_cypher_engine.py::TestCypherE2E::test_collect_grouped",
+    "tests/test_cypher_engine.py::TestCypherE2E::test_collect_list_e2e",
+    "tests/test_cypher_engine.py::TestCypherE2E::test_collect_non_collect_column_not_decoded",
+    "tests/test_cypher_engine.py::TestCypherErrors::test_collect_nested_returns_error",
+    "tests/test_cypher_engine.py::TestCypherErrors::test_collect_star_returns_error",
+    "tests/test_cypher_engine.py::TestCypherToSQL::test_collect_nested_raises",
+    "tests/test_cypher_engine.py::TestCypherToSQL::test_collect_property_sql",
+    "tests/test_cypher_engine.py::TestCypherToSQL::test_collect_star_raises"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "e7dc645652_project_resolution",
+  "source": "own-repo-history",
+  "parent_sha": "fc170e63f6edc95046e1cdb848e1de710bf17950",
+  "fix_sha": "e7dc645652a598b31afdf018844b2c9be6d5e0d2",
+  "subject": "feat(packaging): ship locales/adapters + isolate data & models",
+  "src_file": "src/core/project_resolution.py",
+  "src_files": [
+    "src/core/project_resolution.py",
+    "src/main.py"
+  ],
+  "test_file": "tests/test_project_resolution_multiwindow.py",
+  "test_files": [
+    "tests/test_project_resolution_multiwindow.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_project_resolution_multiwindow.py::TestPriorityProjectPathOverride::test_mscb_path_wins_over_cwd"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

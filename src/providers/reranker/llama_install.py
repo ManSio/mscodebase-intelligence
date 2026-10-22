@@ -353,7 +353,9 @@ def _gguf_path(model_key: str) -> Path:
 
 # ─── Vulkan детекция ────────────────────────────────────────
 # Если есть Vulkan-совместимая видеокарта — используем GPU для эмбеддингов.
-# Это разгружает CPU и ускоряет индексацию в 2-5x.
+# Измерено E19 (Vega 6 iGPU, 271M embed): CPU быстрее (789 vs 591 tok/s) —
+# выигрыш 2-5x реален только на дискретных GPU; на shared-memory iGPU
+# дефолт CPU корректен. Детекция остаётся opt-in через LLAMA_BACKEND=vulkan.
 _HAVE_VULKAN = False
 if sys.platform == "win32":
     try:

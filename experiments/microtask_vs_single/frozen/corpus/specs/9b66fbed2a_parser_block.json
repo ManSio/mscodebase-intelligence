@@ -1,0 +1,12 @@
+{
+  "task_id": "9b66fbed2a_parser_block",
+  "class": "block",
+  "snapshot_sha": "32bc586266a796c2a0b418826f10fa6d814d7966",
+  "src_file": "src/core/indexing/parser.py",
+  "test_file": "tests/test_assignments.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "",
+  "hidden_test_ids": [],
+  "missing_test": "tests/test_missing_spec.py",
+  "text": "Make `tests/test_missing_spec.py` pass. That file is the only specification of the expected behaviour, and it is the only place the expected behaviour is written down."
+}

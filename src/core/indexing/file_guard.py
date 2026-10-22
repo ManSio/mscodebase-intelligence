@@ -67,12 +67,16 @@ class FileGuard:
         """Проверяет, нужно ли пропускать файл.
 
         Layer 2-4: Artifact Guard + Feedback Guard + Embedding Guard.
+        Layer 5: Measurement Hygiene (собственные замеры вне индекса).
         """
         # Layer 2: если файл в системной директории — сразу skip
         if SystemArtifacts.is_in_system_dir(file_path):
             return True
         # Layer 3: если файл — feedback risk (создан индексатором)
         if SystemArtifacts.is_feedback_risk(file_path):
+            return True
+        # Layer 5: артефакты собственных замеров (probe/result, results/work)
+        if SystemArtifacts.is_measurement_artifact(file_path):
             return True
         # Layer 4: полная проверка (расширение, бинарность, размер, .gitignore)
         return not self.is_safe_to_index(file_path)

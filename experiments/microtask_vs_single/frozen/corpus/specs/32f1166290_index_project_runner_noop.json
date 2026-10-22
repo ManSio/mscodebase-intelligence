@@ -1,0 +1,13 @@
+{
+  "task_id": "32f1166290_index_project_runner_noop",
+  "class": "no-op",
+  "snapshot_sha": "32f1166290ce7622333bf60cd980492bdd781d1a",
+  "src_file": "src/core/indexing/index_project_runner.py",
+  "test_file": "tests/test_job_history.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_job_history.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/core/indexing/index_project_runner.py",
+  "unchanged_sha": "6c0bd4944ca7d28d518f1f0a24c092d6f5fe676b1eabf49243d54b7054e0a1b7",
+  "text": "Check that `src/core/indexing/index_project_runner.py` already behaves the way its own test file `tests/test_job_history.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}
