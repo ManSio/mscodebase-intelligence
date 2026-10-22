@@ -35,7 +35,6 @@ from dataclasses import asdict
 from src.core import embedder_lease, reindex_ledger
 
 # Импорты из декомпозированных модулей
-from src.core.intelligence.embed_progress import _embed_progress_from_log
 from src.core.intelligence.jobs import BackgroundJob, job_manager
 from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
 from src.utils.i18n import _
@@ -768,14 +767,28 @@ class ProjectIntelligenceLayer:
 
                     # Создаём progress_callback, который маппит прогресс индексера (0..1) на шкалу job'а (0.1..1.0)
                     _phase_seen = [None]
+                    _phase_start_ts = [time.time()]
+                    _phase_durations: dict[str, float] = {}
+
+                    def _record_phase_duration(phase: str) -> None:
+                        """Записывает длительность завершённой фазы в историю."""
+                        if _phase_start_ts[0] is not None:
+                            dur = time.time() - _phase_start_ts[0]
+                            if job.project_size:
+                                self.job_history.append_record(
+                                    job.project_size, dur, phase=phase
+                                )
+
                     def _index_progress_callback(
                         current_file, files_done, files_total, phase
                     ):
                         self._reindex_last_progress_ts = time.time()
                         embedder_lease.acquire(os.getpid(), "reindex")
-                        if _phase_seen[0] != phase:
-                            _phase_seen[0] = phase
-                            reindex_ledger.record("phase", job_id=job_id, phase=phase)
+                        # Фиксируем переход фазы: записываем длительность предыдущей
+                        if _phase_seen[0] is not None and phase != _phase_seen[0]:
+                            _record_phase_duration(_phase_seen[0])
+                            _phase_start_ts[0] = time.time()
+                        _phase_seen[0] = phase
                         if files_total > 0:
                             ratio = files_done / files_total
                             if phase == "embedding":
@@ -797,6 +810,10 @@ class ProjectIntelligenceLayer:
                     )
                     job.progress = 0.1
                     indexed_count = await future
+
+                    # Записываем длительность последней фазы
+                    if _phase_seen[0] is not None and job.project_size:
+                        _record_phase_duration(_phase_seen[0])
 
                     # Сохраняем размер проекта (кол-во индексированных файлов)
                     job.project_size = indexed_count if indexed_count else None
@@ -2092,39 +2109,36 @@ class ProjectIntelligenceLayer:
         else:
             base["progress_label"] = "Finishing..."
 
-        # Примерное оставшееся время (адаптивный ETA).
-        # Источник правды — реальная скорость из лога ([embed] done/total
-        # batch=…ch/s), а НЕ линейная экстраполяция первых 2 секунд (та давала
-        # ложное «~8с»: ранний progress симулированный/parsing-домин., 2026-09-03).
-        base["eta_phase"] = None  # "embed" | "finalizing" | None
-        if job.status == "running":
-            _ep = _embed_progress_from_log(job.started_at)
-            if _ep and _ep["done"] < _ep["total"]:
-                base["eta_phase"] = "embed"
-                _speed = _ep["inst"] if _ep["inst"] > 0 else _ep["avg"]
-                if _speed > 0:
-                    estimated = int(_ep["remaining"] / _speed)
-                    # нижняя граница 3с — не обещаем мгновенное завершение
-                    base["estimated_seconds"] = max(estimated, 3)
-                else:
-                    base["estimated_seconds"] = None
-            elif _ep and _ep["done"] >= _ep["total"]:
-                # Эмбеддинг завершён (done==total) — идёт writing/Finalizing.
-                # По чанкам ETA не посчитать; если есть история — используем её,
-                # иначе честный None (UI покажет «финализация…» вместо фейка).
-                base["eta_phase"] = "finalizing"
-                if job.project_size:
-                    avg_duration = self.job_history.get_estimated_duration(
-                        job.project_size
-                    )
-                    if avg_duration and avg_duration > 5:
-                        elapsed = max(time.time() - job.started_at, 1.0)
-                        base["estimated_seconds"] = int(max(avg_duration - elapsed, 10))
-                        return base
-                base["estimated_seconds"] = None
+        # Определяем текущую фазу по прогрессу (вне зависимости от истории)
+        if job.progress < 0.1:
+            base["eta_phase"] = "parsing"
+        elif job.progress < 0.8:
+            base["eta_phase"] = "embedding"
+        elif job.progress < 1.0:
+            base["eta_phase"] = "finalizing"
+
+        # Примерное оставшееся время (адаптивный ETA по фазам).
+        # Считаем каждую фазу отдельно по истории, затем суммируем.
+        base["eta_phases"] = {}   # {phase: estimated_seconds или None}
+        base["estimated_seconds"] = None
+        if job.status == "running" and job.project_size:
+            total_eta = 0.0
+            have_any_eta = False
+            for phase in ("parsing", "scanning", "embedding", "finalizing", "writing"):
+                phase_eta = self.job_history.get_estimated_phase_duration(
+                    phase, job.project_size
+                )
+                base["eta_phases"][phase] = phase_eta
+                if phase_eta is not None:
+                    total_eta += phase_eta
+                    have_any_eta = True
+
+            if have_any_eta:
+                base["estimated_seconds"] = int(max(total_eta, 10))
             else:
-                # Embed ещё не дал прогресса / non-embed режим — честно без ETA.
                 base["estimated_seconds"] = None
+        else:
+            base["estimated_seconds"] = None
 
         return base
 
