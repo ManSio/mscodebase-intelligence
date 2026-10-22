@@ -329,10 +329,13 @@ class SystemTool(MCPTool):
         counters = get_counters()
         calls = counters.get("can_execute_calls", 0)
         ready = counters.get("verdict_ready", 0)
-        blocked_pct = round((1 - ready / max(calls, 1)) * 100, 1)
+        if calls == 0:
+            blocked_pct = "нет данных"
+        else:
+            blocked_pct = round((1 - ready / calls) * 100, 1)
         lines = [
             "📊 **Runtime Counters**\n",
-            f"• **Checks:** `{calls}` | **Ready:** `{ready}` | **Blocked:** `{blocked_pct}%`",
+            f"• **Checks:** `{calls}` | **Ready:** `{ready}` | **Blocked:** `{blocked_pct}`",
         ]
         for k, v in counters.items():
             if k.startswith("verdict_blocked_") and v:
