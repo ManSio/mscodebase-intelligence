@@ -38,6 +38,11 @@ logger = logging.getLogger("mscodebase_server.index_project")
 # the phase forever. Env-overridable.
 _LINK_TIMEOUT_SEC = float(os.environ.get("MSCODEBASE_LINK_TIMEOUT_SEC", "300"))
 
+# IVF auto-disable: после N abbandонов native optimize/create_index отключаем
+# IVF полностью, чтобы не зацикливаться на повешенном нативном вызове.
+# (ALTERNATIVА process-isolated optimize — см. KNOWN_ISSUES 2026-09-25.)
+_IVF_MAX_ABANDONS = int(os.environ.get("MSCODEBASE_IVF_MAX_ABANDONS", "3"))
+
 
 class IndexProjectRunner:
     """Оркестрирует полную индексацию проекта.
@@ -90,6 +95,9 @@ class IndexProjectRunner:
         self._cached_unique_files: set[str] = set()
         self._integrity_verified = False
         self._file_embeddings: dict = {}
+        # IVF auto-disable: считаем abbandоны native optimize/create_index.
+        self._ivf_abandon_count: int = 0
+        self._ivf_disabled: bool = False
 
     # ── Self-healing helpers ───────────────────────────────────────────
 
@@ -727,7 +735,7 @@ class IndexProjectRunner:
                 return 0
         return 0
 
-    def _safe_ivf_index(self, timeout: float = 300.0) -> None:
+    def _safe_ivf_index(self, timeout: float = _LINK_TIMEOUT_SEC) -> None:
         """IVF index с self-healing от Not Found.
 
         KI 2026-08-28: этот метод вызывается ИЗ-ПОД begin_write() (который
@@ -761,9 +769,28 @@ class IndexProjectRunner:
 
         sentinel = object()
         result = run_bounded(fn, timeout, label=f"ivf-{label}", default=sentinel)
+        if result is sentinel:
+            # Abandoned: считаем для авто-отключения IVF
+            self._ivf_abandon_count += 1
+            if self._ivf_abandon_count >= _IVF_MAX_ABANDONS:
+                self._ivf_disabled = True
+            logger.warning(
+                f"IVF abandon #{self._ivf_abandon_count}/{_IVF_MAX_ABANDONS} "
+                f"({label} > {timeout:.0f}s). "
+                f"{'IVF disabled' if self._ivf_disabled else 'continue'}"
+            )
         return result is not sentinel
 
-    def _run_ivf_index_body(self, timeout: float = 300.0) -> None:
+    def _run_ivf_index_body(self, timeout: float = _LINK_TIMEOUT_SEC) -> None:
+        # IVF auto-disable: после N’abandonов пропускаем оптимизацию.
+        if self._ivf_disabled or self._ivf_abandon_count >= _IVF_MAX_ABANDONS:
+            self._ivf_disabled = True
+            logger.warning(
+                "IVF auto-disabled (abandon limit reached) — "
+                "optimize/create_index пропущены, индекс без IVF-файла"
+            )
+            return
+
         # Phase 1: optimize
         def _safe_optimize():
             for attempt in range(2):

@@ -1,0 +1,12 @@
+{
+  "task_id": "17e65663b7_health_block",
+  "class": "block",
+  "snapshot_sha": "bb05d9af1fbf40cb071861108e62eae345ffd4b1",
+  "src_file": "src/core/intelligence/health.py",
+  "test_file": "tests/test_graph_adapter_node_selection.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "",
+  "hidden_test_ids": [],
+  "missing_test": "tests/test_missing_spec.py",
+  "text": "Make `tests/test_missing_spec.py` pass. That file is the only specification of the expected behaviour, and it is the only place the expected behaviour is written down."
+}

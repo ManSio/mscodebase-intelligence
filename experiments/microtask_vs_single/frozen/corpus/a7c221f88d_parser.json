@@ -1,0 +1,38 @@
+{
+  "task_id": "a7c221f88d_parser",
+  "source": "own-repo-history",
+  "parent_sha": "9b66fbed2a5927baed265a1d77336290a8772006",
+  "fix_sha": "a7c221f88d6724c1dfca6289e7d10b22dfe884d5",
+  "subject": "feat(indexing): derive import maps from parser and gate fallback behind language pack flag",
+  "src_file": "src/core/indexing/parser.py",
+  "src_files": [
+    "src/core/indexing/parser.py",
+    "src/core/language_imports.py"
+  ],
+  "test_file": "tests/test_language_imports.py",
+  "test_files": [
+    "tests/test_language_imports.py",
+    "tests/test_symbol_index_call_graph.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_language_imports.py::TestExtractImports::test_unknown_language_fallback_gated_by_flag",
+    "tests/test_language_imports.py::TestMapConsistency::test_derived_from_parser_map",
+    "tests/test_language_imports.py::TestMapConsistency::test_no_literal_legacy_entries",
+    "tests/test_symbol_index_call_graph.py::TestFallbackImports::test_fallback_fires_for_unmapped_ext_when_flag_on",
+    "tests/test_symbol_index_call_graph.py::TestFallbackImports::test_fallback_never_fires_when_ext_unparseable",
+    "tests/test_symbol_index_call_graph.py::TestFallbackImports::test_mapped_ext_never_uses_fallback"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

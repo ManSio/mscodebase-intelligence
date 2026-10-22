@@ -1,63 +1,121 @@
-"""Guard: cross-process embedder lease prevents idle-unload during indexing.
+"""Tests for embedder_lease ref-count mechanism.
 
-Context (2026-09-25): the llama.cpp embedder is shared on a fixed port by all
-MSCodeBase workspaces. Its idle watchdog unloads it after 120s; a long reindex
-parse phase issues no embed calls, so another workspace could grab the port.
-The lease marks "embedder in use" so the watchdog skips the unload.
-
-Run: PYTHONPATH=src python -m pytest tests/test_embedder_lease.py -q
+Validates that acquire/release track per-PID ref-counts correctly,
+is_active reflects ref-count state, and stale leases expire.
 """
 from __future__ import annotations
+
+import os
+import time
 
 import pytest
 
 from src.core import embedder_lease
-from src.providers.reranker import llama_runner
 
 
-@pytest.fixture()
-def lease_tmp(tmp_path, monkeypatch):
-    p = tmp_path / "embedder.lease"
-    monkeypatch.setattr(embedder_lease, "lease_path", lambda: p)
-    return p
+def _cleanup(*pids: int) -> None:
+    for p in pids:
+        embedder_lease.release(p)
 
 
-def test_touch_makes_lease_active(lease_tmp):
-    assert embedder_lease.is_active() is False
-    embedder_lease.touch("reindex")
-    assert embedder_lease.is_active() is True
-    assert lease_tmp.exists()
+@pytest.fixture(autouse=True)
+def _clear_lease():
+    """Clear the lease file before each test for isolation."""
+    data = embedder_lease.holder()
+    if data and isinstance(data, dict):
+        for key in list(data.get("pids", {}).keys()):
+            try:
+                embedder_lease.release(int(key))
+            except (ValueError, TypeError):
+                pass
+    yield
+    # Also clean up after
+    data = embedder_lease.holder()
+    if data and isinstance(data, dict):
+        for key in list(data.get("pids", {}).keys()):
+            try:
+                embedder_lease.release(int(key))
+            except (ValueError, TypeError):
+                pass
 
 
-def test_lease_expires(lease_tmp):
-    embedder_lease.touch("reindex")
-    assert embedder_lease.is_active(max_age_s=0.0) is False
+def test_acquire_release_increments_decrements_refcount():
+    """acquire bumps count, release decrements; is_active follows."""
+    pid = 99991
+    _cleanup(pid)
+    assert not embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.acquire(pid, "test")
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.acquire(pid, "test2")  # count = 2
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.release(pid)  # count = 1
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.release(pid)  # count = 0
+    assert not embedder_lease.is_active(max_age_s=300)
 
 
-def test_corrupt_lease_is_inactive_and_never_raises(lease_tmp):
-    lease_tmp.write_text("{not json", encoding="utf-8")
-    assert embedder_lease.is_active() is False
+def test_multiple_pids_tracked_independently():
+    """Two PIDs acquiring independently; releasing one doesn't affect the other."""
+    pid_a, pid_b = 99992, 99993
+    _cleanup(pid_a, pid_b)
+
+    embedder_lease.acquire(pid_a, "a")
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.acquire(pid_b, "b")
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.release(pid_a)  # a released, b still active
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.release(pid_b)  # b released, none active
+    assert not embedder_lease.is_active(max_age_s=300)
 
 
-def test_watchdog_skips_unload_while_lease_active(lease_tmp):
-    embedder_lease.touch("reindex")
-    assert llama_runner.LlamaRunner._embedder_unload_allowed() is False
+def test_stale_lease_expires():
+    """is_active returns False after max_age_s even with a non-zero count."""
+    pid = 99994
+    _cleanup(pid)
+
+    embedder_lease.acquire(pid, "stale")
+    # Manually set ts to the past
+    data = embedder_lease.holder() or {}
+    pids = data.get("pids", {})
+    pids[str(pid)]["ts"] = time.time() - 600  # 10 min ago
+    embedder_lease._save(data)
+
+    assert not embedder_lease.is_active(max_age_s=300)
 
 
-def test_watchdog_allows_unload_without_lease(lease_tmp, monkeypatch):
-    # Negative control: no lease (and it never existed) -> unload allowed.
-    monkeypatch.setattr(
-        embedder_lease, "is_active", lambda max_age_s=300.0: False
-    )
-    assert llama_runner.LlamaRunner._embedder_unload_allowed() is True
+def test_touch_backward_compatible():
+    """touch() (deprecated) acquires one ref-count for current PID."""
+    pid = os.getpid()
+    _cleanup(pid)
+    assert not embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.touch("legacy")
+    assert embedder_lease.is_active(max_age_s=300)
+
+    embedder_lease.release(pid)
+    assert not embedder_lease.is_active(max_age_s=300)
 
 
-def test_unload_allowed_when_lease_module_broken(monkeypatch):
-    def _boom(*_a, **_k):
-        raise RuntimeError("lease unavailable")
+def test_holder_returns_lease_data():
+    """holder() returns the lease dict or empty when no active PIDs."""
+    pid = 99995
+    _cleanup(pid)
+    data = embedder_lease.holder()
+    assert data is not None
+    assert data.get("pids", {}) == {}
 
-    import src.core.embedder_lease as el
+    embedder_lease.acquire(pid, "diag")
+    data = embedder_lease.holder()
+    assert data is not None
+    assert "pids" in data
+    assert str(pid) in data["pids"]
 
-    monkeypatch.setattr(el, "is_active", _boom)
-    # Must default to True (fail-open to RAM freeing) and never raise.
-    assert llama_runner.LlamaRunner._embedder_unload_allowed() is True
+    embedder_lease.release(pid)

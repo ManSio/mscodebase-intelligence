@@ -119,7 +119,9 @@ def main():
               "покрытие этого коммита обязана взять CI.", flush=True)
 
     all_ok &= run_script("scripts/verify_diary.py", "verify_diary", diary_args)
-    all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
+    # --staged: гейт судит КОММИТ, а не всё рабочее дерево — иначе чужие
+    # незастейдженные драфты параллельной сессии блокируют чужой коммит (§21).
+    all_ok &= run_script("scripts/stale_detector.py", "stale_detector", ["--staged"])
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
     all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
@@ -129,6 +131,57 @@ def main():
     all_ok &= run_script("scripts/check_third_party_data.py", "third_party_data")
     all_ok &= run_script("scripts/check_parallel_sessions.py", "parallel_sessions")
     all_ok &= run_script("scripts/ruff_gate.py", "ruff_gate")
+
+    # 11. verification_gates — G1 population / G2 referent / G3 generalization /
+    #     G4 control (tools/verification/gates.py). rc=1 blocks the commit,
+    #     rc=2 is advisory (not enough input to judge — never read as ALLOW,
+    #     but also never blocks a commit on its own per §19.6).
+    project_root = find_project_root()
+    if project_root is None:
+        print("  ❌ verification_gates: project root not found",
+              flush=True)
+        all_ok = False
+    else:
+        gate_args = ["scripts/gate_cli.py"]
+        gate_env = dict(os.environ)
+        gate_env["PYTHONUNBUFFERED"] = "1"
+    print("  ⏳ verification_gates: выполняется (бюджет 120s)…", flush=True)
+    gate_proc = Popen(
+        [sys.executable, "-B", str(project_root / "scripts" / "gate_cli.py"), "--selftest"],
+        cwd=str(project_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=gate_env,
+    )
+    try:
+        _gate_stdout, _ = gate_proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        gate_proc.kill()
+        gate_proc.communicate()
+        print("  ❌ verification_gates: TIMEOUT >120s — гейт не ответил",
+              flush=True)
+        all_ok = False
+    else:
+        gate_rc = gate_proc.returncode
+        if gate_rc == 1:
+            print("  ❌ verification_gates: BLOCK — проверка не прошла",
+                  flush=True)
+            if _gate_stdout:
+                for line in _gate_stdout.splitlines()[-8:]:
+                    print(f"    {line}", flush=True)
+            all_ok = False
+        elif gate_rc == 2:
+            # UNKNOWN — advisory only, never blocks (§19.6 / P-01).
+            print("  ⚠️  verification_gates: UNKNOWN — недостаточно входа для суждения",
+                  flush=True)
+            if _gate_stdout:
+                for line in _gate_stdout.splitlines()[-8:]:
+                    print(f"    {line}", flush=True)
+        else:
+            print("  ✅ verification_gates: OK", flush=True)
 
     if not all_ok:
         print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.", flush=True)

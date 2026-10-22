@@ -1,0 +1,31 @@
+{
+  "task_id": "001f7d3a41_write_tools",
+  "source": "own-repo-history",
+  "parent_sha": "c1c99064a0ad4508f91c1962fb7ff377f82382e8",
+  "fix_sha": "001f7d3a41c87abe3be6f49f32bf50272e0bc258",
+  "subject": "fix(write): record ActionReceipt in all write paths and fix Cypher anonymous nodes",
+  "src_file": "src/mcp/tools/write_tools.py",
+  "src_files": [
+    "src/mcp/tools/write_tools.py"
+  ],
+  "test_file": "tests/test_write_tools.py",
+  "test_files": [
+    "tests/test_write_tools.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_write_tools.py::TestWriteToolReplace::test_apply_records_action_receipt"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

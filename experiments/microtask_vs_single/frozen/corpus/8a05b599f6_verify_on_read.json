@@ -1,0 +1,32 @@
+{
+  "task_id": "8a05b599f6_verify_on_read",
+  "source": "own-repo-history",
+  "parent_sha": "2ab54795af41cdaa0b07a8c036710970760d4915",
+  "fix_sha": "8a05b599f69842d668d410697dfbeca4e2960aa6",
+  "subject": "fix(intelligence): VOR read-path skips prose scan when explicit anchors exist (#34)",
+  "src_file": "src/core/intelligence/verify_on_read.py",
+  "src_files": [
+    "src/core/intelligence/verify_on_read.py"
+  ],
+  "test_file": "tests/test_verify_on_read.py",
+  "test_files": [
+    "tests/test_verify_on_read.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_verify_on_read.py::test_extract_anchors_read_path_trusts_explicit_anchors",
+    "tests/test_verify_on_read.py::test_read_path_prose_history_not_refuting_live_node"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

@@ -174,6 +174,30 @@ class SearchConfig:
         == "true"
     )
 
+    # On-demand rerank (E25, Фаза 2 миграции): скорить top-N fused-кандидатов
+    # живыми эмбеддингами в момент запроса вместо хранимых векторов + BGE.
+    # Off по умолчанию — поведение поиска неизменно без флага.
+    # field(default_factory) — чтобы reload_config() перечитывал env.
+    ondemand_rerank: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_ONDEMAND_RERANK", "false"
+        ).lower()
+        == "true"
+    )
+    ondemand_rerank_top_n: int = field(
+        default_factory=lambda: int(os.getenv("MSCODEBASE_ONDEMAND_RERANK_TOP_N", "10"))
+    )
+
+    # Dense-off (E28, Фаза 3): true → НЕ выполнять dense-тир (эмбеддинг запроса +
+    # векторный поиск в LanceDB). Кандидаты остаются из BM25/FTS5/graph.
+    # Off по умолчанию — поведение поиска неизменно без флага.
+    dense_off: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_DENSE_OFF", "false"
+        ).lower()
+        == "true"
+    )
+
 
 @dataclass
 class IndexConfig:

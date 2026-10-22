@@ -1,0 +1,13 @@
+{
+  "task_id": "a7c221f88d_parser_noop",
+  "class": "no-op",
+  "snapshot_sha": "a7c221f88d6724c1dfca6289e7d10b22dfe884d5",
+  "src_file": "src/core/indexing/parser.py",
+  "test_file": "tests/test_language_imports.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_language_imports.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/core/indexing/parser.py",
+  "unchanged_sha": "1ba867901d52e51aeee1d93a844bdb569ee6f89d341cb654e16f33c63d2f3776",
+  "text": "Check that `src/core/indexing/parser.py` already behaves the way its own test file `tests/test_language_imports.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}

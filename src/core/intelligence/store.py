@@ -265,7 +265,9 @@ class JobHistoryStore:
                 return []
         return []
 
-    def append_record(self, project_size: int, duration_sec: float) -> None:
+    def append_record(
+        self, project_size: int, duration_sec: float, phase: str = "total"
+    ) -> None:
         """Дописывает запись и обрезает историю до 50 последних."""
         with self._get_lock():
             history = self.load_history()
@@ -274,6 +276,7 @@ class JobHistoryStore:
                     "project_size": project_size,
                     "duration_sec": round(duration_sec, 1),
                     "timestamp": time.time(),
+                    "phase": phase,
                 }
             )
             # Ограничиваем размер: храним последние 50 записей
@@ -288,23 +291,40 @@ class JobHistoryStore:
     def get_estimated_duration(
         self, project_size: int, fallback: float = 120.0
     ) -> float:
-        """Rolling average по размеру проекта (+-20%).
+        """Rolling average по размеру проекта (+-20%) для фазы "total".
 
         Возвращает среднее время последних 3-х похожих запусков,
         либо fallback, если истории нет или похожих проектов не найдено.
         """
+        result = self.get_estimated_phase_duration("total", project_size)
+        return result if result is not None else fallback
+
+    def get_estimated_phase_duration(
+        self, phase: str, project_size: int, fallback: float = 120.0
+    ) -> float | None:
+        """Rolling average по размеру проекта для конкретной фазы.
+
+        Ищет записи с той же фазой и похожим размером (+-20%),
+        возвращает среднее последних 3-х запусков или fallback.
+        Возвращает None, если для фазы совсем нет записей (не угадываем).
+        """
         history = self.load_history()
         if not history:
-            return fallback
+            return None
 
-        # Ищем похожие проекты по размеру (отклонение +-20%)
         lo, hi = 0.8 * project_size, 1.2 * project_size
-        similar = [j for j in history if lo <= j.get("project_size", 0) <= hi]
+        similar = [
+            j
+            for j in history
+            if j.get("phase") == phase and lo <= j.get("project_size", 0) <= hi
+        ]
         if not similar:
-            # Fallback: среднее по всем (если размер сильно изменился)
-            similar = history
+            # Fallback: все записи этой фазы (игнорируем размер)
+            similar = [j for j in history if j.get("phase") == phase]
+        if not similar:
+            # Нет записей этой фазы вообще — не угадываем
+            return None
 
-        # Берём последние 3 запуска
         recent = similar[-3:]
         avg = sum(j["duration_sec"] for j in recent) / len(recent)
         return max(avg, 5.0)

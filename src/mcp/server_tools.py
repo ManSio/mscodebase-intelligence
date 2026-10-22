@@ -654,15 +654,20 @@ def _register_inline_tools(mcp, services):
             name = m["tool"]
             calls = m["calls"]
             errors = m["errors"]
-            ok_rate = ((calls - errors) / max(calls, 1)) * 100
-            bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
+            if calls == 0:
+                ok_rate = "нет данных"
+                bars = "░" * 10
+            else:
+                ok_rate = ((calls - errors) / calls) * 100
+                bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
             p50 = f"{m['p50_ms']:.0f}ms" if m.get("p50_ms") else "—"
             p95 = f"{m['p95_ms']:.0f}ms" if m.get("p95_ms") else "—"
             repeat = m.get("repeat_pct", 0)
             routes = m.get("route", {})
             route_str = ", ".join(f"{k}={v}" for k, v in sorted(routes.items())) if routes else "—"
+            ok_display = f"{ok_rate:.0f}%" if isinstance(ok_rate, (int, float)) else ok_rate
             lines.append(
-                f"| {name} | {bars} {ok_rate:.0f}% | {calls} | {p50} | {p95} | {repeat:.0f}% | {route_str} |"
+                f"| {name} | {bars} {ok_display} | {calls} | {p50} | {p95} | {repeat:.0f}% | {route_str} |"
             )
 
         return "\n".join(lines)
