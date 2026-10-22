@@ -1,0 +1,323 @@
+{
+ "summary": {
+  "arm": "A",
+  "dense_off": false,
+  "n": 33,
+  "errors": 0,
+  "empty_top1": 0,
+  "mean_ms": 2555.2,
+  "subsets": {
+   "NL": {
+    "n": 18,
+    "hit1": 3,
+    "hit5": 5,
+    "hit1_pct": 16.7
+   },
+   "symbolic": {
+    "n": 15,
+    "hit1": 8,
+    "hit5": 10,
+    "hit1_pct": 53.3
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "F5S-01",
+   "subset": "NL",
+   "gold": "src/core/rate_limiter.py",
+   "ms": 8184.6,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-02",
+   "subset": "NL",
+   "gold": "src/core/redact.py",
+   "ms": 461.8,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/redact.py"
+  },
+  {
+   "id": "F5S-03",
+   "subset": "NL",
+   "gold": "src/core/gitignore_parser.py",
+   "ms": 3380.5,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-04",
+   "subset": "NL",
+   "gold": "src/core/embedder_lease.py",
+   "ms": 445.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-05",
+   "subset": "NL",
+   "gold": "src/core/reindex_ledger.py",
+   "ms": 3847.9,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-06",
+   "subset": "NL",
+   "gold": "src/core/quiet_break_gate.py",
+   "ms": 405.7,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/quiet_break_gate.py"
+  },
+  {
+   "id": "F5S-07",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/reranker_scoring.py",
+   "ms": 4054.9,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/reranker_scoring.py"
+  },
+  {
+   "id": "F5S-08",
+   "subset": "symbolic",
+   "gold": "src/core/error_envelope.py",
+   "ms": 489.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/bootstrap_entities.py"
+  },
+  {
+   "id": "F5S-09",
+   "subset": "NL",
+   "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+   "ms": 3452.0,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/interfaces/__init__.py"
+  },
+  {
+   "id": "F5S-10",
+   "subset": "NL",
+   "gold": "docs/en/SEARCH_PIPELINE.md",
+   "ms": 545.0,
+   "hit1": false,
+   "hit5": false,
+   "top1": "docs/research/lsp-archive/lsp_main.py"
+  },
+  {
+   "id": "F5S-11",
+   "subset": "NL",
+   "gold": "docs/TRUST_BOUNDARY.md",
+   "ms": 3754.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/embeddinggemma/bench.py"
+  },
+  {
+   "id": "F5S-12",
+   "subset": "NL",
+   "gold": "docs/en/TELEMETRY.md",
+   "ms": 537.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/search/engine.py"
+  },
+  {
+   "id": "F5S-13",
+   "subset": "NL",
+   "gold": "docs/adr/0003-verify-on-read.md",
+   "ms": 10601.2,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-14",
+   "subset": "NL",
+   "gold": "docs/en/HANDFOFF.md",
+   "ms": 1972.7,
+   "hit1": false,
+   "hit5": false,
+   "top1": "adapters/zed/zed_config.py"
+  },
+  {
+   "id": "F5S-15",
+   "subset": "symbolic",
+   "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+   "ms": 3104.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "docs/ru/ZED_WINDOWS_QUIRKS.md"
+  },
+  {
+   "id": "F5S-16",
+   "subset": "NL",
+   "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+   "ms": 364.2,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_smoke_answers.json"
+  },
+  {
+   "id": "TR-R1",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/db_writer.py",
+   "ms": 4951.6,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/misc_probes/exp_in_situ_parse_timeout.py"
+  },
+  {
+   "id": "TR-R2",
+   "subset": "symbolic",
+   "gold": "src/core/artifact_gc.py",
+   "ms": 333.4,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/log_manager.py"
+  },
+  {
+   "id": "TR-R3",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/llama_install.py",
+   "ms": 3905.1,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/llama_install.py"
+  },
+  {
+   "id": "TR-R4",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/llama_runner.py",
+   "ms": 424.0,
+   "hit1": false,
+   "hit5": true,
+   "top1": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "id": "TR-R5",
+   "subset": "symbolic",
+   "gold": "src/providers/embedder/remote_embedder.py",
+   "ms": 3402.7,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/embedder/remote_embedder.py"
+  },
+  {
+   "id": "TR-R6",
+   "subset": "symbolic",
+   "gold": "src/core/graph.py",
+   "ms": 413.4,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/graph.py"
+  },
+  {
+   "id": "TR-R8",
+   "subset": "symbolic",
+   "gold": "src/core/search/cypher_sql.py",
+   "ms": 3850.5,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/cypher_sql.py"
+  },
+  {
+   "id": "TR-R9",
+   "subset": "symbolic",
+   "gold": "src/core/bootstrap_tests.py",
+   "ms": 336.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/a2_link_rate.py"
+  },
+  {
+   "id": "TR-R10",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/freshness.py",
+   "ms": 3486.5,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/freshness.py"
+  },
+  {
+   "id": "TR-P1",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/parser.py",
+   "ms": 448.5,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/parser.py"
+  },
+  {
+   "id": "TR-P2",
+   "subset": "symbolic",
+   "gold": "src/core/search/engine.py",
+   "ms": 4545.9,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/engine.py"
+  },
+  {
+   "id": "E2E-02",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/db_manager.py",
+   "ms": 384.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/indexing/index_guard.py"
+  },
+  {
+   "id": "E2E-05",
+   "subset": "NL",
+   "gold": "src/core/intelligence/verify_on_read.py",
+   "ms": 3308.4,
+   "hit1": false,
+   "hit5": false,
+   "top1": "docs/adr/0003-verify-on-read.md"
+  },
+  {
+   "id": "E2E-07",
+   "subset": "NL",
+   "gold": "src/core/indexing/project_indexer_registry.py",
+   "ms": 281.1,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/multi_project_searcher.py"
+  },
+  {
+   "id": "E2E-08",
+   "subset": "NL",
+   "gold": "src/mcp/tools/indexing_tools.py",
+   "ms": 4851.0,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/context_engine/results_tasks_v3.json"
+  },
+  {
+   "id": "E2E-09",
+   "subset": "NL",
+   "gold": "src/providers/reranker/search_result_reranker.py",
+   "ms": 253.0,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/e17_smoke_answers.json"
+  },
+  {
+   "id": "E2E-10",
+   "subset": "NL",
+   "gold": "src/core/search/bm25.py",
+   "ms": 3541.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/bm25.py"
+  }
+ ]
+}
