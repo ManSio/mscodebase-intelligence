@@ -4,6 +4,19 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-10-24 — Audit backlog: ruff 278, docstrings 196, protocol guards 7 — 🟡 tech debt (PR)
+
+- **ruff** (src/tests/scripts/tools): **278** errors; top rules — W293 72, BLE001 63,
+  I001 37, F541 27, E402 26, F401 22, F841 7, F821 3, invalid-syntax 2; **176 auto-fixable**.
+  Два `invalid-syntax` — приоритет (парсер не читает файл), остальное — массовый `--fix` + ревью.
+- **docstrings**: `scripts/check_docstrings.py` — **196** публичных функций без docstring (rc=1).
+- **protocol guards**: `scripts/audit_protocol_guards.py` — 7 findings; измеренная FP-доля
+  **62.5% (5 из 8)** → **3 actionable** (в т.ч. `experiments/4A_unit_of_return/frozen/e7_HANDOUT_EN.recovered.md` без required field).
+- **План:** отдельный PR `chore(lint): …` + `docs(docstrings): …`; гейты не отключать,
+  порог не поднимать. До PR — статус tech debt, не «зелёно».
+- Проверено 2026-10-24: pytest 2135 passed / 7 skipped; run_all rc=0; third-party blocking=0.
+
+---
 ## 2026-10-24 — Чужой тред dev.to (55KB) дословно лежал в трекнутых файлах публичного MIT-репо — ✅ PURGED
 
 - **Найдено:** аудит поднабора для XERJ Corpus Hub: 2 трекнутых артефакта (замороженный
