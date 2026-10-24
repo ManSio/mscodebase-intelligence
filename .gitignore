@@ -253,3 +253,6 @@ experiments/planted_break/results.json
 *devto*thread*FROZEN*
 *devto*comments*.json
 experiments/audit_devto_judgements/frozen/
+
+# Local MCP client config (contains machine-specific absolute paths)
+.mcp.json
