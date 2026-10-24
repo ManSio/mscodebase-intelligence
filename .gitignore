@@ -243,3 +243,13 @@ experiments/bootstrap/e17_judge/*.txt
 # Written by tests/test_planted_break_gate.py on every run (atomic, read by nobody).
 # Tracked, it dirties git status and invites committing a timestamp.
 experiments/planted_break/results.json
+
+# §20.1: raw dumps of third-party threads/pages never belong in the repo.
+# Frozen copies of our OWN inputs live in experiments/**/frozen/ and stay tracked;
+# these patterns target the dev.to-style scraped dumps that caused the
+# 2026-10-24 purge. The content-level guard is R4 in check_third_party_data.py.
+*raw_fetch*.md
+*raw_fetch*.json
+*devto*thread*FROZEN*
+*devto*comments*.json
+experiments/audit_devto_judgements/frozen/

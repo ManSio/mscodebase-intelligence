@@ -11,6 +11,10 @@
       руками — он приходит из выгрузки.
   R3  объёмный дословный чужой текст: >=40KB текста с >=5 разными
       внешними доменами. Advisory: печатает, но не блокирует.
+  R4  дословный чужой ТРЕД (2026-10-24): frozen-corpus header (`raw comments
+      (frozen corpus)`, `declared comments_count(`, `distinct authors in
+      thread:`) или имя файла вида devto-thread/raw_fetch. Blocking: тредовый
+      дамп имел всего 3 домена, поэтому R3 его не видел, а R4 видит.
 
 Почему не наивный email-сканер: замер 2026-10-03 на 1893 tracked-файлах
 дал 767 совпадений, из которых 686 (89%) — ложные (`модуль@символ.py`
@@ -92,6 +96,22 @@ DUMP_MIN_BYTES = 40_000
 DUMP_MIN_DOMAINS = 5
 DOMAIN_RE = re.compile(r"https?://([A-Za-z0-9.-]+)")
 
+# R4 (2026-10-24): verbatim third-party *thread* dumps are a different shape
+# from R3. The 55 KB dev.to thread that shipped in this repo had only 3 external
+# domains, so R3's ">=5 domains" never fired. What it did have is the fetch
+# shape: a frozen header, article id, handle and author tally. That shape is
+# what this rule keys on, plus a filename net for partial/empty copies.
+RAW_THREAD_SIGNATURES = (
+    "raw comments (frozen corpus)",
+    "declared comments_count(",
+    "distinct authors in thread:",
+)
+RAW_THREAD_WEAK = ("dev.to handle:", "article_id:", "- population:")
+RAW_THREAD_MIN_BYTES = 5_000
+RAW_THREAD_NAME_RE = re.compile(
+    r"(?i)(raw[_-]?fetch|devto[-_ ].*(thread|comments)|(thread|comments).*devto)"
+)
+
 
 def _is_vendored(path: str) -> bool:
     return any(marker in path for marker in VENDORED_MARKERS)
@@ -163,6 +183,22 @@ def check_file(rel_path: str, personal_domains: frozenset[str] | set[str] | None
                 f"R3 {rel_path}: {path.stat().st_size // 1024}KB текста с "
                 f"{len(domains)} внешними доменами — возможен дословный чужой дамп "
                 f"(advisory, не блокирует)"
+            )
+
+    if rel_path not in DETECTOR_SELF_FILES:
+        strong = sum(1 for sig in RAW_THREAD_SIGNATURES if sig in text)
+        weak = sum(1 for sig in RAW_THREAD_WEAK if sig in text)
+        raw_name = bool(RAW_THREAD_NAME_RE.search(path.name))
+        # A strong signature is diagnostic on its own (any size); the weak trio
+        # only counts in a file big enough to be a dump, so prose that mentions
+        # an article id once is not blocked.
+        if raw_name or strong >= 1 or (
+            path.stat().st_size >= RAW_THREAD_MIN_BYTES and weak >= 2
+        ):
+            findings.append(
+                f"R4 {rel_path}: сигнатура дословного чужого треда/дампа "
+                f"(frozen corpus header или devto raw fetch) — §20.1 запрещает "
+                f"класть такое в репозиторий"
             )
 
     return findings
@@ -245,6 +281,13 @@ def selftest() -> int:
          "обычный документ без чужих данных\n" * 10, False, None),
         ("R4_модуль@символ.py",
          "inc@monitoring.py\nsnapshot@observability.py\n", False, None),
+        ("R4_должен_поймать.txt",
+         "# Someone on dev.to — raw comments (frozen corpus)\n"
+         "- article_id: 1\n- dev.to handle: `x`\n- population: 3 comments\n",
+         True, "R4"),
+        ("R4_наш_разбор.txt",
+         "Мы разобрали статью на dev.to и сослались на неё один раз.\n",
+         False, None),
     ]
     failures: list[str] = []
     try:
@@ -272,7 +315,9 @@ def selftest() -> int:
         for failure in failures:
             print(f"   - {failure}")
         return 1
-    print("✅ third_party_data selftest: positive 2/2, negative 2/2")
+    pos = sum(1 for c in cases if c[2])
+    neg = len(cases) - pos
+    print(f"✅ third_party_data selftest: positive {pos}/{pos}, negative {neg}/{neg}")
     return 0
 
 
