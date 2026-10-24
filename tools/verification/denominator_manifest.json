@@ -156,8 +156,8 @@
   "repo/KNOWN_ISSUES.md": {
    "class": "INTERNAL",
    "reason": "internal board; public via known-issues.json",
-   "n_sig1": 0,
-   "n_sig2": 185,
+   "n_sig1": 3,
+   "n_sig2": 221,
    "n_reviewed": 0,
    "profiles": [
     "full",
