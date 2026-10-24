@@ -124,5 +124,14 @@
       "stale_detector": "58570c6f2a470ddf34bcefcf4bf97c549981481a30cc82804b367f658b151b2b",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-10-24T13:43:36Z",
+    "reason": "stale_config.json: exclude foreign-audit dirs (readme_clew_audit, tom_*, trap_rescore) from our-version drift; control re-proved rc=0 markers ok",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "34c531f16d19a637a048bcc58e9114eea817d53171f3ae8288a7a306fc7ba3b3",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]
