@@ -25,7 +25,12 @@
     "archive",
     "blog",
     "ISSUES",
-    "microtask_vs_single"
+    "microtask_vs_single",
+    "readme_clew_audit",
+    "tom_e1e2_independent",
+    "tom_replication",
+    "trap_rescore",
+    "note_tone_m4"
   ],
   "version_exclude_patterns": [
     "127\\.0\\.0",
@@ -48,3 +53,4 @@
     "docs/zh/*": "warn"
   }
 }
+

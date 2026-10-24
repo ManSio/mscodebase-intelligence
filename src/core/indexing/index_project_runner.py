@@ -735,7 +735,9 @@ class IndexProjectRunner:
                 return 0
         return 0
 
-    def _safe_ivf_index(self, timeout: float = _LINK_TIMEOUT_SEC) -> None:
+    def _safe_ivf_index(self, timeout: float | None = None) -> None:
+        if timeout is None:
+            timeout = _LINK_TIMEOUT_SEC
         """IVF index с self-healing от Not Found.
 
         KI 2026-08-28: этот метод вызывается ИЗ-ПОД begin_write() (который
@@ -781,7 +783,9 @@ class IndexProjectRunner:
             )
         return result is not sentinel
 
-    def _run_ivf_index_body(self, timeout: float = _LINK_TIMEOUT_SEC) -> None:
+    def _run_ivf_index_body(self, timeout: float | None = None) -> None:
+        if timeout is None:
+            timeout = _LINK_TIMEOUT_SEC
         # IVF auto-disable: после N’abandonов пропускаем оптимизацию.
         if self._ivf_disabled or self._ivf_abandon_count >= _IVF_MAX_ABANDONS:
             self._ivf_disabled = True

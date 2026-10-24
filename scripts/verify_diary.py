@@ -288,7 +288,7 @@ def parse_diary() -> List[DiaryEntry]:
             _line_no_runid = re.sub(
                 r'\bRUN[_ ]?ID\s*[=:]?\s*[a-f0-9]{7,40}',
                 '', line, flags=re.IGNORECASE)
-            for c in re.findall(r'(?<![a-f0-9A-F])([a-f0-9]{7,40})(?![a-f0-9A-F])', _line_no_runid):
+            for c in re.findall(r'(?<![a-f0-9A-F_])([a-f0-9]{7,40})(?![a-f0-9A-F_])', _line_no_runid):
                 if c in _COMMIT_EXCLUDE:
                     continue
                 if c.startswith('c0000') or c.startswith('0000'):

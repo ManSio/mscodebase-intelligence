@@ -32,7 +32,18 @@ _os.environ.setdefault("MSCODEBASE_LINK_TIMEOUT_SEC", "2")
 import threading
 from pathlib import Path
 
+import pytest
+
+import src.core.indexing.index_project_runner as _ipr
 from src.core.indexing.index_project_runner import IndexProjectRunner
+
+
+# The timeout must not depend on import order: the module-level constant is read
+# at call time (see _safe_ivf_index). monkeypatch keeps it scoped to this module
+# instead of leaking a 2s global timeout into every other test (P-011).
+@pytest.fixture(autouse=True)
+def _fast_ivf_timeout(monkeypatch):
+    monkeypatch.setattr(_ipr, "_LINK_TIMEOUT_SEC", 2.0)
 
 # ─── Моки ───────────────────────────────────────────────────────────────────
 

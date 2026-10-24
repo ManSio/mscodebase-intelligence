@@ -213,11 +213,16 @@ def staged_markdown_files(project_root: Path) -> list[Path]:
     another session has unstaged drafts in this tree, a full-tree scan blocks
     commits that have nothing to do with them (§21 — parallel sessions).
     """
+    import os as _os
     import subprocess as _sp
 
+    # Do not inherit GIT_DIR/GIT_INDEX_FILE from a hook that invoked us: a
+    # fixture project in a temp dir must not query THIS repo's index.
+    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
     proc = _sp.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
         cwd=str(project_root),
+        env=env,
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -244,12 +249,17 @@ def tracked_markdown_files(project_root: Path) -> set[str]:
     Staged-but-uncommitted files ARE tracked (git ls-files sees the index), so
     a new document added by the pending commit is still checked.
     """
+    import os as _os
     import subprocess as _sp
 
+    # Same GIT_DIR/GIT_INDEX_FILE isolation as staged_markdown_files: a fixture
+    # project in a temp dir must not inherit the invoking hook's repository.
+    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
     try:
         proc = _sp.run(
             ["git", "ls-files", "-z", "--", "*.md"],
             cwd=str(project_root),
+            env=env,
             capture_output=True,
             timeout=60,
         )
