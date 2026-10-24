@@ -65,21 +65,21 @@
 ## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+- **Описание:** **Status:** ✅ Fixed (commit e75cb2b4; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
 **Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
 - **Статус:** автоматически синхронизировано
 
 ## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+- **Описание:** **Status:** ✅ Fixed (commit 5453c289; CI all-jobs green on ubuntu+windows)
 **Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
 - **Статус:** автоматически синхронизировано
 
 ## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+- **Описание:** **Status:** ✅ Fixed (commit 3207e6d6)
 **Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
 - **Статус:** автоматически синхронизировано
 
@@ -230,42 +230,42 @@ Moved 48 closed entries from KNOWN_ISSUES.md verbatim; open/unmarked entries sta
 ## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+- **Описание:** **Status:** ? Fixed (коммит A e9a89fa9 приземлился; B — отдельная незакоммиченная квитанция)
 **Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
 - **Статус:** автоматически синхронизировано
 
-## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: 2e7d1284; + cp1251 encoding-инцидент
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+- **Описание:** **Status:** ✅ Fixed (коммит B 2e7d1284; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
 **Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
 - **Статус:** автоматически синхронизировано
 
-## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed e75cb2b4)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит 32f11662; все 5 pre-commit hook'ов OK; полный pytest 1587 passed, 2 pre-existing env_extractor fail)
+- **Описание:** **Status:** ✅ Fixed (коммит e75cb2b4; все 5 pre-commit hook'ов OK; полный pytest 1587 passed, 2 pre-existing env_extractor fail)
 **Root Cause 1:** `_enrich_job_response` — мёртвая ветка истории (job.project_size никогда не присваивается) + сломанная линейная экстраполяция первых 2с → ложный ETA «~8с». **Fix 1:** единый парсер `_embed_progress_from_log` + реальная скорость из лога (remaining/speed), честный None без данных.
 **Root Cause 2:** `_safe_ivf_index` без единого progress-колбэка → бар застывал на 0.8, чанки не росли. **Fix 2:** emission «finalizing» колбэка до/после IVF, отображение 0.8→0.95, честная строка в get_job_status.
 - **Статус:** автоматически синхронизировано
 
-## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (fixed f210ed7c)
+## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (fixed 5453c289)
 
 - **Источник:** AGENT_DIARY.md#2026-09-03-1930
 - **Описание:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing existing `layer → tools_reg` cycle. `architecture_linter.py` caught it as `[CIRCULAR]`. Fix: extracted parser into neutral `src/core/intelligence/embed_progress.py`. CI run 33796959353 all-jobs green (ubuntu+windows).
 - **Статус:** ✅ Fixed
 
-## 2026-09-04 — CI RED: ruff lint errors caught only after push (fixed 986c9be7)
+## 2026-09-04 — CI RED: ruff lint errors caught only after push (fixed 3207e6d6)
 
 - **Источник:** INC-A35A, CI runs 33847347263/33847972948
-- **Описание:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (5a771789, b121ab19, 3dd79ba2).
-- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by bb05d9af that caused SyntaxError in generated hook.
+- **Описание:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (8f01a5f7, 53627e77, 2c72c6ab).
+- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by 0199de21 that caused SyntaxError in generated hook.
 - **Статус:** ✅ Fixed
 
-## 2026-09-04 — PRE-EXISTING: hook template SyntaxError (bb05d9af)
+## 2026-09-04 — PRE-EXISTING: hook template SyntaxError (0199de21)
 
-- **Описание:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled — was installed via MCP after commits pushed, so never caught.
-- **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
+- **Описание:** Commit 0199de21 added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled — was installed via MCP after commits pushed, so never caught.
+- **Fix:** Removed stray `\"\"\"` in same commit 3207e6d6.
 - **Статус:** ✅ Fixed
 
 ## 2026-09-05 — Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
@@ -383,10 +383,10 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **Guard:** `tests/test_reindex_link_bounds.py` (4: value/╨┐╤А╨╛╨┐╤Г╤Б╨║/fatal-raise/propagate) + 18 ╤Б╨▓╤П╨╖╨░╨╜╨╜╤Л╤Е + 78 indexer/search passed; ruff clean.
 - **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed.
 
-## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34)
+## 2026-09-11 — Burst-rename: fail-closed VOR отзывает узлы по rename-sweep; 1 ЛОЖНЫЙ отзыв (ADR-d35fd1e7fee5)
 
 - **Источник:** AGENT_DIARY.md 2026-09-11 + EXPERIMENTS_LOG 1-B/1-C/RT
-- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-7232a6e2ba34 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (e661861f = D+R083 в одном коммите).
+- **Описание:** VOR (ADR-0003) проверяет path-якоря против HEAD: rename/move = старый путь отсутствует = SILENT_ABSENCE. Real: 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ (ADR-d35fd1e7fee5 жив, отозван по старому пути src/utils/paths.py из prose тела). Synthetic 1-C: git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash → 30/30 уцелели. Red-Team: batch-по-коммиту спасает настоящие удаления (54acc263 = D+R083 в одном коммите).
 - **Статус:** 🔬 открыт — решение не принято (вопрос владельцу: body-hash carry против стоимости)
 
 ## 2026-09-06 — [P-001 рецидив] cmd-окна при запуске/открытии проекта: powershell/nvidia-smi БЕЗ CREATE_NO_WINDOW (fixed)
@@ -408,42 +408,42 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 ## 2026-09-02 20:51 тАФ drift_gate ╨╖╨░╨▒╨╗╨╛╨║╨╕╤А╨╛╨▓╨░╨╗ ╨║╨╛╨╝╨╝╨╕╤В: ╨║╨╛╨╜╤В╤А╨╛╨╗╤М ╨╛╤Б╤В╨░╨╜╨╛╨▓╨╕╨╗ ╤Б╨░╨╝╨╛╨│╨╛ ╨░╨▓╤В╨╛╤А╨░
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** ? Fixed (╨║╨╛╨╝╨╝╨╕╤В A 08281f37 ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П; B тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨░╤П ╨╜╨╡╨╖╨░╨║╨╛╨╝╨╝╨╕╤З╨╡╨╜╨╜╨░╤П ╨║╨▓╨╕╤В╨░╨╜╤Ж╨╕╤П)
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** ? Fixed (╨║╨╛╨╝╨╝╨╕╤В A e9a89fa9 ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П; B тАФ ╨╛╤В╨┤╨╡╨╗╤М╨╜╨░╤П ╨╜╨╡╨╖╨░╨║╨╛╨╝╨╝╨╕╤З╨╡╨╜╨╜╨░╤П ╨║╨▓╨╕╤В╨░╨╜╤Ж╨╕╤П)
 **Root Cause:** ╨┐╤А╨╡╨┤╤Б╤Г╤Й╨╡╤Б╤В╨▓╤Г╤О╤Й╨╕╨╣ BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) ╨Э╨Х ╨▓ PATH ╨┐╤А╨╛╤Ж╨╡...
 - **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
 
-## 2026-09-02 21:40 тАФ COMMIT B (head-freshness) ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П: cb88c961; + cp1251 encoding-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В
+## 2026-09-02 21:40 тАФ COMMIT B (head-freshness) ╨┐╤А╨╕╨╖╨╡╨╝╨╗╨╕╨╗╤Б╤П: 2e7d1284; + cp1251 encoding-╨╕╨╜╤Ж╨╕╨┤╨╡╨╜╤В
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В B cb88c961; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╤А╨░╨▒╨╛╤З╨╡╨╡ ╨┤╨╡╤А╨╡╨▓╨╛ ╤З╨╕╤Б╤В╨╛╨╡)
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В B 2e7d1284; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╤А╨░╨▒╨╛╤З╨╡╨╡ ╨┤╨╡╤А╨╡╨▓╨╛ ╤З╨╕╤Б╤В╨╛╨╡)
 **Root Cause 1 (B):** ╨┐╨╛╤Б╨╗╨╡ A (fail-closed symbol, ╨╜╨╕╨║╨╛╨│╨┤╨░ REFUTED) ╤Б╨▓╨╡╨╢╨╡╤Б╤В╤М ╨╕╨╜╨┤╨╡╨║╤Б╨░ ╨╜╨╡ ╨┐╤А╨╛╨▓╨╡╤А╤П╨╗╨░╤Б╤М тАФ ╨╛╤В╤Б╤Г╤В╤Б...
 - **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
 
-## 2026-09-03 тАФ Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed 32f11662)
+## 2026-09-03 тАФ Fake reindex ETA "~8s" + frozen progress in Finalizing (fixed e75cb2b4)
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В 32f11662; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╨┐╨╛╨╗╨╜╤Л╨╣ pytest 1587 passed, 2 pre-existing env_extractor fail)
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** **Status:** тЬЕ Fixed (╨║╨╛╨╝╨╝╨╕╤В e75cb2b4; ╨▓╤Б╨╡ 5 pre-commit hook'╨╛╨▓ OK; ╨┐╨╛╨╗╨╜╤Л╨╣ pytest 1587 passed, 2 pre-existing env_extractor fail)
 **Root Cause 1:** `_enrich_job_response` тАФ ╨╝╤С╤А╤В╨▓╨░╤П ╨▓╨╡╤В╨║╨░ ╨╕╤Б╤В╨╛╤А╨╕╨╕ (job.project_size ╨╜╨╕╨║╨╛╨│╨┤╨░ ╨╜╨╡ ╨┐╤А╨╕╤Б╨▓╨░╨╕╨▓╨░╨╡╤В╤Б╤П) + ╤Б╨╗╨╛╨╝╨░╨╜╨╜╨░╤П ╨╗╨╕╨╜╨╡╨╣╨╜╨░╤П ╤Н╨║╤Б╤В╤А╨░╨┐╨╛╨╗╤П╤Ж╨╕╤П ╨┐╨╡╤А╨▓╤Л╤Е 2╤Б тЖТ ╨╗╨╛╨╢╨╜╤Л╨╣ ETA ┬л~8╤Б┬╗. **Fix 1:** ╨╡╨┤╨╕╨╜╤Л╨╣ ╨┐╨░╤А╤Б╨╡╤А `_embed_progress_from_log` + ╤А╨╡╨░╨╗╤М╨╜╨░╤П ╤Б╨║╨╛╤А╨╛╤Б╤В╤М ╨╕╨╖ ╨╗╨╛╨│╨░ (remaining/speed), ╤З╨╡╤Б╤В╨╜╤Л╨╣ None ╨▒╨╡╨╖ ╨┤╨░╨╜╨╜╤Л╤Е.
 **Root Cause 2:** `_safe_ivf_index` ╨▒╨╡╨╖ ╨╡╨┤╨╕╨╜╨╛╨│╨╛ progress-╨║╨╛╨╗╨▒╤Н╨║╨░ тЖТ ╨▒╨░╤А ╨╖╨░╤Б╤В╤Л╨▓╨░╨╗ ╨╜╨░ 0.8, ╤З╨░╨╜╨║╨╕ ╨╜╨╡ ╤А╨╛╤Б╨╗╨╕. **Fix 2:** emission ┬лfinalizing┬╗ ╨║╨╛╨╗╨▒╤Н╨║╨░ ╨┤╨╛/╨┐╨╛╤Б╨╗╨╡ IVF, ╨╛╤В╨╛╨▒╤А╨░╨╢╨╡╨╜╨╕╨╡ 0.8тЖТ0.95, ╤З╨╡╤Б╤В╨╜╨░╤П ╤Б╤В╤А╨╛╨║╨░ ╨▓ get_job_status.
 - **╨б╤В╨░╤В╤Г╤Б:** ╨░╨▓╤В╨╛╨╝╨░╤В╨╕╤З╨╡╤Б╨║╨╕ ╤Б╨╕╨╜╤Е╤А╨╛╨╜╨╕╨╖╨╕╤А╨╛╨▓╨░╨╜╨╛
 
-## 2026-09-03 19:30 тАФ CI RED: circular import layer тЖФ tools_reg (fixed f210ed7c)
+## 2026-09-03 19:30 тАФ CI RED: circular import layer тЖФ tools_reg (fixed 5453c289)
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** AGENT_DIARY.md#2026-09-03-1930
 - **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** My ETA refactor added `tools_reg тЖТ layer` import for `_embed_progress_from_log`, closing existing `layer тЖТ tools_reg` cycle. `architecture_linter.py` caught it as `[CIRCULAR]`. Fix: extracted parser into neutral `src/core/intelligence/embed_progress.py`. CI run 33796959353 all-jobs green (ubuntu+windows).
 - **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
 
-## 2026-09-04 тАФ CI RED: ruff lint errors caught only after push (fixed 986c9be7)
+## 2026-09-04 тАФ CI RED: ruff lint errors caught only after push (fixed 3207e6d6)
 
 - **╨Ш╤Б╤В╨╛╤З╨╜╨╕╨║:** INC-A35A, CI runs 33847347263/33847972948
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (5a771789, b121ab19, 3dd79ba2).
-- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by bb05d9af that caused SyntaxError in generated hook.
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Pre-commit hook did not run ruff, so lint errors (F401, W292) passed locally but failed CI. Repeated 3 times across commits (8f01a5f7, 53627e77, 2c72c6ab).
+- **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK template, git_hooks_installer.py). Also fixed stray `\"\"\"` in template introduced by 0199de21 that caused SyntaxError in generated hook.
 - **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
 
-## 2026-09-04 тАФ PRE-EXISTING: hook template SyntaxError (bb05d9af)
+## 2026-09-04 тАФ PRE-EXISTING: hook template SyntaxError (0199de21)
 
-- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Commit bb05d9af added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled тАФ was installed via MCP after commits pushed, so never caught.
-- **Fix:** Removed stray `\"\"\"` in same commit 986c9be7.
+- **╨Ю╨┐╨╕╤Б╨░╨╜╨╕╨╡:** Commit 0199de21 added `\"\"\"` (stray triple-quote) after step 8 in PRE_COMMIT_HOOK docstring, creating double `\"\"\"` in generated hook (line 17-18). Hook never compiled тАФ was installed via MCP after commits pushed, so never caught.
+- **Fix:** Removed stray `\"\"\"` in same commit 3207e6d6.
 - **╨б╤В╨░╤В╤Г╤Б:** тЬЕ Fixed
 
 ## 2026-09-05 тАФ stale_detector + predict_change ╤Б╤В╨░╨▒╨╕╨╗╤М╨╜╨╛ -32001 ╤З╨╡╤А╨╡╨╖ MCP (fixed code only)
@@ -516,7 +516,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **Симптом:** если ни `.git`, ни `KNOWN_ISSUES.md` не найдены (переименование, копия дерева, битый `.git`), fallback указывает мимо проекта; все 9 гейтов печатают ⏭️ «скрипт не найден» и возвращают True → «All pre-commit checks passed», exit 0, коммит идёт без единой проверки.
 - **Repro (Verified 2026-09-28):** копия хука в `%TEMP%` (без маркеров) → 9× «скрипт не найден», итог PASS.
 - **Guard:** fallback-ветвь обязана fail-closed (sys.exit(1) с явным «project root not found»), либо `run_script` считает missing-script провалом, когда пропущены ВСЕ скрипты; regression-тест: исполнение с `__file__` в markerless-tmpdir → exit ≠ 0.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
+- **Статус:** ✅ Fixed (fix `fede3484`, merge `cca01095` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
 
 ## 2026-09-28 — silent_subprocess: STARTUPINFO ctor outside narrowed try (Fixed)
 
@@ -524,14 +524,14 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **Симптом:** `subprocess.STARTUPINFO()` на L33 вне `try`; на экзотическом win32-билде без `STARTUPINFO` — `AttributeError` из `apply()` на импорте (S2/L51 тот же путь без обёртки; S4/L67 в безопасности — вызов внутри try).
 - **Контекст:** на CPython/win32 `STARTUPINFO` всегда есть; все реальные `creationflags=`-вызывающие передают int — практический риск ≈ 0.
 - **Guard:** перенести конструирование внутрь try (S1) + обернуть L51 как L67; regression-тест: monkeypatch `subprocess.STARTUPINFO = <missing>` → `apply()` не бросает.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green; PR #56 CI all green). Tails (branch `fix/redteam-tails`): модуль был INERT — заведён в entry point (`src/main.py` import + `apply()` at startup, как требует docstring модуля) + TypeError-guard на не-классовый `Popen` (тестовые шимы); liveness доказан `tests/test_silent_subprocess_wired.py` (fresh-процесс: импорт `src.main` → `_APPLIED=True`, на win32 `Popen=_SilentPopen`).
+- **Статус:** ✅ Fixed (fix `fede3484`, merge `cca01095` = PR #56: ctor inside try + `si = None` init, `:51` wrapped like `:66-69`; `tests/test_silent_subprocess.py` 3/3 green; PR #56 CI all green). Tails (branch `fix/redteam-tails`): модуль был INERT — заведён в entry point (`src/main.py` import + `apply()` at startup, как требует docstring модуля) + TypeError-guard на не-классовый `Popen` (тестовые шимы); liveness доказан `tests/test_silent_subprocess_wired.py` (fresh-процесс: импорт `src.main` → `_APPLIED=True`, на win32 `Popen=_SilentPopen`).
 
 ## 2026-09-28 — o1_holdout_gate: hung query hangs whole gate, no timeout (Fixed)
 
 - **Локация:** `scripts/o1_holdout_gate.py:129-156` (`_run_all`), вызов L106.
 - **Симптом:** 15 запросов идут последовательно в одном loop без `wait_for`/глобального капа; один зависший `hybrid_search_async` вешает весь гейт навсегда (единственный `timeout=10` — git-rev диагностика, L99-101).
 - **Guard:** per-query `asyncio.wait_for(..., timeout=120)` + timeout → fail-row (как `degraded`); regression — фейковый searcher с висящим запросом → гейт падает за ~120с, а не висит.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green incl. positive controls; PR #56 CI all green).
+- **Статус:** ✅ Fixed (fix `fede3484`, merge `cca01095` = PR #56: per-query `wait_for(timeout=120)` + `timed_out` fail-row in both gates; `tests/test_holdout_harness_timeout.py` 6/6 green incl. positive controls; PR #56 CI all green).
 
 ## 2026-09-28 — Холодный FTS-билд превышал 2s-бюджет и молча выпадал (Fixed) + _get_ext_dir указывал в src/ (Fixed)
 
@@ -554,7 +554,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **Симптом:** если ни `.git`, ни `KNOWN_ISSUES.md` не найдены (переименование, копия дерева, битый `.git`), fallback указывает мимо проекта; все 9 гейтов печатают ⏭️ «скрипт не найден» и возвращают True → «All pre-commit checks passed», exit 0, коммит идёт без единой проверки.
 - **Repro (Verified 2026-09-28):** копия хука в `%TEMP%` (без маркеров) → 9× «скрипт не найден», итог PASS.
 - **Guard:** fallback-ветвь обязана fail-closed (sys.exit(1) с явным «project root not found»), либо `run_script` считает missing-script провалом, когда пропущены ВСЕ скрипты; regression-тест: исполнение с `__file__` в markerless-tmpdir → exit ≠ 0.
-- **Статус:** ✅ Fixed (fix `0b6ca7c4`, merge `e8811af1` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
+- **Статус:** ✅ Fixed (fix `fede3484`, merge `cca01095` = PR #56: `find_project_root() -> Path | None`, `run_script` fail-closed; `tests/test_hook_root.py` 3/3 green; PR #56 CI all green incl. clean-state + ubuntu/windows tests).
 <!-- Перенос 2026-10-03: закрытые/superseded записи, лимит 300 строк (§8). -->
 
 ## 2026-09-10 тАФ Exp 1 (Catch-up Rate) + Exp 3 (HEAD polling): VOR ╨╝╨░╤Б╤И╤В╨░╨▒╨╕╤А╨╛╨▓╨░╨╜╨╕╨╡ ╨╕ ╨▓╨╜╨╡╤И╨╜╨╕╨╣ ╨┤╤А╨╕╤Д╤В
@@ -713,7 +713,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 - **Прогресс Step A (2026-09-16):** **[A1 решён]** драйвер — `dynamic_trace_plugin.py` (sys.settrace, +13.6%); coverage.py — валидационный оракул (Exp 8: sysmon +19.96%, REFUTED). **[A2 реализован]** `src/core/bootstrap_tests.py` + `tests/test_bootstrap_tests.py`: TESTS-рёбра из `trace_result.json` в PropertyGraph. Live-прогон на реальной БД: создано **1595** Test-узлов (label=`Test`), переиспользовано 132 (индексаторные Function-узлы не обёртываются — `get_node` вместо `add_node`, т.к. последний перетирает label через ON CONFLICT), линковано **14985/15669** src-функций (95.7%), **16172** уникальных рёбер TESTS (UPSERT, идемпотентно), multi-match 781 (метод `Class.method` ↔ голый co_name). Не-матчи 684 = `<lambda>`/`<genexpr>` (не имеют узлов). Red Team 5/5 закрытых (границы/дубли/label-перезапись/повторы/параметры). Осталось: команда `mscodebase bootstrap` (Шаг 3), // гейт CI для TESTS-рёбер.
 
   **[Exp 9, 2026-09-16 — Шаг B пересмотрен фактами]**
-  - **[Шаг 2 (DECORATES для @mcp_app.tool) — ЗАКРЫТ, уже реализован].** Живая БД содержит рёбра `DECORATES`: `mcp.tool`→14, `mcp_app.tool`→20 (tools_reg.py, dev_tools.py). Источник — `19378296` («vendor tree-sitter tags.scm + DECORATES/OVERRIDES edges»). Запись выше «tool-рёбер нет» устарела на момент фиксации.
+  - **[Шаг 2 (DECORATES для @mcp_app.tool) — ЗАКРЫТ, уже реализован].** Живая БД содержит рёбра `DECORATES`: `mcp.tool`→14, `mcp_app.tool`→20 (tools_reg.py, dev_tools.py). Источник — `d5ed86dd` («vendor tree-sitter tags.scm + DECORATES/OVERRIDES edges»). Запись выше «tool-рёбер нет» устарела на момент фиксации.
   - **[Шаг 1 (Data structures) — уточнён].** Exp 9 (Static Score Engine vs trace_result.json ground truth, v2 per-test): hit/recall/precision — L1 (прямые вызовы из тела теста): 88.4% / 30.3% / **68.0%** (avg 2.9 кандидата), L2 (токены имени): 17.7% / 3.8% / 12.1%, L3 (импорты): 91.6% / 72.0% / 21.8% (avg 41.4), union: 90.4% / 70.0% / 20.6%. Статика НЕ заменяет динамику (hit≠recall, recall union 70% < 100% dynamic на linked); L1 — точный якорь для ранжирования, L3 — широкий кандидат-пул, L2 — слабый (подтверждает Exp 7 «имя=0%»). Статика = fallback для динамически-пустых тестов (88/176 мок-тестов имеют стат. кандидатов) + pre-filter. Dynamic остаётся драйвером TESTS-edge.
 **[Шаг 1 (Data structures) — РЕАЛИЗОВАН, 2026-09-17]**
   - `src/core/bootstrap_entities.py` + `tests/test_bootstrap_entities.py` (8 unit-тестов): AST-детектор data structures по сигналам `@dataclass` (Name/Call/Attribute-формы) и базы `NamedTuple` (Name/Attribute). НЕ регекс — `Table(`-шум априори не виден (это вызовы, не классы).
@@ -834,16 +834,16 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 ## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+- **Описание:** **Status:** ? Fixed (коммит A e9a89fa9 приземлился; B — отдельная незакоммиченная квитанция)
 **Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
 - **Статус:** автоматически синхронизировано
 
 
 
-## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: 2e7d1284; + cp1251 encoding-инцидент
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+- **Описание:** **Status:** ✅ Fixed (коммит B 2e7d1284; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
 **Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
 - **Статус:** автоматически синхронизировано
 
@@ -852,7 +852,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 ## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+- **Описание:** **Status:** ✅ Fixed (commit e75cb2b4; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
 **Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
 - **Статус:** автоматически синхронизировано
 
@@ -861,7 +861,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 ## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+- **Описание:** **Status:** ✅ Fixed (commit 5453c289; CI all-jobs green on ubuntu+windows)
 **Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
 - **Статус:** автоматически синхронизировано
 
@@ -870,7 +870,7 @@ Moved 22 closed entries from KNOWN_ISSUES.md verbatim (rule: matches closed/fixe
 ## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+- **Описание:** **Status:** ✅ Fixed (commit 3207e6d6)
 **Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
 - **Статус:** автоматически синхронизировано
 

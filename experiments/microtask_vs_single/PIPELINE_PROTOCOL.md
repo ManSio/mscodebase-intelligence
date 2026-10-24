@@ -94,7 +94,7 @@ GUARDS  path scope · one writer per file · test files read-only and restorable
 * the pipeline **runs end to end**: plan → measure → brief → write → apply → verify → receipt;
 * it produced **machine-checked receipts** with the exact failing test and the artifact hash;
 * the red team is green (13/13);
-* the **executor did not solve the real bug** on `17e65663b7_health` (it diagnosed the failing assertion but did not produce a diff within the budget) and on `e7dc645652_project_resolution` the **server reset the connection** mid-request (WinError 10054, then 10051);
+* the **executor did not solve the real bug** on `41355628_health` (it diagnosed the failing assertion but did not produce a diff within the budget) and on `05493c6e_project_resolution` the **server reset the connection** mid-request (WinError 10054, then 10051);
 * throughput: ≈150–300 s per model call ⇒ 24 steps ≈ 1–2 h per task — **too slow for a run**.
 
 ⇒ The blocker is the **executor/server**, not the protocol. Three concrete

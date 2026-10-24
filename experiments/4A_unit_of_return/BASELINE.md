@@ -15,7 +15,7 @@
 | Поле | Значение |
 |---|---|
 | Branch | `chore/privacy-paths` (PR #49) → база для эксперимента — до мерджа ветвиться от неё |
-| HEAD | `5f158ece` (после PR #49) |
+| HEAD | `5a3f395f` (после PR #49) |
 | MCP RUN_ID | `45b0a471f48e` (PID 15624, state READY) |
 | Index | **10 106 chunks / 716 files / 14 099 symbols** |
 | Embedder / Reranker | llama.cpp 🟢 / BGE-M3 🟢 |

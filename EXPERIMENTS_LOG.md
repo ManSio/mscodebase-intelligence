@@ -196,7 +196,7 @@ positive_hit=True none_clean=True
 ```
 **Распределение:** experiments 4633, tests 29, docs 16, scripts 11, src 6, .local 4.
 **Вердикт:** CONFIRMED. 4699 утечек в 98 файлах вне scope; guard зелёный только потому, что не смотрит туда.
-**Фикс (ea715903):** 17 production-утечек нормализованы (src/: 6, scripts/: 11). `graph_tools.py:825` заменён на `self._resolve_target_path(None)`. Осталось 4633 в experiments/ (исторический контекст).
+**Фикс (3b28fe70):** 17 production-утечек нормализованы (src/: 6, scripts/: 11). `graph_tools.py:825` заменён на `self._resolve_target_path(None)`. Осталось 4633 в experiments/ (исторический контекст).
 **Контролы:** planted leak найден, repo-relative пути не флагнятся.
 
 ## [2026-09-25] — E18: graph write throughput — per-entity transaction vs batched (CONFIRMED)
@@ -277,14 +277,14 @@ python experiments/1V_memory_contamination/redteam_burst.py        # 3 атак�
 **Сырой результат:**
 ```
 [1-B реальная память] авто-REFUTED=24: anchor_junk 13, TRUE_REFUTE_deleted 10, FALSE_REFUTE_renamed 1 (9.1%)
-  ADR-7232a6e2ba34 FALSE_REFUTE_renamed src/utils/paths.py -> adapters/local_fs/windows.py (git R083)
+  ADR-d35fd1e7fee5 FALSE_REFUTE_renamed src/utils/paths.py -> adapters/local_fs/windows.py (git R083)
 [1-C синтетика N=30] Baseline A: VERIFIED 30/0 REFUTED. Sweep B (git mv src/mod src/moved):
   After sweep: VERIFIED 0 REFUTED 30/30 (100%)  |  body-hash carry: 30/30 (100% уцелели)
-[Red-Team-1 batch-hazard] коммит e661861f = D(adapters/local_fs/__init__.py) + R083(windows.py): «исчезли скопом = move» спас бы и правду, и удаление
+[Red-Team-1 batch-hazard] коммит 54acc263 = D(adapters/local_fs/__init__.py) + R083(windows.py): «исчезли скопом = move» спас бы и правду, и удаление
 [Red-Team-3 starve] бюджет 0.05ms @ N=40: checked=1 inconclusive=39 budget_exceeded=39
 [Red-Team-4 present-trap] файл пересоздан на том же пути с другим телом: path-anchor VERIFIED (протух), body-hash честно delete+add
 ```
-**Вердикт:** подтверждена частично. Очередь в практике = не огромная (24 накопленных авто-отзыва за месяц), но ДОМИНИРУЕТ мусор якорей (13/24: import:for/filter/maps, pkg:name/-), а не renames. Настоящие renames дали 1 ложный отзыв (ADR-7232a6e2ba34 — узел жив, якоря adapters/zed/*.py + src/main.py существуют; отозван по СТАРОМУ пути из prose тела). Синтетика показывает паттерн: один rename-sweep = 100% очереди. **Урок:** батч по коммиту НЕ решает — он смешивает move с delete (e661861f); нужна body-identity (exact-body/exact-signature, OpenLore PR#206) или уточнённый reviewer: сравнение failed-якоря против R*-src в git-истории (rename_sources в audit). Связь: ADR-0003, OpenLore#206, limpet (AST body-hash).
+**Вердикт:** подтверждена частично. Очередь в практике = не огромная (24 накопленных авто-отзыва за месяц), но ДОМИНИРУЕТ мусор якорей (13/24: import:for/filter/maps, pkg:name/-), а не renames. Настоящие renames дали 1 ложный отзыв (ADR-d35fd1e7fee5 — узел жив, якоря adapters/zed/*.py + src/main.py существуют; отозван по СТАРОМУ пути из prose тела). Синтетика показывает паттерн: один rename-sweep = 100% очереди. **Урок:** батч по коммиту НЕ решает — он смешивает move с delete (54acc263); нужна body-identity (exact-body/exact-signature, OpenLore PR#206) или уточнённый reviewer: сравнение failed-якоря против R*-src в git-истории (rename_sources в audit). Связь: ADR-0003, OpenLore#206, limpet (AST body-hash).
 
 ## [2026-08-05] — Neuro-Symbolic spike: NL → LLM → Cypher → parser+schema → PropertyGraph (exp-lab-2026-01)
 
@@ -350,7 +350,7 @@ index_sync   INCONCLUSIVE INCONCLUSIVE   PASS
 Store round-trip (E05-git1): PASS
 E-05: 4 cases — 4 PASSED, 0 FAILED  →  SMOKE E-05: PASSED
 ```
-**Находка (первый прогон 2/4):** `verify_git_commit`/`verify_git_push` хардкодили cwd ПРОЦЕССА — `git log` шёл в MSCodeBase (коммит 381e41bd), а не в тестовом репо → reproducible_by в др. cwd → mismatch вердиктов. Рovno опасение §12.3 подтвердилось.
+**Находка (первый прогон 2/4):** `verify_git_commit`/`verify_git_push` хардкодили cwd ПРОЦЕССА — `git log` шёл в MSCodeBase (коммит 42202fdf), а не в тестовом репо → reproducible_by в др. cwd → mismatch вердиктов. Рovno опасение §12.3 подтвердилось.
 **Фикс:** verify_git_commit/push принимают `cwd=` (backward-compat); `reproducible_command(.., workdir)` кодирует `git -C <dir>`; `ActionReceipt.workdir`; `build_receipt(workdir)`; `verify_action` резолвит project_root. **Вердикт:** подтверждена с оговоркой — reproducible_by работает 1:1 ТОЛЬКО с явным workdir для git-типов; receipt стал самодостаточным.
 **Урок:** verify и reproduce в разных cwd «выглядят правильно», но вердикты расходятся — unit-тест (cwd процесса) это не различает, нужен реальный E-05 с изолированным окружением. Связь: present-trap / «очевидно полезное ≠ работает» KI-2026-08-11.
 
@@ -1181,7 +1181,7 @@ src/core/error_handler.py         3500    512      479       831
 llama_server_stderr.log: E srv send_error: task id = 5977, input (526 tokens) is larger than the max context size (512). skipping
 _reindex_err.log: [embed] 4512/4677 ... Chunk 8 failed all retries, zero vector → Embedding failed for chunk 8 after all retries. Aborted.
 ```
-**Вердикт:** ОПРОВЕРГНУТА — запас после HF-512 всего 0-10 токенов (502/512), плотный CJK даёт 526>512 (разные BPE у HF и GGUF). Фикс 48e695b8 не работает.
+**Вердикт:** ОПРОВЕРГНУТА — запас после HF-512 всего 0-10 токенов (502/512), плотный CJK даёт 526>512 (разные BPE у HF и GGUF). Фикс ea31cd95 не работает.
 **Вывод:** гарантия только через нативный `/tokenize` llama-server (лимит 480). Реализовано в remote_embedder.py; реиндекс 22:37→22:47: 4677 chunks, HTTP 400=0, Aborted=0.
 
 ---
@@ -1410,7 +1410,7 @@ zombie_probe: holder pid=12684 alive=False -> STALE  (после выхода с
 ```
 **Before (та же сессия, старый код):** контеншн = 30.0s → RuntimeError (замерено в Exp B); orphan-кейс не детектился (30s → RuntimeError); free ~9ms; stale ~33ms.
 
-**Вердикт (2026-08-08):** ПОДТВЕРЖДЕНА. **Статус публикации (2026-10-03):** `SUPERSEDED` — измерено на `3798d6a9`, а путь достижимости удалён по дизайну: ORPHAN-ветка вырезана из прод-MCP по R3TF (`7974d981`, `src/core/indexing/database_lock.py:81-84`). Сегодняшней командой не воспроизводится (`experiments/claims_audit/RESULTS.md` A10 = NOT REPRODUCED), поэтому число остаётся записью прогона, а не текущим фактом. Не переписывать.
+**Вердикт (2026-08-08):** ПОДТВЕРЖДЕНА. **Статус публикации (2026-10-03):** `SUPERSEDED` — измерено на `867dbe56`, а путь достижимости удалён по дизайну: ORPHAN-ветка вырезана из прод-MCP по R3TF (`145fda16`, `src/core/indexing/database_lock.py:81-84`). Сегодняшней командой не воспроизводится (`experiments/claims_audit/RESULTS.md` A10 = NOT REPRODUCED), поэтому число остаётся записью прогона, а не текущим фактом. Не переписывать.
 orphan: 30000ms → 120ms (terminate+steal, вкл. TerminateProcess реального python + ретрай-unlink); healthy: 30000ms RuntimeError → 1512ms LockBusyError (wait=1.5 в бенче; прод-дефолт 8.0s); free/stale без изменений (7/31ms). Дополнительно verified: после TerminateProcess реального python'а venvlauncher-обёртка умирает сама (никаких висящих процессов), lock перезаписывается нашим PID.
 **Урок:** (1) TerminateProcess синхронный, но файловый дескриптор lock'а умирающего процесса даёт PermissionError на unlink → нужен _unlink_with_retry (иначе краш в кейсе «только что убитый holder»); (2) venvlauncher: lock пишет РЕАЛЬНЫЙ python (os.getpid() внутри скрипта), terminate по pid из lock убивает именно держателя, обёртка умирает следом — прод-механизм работоспособен.
 
@@ -1886,7 +1886,7 @@ REINDEX: 9003/9003 completed за 519s (полный цикл 19:29:34→21:11:1
 ПОСЛЕ: intel_get_runtime_status → 🟢 9003 chunks | 540 files | 10714 symbols
 pytest полный: 1518 passed, 5 skipped, 91 deselected, 0 failed (было 1512)
 ```
-**Вердикт:** ПОДТВЕРЖДЕНА — заморозка устранена (ни одного таймаута за весь прогон). Но живой прогон выявил ВТОРИЧНЫЙ баг: `intel_get_runtime_status` показывал «0 chunks», `search_code` — «Index is empty → run index_project_dir» (враньё, провоцирует 2-й reindex) → закрыт коммитом c41c30e1 (Вариант А: status=reindexing + progress % + честный ToolError).
+**Вердикт:** ПОДТВЕРЖДЕНА — заморозка устранена (ни одного таймаута за весь прогон). Но живой прогон выявил ВТОРИЧНЫЙ баг: `intel_get_runtime_status` показывал «0 chunks», `search_code` — «Index is empty → run index_project_dir» (враньё, провоцирует 2-й reindex) → закрыт коммитом 8f61f9bb (Вариант А: status=reindexing + progress % + честный ToolError).
 **Урок:** исправление блокировки ≠ исправление сигналов; после фикса liveness обязательно проверить семантику сообщений агенту — иначе агент «чинит» здоровое состояние.
 
 ---
@@ -2105,7 +2105,7 @@ lies = файлы с явными import/include/require в тексте, но 0
 
 **Урок:** проверять чужой план против РЕАЛЬНЫХ сигнатур через get_symbol_info/search_code, а не против «как это выглядит по описанию». Три угаданных API ≠ одна рабочая интеграция.
 
-**Связи:** KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (открыт), docs/research/universal-engine-study/10-continuous-verification.md (план H1/H2/H3, pending), ADR-0003 (Verify-On-Read), commit B (head-freshness, cb88c961).
+**Связи:** KNOWN_ISSUES 2026-09-07 «Lazy-only верификация» (открыт), docs/research/universal-engine-study/10-continuous-verification.md (план H1/H2/H3, pending), ADR-0003 (Verify-On-Read), commit B (head-freshness, 2e7d1284).
 
 ## [2026-09-10] — system_alerts цепь «файл изменён → STALE → VOR → alert агента» + idle-VOR (H1)
 
@@ -2175,7 +2175,7 @@ VERDICT H3: CONFIRMED
 
 **Урок:** HEAD-инвализация per-node key — честный детектор внешнего дрифта кода в git-репо: достаточен без OS-watchdog для коммиченных изменений; незакоммиченная правка (dirty tree) требует VOR fingerprint'а по mtime/HEAD_TTL или notify_change — остаётся открытым интервалом (PID 30s TTL).
 
-**Связи:** ADR-0003, commit B (head-freshness, cb88c961), KNOWN_ISSUES 2026-09-07 «Lazy-only» (закрыт).
+**Связи:** ADR-0003, commit B (head-freshness, 2e7d1284), KNOWN_ISSUES 2026-09-07 «Lazy-only» (закрыт).
 
 ## [2026-09-10] — Exp 2: Agent Behavior — delivery vs enforcement (H1/H2/H3 подцепь)
 
@@ -2393,7 +2393,7 @@ unique src funcs in trace: 1212
 
 **Verdict:** PARTIALLY REFUTED (в положительную сторону). Hit ≥50% ✅ (union 90.4%, L1 88.4%). Recall ≤30% ❌ — union recall 70.0%. Статика существенно сильнее, чем следовало из Exp 7: там мерился сигнал «имя теста=имя функции» (слабый, L2 здесь 17.7% — подтверждает тот 0%); сигнал «имена прямых вызовов внутри тела теста» (L1) точен и узок: precision **68.0%** при avg 2.9 кандидата — хороший якорь, но recall 30.3%. L3 (импорты) даёт ширину (recall 72%) ценой шума (21.8% precision, avg 41.4).
 
-**Implication:** Шаг B уточняется без делегирования цифр на волю: **(1)** статический L1-call — ценный статический якорь для ранжирования (TCTracer-style ensemble может использовать его как tier-1); **(2)** Шаг 2 (DECORATES для @mcp_app.tool) — УЖЕ реализован (живой граф: mcp.tool→14, mcp_app.tool→20 рёбер; источник `19378296` vendor tree-sitter tags.scm) — KNOWN_ISSUES:245 устарел; **(3)** dynamic trace остаётся драйвером TESTS-edge: он даёт recall 100% на linked (1551/1727) и не требует early-decision по единственной «target»-функции; статика — fallback для динамически-пустых (88/176 мок-тестов имеют стат. кандидатов) и pre-filter ранжирования. **moc: не путать hit (любой из G) с recall (доля G) — hit 90% ≠ покрытие 90%.**
+**Implication:** Шаг B уточняется без делегирования цифр на волю: **(1)** статический L1-call — ценный статический якорь для ранжирования (TCTracer-style ensemble может использовать его как tier-1); **(2)** Шаг 2 (DECORATES для @mcp_app.tool) — УЖЕ реализован (живой граф: mcp.tool→14, mcp_app.tool→20 рёбер; источник `d5ed86dd` vendor tree-sitter tags.scm) — KNOWN_ISSUES:245 устарел; **(3)** dynamic trace остаётся драйвером TESTS-edge: он даёт recall 100% на linked (1551/1727) и не требует early-decision по единственной «target»-функции; статика — fallback для динамически-пустых (88/176 мок-тестов имеют стат. кандидатов) и pre-filter ранжирования. **moc: не путать hit (любой из G) с recall (доля G) — hit 90% ≠ покрытие 90%.**
 
 **Artifacts:** experiments/bootstrap/static_vs_dynamic.py; EXP_LOG Exp 9; exp-41 portfolio lab.
 
@@ -2853,7 +2853,7 @@ CI до/после: test ubuntu **13m44s→1m58s**, windows **16m23s→3m11s**, 
 
 ## [2026-09-27] Exp v3 (Token Reduction): production-retriever arm — CONFIRMED (42.9% compression @ hit@10=70%); чисто-векторный прогон отозван как невалидный дубликат E10
 
-**Контекст.** Серия v1/v2/v3 измеряла сжатие токенов на реальных данных MSCodeBase. v1 (`5e7fd2da`) невалиден by design (TF-IDF по заранее известным target files), v2 (`5ab7265a`) exploratory. Первый прогон v3 (`run_experiment.py`) использовал `search_lancedb` — **прямой dense-поиск в LanceDB мимо штатного ретривера** — и дал 2/13 (0.154) hit.
+**Контекст.** Серия v1/v2/v3 измеряла сжатие токенов на реальных данных MSCodeBase. v1 (`43f180e2`) невалиден by design (TF-IDF по заранее известным target files), v2 (`43a0c8d6`) exploratory. Первый прогон v3 (`run_experiment.py`) использовал `search_lancedb` — **прямой dense-поиск в LanceDB мимо штатного ретривера** — и дал 2/13 (0.154) hit.
 
 **Почему этот прогон невалиден (3 независимых дефекта harness, не дефекта продукта):**
 1. `run_experiment.py:68-98` — чистый вектор в обход `hybrid_search_async`. Замеренное 0.154 лежит внутри задокументированной полосы pure-vector (E10, EXPERIMENTS_LOG.md:2306-2332; потолок search-only ~0.23, EXPERIMENTS_LOG.md:1873). **Продукт не сломан — закрыта та же ветка, что и в E10.**

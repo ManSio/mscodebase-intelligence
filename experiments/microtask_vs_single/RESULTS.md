@@ -34,7 +34,7 @@ environment) and is recorded as such.
 | task | A | tokens | C | tokens |
 |---|---|---|---|---|
 | 001f7d3a41_write_tools | 1/1 | 5 326 158 | 1/1 | 697 956 |
-| 17e65663b7_health | 0/2 | 5 963 549 | **3/4** | 265 680 |
+| 41355628_health | 0/2 | 5 963 549 | **3/4** | 265 680 |
 | 11c88afca6_bootstrap_entities | 0/1 | 176 633 | 0/1 | 37 225 |
 | 01d1cce11d_codebase_tool | 0/1 | 135 077 | 0/1 | 198 553 |
 | 32f1166290_index_project_runner | 0/1 | 1 355 870 | — | — |
@@ -42,8 +42,8 @@ environment) and is recorded as such.
 | 8a05b599f6_verify_on_read | 0/1 | 431 074 | 0/1 | 146 108 |
 | 9b66fbed2a_parser | 0/1 | 613 312 | 0/1 | 696 117 |
 | a7c221f88d_parser | 0/1 | 498 361 | 0/1 | 86 741 |
-| c4c9296fdc_file_guard | 0/1 | 233 312 | 0/3 | 111 495 |
-| e7dc645652_project_resolution | — | — | 0/1 | 58 523 |
+| a189d13d_file_guard | 0/1 | 233 312 | 0/3 | 111 495 |
+| 05493c6e_project_resolution | — | — | 0/1 | 58 523 |
 | ed0f88004b_context_tool | 0/1 | 95 218 | 0/1 | 95 776 |
 
 ### What the main run says
@@ -55,7 +55,7 @@ environment) and is recorded as such.
    (5.2×)**; per task, C is the cheaper arm in 8 of 12.
 2. **Quality: A 1/12 tasks, C 2/12 tasks.** The difference is one task, which
    is **not** a quality claim at this n. The one task only C solved
-   (`17e65663b7_health`) is exactly the one where A ran away (0/2, 5.96 M
+   (`41355628_health`) is exactly the one where A ran away (0/2, 5.96 M
    tokens) — consistent with the mechanism being step count, not intelligence.
 3. **On 10 of 12 real bugs both arms fail.** With a cheap-tier executor
    (`mode=low`, Base-only) the *model* is the bottleneck; no architecture fixes
@@ -87,8 +87,8 @@ diff. Answer length on the same task fell from ~700–1 000 tokens to **90**.
 | 001f7d3a41_write_tools | C | pass, 16 req, 697 956 tokens | fail, 5 req, **116 956** tokens, 257 s |
 | 11c88afca6_bootstrap_entities | A | fail, 13 req, 176 633 | fail, 7 req, 77 268 |
 | 11c88afca6_bootstrap_entities | C | fail, 4 req, 37 225 | fail, 12 req, 179 127 |
-| c4c9296fdc_file_guard | A | fail, 16 req, 233 312 | **pass**, 27 req, 465 135 |
-| c4c9296fdc_file_guard | C | fail, 5 req, 50 274 | fail, 5 req, 47 698 |
+| a189d13d_file_guard | A | fail, 16 req, 233 312 | **pass**, 27 req, 465 135 |
+| a189d13d_file_guard | C | fail, 5 req, 50 274 | fail, 5 req, 47 698 |
 
 Two consequences, both uncomfortable and both real:
 

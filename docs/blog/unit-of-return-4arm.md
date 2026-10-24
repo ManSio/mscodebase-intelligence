@@ -33,22 +33,22 @@ Quoted from the bootstrap study, not re-measured here.
 </thead>
 <tbody>
 <tr>
-<td style="border: 1px solid #ddd; padding: 8px;">7 (name-match → trace) (d74785d4)</td>
+<td style="border: 1px solid #ddd; padding: 8px;">7 (name-match → trace) (a912f99c)</td>
 <td style="border: 1px solid #ddd; padding: 8px;">109-sample / 1727 traced</td>
 <td style="border: 1px solid #ddd; padding: 8px;">0/109 name-match; 1551/1727 execute ≥1 src function; 10.1 mean (median 6, range 1–118)</td>
 </tr>
 <tr>
-<td style="border: 1px solid #ddd; padding: 8px;">7b (Tarantula) (e198b716)</td>
+<td style="border: 1px solid #ddd; padding: 8px;">7b (Tarantula) (03b1b00e)</td>
 <td style="border: 1px solid #ddd; padding: 8px;">traced tests</td>
 <td style="border: 1px solid #ddd; padding: 8px;">rank≤3 covers 22.6% — refuted as selector, kept as annotation</td>
 </tr>
 <tr>
-<td style="border: 1px solid #ddd; padding: 8px;">8 (coverage.py vs plugin) (c9de08e5)</td>
+<td style="border: 1px solid #ddd; padding: 8px;">8 (coverage.py vs plugin) (3e26a475)</td>
 <td style="border: 1px solid #ddd; padding: 8px;">same-session A/B</td>
 <td style="border: 1px solid #ddd; padding: 8px;">+19.96% vs +13.6% overhead — plugin wins</td>
 </tr>
 <tr>
-<td style="border: 1px solid #ddd; padding: 8px;">9 (static union) (71c9042d)</td>
+<td style="border: 1px solid #ddd; padding: 8px;">9 (static union) (f2bad4ed)</td>
 <td style="border: 1px solid #ddd; padding: 8px;">dynamic-trace gold set</td>
 <td style="border: 1px solid #ddd; padding: 8px;">70% union recall — companion, not driver</td>
 </tr>
@@ -58,7 +58,7 @@ Quoted from the bootstrap study, not re-measured here.
 <td style="border: 1px solid #ddd; padding: 8px;">97.3% (2805/2882) to 100% (27/27) linked</td>
 </tr>
 <tr>
-<td style="border: 1px solid #ddd; padding: 8px;">E17 (TESTS-signal) (c1fb2363)</td>
+<td style="border: 1px solid #ddd; padding: 8px;">E17 (TESTS-signal) (ce3db26b)</td>
 <td style="border: 1px solid #ddd; padding: 8px;">7-query + 35-query panels</td>
 <td style="border: 1px solid #ddd; padding: 8px;">MRR held (1.0 / 0.957); hit@1 unmoved; graph_stage +15.3% wide panel</td>
 </tr>

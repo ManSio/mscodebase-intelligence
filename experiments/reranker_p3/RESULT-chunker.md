@@ -1,7 +1,7 @@
 # Chunker module-docstring fix — live gate result (2026-09-29): RED (mechanism delivered, retrieval blocks)
 
 Branch: `fix/chunker-module-doc` (off `origin/main` + cherry-picked P3 stack:
-anchor `d3d53075`, sigmoid `f2df8160`). Task: emit module docstring as chunk 0.
+anchor `8c0ac276`, sigmoid `0ac4da68`). Task: emit module docstring as chunk 0.
 
 ## 1. Mechanism (implemented, unit-verified)
 
@@ -31,7 +31,7 @@ all pre-existing files fail it too; new code matches file style).
   not exist). Chunk 1 scores −6.52 → correctly cut. The chunker half of the
   drill-down is closed.
 
-## 3. Gate (fresh process, `scripts/p3_holdout_gate.py`, rev `f2df8160`)
+## 3. Gate (fresh process, `scripts/p3_holdout_gate.py`, rev `0ac4da68`)
 
 ```
 P2  rank=2    n=5  (expected 1 — REGRESSION vs FALSIFIED baseline rank 1)

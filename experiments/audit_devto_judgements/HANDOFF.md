@@ -125,10 +125,10 @@ this article warns about.»
 (от 01.10 23:35), исходников `.py` нет.
 
 **Корневая причина — НЕ «файл потерян» (первая версия этого отчёта была неверна, опровергнуто).**
-`git log --all --follow` → коммит `285dbc3f feat(verification): move the gates into the repo so they
+`git log --all --follow` → коммит `9462dc2f feat(verification): move the gates into the repo so they
 version with the code`; файл цел (25 356 B). Удаляющего коммита нет (`--diff-filter=D` пуст).
 Ветка **`feat/protocol-triage-and-t10-guards`** не является предком HEAD
-(`merge-base --is-ancestor` rc=1), HEAD = `ee5edd20` на `chore/bump-urllib3-pyjwt-cve`.
+(`merge-base --is-ancestor` rc=1), HEAD = `d1e77fad` на `chore/bump-urllib3-pyjwt-cve`.
 Вся верификация (13 файлов) **не слита на текущую ветку**.
 
 **Вердикт:** любой вердикт `gate` на этой ветке = **BLOCK, а не ALLOW** — гейт, который не может
@@ -137,7 +137,7 @@ version with the code`; файл цел (25 356 B). Удаляющего ком�
 
 **⛔ Не переписывать `gates.py` с нуля и не вытаскивать из `.pyc`** — файл цел, лежит в git.
 **⛔ HALT:** эта ветка зачекаучена в другом worktree
-(`C:\Users\misha\AppData\Local\Temp\mscb-wt-64` @ `dee49085`) → параллельная сессия, не трогать.
+(`C:\Users\misha\AppData\Local\Temp\mscb-wt-64` @ `74bfa2ad`) → параллельная сессия, не трогать.
 
 Класс — **«наличие ≠ живость»**: `.pyc`-ископаемое без `.py` + неслитая ветка заставляют тул
 выглядеть рабочим, пока он не падает. Фикс — merge/cherry-pick ветки (решение владельца) +
@@ -217,7 +217,7 @@ cd D:\Project\MSCodeBase; (Get-ChildItem scripts\*.py).Count; Select-String -Pat
 # гейт против возврата дампа в репозиторий
 python scripts\check_third_party_data.py --selftest; python scripts\check_third_party_data.py --all
 # неслитая ветка с рабочим gate
-git branch --contains 285dbc3f --format="%(refname:short)"
+git branch --contains 9462dc2f --format="%(refname:short)"
 ```
 
 ---
@@ -272,7 +272,7 @@ informed). Обе сбиты <12 строк, на вердикт не повли
 
 **A6. Root cause P1 был сначала сформулирован неверно.** Я записал «`gates.py` никогда не
 был в треке» — потому что `git ls-files tools` его не показал. `git log --all --follow`
-показал: коммит `285dbc3f`, файл цел (25 356 B), удаляющего коммита нет, ветка
+показал: коммит `9462dc2f`, файл цел (25 356 B), удаляющего коммита нет, ветка
 `feat/protocol-triage-and-t10-guards` не слита в HEAD. **Я обобщил «нет в HEAD» до «нет
 в истории»** — ровно тот сдвиг, который документирую в §7.1, только на себе.
 Правильный фикс — merge/cherry-pick, а не «восстановить в трек» и **не** «переписать с нуля».

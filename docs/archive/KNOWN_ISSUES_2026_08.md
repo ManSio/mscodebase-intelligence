@@ -21,42 +21,42 @@
 - [🟡 ACKNOWLEDGED (осознанный тех] Архитектурный техдолг: крупные модули (>800 строк)
 - [🟡 deferred (не блокер) | Deadl] Env-access extractor: deferred языки (elixir, hask
 - [✅ CLOSED (live-верифицирован и] PyPI-упаковка: `tools`/`locales`/`adapters` вне wh
-- [✅ CLOSED (fix #18, 1578a1bb; g] `1ff77294` Full reindex зависает в фазе «Finalizing» (Propert
+- [✅ CLOSED (fix #18, b8d5d6a4; g] `1ff77294` Full reindex зависает в фазе «Finalizing» (Propert
 - [✅ CLOSED (live-reverified #1-4: git routing 41 commits, apply=false short-circuits, dotted import, callers-cou] Codebase hub write-actions: 4 бага (git routing, d
 - [🟡 env-gap | Deadline: — | Влад] LSP-тулы: basedpyright не установлен (OPEN / ENV)
 - [✅ Fixed (AGENTS.md §2 61→64, inline 12→13 + dual_arm_health] `ad89b2d4` AGENTS.md §2 противоречит реальной регистрации тул
 - [🟡 запланировано (индексатор) |] Data Gap: папка tests/ не индексируется Tree-sitte
-- [🟡 запланировано (индексатор) |] `95237f68` Graph node enrichment: узлы без file_path (OPEN / 
+- [🟡 запланировано (индексатор) |] `91a049cd` Graph node enrichment: узлы без file_path (OPEN / 
 - [🟢 стабильно | Deadline: — | Вл] DatabaseLock ORPHAN-kill → A+ fail-closed (PID 200
-- [🟢 стабильно | Deadline: — | Вл] `b03073c5` Полный заморозок MCP при full reindex (root cause:
+- [🟢 стабильно | Deadline: — | Вл] `f6de6ea7` Полный заморозок MCP при full reindex (root cause:
 - [🟢 стабильно | Deadline: — | Вл] Вариант А: честный reindex-статус для агента (FIXE
 - [🟢 стабильно | Deadline: — | Вл] Live-косметика: reindex ToolError обёртки + Projec
 - [🟢 стабильно (lazy-импорты рабо] Цикл core: error_handler ⇄ task_queue через lazy-и
 - [🟢 внесено + проверено, НЕ зако] E-09: upload-bomb gate GitUrlSource 4/4 (Фаза 2 за
 - [E-05 ✅; LSP-регрессия 🔴 OPEN (] E-05: ActionReceipt reproducible_by 4/4 (workdir-ф
-- [✅ закоммичено 381e41bd (не зап] `381e41bd` ТЗ §11 Action Receipt: get_action_receipt + store 
-- [🟢 внесено + проверено, закомми] `11c71262` B-1: фаза 1 полная (8 экосистем) + фаза 2 stdlib l
-- [🟢 внесено + проверено (unit), ] `efe07e38` Фаза 4-хвост: wiring плагинов в MCP-сервер (DONE, 
+- [✅ закоммичено 42202fdf (не зап] `42202fdf` ТЗ §11 Action Receipt: get_action_receipt + store 
+- [🟢 внесено + проверено, закомми] `bb55a053` B-1: фаза 1 полная (8 экосистем) + фаза 2 stdlib l
+- [🟢 внесено + проверено (unit), ] `3e89ead3` Фаза 4-хвост: wiring плагинов в MCP-сервер (DONE, 
 - [🟢 внесено + проверено, НЕ зако] `f1b5019b` Deep-spec docs: Signature/Description колонки в MO
-- [🟢 внесено + проверено, закомми] `11c71262` Backlog B-1: манифест-парсеры — фундамент (python/
-- [🟢 внесено + проверено, закомми] `1f07952a` Фаза 5: адаптеры клиентов + CLI wrapper (план §4) 
-- [🟢 внесено + проверено, закомми] `2f30f585` Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (п
-- [🟢 внесено + проверено, закомми] `898e88f0` Фаза 4: subprocess-изоляция плагинов (план §5.4) (
-- [🟢 внесено + проверено, закомми] `ae2b01bb` Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
-- [🟢 внесено + проверено (toy liv] `76646a0e` E-07: эквивалентность транспортов stdio↔HTTP (DoD 
-- [🟢 внесено + проверено (частичн] `462ea66f` Фаза 3 шаг 5: Docker-деплой remote (Вариант A) (DO
-- [🟢 внесено + проверено, закомми] `9e8b8491` Фаза 3 шаг 4: rate-limit + circuit breaker на remo
+- [🟢 внесено + проверено, закомми] `bb55a053` Backlog B-1: манифест-парсеры — фундамент (python/
+- [🟢 внесено + проверено, закомми] `f09bcdcf` Фаза 5: адаптеры клиентов + CLI wrapper (план §4) 
+- [🟢 внесено + проверено, закомми] `39d5b888` Фаза 4: MCP-proxy wiring + trust-гейт UX + deps (п
+- [🟢 внесено + проверено, закомми] `a75fa390` Фаза 4: subprocess-изоляция плагинов (план §5.4) (
+- [🟢 внесено + проверено, закомми] `1e8848e6` Фаза 4 v1: trust-гейт плагинов (план §5) (DONE)
+- [🟢 внесено + проверено (toy liv] `69d3432d` E-07: эквивалентность транспортов stdio↔HTTP (DoD 
+- [🟢 внесено + проверено (частичн] `f7650184` Фаза 3 шаг 5: Docker-деплой remote (Вариант A) (DO
+- [🟢 внесено + проверено, закомми] `59904f43` Фаза 3 шаг 4: rate-limit + circuit breaker на remo
 - [🟢 внесено + проверено, закомми] Фаза 3: Streamable HTTP транспорт начат (remote_ma
 - [🟢 внесено + проверено, закомми] DNS-rebinding-детект (Фаза 2.5) (DONE)
 - [🟢 внесено + проверено, закомми] UploadSource (Фаза 2, R-3 archive) (DONE)
 - [🟢 внесено + проверено (live 9/] E-08 live SSRF-suite (9/9) + координационная огово
-- [🟢 внесено + проверено, закомми] `e4bc051f` MCP-тул index_git_url (Фаза 2 MCP-обвязка) (DONE)
-- [🟢 внесено + проверено, закомми] `76b2991b` E-03 clone→index live + clone-in-place fix (Window
-- [🟢 внесено + проверено, закомми] `3bb3b6ae` Фаза 2 Universal Engine: GitUrlSource core (SSRF-з
-- [🟢 внесено + проверено, закомми] `e661861f` Фаза 1 Universal Engine: WorkspaceSource + LocalFs
-- [🟢 внесено + проверено (pytest ] `7232a6e2` Фаза 0 Universal Engine: Windows/Zed-специфика вын
+- [🟢 внесено + проверено, закомми] `5ef2404c` MCP-тул index_git_url (Фаза 2 MCP-обвязка) (DONE)
+- [🟢 внесено + проверено, закомми] `940e8239` E-03 clone→index live + clone-in-place fix (Window
+- [🟢 внесено + проверено, закомми] `8274de4d` Фаза 2 Universal Engine: GitUrlSource core (SSRF-з
+- [🟢 внесено + проверено, закомми] `54acc263` Фаза 1 Universal Engine: WorkspaceSource + LocalFs
+- [🟢 внесено + проверено (pytest ] `d35fd1e7` Фаза 0 Universal Engine: Windows/Zed-специфика вын
 - [🟢 внесено + проверено (42 pass] Sandbox escape: `_builtins.__dict__['open']/['eval
-- [🟢 внесено + проверено (tomllib] `d4e7cfe3` Runtime-зависимости запинены к точным версиям (unp
+- [🟢 внесено + проверено (tomllib] `a5df978f` Runtime-зависимости запинены к точным версиям (unp
 - [🟢 реализовано+проверено (pytes] ARCLUX audit: кластер циклических импортов MCP-сло
 - [OPEN] RED TEAM 2-E: 4/6 present-trap-фактов v4_rep по фа
 - [🟡 документировано; ре-лейблинг] RED TEAM 2-E: 4/6 present-trap-фактов v4_rep по фа
@@ -78,7 +78,7 @@
 - [FIXED] Footgun: experiments/1V_memory_contamination/memor
 - [?] `694059bc` P1: propagation_engine.py невидим для поиска и гра
 - [DONE] P2: сервер недоступен во время/после индексации — 
-- [DONE] `f14435db` P2: extract_anchors — мусорные якоря → ложные отзы
+- [DONE] `57636199` P2: extract_anchors — мусорные якоря → ложные отзы
 - [DONE] Разброс путей хранения + 2481 мусорная папка + нет
 - [DONE] Reranker offline весь день: PID-reuse/завершённый 
 - [DONE] Дубли серверов при 2 окнах Zed: lock до Popen, а н
@@ -97,9 +97,9 @@
 - [FIXED] deep-research-report.md P1: неатомарная запись Lan
 - [FIXED] deep-research-report.md P1: TaskQueue.submit_sync 
 - [FIXED] pyproject transformers>=4.36 разрешает CVE-уязвимы
-- [FIXED] `c4f540bc` CI тайминг-флейк: test_dead_pid_stolen_immediately
+- [FIXED] `20d393cd` CI тайминг-флейк: test_dead_pid_stolen_immediately
 - [?] Pre-commit gate-zero флейк: tests/test_connection.
-- [FIXED] `b8117c2f` PYSEC-2026-3552 в lock: cryptography 49.0.0→50.0.0
+- [FIXED] `29100947` PYSEC-2026-3552 в lock: cryptography 49.0.0→50.0.0
 - [FIXED] Pre-commit hook flake: 120s кап vs gate-zero pytes
 - [FIXED] CodeQL-алерты 22/24: tempfile.mktemp в тестах ауди
 - [FIXED] Multi-window PID-lock 30s wait vs Zed handshake ti
@@ -108,7 +108,7 @@
 - [FIXED] Windows newline-трансляция ломала SHA-256 верифика
 - [FIXED] verify_clean_state.sh не запускается на Windows Gi
 - [FIXED] Остаточный PytestUnraisableExceptionWarning: unclo
-- [FIXED] `5a771789` CI красный 18 прогонов #226-#243: ruff 35 ошибок +
+- [FIXED] `8f01a5f7` CI красный 18 прогонов #226-#243: ruff 35 ошибок +
 - [FIXED] CI: version-compat фейлы 3.10-3.12 — tomllib / rea
 - [?] ResourceWarning: unclosed database/file в -X dev п
 - [FIXED] Рантайм 58 tools vs доки 57: ExecuteScriptTool вкл
@@ -117,33 +117,33 @@
 - [DONE] А+Б из audit.md: edge transparency, path queries, 
 - [FIXED] Synthetic monitoring качества поиска «лжёт»: мусор
 - [FIXED] stale_detector/_grep_fallback сканируют расширение
-- [FIXED] `229c7156` Multi-window MCP: все окна резолвят один проект → 
+- [FIXED] `c113af25` Multi-window MCP: все окна резолвят один проект → 
 - [DONE] LSP E: lsp_get_code_actions (quick fixes), счётчик
 - [DONE] LSP D: тип-инфо и диагностика как MCP-тулы + pre-f
 - [DONE] LSP B+C: bridge деприцирован, 3 LSP-тула (basedpyr
 - [?] A/B protocol-compression: ARM A 54/64 vs ARM B 49.
 - [DONE] Workstreams A+B+C по audit.md: SCM wiring (17 quer
-- [FIXED] `f14435db` Live-верификация 5 быстрых побед audit.md: 4/5 ✅, 
+- [FIXED] `57636199` Live-верификация 5 быстрых побед audit.md: 4/5 ✅, 
 - [DONE] Реальный отбор audit.md: 16 предложений сверено, 5
 - [FIXED] progress_state удалён (dead code), project_context
 - [FIXED] get_last_progress → core (техдолг ARCH-03 закрыт) 
 - [FIXED] experiments/audit.md: 16 пунктов проверено, 12 исп
 - [?] D1: schema-слой спайка → CypherExecutor (P-004 зак
-- [FIXED] C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01). Spike-артефакт (experiments/neuro_symbolic_spike.py + EXPERIMENTS_LOG entry) carried into main 848fdf33, branch experiment/lab-2026 deleted. 
+- [FIXED] C1-C4 Cypher-стек: 4 бага (спайк exp-lab-2026-01). Spike-артефакт (experiments/neuro_symbolic_spike.py + EXPERIMENTS_LOG entry) carried into main 8fcc696e, branch experiment/lab-2026 deleted. 
 - [?] A2: sandbox execute_script — модель угроз (ADR-000
 - [FIXED] A1 (внешний аудит): ThreadPoolExecutor max_workers
 - [?] A3 (внешний аудит): 626 except Exception — тихих г
-- [FIXED] `a7a7a9e7` CI зелёный после 3 платформенных провалов (FIXED, 
+- [FIXED] `bea4ea69` CI зелёный после 3 платформенных провалов (FIXED, 
 - [FIXED] Tech debt: subprocess text=True без encoding (FIXE
-- [FIXED] `b121ab19` CI lint red: ruff I001, 10 импорт-блоков в 8 файла
+- [FIXED] `53627e77` CI lint red: ruff I001, 10 импорт-блоков в 8 файла
 - [FIXED] CI: кэш pip + coverage отчёт (baseline 41%) (FIXED
 - [PARTIAL] Триаж bare-except: 4 рискованных silent-блока полу
 - [FIXED] Баг-клоуза сессия: layer.py порт LM из config + ре
-- [FIXED] `8e2b72e0` pickle.load заменён на restricted unpickler (FIXED
+- [FIXED] `28851096` pickle.load заменён на restricted unpickler (FIXED
 - [?] Полный аудит (3-й проход): метрики точны, P0-claim
 - [?] Глубокий аудит (2-й проход): 24 sleep не в async, 
 - [?] Внешнее ревью: 165 находок — SQL ложные, pickle P1
-- [FIXED] `0735c08e` CI clean-state: venv/bin/python: No module named p
+- [FIXED] `d6256aa4` CI clean-state: venv/bin/python: No module named p
 - [FIXED] test_job_history: 3 теста падали при переиспользов
 - [FIXED] `984fb036` scripts/monitor.py: UnboundLocalError avg_log при 
 - [FIXED] Спринт A: Item 3 (lazy asyncio.Lock) + Item 4 (pro
@@ -167,15 +167,15 @@
 - [FIXED] Чистка мёртвого кода: 5 DI-ключей + 2 файла-адапте
 - [FIXED] INC-6E12: FileGuard в write_tools — fail-open → fa
 - [FIXED] Full-reindex падает: lance 'Not found' — код-фикс 
-- [FIXED] `e2817035` Contradiction Ledger: флапающий check_commit_exist
+- [FIXED] `79d9b24f` Contradiction Ledger: флапающий check_commit_exist
 - [FIXED] Pre-commit hook: verify_diary cp1251-краш + Syntax
-- [FIXED] `48e695b8` HTTP 400 llama.cpp embedder → v2 native /tokenize 
-- [✅ Исправлено — добавлен import] `ac6e5ba0` Индексация остановилась на 1632/4666 — процесс уме
+- [FIXED] `ea31cd95` HTTP 400 llama.cpp embedder → v2 native /tokenize 
+- [✅ Исправлено — добавлен import] `b194a7b9` Индексация остановилась на 1632/4666 — процесс уме
 
 ## 2026-08-28 14:30 — Reindex Finalizing deadlock (write-lock held across optimize/create_index)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (#18, 1578a1bb) — блокер live-верификации снят
+- **Описание:** **Status:** ✅ Fixed (#18, b8d5d6a4) — блокер live-верификации снят
 **Root Cause:** `IndexProjectRunner.run()` держал глобальный `_write_lock` (RLock) весь reindex, включая LanceDB `optimize()/create_i...
 - **Статус:** автоматически синхронизировано
 
@@ -207,7 +207,7 @@
 ## 2026-08-25 — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit f6de6ea7 был только симптом-патч search)
 **Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock...
 - **Статус:** автоматически синхронизировано
 
@@ -367,7 +367,7 @@
 ## 2026-08-18 — MCP-тул index_git_url (Фаза 2 обвязка) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено e4bc051f на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено 5ef2404c на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально:...
 - **Статус:** автоматически синхронизировано
 
@@ -375,7 +375,7 @@
 ## 2026-08-18 — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 940e8239 + 87d6488a на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гоня...
 - **Статус:** автоматически синхронизировано
 
@@ -383,7 +383,7 @@
 ## 2026-08-18 — Фаза 2 Universal Engine: GitUrlSource core (SSRF-защита, кэш, INCONCLUSIVE) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 3bb3b6ae на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 8274de4d на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально:...
 - **Статус:** автоматически синхронизировано
 
@@ -391,7 +391,7 @@
 ## 2026-08-18 — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено e661861f на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено 54acc263 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально:...
 - **Статус:** автоматически синхронизировано
 
@@ -399,7 +399,7 @@
 ## 2026-08-18 — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено d35fd1e7 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено...
 - **Статус:** автоматически синхронизировано
 
@@ -415,7 +415,7 @@
 ## 2026-08-18 — Все runtime-зависимости запинены (unpinned-dependency, 38 шт.) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ внесено и проверено (закоммичено d4e7cfe3)
+- **Описание:** **Status:** ✅ внесено и проверено (закоммичено a5df978f)
 **verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: tomllib-парс 43 deps + marker-оценка 3.10/3.14 (packaging) ...
 - **Статус:** автоматически синхронизировано
 
@@ -640,7 +640,7 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
-**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
+**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev bbe20f03); ruff чист
 **Root C...
 - **Статус:** автоматически синхронизировано
 
@@ -667,7 +667,7 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (коммит + push; CI-проверка после)
-**verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch
+**verified_from_clean_state:** да — локально revision gate VALID (6cb92a6d >= min 557da0940bd3); CI после фикса — watch
 **Root Cause:** CI (actio...
 - **Статус:** автоматически синхронизировано
 
@@ -749,7 +749,7 @@
 ## 2026-08-13 23:20 — Фикс job-чанков (фильтр embed-лога) + LIVE-SMOKE скрипт + правило §7 (DONE, 1135 passed)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код+скрипт+доки; коммиты 7b38f50a + следующий)
+- **Описание:** **Status:** ✅ Fixed (код+скрипт+доки; коммиты d4c959d4 + следующий)
 **verified_from_clean_state:** ✅ да — полный pytest 1135 passed / 4 skipped (2026-08-13); `python scripts/smoke_e2e.py --project .` ...
 - **Статус:** автоматически синхронизировано
 
@@ -957,8 +957,8 @@
 ## 2026-08-08 — Координационный инцидент: git commit без pathspec украл staged-правку параллельной сессии (RESOLVED)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Resolved (история не переписана — 568b1f27 уже в origin; урок в WISDOM)
-**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран ad1a6d2d — 7/7 success yes (live: full reinde...
+- **Описание:** **Status:** ✅ Resolved (история не переписана — a830f93f уже в origin; урок в WISDOM)
+**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран 61342835 — 7/7 success yes (live: full reinde...
 - **Статус:** автоматически синхронизировано
 
 
@@ -990,7 +990,7 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (код+тесты; ruff чист; ubuntu-фейлы 2 шт на ВСЕХ версиях + clean-state — одна причина)
-**verified_from_clean_state:** ✅ да — CI-прогон #247 (5a771789): 7/7 джобов success (windows+...
+**verified_from_clean_state:** ✅ да — CI-прогон #247 (8f01a5f7): 7/7 джобов success (windows+...
 - **Статус:** автоматически синхронизировано
 
 
@@ -1021,7 +1021,7 @@
 ## 2026-08-08 — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит f73be307eeb1)
+- **Описание:** **Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит fcf763a4fff6)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest...
 - **Статус:** автоматически синхронизировано
 
@@ -1061,7 +1061,7 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (код+тесты; 937→956 passed, +19 новых тестов; файлы синхронизированы в расширение — для активации MCP нужен Reload Window)
-**Commit:** `4bd29b0a` (feat A+B, docs sync 55→57, версия...
+**Commit:** `0eafea40` (feat A+B, docs sync 55→57, версия...
 - **Статус:** автоматически синхронизировано
 
 
@@ -1188,7 +1188,7 @@
 ## 2026-08-06 19:45 — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца
+- **Описание:** **Status:** 🟡 Partial — packaging закрыт (коммит 57636199), wiring SCM ждёт решения владельца
 **Root Cause:** «SCM-определения» реализованы на 70%: 17 tags.scm + `extract_definitions_scm`/`_load_tags_...
 - **Статус:** автоматически синхронизировано
 
@@ -1284,8 +1284,8 @@
 ## 2026-08-05 00:05 — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит a7a7a9e7, запушен)
-**Root Cause:** CI-прогоны b121ab19/6dc8d2ae упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/cor...
+- **Описание:** **Status:** ✅ Fixed (коммит bea4ea69, запушен)
+**Root Cause:** CI-прогоны 53627e77/d706e646 упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/cor...
 - **Статус:** автоматически синхронизировано
 
 
@@ -1456,7 +1456,7 @@
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
-**Symptom:** после intel_reset_index (live MCP, 5ce0eaa3) реиндекс «завершился», но search_code остался в grep-fallback: fre...
+**Symptom:** после intel_reset_index (live MCP, 38f1eacd) реиндекс «завершился», но search_code остался в grep-fallback: fre...
 - **Статус:** автоматически синхронизировано
 
 

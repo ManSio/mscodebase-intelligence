@@ -136,10 +136,10 @@
 ## 2026-10-03 — `tools/verification/`: 13 файлов верификации живут на неслитой ветке; `gate` падает на текущей (Open, P1)
 - **Root Cause (Verified 2026-10-03, исправлено после первой неверной версии):** файлы
   **не удалены и не потеряны**. `tools/verification/gates.py` (25 356 B) плюс ещё 12 файлов
-  вешают в коммите `285dbc3f` на ветке **`feat/protocol-triage-and-t10-guards`**
+  вешают в коммите `9462dc2f` на ветке **`feat/protocol-triage-and-t10-guards`**
   (есть и локально, и в `origin`), которая **не является предком HEAD**
   (`git merge-base --is-ancestor` → rc=1). Текущая ветка — `chore/bump-urllib3-pyjwt-cve`
-  @ `ee5edd20`. Удаляющего коммита нет: `git log --diff-filter=D -- tools/verification/gates.py` пуст.
+  @ `d1e77fad`. Удаляющего коммита нет: `git log --diff-filter=D -- tools/verification/gates.py` пуст.
 - **Почему выглядело как «исходника нет»:** компиляция `__pycache__/{gates,g5_denominator}.cpython-314.pyc`
   от **01.10 23:35** — неотслеживаемый остаток от чекаута той ветки. Именно `.pyc`, а не исходник,
   делает тул **видимым, но нерабочим**: MCP-тул `gate` → `rc=2: can't open file 'tools\verification\gates.py'`.
@@ -150,7 +150,7 @@
   Файл цел, лежит в git.
 - **Фикс (решение владельца):** merge либо cherry-pick ветки `feat/protocol-triage-and-t10-guards`.
 - **⛔ HALT — параллельная сессия:** эта ветка зачекаучена в **другом worktree**
-  `%TEMP%\mscb-wt-64` @ `dee49085` → там работает другой агент.
+  `%TEMP%\mscb-wt-64` @ `74bfa2ad` → там работает другой агент.
   Не переключать ветку и не вытягивать файлы из-под него в этом дереве (§3 HALT,
   multi-agent-coordination: правка файла, редактируемого параллельно).
 - **Guard (после merge):** CI-гейт «MCP-тул зарегистрирован, но его скрипт отсутствует в

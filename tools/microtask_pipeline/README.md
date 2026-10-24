@@ -54,7 +54,7 @@ python tools/microtask_pipeline/red_team.py
 python -m pytest tests/test_microtask_pipeline.py tests/test_microtask_pipeline_red_team.py -q
 
 # one frozen corpus task against our own server
-python tools/microtask_pipeline/live_smoke.py --task 17e65663b7_health
+python tools/microtask_pipeline/live_smoke.py --task 41355628_health
 
 # the MCP server speaks stdio; OpenCode starts it from the global config
 python tools/microtask_pipeline/mcp_server.py

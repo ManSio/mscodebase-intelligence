@@ -21,8 +21,8 @@ Worst single runs:
 |---|---|---|---|
 | A-01d1cce11d_codebase_tool_block | **$3.05** | 30 039 525 | 330 |
 | A-001f7d3a41_write_tools | $0.56 | 5 326 158 | 81 |
-| A-17e65663b7_health | $0.38 | 3 360 935 | 58 |
-| A-17e65663b7_health (2nd) | $0.28 | 2 602 614 | 50 |
+| A-41355628_health | $0.38 | 3 360 935 | 58 |
+| A-41355628_health (2nd) | $0.28 | 2 602 614 | 50 |
 
 One runaway session cost **$3.05** and 30 M tokens. That is the whole lesson:
 a single unbounded agent loop is the only thing in this experiment that is

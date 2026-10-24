@@ -38,7 +38,7 @@
 
 ## 2026-07-19 — graph.py get_edge_stats indentation (FIXED)
 
-**Status:** ✅ FIXED — commit `26258a9f`
+**Status:** ✅ FIXED — commit `6fe07256`
 **Root cause:** Метод был вложен внутрь `get_node_stats` (8 spaces вместо 4) после fix_indent4.py.
 **Fix:** Убран 1 уровень отступа у `def get_edge_stats` и docstring.
 
@@ -61,7 +61,7 @@ error_boundary (как в meta_tools.py). Теперь доступны напр
 
 ## 2026-07-19 — graph.py get_edge_stats indentation (FIXED)
 
-**Status:** ✅ FIXED — commit `26258a9f`
+**Status:** ✅ FIXED — commit `6fe07256`
 **Root cause:** Метод был вложен внутрь `get_node_stats` (8 spaces вместо 4) после fix_indent4.py.
 **Fix:** Убран 1 уровень отступа у `def get_edge_stats` и docstring.
 
@@ -1237,7 +1237,7 @@ Multi-Bucket RAG, SYSTEM_PROFILE и mode=ask. Найдены скрытые ба
 - **Статус:** ✅ Mitigated — Layer 2 блокирует. Но pickle лучше удалить из ALLOWED_MODULES явно.
 - **Guard:** Проверено live: `import pickle; pickle.loads(b"x")` → status=error (Layer 2 catches).
 
-## 2026-07-22 21:10 — Audit fixes P2-P3: tool count reconciliation (commit 5a522ead)
+## 2026-07-22 21:10 — Audit fixes P2-P3: tool count reconciliation (commit a338a02f)
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** ### What was done
@@ -1440,7 +1440,7 @@ Three fixes from the same review:
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (P0 deadlock; z.ai: 3 CONFIRMED/1 partial/12 REFUTED)
-**Root Cause:** регрессия ac6e5ba0e P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 в...
+**Root Cause:** регрессия b194a7b96 P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 в...
 - **Статус:** автоматически синхронизировано
 
 
@@ -1862,9 +1862,9 @@ Three fixes from the same review:
 | 29 | Hot-reload кода: DevModeReloader отсутствует | — | 📝 Tech Debt |
 
 
-**Symptom:** 19+ изменённых файлов, unpushed commit 5ce0eaa3 (origin/main = ab44b00d).
-**Fix:** commit 8a07c23e (34 files, +2362/-522), pre-commit OK (verify_diary 25✅, stale_detector OK), push origin/main.
-**Status:** ✅ origin/main up to date (HEAD = 8a07c23e).
+**Symptom:** 19+ изменённых файлов, unpushed commit 38f1eacd (origin/main = 866835dd).
+**Fix:** commit fdd20975 (34 files, +2362/-522), pre-commit OK (verify_diary 25✅, stale_detector OK), push origin/main.
+**Status:** ✅ origin/main up to date (HEAD = fdd20975).
 
 ## 2026-08-04 22:30 — Приведение в порядок корня проекта (root cleanup)
 
@@ -1972,8 +1972,8 @@ Three fixes from the same review:
 ## 2026-08-05 00:05 — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит a7a7a9e7, запушен)
-**Root Cause:** CI-прогоны b121ab19/6dc8d2ae упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/cor...
+- **Описание:** **Status:** ✅ Fixed (коммит bea4ea69, запушен)
+**Root Cause:** CI-прогоны 53627e77/d706e646 упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/cor...
 - **Статус:** автоматически синхронизировано
 
 
@@ -2077,7 +2077,7 @@ Three fixes from the same review:
 ## 2026-08-06 19:45 — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца
+- **Описание:** **Status:** 🟡 Partial — packaging закрыт (коммит 57636199), wiring SCM ждёт решения владельца
 **Root Cause:** «SCM-определения» реализованы на 70%: 17 tags.scm + `extract_definitions_scm`/`_load_tags_...
 - **Статус:** автоматически синхронизировано
 
@@ -2389,8 +2389,8 @@ Three fixes from the same review:
 ## 2026-08-08 — Координационный инцидент: git commit без pathspec украл staged-правку параллельной сессии (RESOLVED)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Resolved (история не переписана — 568b1f27 уже в origin; урок в WISDOM)
-**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран ad1a6d2d — 7/7 success
+- **Описание:** **Status:** ✅ Resolved (история не переписана — a830f93f уже в origin; урок в WISDOM)
+**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран 61342835 — 7/7 success
 **Root Cause:** две се...
 - **Статус:** автоматически синхронизировано
 
@@ -2423,7 +2423,7 @@ Three fixes from the same review:
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (код+тесты; ruff чист; ubuntu-фейлы 2 шт на ВСЕХ версиях + clean-state — одна причина)
-**verified_from_clean_state:** ✅ да — CI-прогон #247 (5a771789): 7/7 джобов success (windows+...
+**verified_from_clean_state:** ✅ да — CI-прогон #247 (8f01a5f7): 7/7 джобов success (windows+...
 - **Статус:** автоматически синхронизировано
 
 
@@ -2454,7 +2454,7 @@ Three fixes from the same review:
 ## 2026-08-08 — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит f73be307eeb1)
+- **Описание:** **Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит fcf763a4fff6)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest...
 - **Статус:** автоматически синхронизировано
 
@@ -2557,7 +2557,7 @@ Three fixes from the same review:
 ## 2026-08-13 23:20 — Фикс job-чанков (фильтр embed-лога) + LIVE-SMOKE скрипт + правило §7 (DONE, 1135 passed)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код+скрипт+доки; коммиты 7b38f50a + следующий)
+- **Описание:** **Status:** ✅ Fixed (код+скрипт+доки; коммиты d4c959d4 + следующий)
 **verified_from_clean_state:** ✅ да — полный pytest 1135 passed / 4 skipped (2026-08-13); `python scripts/smoke_e2e.py --project .` ...
 - **Статус:** автоматически синхронизировано
 
@@ -2581,7 +2581,7 @@ Three fixes from the same review:
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (коммит + push; CI-проверка после)
-**verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch
+**verified_from_clean_state:** да — локально revision gate VALID (6cb92a6d >= min 557da0940bd3); CI после фикса — watch
 **Root Cause:** CI (actio...
 - **Статус:** автоматически синхронизировано
 
@@ -2710,7 +2710,7 @@ Three fixes from the same review:
 
 - **Источник:** AGENT_DIARY.md
 - **Описание:** **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
-**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
+**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev bbe20f03); ruff чист
 **Root C...
 - **Статус:** автоматически синхронизировано
 
@@ -2826,7 +2826,7 @@ Three fixes from the same review:
 ## 2026-08-18 — Все runtime-зависимости запинены (unpinned-dependency, 38 шт.) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ внесено и проверено (закоммичено d4e7cfe3)
+- **Описание:** **Status:** ✅ внесено и проверено (закоммичено a5df978f)
 **verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: tomllib-парс 43 deps + marker-оценка 3.10/3.14 (packaging) ...
 - **Статус:** автоматически синхронизировано
 
@@ -2897,7 +2897,7 @@ Three fixes from the same review:
 ## 2026-08-18 — MCP-тул index_git_url (Фаза 2 обвязка) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено e4bc051f на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено 5ef2404c на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально:...
 - **Статус:** автоматически синхронизировано
 
@@ -2905,7 +2905,7 @@ Three fixes from the same review:
 ## 2026-08-18 — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 940e8239 + 87d6488a на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гоня...
 - **Статус:** автоматически синхронизировано
 
@@ -2913,7 +2913,7 @@ Three fixes from the same review:
 ## 2026-08-18 — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
+- **Описание:** **Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено d35fd1e7 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено...
 - **Статус:** автоматически синхронизировано
 
@@ -2952,7 +2952,7 @@ Three fixes from the same review:
 ## 2026-08-25 — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+- **Описание:** **Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit f6de6ea7 был только симптом-патч search)
 **Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock...
 - **Статус:** автоматически синхронизировано
 
