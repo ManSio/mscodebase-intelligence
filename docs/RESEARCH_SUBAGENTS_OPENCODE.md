@@ -156,7 +156,7 @@
 | `subagent_depth` | Не задан; действует default `1` `[U]` |
 | `compaction` | Не задан; default `auto=true`, `prune=false` `[U]` |
 | `instructions` | Не задан |
-| Плагин | `file:///D:/Project/MSCodeBase/.opencode/plugin/mscodebase_gate.ts` `[V]` |
+| Плагин | `file:///<repo-root>/.opencode/plugin/mscodebase_gate.ts` `[V]` |
 
 Противоречие `[C]`:
 
@@ -193,10 +193,10 @@
 |---|---:|---:|---:|
 | `%USERPROFILE%\.config\opencode\AGENTS.md` (глобальный) | 80 549 B | 15 396 | 21 240 |
 | `%USERPROFILE%\.config\opencode\FULL AGENTS.md` (legacy) | 139 215 B | 27 288 | 37 524 |
-| `D:\Project\MSCodeBase\AGENTS.md` (проектный) | 40 632 B | 9 318 | 10 968 |
-| `D:\Project\MSCodeBase\WISDOM.md` | 26 982 B | 6 346 | 7 721 |
-| `D:\Project\MSCodeBase\AGENT_DIARY.md` | 200 866 B | 47 997 | 56 985 |
-| `D:\Project\MSCodeBase\KNOWN_ISSUES.md` | 84 854 B | 20 045 | 24 511 |
+| `<repo-root>\AGENTS.md` (проектный) | 40 632 B | 9 318 | 10 968 |
+| `<repo-root>\WISDOM.md` | 26 982 B | 6 346 | 7 721 |
+| `<repo-root>\AGENT_DIARY.md` | 200 866 B | 47 997 | 56 985 |
+| `<repo-root>\KNOWN_ISSUES.md` | 84 854 B | 20 045 | 24 511 |
 
 Токены — `tiktoken`, два токенизатора как границы `[V]`; точный tokenizer Tīrtha/Qwen не измерялся. `bytes/4` для русского занижает: у глобального файла 80 549 B, но 48 674 символа и 15.4–21.2k токенов.
 
@@ -348,7 +348,7 @@ Brief — это **данные**, а не пересказ. Субагент н
   "task_id": "oneshot-2026-10-20-001",
   "intent": "modify",
   "repo": {
-    "root": "D:/Project/MSCodeBase",
+    "root": "<repo-root>",
     "commit": "<sha>",
     "dirty": false
   },
@@ -643,7 +643,7 @@ Brief — это **данные**, а не пересказ. Субагент н
 & "$env:APPDATA\npm\opencode.cmd" debug config
 # "model": "tirtha/auto"
 # "agent": {}
-# plugin: file:///D:/Project/MSCodeBase/.opencode/plugin/mscodebase_gate.ts
+# plugin: file:///<repo-root>/.opencode/plugin/mscodebase_gate.ts
 ```
 
 ### 9.3. Использование
@@ -661,7 +661,7 @@ codebase(action="index", path="status")
 # Chunks 12964 | Files 840 | Symbols 12231 | Embedder llama_cpp
 
 get_symbol_info("get_progress_file")
-# 1 defs, 4 callers, 8 callees; D:/Project/MSCodeBase/src/core/artifact_paths.py:302
+# 1 defs, 4 callers, 8 callees; <repo-root>/src/core/artifact_paths.py:302
 
 impact_analysis("get_progress_file", depth=1)
 # Completed (1160ms); direct callers 2; affected files 3; risk medium, score 31
@@ -677,7 +677,7 @@ lsp_document_symbols("src/core/artifact_paths.py")
 
 ```powershell
 $json='{"targets":["get_progress_file"],"intent":"modify"}'
-$json | & "D:\Project\MSCodeBase\venv\Scripts\python.exe" -m src.cli get_context -
+$json | & "<repo-root>\venv\Scripts\python.exe" -m src.cli get_context -
 # elapsed 18014 ms; ~682 tokens (chars/4);
 # project_not_ready / UNINITIALIZED; get_symbol_info timeout 5005 ms
 ```

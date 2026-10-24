@@ -43,7 +43,7 @@ CLAIMS: list[dict] = [
     {
         "id": "readme.test_badge",
         "file": "README.md",
-        "text": "tests-2001%20passed",
+        "text": "tests-2131%20passed",
         "claim": "the test-count badge says 2001 passed",
         "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
         "extract": r"(\d+)/\d+ tests collected",
@@ -54,8 +54,8 @@ CLAIMS: list[dict] = [
     {
         "id": "readme.test_count_arch",
         "file": "README.md",
-        "text": "2007 tests",
-        "claim": "the architecture table says 2007 tests",
+        "text": "2142 tests",
+        "claim": "the architecture table says 2142 tests",
         "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
         "extract": r"(\d+)/\d+ tests collected",
         "compare": "near",
@@ -76,8 +76,8 @@ CLAIMS: list[dict] = [
     {
         "id": "wisdom.test_count",
         "file": "WISDOM.md",
-        "text": "2007 collected",
-        "claim": "the live census records 2007 collected tests",
+        "text": "2142 collected",
+        "claim": "the live census records 2142 collected tests",
         "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
         "extract": r"(\d+)/\d+ tests collected",
         "compare": "near",
