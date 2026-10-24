@@ -1,7 +1,7 @@
 # Second wave (2026-10-06, evening) — red team, research sweep, hostile review, D9
 
 All four ran in parallel, no LLM in any measurement loop, nothing committed by the agents except
-D9's implementer working in this worktree (reviewed, tested, committed as `a724ffeb`).
+D9's implementer working in this worktree (reviewed, tested, committed as `babaa488`).
 
 ## 1. Red team on the whole line (7 attacks)
 
@@ -52,7 +52,7 @@ Every evaluation emits one JSONL row from the deciding branch (no second code pa
 delivered + reason + restraint detail. Python returns new keys only.
 Tests: 13 pytest + 42 node, full suite 2072 passed, ruff clean, golden behavior proof identical.
 Left out: TS-side redact of 200-char act text (documented residual); old temp log untouched.
-Commit: `a724ffeb`.
+Commit: `babaa488`.
 
 ## 5. M4 — tone experiment (DESIGNED, NOT RUN)
 

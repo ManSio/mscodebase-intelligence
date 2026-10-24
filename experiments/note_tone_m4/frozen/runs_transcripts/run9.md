@@ -133,8 +133,8 @@ tool=bash status=completed
 }
 --- output ---
 ab4f0021 chore(fixture): M4 planted caller for orphan_helper (detached, dies with worktree)
-77302111 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
-009f51a3 experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
+1a7610d3 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
+edbdaecb experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
 
 ---
 

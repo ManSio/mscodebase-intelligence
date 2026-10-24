@@ -1,7 +1,7 @@
-# PROBE2 — single loader probe, helpers OUTSIDE `.opencode/plugin/` (HEAD 7f7d7362)
+# PROBE2 — single loader probe, helpers OUTSIDE `.opencode/plugin/` (HEAD d292e3a0)
 
 Date: 2026-10-07 ~01:58–02:04 +03:00. Operator: probe session (no commits, no pushes by operator).
-Worktree: `D:/Project/_m4probe2` (detached HEAD `b4da09b8` = fixture commit on top of `7f7d7362`).
+Worktree: `D:/Project/_m4probe2` (detached HEAD `b4da09b8` = fixture commit on top of `d292e3a0`).
 Break planted by operator: `pkg/callee.py` (`def orphan_helper(): return 42`) + `pkg/caller.py`
 calling it, committed as `b4da09b8`, then `pkg/caller.py` emptied and STAGED (uncommitted).
 Staged sha256 of emptied `pkg/caller.py`: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`

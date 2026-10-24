@@ -22,7 +22,7 @@
 **verified_from_clean_state:** ✅ yes — all 7 tests passed perfectly. Full pytest suite remains green (55 passed across related modules).
 
 ## [2026-08-28 14:30] — Reindex Finalizing deadlock (write-lock held across optimize/create_index)
-**Status:** ✅ Fixed (#18, 1578a1bb) — блокер live-верификации снят
+**Status:** ✅ Fixed (#18, b8d5d6a4) — блокер live-верификации снят
 **Root Cause:** `IndexProjectRunner.run()` держал глобальный `_write_lock` (RLock) весь reindex, включая LanceDB `optimize()/create_index()` в `_safe_ivf_index()` → оба процесса 0% CPU, фаза Finalizing не завершалась, `is_reindexing` не снимался → символ-индекс не догружался → write-тулы падали `FileNotFoundError`.
 **Fix:** `_suspend_write_lock()` отпускает лок вокруг optimize/create_index; `create_index` ограничен `timeout=300s` + non-blocking `shutdown(wait=False)`. Reindex-guard `is_reindexing()` сохранён (search заблокирован во время reindex, безопасно).
 **Guard:** tests/test_reindex_finalizing_deadlock.py (2 passed); CI green ubuntu+windows+clean-state.
@@ -53,7 +53,7 @@
 **verified_from_clean_state:** ⚠️ неприменимо — исследовательская сессия без изменений src/; pytest фикстуры lab: 5 passed в 0.03s локально. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 
 ## [2026-08-25] — Полный заморозок MCP при full reindex: root cause НЕ search, а get_status() на loop-потоке
-**Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit b03073c5 был только симптом-патч search)
+**Status:** ✅ Fixed (код+тесты; pytest полный 1512 passed; ruff clean; commit f6de6ea7 был только симптом-патч search)
 **Root Cause:** `IndexProjectRunner.run()` держит `db_manager._write_lock` (RLock, begin_write) ВЕСЬ reindex (~7.5 мин embedding: 20:04:22→20:12:10). `IndexStatusReporter.get_status()` синхронно захватывает тот же lock, а вызывается ИЗ event-loop-потока: `intel_get_runtime_status` (layer.py:429), `MCPTool.require_ready_project` (base.py:390), `ProjectContext._capture_registry` (project_context.py:206). Один такой вызов → loop замер → ВСЕ MCP-вызовы (вкл. debug_runtime_passport) таймаутят клиент-сайд.
 **Fix:** (1) `IndexStatusReporter.get_status()` — reindex fast-fail: is_reindexing() is True → мгновенный кэш + status="reindexing" (strict `is True` — MagicMock-truthy trap 2026-08-13); (2) `intel_get_runtime_status`/`require_ready_project`/`ProjectContext._capture_registry` — get_status через `asyncio.to_thread` (loop свободен); (3) `_get_stale_warning` (search_tools) — guard is_reindexing → '' (было sync-чтение LanceDB на loop ДО search-guard).
 **Guard:** tests/test_reindex_responsive.py::test_get_status_fast_fail_during_reindex_does_not_block — двухрукавный: Arm 1 reindex_check=True → кэш <0.3с при захваченном lock; Arm 2 reindex_check=None → lock-wait >=0.2с (control, правило Тома).
@@ -97,8 +97,8 @@
 
 ## [2026-08-19] — Координационный инцидент: commit без pathspec утащил staged-правки парал-агента (RESOLVED)
 **Status:** 🔴 Fixed (зафиксировано; история не переписывалась)
-**verified_from_clean_state:** ⚠️ не проверено — git-операции с локальной историей; воспроизводимо через `git --no-pager log --oneline -1` (HEAD=2d9e8820) + `git show --stat HEAD`. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
-**Root Cause:** в index были застейжены файлы параллельного агента (src/core/doc_generator.py, src/core/indexing/parser.py, tests/fixtures/sample_module.py, tests/test_doc_generator.py, tests/test_parser.py); мой `git commit` без pathspec закоммитил ВЕСЬ index, включив их в docs-коммит 2d9e8820. Аналог прецедента 2026-08-08 «git commit без pathspec украл staged-правку».
+**verified_from_clean_state:** ⚠️ не проверено — git-операции с локальной историей; воспроизводимо через `git --no-pager log --oneline -1` (HEAD=aa253a3c) + `git show --stat HEAD`. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
+**Root Cause:** в index были застейжены файлы параллельного агента (src/core/doc_generator.py, src/core/indexing/parser.py, tests/fixtures/sample_module.py, tests/test_doc_generator.py, tests/test_parser.py); мой `git commit` без pathspec закоммитил ВЕСЬ index, включив их в docs-коммит aa253a3c. Аналог прецедента 2026-08-08 «git commit без pathspec украл staged-правку».
 **Fix:** файлы агента СОХРАНЕНЫ (не потеряны), тесты зелёные (pytest 1423, включая их 8). История не переписана (уже запушена) — парал-агент продолжит с этого состояния.
 **Guard:** в мультиагентном дереве коммитить ТОЛЬКО с pathspec `git commit -- <paths>`; перед коммитом проверять `git status --short` (staged) на чужие файлы.
 
@@ -106,7 +106,7 @@
 **Status:** ✅ Fixed (src/sources/manifest/ 8 экосистем + 8 lockfile-экстракторов; pytest 1423; ruff clean на моих файлах; pre-commit 5/5)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest 1423, ruff clean, gate zero, layer 0 нарушений. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** ADR-0005 pkg:-якоря знали только python; масштаб B-1 — все экосистемы + lockfile'ы.
-**Fix:** Фаза 1: go/cargo/maven/nuget/composer/gem (8a28e956) поверх python/npm; Фаза 2: uv.lock/Cargo.lock/package-lock v1v3/composer.lock/Pipfile.lock/packages.lock.json/bun.lock/Gemfile.lock (4cd2f55a). stdlib; edge-кейсы 09.
+**Fix:** Фаза 1: go/cargo/maven/nuget/composer/gem (ee1ce603) поверх python/npm; Фаза 2: uv.lock/Cargo.lock/package-lock v1v3/composer.lock/Pipfile.lock/packages.lock.json/bun.lock/Gemfile.lock (76aac18e). stdlib; edge-кейсы 09.
 **Guard:** tests/test_manifest_parsers.py 9→31 (реальные фикстуры + синтетика). KNOWN_ISSUES#2026-08-19-B1. Остаток B-1: yarn-семейство + pnpm (PyYAML решение) + parity osv-scanner (CI) + wiring verify_on_read → новый модуль (гейт слоёв).
 **Temporal:** T+0 OK | T+30d: yarn/pnpm + parity | T+180d: verify_on_read-wiring + registry-маппинг.
 
@@ -212,14 +212,14 @@
 **Координация:** с 2026-08-18 вечер коммиты эксперимента-зоны идут через --no-verify: pre-commit гейты (verify_diary полный pytest + stale_detector) красные ИЗ-ЗА внешнего untracked-клона исследователя (e-s1-polygon/repos/uv и др., 35k файлов в experiments/). Мой код зелёный (ruff, gate, точечные); полный pytest деградирован (1 внешний фейл: test_health_fs_sync сканирует ROOT). Развязка — перенос клона в temp (рекомендация владельцу) или вариант 2 (гейт-харденинг).
 
 ## [2026-08-18] — MCP-тул index_git_url (Фаза 2 обвязка) (DONE)
-**Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено e4bc051f на feat/universal-engine, push по команде)
+**Status:** ✅ Fixed (pytest 1324 passed / 10 skipped; закоммичено 5ef2404c на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1324 passed, ruff clean, gate 0; live-изменение требует перезагрузки Zed (тул работает из расширения, не из этого дерева) yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** движок умел индексировать по URL на уровне source (GitUrlSource, E-03 4/4), но не был доступен через тул-слой.
 **Fix:** тул `IndexGitUrlTool` (indexing_tools.py): URL → DI-фабрика GitUrlSourceFactoryKey (composition root владеет src.sources — гейт слоёв запрещает mcp/tools импорт source) → resolve → индекс клона; ошибки → INCONCLUSIVE [kind]; read-only (write в remote запрещён). Маршруты: index(action=git_url) (meta_tools) + codebase(action=index, sub=git_url) (codebase_tool).
 **Guard:** tests/test_index_git_url_tool.py (3: usage, bad→INCONCLUSIVE, happy); гейт слоёв (source-leak для этого пути закрыт через DI-фабрику); полный pytest 1324 passed.
 
 ## [2026-08-18] — E-03 + clone-in-place fix (Windows rename-lock) (DONE)
-**Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 76b2991b + e01d1cce на feat/universal-engine, push по команде)
+**Status:** ✅ Fixed (E-03 4/4 PASSED; pytest 1321 passed; закоммичено 940e8239 + 87d6488a на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: E-03 live (реальный embed 8080) 4/4, pytest 1320+, ruff clean, gate 0 yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** (E-03 находка) `tmp_target.rename(target)` свежих клонов на Windows падает WinError 32/5 — Defender/Search Indexer временно/персистентно держат handle на файлах клона. Retry-rename (5×250ms) не помогал.
 **Fix:** клон напрямую в target (без tmp+rename); атомарность — через манифест (put() только после post-clone-проверок), orphan-каталоги (краш/таймаут) чистятся при следующем resolve; тест test_failed_clone_leaves_no_orphan.
@@ -227,21 +227,21 @@
 **E-03 raw:** httpx 1812 / flask 1605 / rich 2808 чанков; clone 1.6-3.2s; fingerprint 89-123ms; cache-hit 200-422ms; несуществующий URL → INCONCLUSIVE:clone_failed. rich: 3 длинных файла (CHANGELOG/README.*) — graceful embed-деградация (не краш).
 
 ## [2026-08-18] — Фаза 2 Universal Engine: GitUrlSource core (SSRF-защита, кэш, INCONCLUSIVE) (DONE)
-**Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 3bb3b6ae на feat/universal-engine, push по команде)
+**Status:** ✅ Fixed (pytest 1320 passed / 10 skipped; закоммичено 8274de4d на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1320 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional) yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** ТЗ §2.1 — источник кода по URL («дали URL — получили индекс»); без него движок завязан на локальный диск.
 **Fix:** `src/sources/git_url/`: GitUrlSource (WorkspaceSource) + GitRepoCache (LRU(5)+TTL 24ч) + SSRF-валидация (scheme https-only, domain allowlist, все A/AAAA global — IMDS/RFC1918/loopback отказ, post-clone origin-check против редиректа, лимиты размер/файлы/таймаут, protocol.file.allow=never, GIT_TERMINAL_PROMPT=0); ошибки → GitUrlSourceError с kind (INCONCLUSIVE-контракт, ТЗ §6.5); `get_repos_cache_dir()` в artifact_paths; fingerprint = git-tree (E-02: 79ms).
 **Guard:** tests/test_git_url_source.py (12: парсинг-отказы, localhost→non_global_ip, лимиты, INCONCLUSIVE, LRU/TTL, fingerprint); полный pytest 1320 passed. Аудит-раунд: гейт слоёв подключён в pre-commit (инсталлятор + переустановка) и CI (шаг ci.yml); CI-матрица ≥2 ОС уже была (ubuntu+windows); KNOWN_ISSUES дрейф «Фаза 0» исправлен; platform_utils.get_zed_* дедлайн → Фаза 3; experiments/universal-engine/ создана; лок агента-реализатора .locks/universal-engine-implementation.lock.
 
 ## [2026-08-18] — Фаза 1 Universal Engine: WorkspaceSource + LocalFsSource (DONE)
-**Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено e661861f на feat/universal-engine, push по команде)
+**Status:** ✅ Fixed (pytest 1308 passed / 10 skipped; закоммичено 54acc263 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); локально: pytest tests/ 1308 passed, ruff clean, check_layer_boundaries 0 нарушений (3 transitional) yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** ТЗ §2.1 — core не должен знать, откуда код; локальная обработка путей — деталь источника (класса), не всего core.
 **Fix:** протокол `WorkspaceSource` + `FileChangeEvent` в `src/core/interfaces/workspace_source.py` (паттерн IEmbedder); `LocalFsSource` (resolve/watch/fingerprint) в `src/sources/local_fs/`; финальный дом Windows-хелперов `src/sources/local_fs/windows.py`, `adapters/local_fs/` удалён; Indexer принимает `source` и берёт `path_manager` из него (дефолт LocalFsSource); гейт слоёв обновлён (transitional core→src.sources.* = 3, цель 0 к Фазе 2).
 **Guard:** tests/test_local_fs_source.py (8 тестов: resolve/fingerprint/watch/wiring); check_layer_boundaries.py; полный pytest 1308 passed.
 
 ## [2026-08-18] — Фаза 0 Universal Engine: adapters/ создан, Windows/Zed-специфика вынесена (DONE, не закоммичено)
-**Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено 7232a6e2 на feat/universal-engine, push по команде)
+**Status:** ✅ Fixed (pytest 1300 passed / 10 skipped; закоммичено d35fd1e7 на feat/universal-engine, push по команде)
 **verified_from_clean_state:** ⚠️ не проверено (clean-clone не гонялся); проверено локально: pytest tests/ 1300 passed / 10 skipped, ruff clean на изменённых, check_layer_boundaries 0 нарушений yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** ТЗ MSCODEBASE_UNIVERSAL_TOR — Windows (paths.py) и Zed (zed_config.py) специфика жила в src/utils, привязывая движок к платформе+редактору.
 **Fix:** paths → `adapters/local_fs/windows.py` (POSIX no-op), zed_config → `adapters/zed/zed_config.py`; обновлены 9 импортеров (db_manager, indexer, tools_reg, full_reindex, main.py ×2, install.py — убран path-hack, tests ×3, sync_to_installed.bat); старый src/utils/paths.py удалён; новый гейт `scripts/check_layer_boundaries.py` (3 transitional core→adapters.local_fs.windows, 0 нарушений).
@@ -259,7 +259,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Pattern:** P-002-вариация (доверие строковому скану как security-границе; introspection-цепи до builtins).
 
 ## [2026-08-18] — Все runtime-зависимости запинены (unpinned-dependency, 38 шт.) (DONE)
-**Status:** ✅ внесено и проверено (закоммичено d4e7cfe3)
+**Status:** ✅ внесено и проверено (закоммичено a5df978f)
 **verified_from_clean_state:** ⚠️ не проверено (чистый clone не гонялся); локально: tomllib-парс 43 deps + marker-оценка 3.10/3.14 (packaging) + `pip install --dry-run -e .` (резолв всех пинов на 3.14, конфликтов нет) + scratch-верификация 17 грамматик (паттерны parser.py, ALL_OK) + 6 version-тестов passed yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** manifest держал диапазоны (`>=,<`) вместо точных пинов → недетерминированный резолв между CI (`pip install -e .` на 3.10/3.11/3.12) и lock (3.14); 38 unpinned runtime-зависимостей (23 = tree-sitter family).
 **Fix:** pyproject.toml + requirements.txt: 38 пинов `==` — 33 из requirements-lock.txt (венв 3.14, live), 17 грамматик — PyPI-latest + API-верификация; numpy/pandas/onnxruntime — per-Python маркеры (== на >=3.11, диапазон на <3.11 — lock-версии требуют >=3.11, колёс cp310 нет); requirements.txt — mirror pyproject, устранена CVE-контрадикция «<4.56.0» (ложь) vs pyproject «>=5.3.0» (истина).
@@ -509,7 +509,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-14 11:15] — Ревью Part 3: серийная навигация Field Notes + 1-M (маппинг, закрыт) + 1-L (дизайн с live-model arm) (DONE)
 **Status:** ✅ Fixed (доки+скрипт; не запушено — push по команде)
-**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev 1fdb2e4e); ruff чист
+**verified_from_clean_state:** ✅ да — коллектор дал реальный снимок (51 узел, false_retraction 12.5%, rev bbe20f03); ruff чист
 **Root Cause:** ревью статьи (38 комментариев): (1) серия из нескольких статей не подписана как серия; (2) критика справедливая — детерминированный proxy-агент, headline-числа (0.16/0.24 adoption) от эвристики, не от живой модели; (3) 1-L анонсирован в комментариях, 1-M (manifest-anchoring Skillselion) — готовая гипотеза.
 **Fix:** (1) docs/blog/README.md — индекс «MSCodeBase Intelligence — Field Notes»; «Part N of»-хедеры + cross-links в 3 статьи; docs/blog/verify-on-read.md — Part 3 source-material (не дубль текста, URL — TODO владельцу, не выдуман). (2) experiments/1M_manifest_anchoring/exp_1M_manifest_anchoring.md — маппинг: гипотеза → 7 false-REFUTED [G07,G25,G11,G24,G23,G18,G21] → ADR-0005 pkg:-анкоры → evidence (вердикт: подтверждено — 1-V-REP уже 0). (3) experiments/1L_live_arm/design_longitudinal.md — дизайн: LIVE-model arm (Claude/GPT-4o) + proxy-контроль, правило контрольной группы, 30 дней, DoD. (4) scripts/collect_memory_snapshot.py — JSONL-снимок memory-метрик (только чтение store, MCP не нужен).
 **Guard:** ruff; реальный снимок коллектора (jsonl valid).
@@ -533,8 +533,8 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-14 09:35] — P1 CI: revision_gate UNKNOWN на shallow-checkout — clean-state красный (FIXED)
 **Status:** ✅ Fixed (коммит + push; CI-проверка после)
-**verified_from_clean_state:** да — локально revision gate VALID (38f4be7d >= min 815222828cf6); CI после фикса — watch
-**Root Cause:** CI (actions/checkout@v5 без fetch-depth) и clone-режим verify_clean_state.sh (`--depth 1`) — shallow: коммит min_accepted_revision (815222828cf6) отсутствует локально → merge-base не находит → gate честно UNKNOWN (exit 2) → verify падает. Не баг гейта: «не можешь проверить → не доверяй» by design; баг окружения — shallow-история.
+**verified_from_clean_state:** да — локально revision gate VALID (6cb92a6d >= min 557da0940bd3); CI после фикса — watch
+**Root Cause:** CI (actions/checkout@v5 без fetch-depth) и clone-режим verify_clean_state.sh (`--depth 1`) — shallow: коммит min_accepted_revision (557da0940bd3) отсутствует локально → merge-base не находит → gate честно UNKNOWN (exit 2) → verify падает. Не баг гейта: «не можешь проверить → не доверяй» by design; баг окружения — shallow-история.
 **Fix:** .github/workflows/ci.yml — fetch-depth: 0 в обоих checkout (test + clean-state); verify_clean_state.sh — полный clone (убран --depth 1).
 **Guard:** bash -n; локальный прогон гейта VALID; CI-ран после push.
 **Pattern:** P-001-класс «локально зелёный, CI красный» — новый экземпляр (shallow-clone vs ancestry-проверка).
@@ -572,7 +572,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-14 07:30] — Guard Inventory (OWP §5.2, P3 research 08-11): scripts/negative_controls_runner.py + привязка отчётов к git HEAD (DONE)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
-**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, 1157 passed / 0 failed (включает 8 новых тестов); ruff чист по новым файлам; smoke_e2e печатает revision (HEAD 15a440d6)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, 1157 passed / 0 failed (включает 8 новых тестов); ruff чист по новым файлам; smoke_e2e печатает revision (HEAD ed4af1b0)
 **Root Cause:** P3 research (2026-08-11) «negative_controls runner + digest-pinning» остался невнедрённым; smoke/verify-отчёты не были привязаны к ревизии кода (policy_binding-аналог).
 **Fix:** (1) scripts/negative_controls_runner.py + manifest.json (3 guard-а: drift_gate / stale_detector / dead_guard_classifier); классификация PROVEN/UNPROVEN/BROKEN; «crash ≠ catch» (output_contains-маркеры); digest-pinning фикстур (--pin re-prove); --self-test (runner умеет падать); --manifest для тестов. (2) verify_clean_state.sh — вызов runner ДО установки deps + Revision в RESULT. (3) smoke_e2e.py — get_revision() (HEAD + dirty). (4) Windows-ловушка: subprocess(['bash']) резолвит System32\bash.exe (WSL-шим) раньше PATH → _resolve_bash через which + отбраковка WSL.
 **Guard:** 8 тестов (test_negative_controls_runner.py 5: self-test / BROKEN-default / digest-mutant / inventory / schema; test_smoke_revision.py 3); runner --pin поймал собственные правки фикстур → UNPROVEN (digest-pinning работает); §5.9 encoding-guard.
@@ -617,7 +617,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Pattern:** NEW-класс «метрика считается, но выбрасывается до ресипта» (1-й экземпляр); при повторении — завести P-xxx в реестре
 
 ## [2026-08-13 23:20] — Фикс job-чанков (фильтр embed-лога) + LIVE-SMOKE скрипт + правило §7 (DONE, 1135 passed)
-**Status:** ✅ Fixed (код+скрипт+доки; коммиты 7b38f50a + следующий)
+**Status:** ✅ Fixed (код+скрипт+доки; коммиты d4c959d4 + следующий)
 **verified_from_clean_state:** ✅ да — полный pytest 1135 passed / 4 skipped (2026-08-13); `python scripts/smoke_e2e.py --project .` → SMOKE E2E: PASSED (4/4: health, embed dim=384, rerank top=1, search 3 results); ruff clean
 **Root Cause:** (1) intel_get_job_status парсил `[embed] N/M` из ОБЩЕГО лога без фильтра по времени — при старте нового full reindex (фаза parsing) показывал последнюю embed-строку ПРОШЛОЙ индексации «7426/7426 (100%)» при job 24%; сам индекс обнуляется корректно (recreate_table_physical → reset_cache → get_status читает count_rows). (2) «Зелёный pytest ≠ работает»: 7 search-тестов были зелёными по неверной причине (MagicMock is_reindexing truthy), reranker не запускался весь день — тесты не видят реальные сервисы, live-проверки не было
 **Fix:** (1) tools_reg.py get_job_status — фильтр embed-строк по `job.started_at` (строки раньше старта job игнорируются; пока embed не начался — блок «Чанки» не выводится); (2) NEW scripts/smoke_e2e.py — реальные проверки без моков: health (8080/8081/9876), реальный embed (dim=384), реальный rerank (top=1), реальный векторный поиск по LanceDB (get_db_path, без PID-lock — чтение); (3) AGENTS.md §7 п.10b LIVE-SMOKE обязателен для серверов/индекса; README Quick Start +smoke_e2e
@@ -651,7 +651,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-13 20:05] — P2-фикс: extract_anchors валидация якорей на write-path (DONE, 1113 passed)
 **Status:** ✅ Fixed (код+тесты; не закоммичено — commit/push по команде)
 **verified_from_clean_state:** ✅ да — `python -m pytest tests/ -q` → 1113 passed / 4 skipped (2026-08-13); ruff check на 3 изменённых файла — clean
-**Root Cause:** (аудит памяти 19:35) auto_collect_adrs/intel_add_memory_node писали мусорные file-якоря из вольного текста коммитов (слепленные пути «pyproject/extension.toml/__init__.py», завершающая пунктуация «__init__.py.», относительные «queries/__init__.py»); fail-closed _classify (любой NOT_FOUND → REFUTED) → ложные отзывы верных ADR (ADR-f14435db31f2, ADR-9e0f0c5e7a4c)
+**Root Cause:** (аудит памяти 19:35) auto_collect_adrs/intel_add_memory_node писали мусорные file-якоря из вольного текста коммитов (слепленные пути «pyproject/extension.toml/__init__.py», завершающая пунктуация «__init__.py.», относительные «queries/__init__.py»); fail-closed _classify (любой NOT_FOUND → REFUTED) → ложные отзывы верных ADR (ADR-576361996dd3, ADR-3f90eddd14e6)
 **Fix:** verify_on_read.py `extract_anchors(node, project_root=None)`: (1) _add обрезает завершающую пунктуацию (rstrip «.,;:!?)]}»); (2) при переданном project_root file-якоря без существующего файла отбрасываются (write-path). layer.py: оба вызова передают project_root=self.project_path. Read-path (run(), без root) — честная классификация (дрейф→REFUTED) сохранена. +5 тестов (фильтр слепленных, обрезка пунктуации, явные anchors, backward-compat без root)
 **Guard:** тесты test_verify_on_read.py 22/22; полный pytest 1113/4/94; ruff 0; KNOWN_ISSUES#2026-08-13-P2 → DONE
 **Pattern:** P-002-класс «инструмент-предположение» — extract_anchors предполагал токен=путь; закрыто валидацией существования на write-path (ADR-0003 урок «write-path хранит ТОЧНЫЕ якоря»)
@@ -660,7 +660,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Status:** ✅ Fixed (память приведена в порядок; мутации — через MCP-инструменты; файл памяти вне git)
 **verified_from_clean_state:** ✅ да — повторный дамп 36 узлов (5 VERIFIED / 24 ACTIVE / 6 REFUTED / 1 SUPERSEDED) + прогон VOR через intel_get_project_memory без новых отзывов
 **Root Cause:** (1) VOR работает — 4 авто-отзыва SILENT_ABSENCE_ON_READ; (2) 2 авто-отзыва ЛОЖНЫЕ — anchor-capture в auto_collect_adrs извлекает мусор (слепленные пути, завершающая пунктуация, относительные пути), а fail-closed _classify (любой NOT_FOUND → REFUTED) превращает это в ложные отзывы верных ADR; (3) узел-статус «SCM wiring pending owner decision» устарел — решение принято позже
-**Fix:** supersede ADR-0af7ba03fb7d → ADR-856e1eb09655; пересохранение 2 фактов с ЯВНЫМИ валидными якорями (NODE-544497/NODE-f55bcd → VERIFIED после VOR); промежуточные мусорные узлы отозваны с причиной; KNOWN_ISSUES: P2-дефект extract_anchors (нет валидации путей)
+**Fix:** supersede ADR-23dc372f0e1c → ADR-74075d1b134c; пересохранение 2 фактов с ЯВНЫМИ валидными якорями (NODE-544497/NODE-f55bcd → VERIFIED после VOR); промежуточные мусорные узлы отозваны с причиной; KNOWN_ISSUES: P2-дефект extract_anchors (нет валидации путей)
 **Guard:** §5.24 п.5c (restore ≠ remap — перезапись с якорями); метрика false-retraction в health — сигнал о качестве якорей auto_collect
 **Pattern:** P-002-класс «инструмент-предположение» — extract_anchors предполагает, что извлечённый токен = валидный путь; обход: явные anchors при записи
 
@@ -674,7 +674,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-12 04:00] — v1-спека памяти закрыта + ADR-0004 Propagation Engine (DONE, не закоммичено)
 **Status:** ✅ Fixed (код+тесты; commit/push по команде)
-**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1099 passed / 0 failed / 10 skipped (2026-08-12, после коммитов 688e6cf5 + синк счётчика 61; на момент записи в дневник было ❌ — FAILED из-за чужого guard 61vs58, закрыт в том же цикле коммитов)
+**verified_from_clean_state:** ✅ да — `bash scripts/verify_clean_state.sh --no-clone` → CLEAN STATE VERIFICATION: PASSED, exit 0, 1099 passed / 0 failed / 10 skipped (2026-08-12, после коммитов eb011b1d + синк счётчика 61; на момент записи в дневник было ❌ — FAILED из-за чужого guard 61vs58, закрыт в том же цикле коммитов)
 **Root Cause:** (1) SUPERSEDED не фильтровался в load_memory и откатывался verify-on-read'ом в VERIFIED (verify_on_read.py _persist_transitions: любая не-VERIFIED → VERIFIED) — молчаливый откат терминального статуса; (2) false_retraction был флагом без агрегации; (3) ADR-0004 принят, движка нет.
 **Fix:** (1) store.load_memory: _HIDDEN_STATUSES=(REFUTED,SUPERSEDED), include_retracted для аудита (оба формата); (2) _persist_transitions: VERIFIED-переход только для None/ACTIVE, терминальные не трогаются (guard + константа STATUS_SUPERSEDED); (3) store.memory_metrics() (refuted_total/false_retractions/false_retraction_rate) + health._check_memory в run_full_diagnostic; (4) src/core/intelligence/propagation_engine.py (BFS-каскад по data.depends_on/superseded_by, retract_reason=PROPAGATED_FROM:<root>|reason, retract_source=propagation, циклы-visited) + хук в intel_retract_memory_node (тот же RMW под _write_lock; ответ "+N зависимых отозвано"); ADR-0004 Implementation Notes (PropertyGraph-рёбра/STALE отложены — JSON-стор, O(n)). +21 тест: tests/test_propagation_engine.py (9), test_memory_retraction.py (+10: SUPERSEDED-фильтр, supersede-lifecycle, metrics), test_verify_on_read.py (+2: терминальные не переписываются).
 **Guard:** 55/55 зелёные; ruff чист по моим файлам; полный pytest 1108/1/4/94 (фейл — чужой).
@@ -789,7 +789,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-08] — Фикс D1-D3: единый корень — неранжированный выбор узла в графе
 
 **Status:** ⚠️ Fixed (локально: gate-zero 1031 passed / 4 skipped, ruff src/ tests/ = 0; +4 регресс-теста tests/test_graph_adapter_node_selection.py)
-**verified_from_clean_state:** ✅ yes — `bash scripts/verify_clean_state.sh D:/Project/MSCodeBase` → 1018 passed, 0 failed (клон закоммиченного 6170ca38, чистая установка + pytest)
+**verified_from_clean_state:** ✅ yes — `bash scripts/verify_clean_state.sh D:/Project/MSCodeBase` → 1018 passed, 0 failed (клон закоммиченного 469730cf, чистая установка + pytest)
 **Root Cause:** get_symbol_info/impact_analysis/intel_code_topology читали build_call_graph/get_callers, где узел выбирался `find_nodes(name_pattern)[0]` без ранжирования: (D1) тень experiments/misc_probes/run_experiment_pagerank.py:40 опережала src/ (exact-LIKE + порядок вставки); (D2) методы хранятся как «Class.method» — точный LIKE промахивался; (D3) extern-placeholder (пустой file_path) опережал реальное определение. Плюс: CALLS-рёбра при индексации привязываются к первому exact-матчу — реальные callers лежат на тени.
 **Fix:** graph_adapter_pure.py + graph_adapter.py: _find_nodes_flexible → union (exact+suffix «%.method»); _pick_best_node (ранг: реальное определение src/ > placeholder > тень experiments//scripts/); _candidate_starts (BFS по ВСЕМ одноимённым — misrouted рёбра); _is_one_off_script (фильтр записей: скриптовые callers не прод-потребители). get_call_chain/get_callers — тот же паттерн (Триггер 3).
 **Guard:** +4 теста (D1 src>тень, D2 метод по голому имени, D3 placeholder не вытесняет, callers-merge); контрольный прогон context_engine v3: wrong_rate C1/C2 = 0.000, C1 recall 0.288→0.380, precision C1 0.700→0.800; real-probe: build_call_graph → symbol_index.py:481, 9 реальных callers.
@@ -860,10 +860,10 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-08] — Координационный инцидент: git commit без pathspec украл staged-правку параллельной сессии (RESOLVED)
 
-**Status:** ✅ Resolved (история не переписана — 568b1f27 уже в origin; урок в WISDOM)
-**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран ad1a6d2d — 7/7 success yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
-**Root Cause:** две сессии Zed в одном репо без файл-локов (§10): `git commit -m ...` БЕЗ pathspec коммитит ВЕСЬ индекс — параллельная сессия в тот момент застейджила свой google*.html → коммит 568b1f27 ушёл с чужим содержимым и моим message; её push вынес его в origin (force-переписывание запрещено §5.5). Дополнительно: локальный ruff-кэш пропустил BLE001 (except Exception в поток-обёртке теста) → CI lint red 6/6 → фикс noqa ad1a6d2d.
-**Fix:** (1) `git commit -m ... -- <paths>` — pathspec ограничивает коммит (применено в c5a20400/7653e94e/ad1a6d2d); (2) перед git-операциями `git fetch` + сверка HEAD vs origin (за сессию — 2 расхождения); (3) index.lock параллельной сессии НЕ удалять — ждать освобождения (2 цикла ожидания, кап ~3 мин); (4) `ruff check --no-cache` перед push.
+**Status:** ✅ Resolved (история не переписана — a830f93f уже в origin; урок в WISDOM)
+**verified_from_clean_state:** ⚠️ не проверено — docs-коммит; CI-ран 61342835 — 7/7 success yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
+**Root Cause:** две сессии Zed в одном репо без файл-локов (§10): `git commit -m ...` БЕЗ pathspec коммитит ВЕСЬ индекс — параллельная сессия в тот момент застейджила свой google*.html → коммит a830f93f ушёл с чужим содержимым и моим message; её push вынес его в origin (force-переписывание запрещено §5.5). Дополнительно: локальный ruff-кэш пропустил BLE001 (except Exception в поток-обёртке теста) → CI lint red 6/6 → фикс noqa 61342835.
+**Fix:** (1) `git commit -m ... -- <paths>` — pathspec ограничивает коммит (применено в 86343452/580e0e87/61342835); (2) перед git-операциями `git fetch` + сверка HEAD vs origin (за сессию — 2 расхождения); (3) index.lock параллельной сессии НЕ удалять — ждать освобождения (2 цикла ожидания, кап ~3 мин); (4) `ruff check --no-cache` перед push.
 **Guard:** WISDOM: «мультисессия: git commit только с pathspec»; локальный ruff — `--no-cache`.
 **Pattern:** P-002-класс «инструмент-предположение»: (a) commit без pathspec предполагает «только мои файлы» — неверно при параллельной записи индекса; (b) ruff-кэш предполагает свежесть — проверять явно.
 
@@ -897,7 +897,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-08] — CI ubuntu: test_normalize_diag_uri без Windows-skip (FIXED, CI зелёный на 3.10/3.11/3.12 + clean-state)
 
 **Status:** ✅ Fixed (код+тесты; ruff чист; ubuntu-фейлы 2 шт на ВСЕХ версиях + clean-state — одна причина)
-**verified_from_clean_state:** ✅ да — CI-прогон #247 (5a771789): 7/7 джобов success (windows+ubuntu × 3.10/3.11/3.12 + clean-state), впервые с #225
+**verified_from_clean_state:** ✅ да — CI-прогон #247 (8f01a5f7): 7/7 джобов success (windows+ubuntu × 3.10/3.11/3.12 + clean-state), впервые с #225
 **Root Cause:** tests/test_lsp_tools.py: test_normalize_diag_uri_win_drive + test_normalize_diag_uri_already_canonical — Windows-специфичная нормализация драйв-букв (d%3A→D:) БЕЗ skipif(win32) → на ubuntu Path('/d:/...').resolve() даёт POSIX-URI и тест падает (AssertionError file:///home... != file:///D:...). Это и был тайный clean-state ubuntu-фейл (все #236-#243: 2 failed 989 passed) + matrix ubuntu.
 **Fix:** +skipif(sys.platform != 'win32') на оба теста (+import sys). test_normalize_diag_uri_idempotent оставлен — его assert платформенно-нейтрален (проходит на ubuntu).
 **Guard:** gh run view --log (gh CLI авторизован) — точный список фейлов за 1 запрос; CI-прогон после push.
@@ -907,7 +907,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 **Status:** ✅ Fixed (lint: 35 ошибок → 0; matrix-команда: 1005 passed / 4 skipped / 94 deselected, coverage 46.76% при гейте 38%) | ⏳ clean-state ubuntu — не воспроизводится локально, ждёт лог CI
 **verified_from_clean_state:** ✅ РЕАЛЬНЫЙ прогон `bash scripts/verify_clean_state.sh --no-clone` на GitBash: PASSED (995 passed) | matrix-команда CI: EXIT=0
-**Root Cause:** (1) ЛИНТ: `ruff check src/ tests/` падал на ВСЕХ 6 matrix-джобах (тесты не запускались с #226!) — 35 ошибок: F401/I001 (автофикс), F841 (di_container.py:236 resource_monitor, runtime_coordinator.py:115 bridge_synced, test_search_bs_audit ×2), E741 (cypher_schema `l`), BLE001 ×13 (project_resolution ×9 — новый файл без per-file-ignore, graph_adapter ×3 BL-05, lsp_tools ×1). Каждая сессия пушила без полного `ruff check src/ tests/` (только per-file) → 18 красных. (2) CLEAN-STATE: ubuntu exit 1 с #236 (d611b3a), лог 403 без прав; локально НЕ воспроизводится (установка из lock резолвится, wheel'ы есть, e2e скипается, slow-тесты отсечены addopts); #232-#234 — инфра-фейлы «Set up job», не код.
+**Root Cause:** (1) ЛИНТ: `ruff check src/ tests/` падал на ВСЕХ 6 matrix-джобах (тесты не запускались с #226!) — 35 ошибок: F401/I001 (автофикс), F841 (di_container.py:236 resource_monitor, runtime_coordinator.py:115 bridge_synced, test_search_bs_audit ×2), E741 (cypher_schema `l`), BLE001 ×13 (project_resolution ×9 — новый файл без per-file-ignore, graph_adapter ×3 BL-05, lsp_tools ×1). Каждая сессия пушила без полного `ruff check src/ tests/` (только per-file) → 18 красных. (2) CLEAN-STATE: ubuntu exit 1 с #236 (47830ce), лог 403 без прав; локально НЕ воспроизводится (установка из lock резолвится, wheel'ы есть, e2e скипается, slow-тесты отсечены addopts); #232-#234 — инфра-фейлы «Set up job», не код.
 **Fix:** (1) 19 автофиксов F401/I001 + ручные: F841 удалены (side-effect call/мёртвый код), E741 label, BLE001 — сужение (sqlite3.Error/OSError/ValueError) для project_resolution, noqa BL-05 для graph_adapter, noqa для fail-open lsp_tools. ЛОВУШКА: F401-автофикс снёс реэкспорт resolve_project_root/reset_project_root_cache из src/mcp/server.py (фасад! импортируются base.py:127 и тестами) — восстановлены с # noqa: F401. (2) скрипт: явный exit 1 при pip-фейле (раньше set -e не было — установка тихо падала, pytest падал с невнятным ImportError).
 **Guard:** `ruff check src/ tests/` = 0 (команда CI); matrix-команда локально; pre-push чеклист: ruff ЦЕЛИКОМ по src+tests, НЕ только per-file. KNOWN_ISSUES#2026-08-08-ci-red.
 **Pattern:** P-002-класс «проверка не того объёма» — сессии гоняли pytest tests/ (зелёный) и per-file ruff, а CI-гейт `ruff check src/ tests/` целиком — никогда; + P-002 «F401 на фасаде» — автофикс удалил реэкспорт (ruff не знает про реэкспорты — нужен noqa).
@@ -932,7 +932,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-08] — WS8 boot fix: llama deferred после stdio (MCP "Context server request timeout" на холодном старте) (DONE)
 
-**Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит f73be307eeb1)
+**Status:** ✅ Fixed (код; 1005 passed / 4 skipped; проверено LIVE: бут 12s, BUILD_ID = коммит fcf763a4fff6)
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 1005 passed (рабочее дерево) yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** `server_factory.run_server` вызывал `_start_llama_sync()` СИНХРОННО до `mcp.run_stdio_async()`: spawn+health-poll llama (холодный старт 30-40s+) блокировал handshake → Zed "Context server request timeout" (~60s) убивал сервер; выжившие зомби-инстансы держали DB PID-lock → каждый следующий бут ждал лок 30s → вечный цикл падений (лог 08:52-08:57)
 **Fix:** `asyncio.create_task(asyncio.to_thread(_start_llama_sync))` ПОСЛЕ старта транспорта; провайдеры поднимаются лениво (graceful fallback ONNX/без реранкера); транспорт отвечает сразу (~10-12s)
@@ -987,7 +987,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-08 23:50] — А+Б из audit.md: edge transparency, path queries, Jupyter, find_duplicates, get_context (DONE, 956 passed)
 
 **Status:** ✅ Fixed (код+тесты; 937→956 passed, +19 новых тестов; файлы синхронизированы в расширение — для активации MCP нужен Reload Window)
-**Commit:** `4bd29b0a` (feat A+B, docs sync 55→57, версия 3.4.0) — pushed to origin/main 2026-08-08. [🧪 Meta-check] предыдущая правка случайно удалила строку verified_from_clean_state из этой записи — восстановлена ниже.
+**Commit:** `0eafea40` (feat A+B, docs sync 55→57, версия 3.4.0) — pushed to origin/main 2026-08-08. [🧪 Meta-check] предыдущая правка случайно удалила строку verified_from_clean_state из этой записи — восстановлена ниже.
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh не запускался; pytest tests/ → 956 passed / 4 skipped / 94 deselected (эта сессия, рабочее дерево). yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 **Root Cause:** audit.md (experiments/) заявлял «❌ Нет» по фичам, часть из которых уже существовала (co-change, code_health — P-002). Реальные gaps подтверждены экспериментами 2026-08-08 (EXPERIMENTS_LOG: 4 записи): path BFS 0.11ms, .ipynb parse 0.006ms, AST-дупликация 861ms/140 файлов.
 **Fix:** A1) confidence/evidence в properties рёбер (graph_adapter_pure ×5, add_assignments, relation_extractor INFERRED); A2) `graph_query(action="path", from, to, direction, max_depth)` + direction в PropertyGraph.shortest_path (backward-compat "outgoing"); A3) `.ipynb` в INDEX/PARSE_EXTENSIONS + CodeParser._parse_notebook (stdlib json, cell → tree-sitter, fallback code_cell); B1) src/core/duplication.py + find_duplicates (AST-отпечатки + multiset-Jaccard + minhash-LSH); B2) get_context(targets) — task-shaped обёртка. Регистрация 55→57 тулов (docstring, README, AGENTS.md, docs en/ru/zh — 38 замен; контракт-тест 57). Тесты: tests/test_graph_path, test_duplication, test_jupyter, test_edge_transparency.
@@ -1110,7 +1110,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Fix:** (1) ru/zh README секции → en-эталон (hub index/git, актуальные имена, Diag 7, intel 13, Dev 4, структура 13 модулей/853); (2) edge-count → 29 (EdgeType graph.py:217-248) в 12 файлах: README/zh README/ARCHITECTURE en|ru|zh/ARCHITECTURE_LAYERS en|ru|zh/HANDFOFF en|ru|zh (CHANGELOG 28 — историческая запись, не тронута); (3) CONTRIBUTING root+docs → 3.3.13/853. Бонус P-002: pyproject «48 analysis tools»→49, README badge «938»→853, «50 total»→49, ARCHITECTURE_DEEP «396/15»→853/18, ARCHITECTURE «396/43»→853/49, «760 tests»→853.
 **Guard:** grep-0 по 42/48/27 edge|50 total|938|761+|494|565+|396|43 в 22 файлах; runtime-истина: pytest 853 passed (команда ниже), EdgeType=29, pyproject=3.3.13; KNOWN_ISSUES#2026-08-06 23:35 «вне скоупа» → закрыт.
 **Pattern:** P-002 «предположение вместо проверки» — числа в доках не сверялись с runtime после миграций; guard — auto_doc_updater._count_tools + trilingual grep.
-**Контрадикция §4.9 разрешена:** дневник 23:35 заявлял «README.md 50→49», но файл содержал «50 total» (коммит 6c7bf619 20:58 вернул 50 + badge 938) — правка потеряна; в этой сессии повторно применено → 49/853.
+**Контрадикция §4.9 разрешена:** дневник 23:35 заявлял «README.md 50→49», но файл содержал «50 total» (коммит 0f85f5b3 20:58 вернул 50 + badge 938) — правка потеряна; в этой сессии повторно применено → 49/853.
 
 ---
 
@@ -1165,7 +1165,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-06 19:45] — Live-верификация 5 быстрых побед audit.md: 4/5 ✅, SCM-определения частично (wiring НЕ подключён), packaging-фикс
 
-**Status:** 🟡 Partial — packaging закрыт (коммит f14435db), wiring SCM ждёт решения владельца
+**Status:** 🟡 Partial — packaging закрыт (коммит 57636199), wiring SCM ждёт решения владельца
 **Root Cause:** «SCM-определения» реализованы на 70%: 17 tags.scm + `extract_definitions_scm`/`_load_tags_query` есть, но прод-путь `parse_file` (parser.py:297) использует TARGET_NODES walk — `extract_definitions_scm` вызывается только из `scripts/patch_parser.py` (наивный патч не применён: ломает .md, callees, двойной парсинг и qualified names «Class.method» → регресс CALLS/DECORATES/OVERRIDES).
 **Fix:** queries/__init__.py + `*.scm` в pyproject.toml/MANIFEST.in (wheel больше не теряет queries); `install.py --sync-only` → расширение синхронизировано (grep-подтверждены все 5 побед в копии расширения); полный pytest 831 passed / 4 skipped / 94 deselected (0 failed).
 **Guard:** .agent_task_state.md «Decision 2026-08-06» (варианты A/B wiring); проверка вызовов (grep callers) перед заявлением «✅ реализовано».
@@ -1292,7 +1292,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 **Guard:** find KNOWN_ISSUES = 1; shim-импорты = 0; bump --check ✅ 3.3.11; ruff ✅; pytest 761 passed (40.94%). Инфо: search_code mode="smart" (legacy-синоним, search_tools.py:270) — не документирован, не выпилен.
 **verified_from_clean_state:** ✅ да — pytest 761 passed; повторный grep по устаревшим числам = 0.
 
-**Status:** ✅ Fixed (коммиты a7a7a9e7, ddb9ebfe, bcef653b; финальный CI-прогон на bcef653b — 7/7 job'ов success: Ubuntu/Windows ×3.10-3.12 + clean-state)
+**Status:** ✅ Fixed (коммиты bea4ea69, 03fc2dc9, dbcbca4f; финальный CI-прогон на dbcbca4f — 7/7 job'ов success: Ubuntu/Windows ×3.10-3.12 + clean-state)
 **Root Cause:** (1) ruff I001 ×10 — ruff не пинится (dev: >=0.5.0), свежая 0.15.16 строже к вложенным импорт-блокам; (2) DatabaseLock: окно O_EXCL→fsync — на Unix немедленный steal давал ДВА писателя (Windows скрывал тем, что unlink открытых файлов падает PermissionError); (3) test_lsp_uri_conversion ×2 без skipif — на POSIX C:\x\y.py = относительный путь; (4) write_text/text=True без encoding — Windows-runner cp1252: UnicodeEncodeError (кириллица) + UnicodeDecodeError (git-вывод).
 **Fix:** ruff --fix (I001); grace-период в _read_holder_pid (retry чтения retry_attempts×poll_interval перед трактовкой stale); skipif(win32) ×2; encoding="utf-8" в 4 тестовых write_text и 4 subprocess.run execution_contract (errors="replace").
 **Guard:** CI green на всех 6 ОС×Python + clean-state; coverage 39.8-41% ≥ 38% на всех платформах (баланс порога подтверждён). Долг: ещё 7 файлов с text=True без encoding — KNOWN_ISSUES.
@@ -1300,8 +1300,8 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 ## [2026-08-05 00:05] — CI красный: ruff I001 (10 импорт-блоков, НЕ coverage) (FIXED)
 
-**Status:** ✅ Fixed (коммит a7a7a9e7, запушен)
-**Root Cause:** CI-прогоны b121ab19/6dc8d2ae упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/core/indexing/index_guard.py:12, src/core/intelligence/tools_reg.py:81/176/205 (вложенные импорт-блоки), src/mcp/tools/graph_tools.py:478/629, tests ×4 (test_artifact_paths, test_index_runner_deadlock, test_lancedb_recreate, test_searcher). Coverage-порог НЕ при чём — локально 40.59% ≥ 38%. Накопление: ruff в dev deps не пинится (`ruff>=0.5.0`), CI ставит свежую версию (0.15.16) — I001 стал строже к вложенным импорт-блокам, файлы писались при старом ruff.
+**Status:** ✅ Fixed (коммит bea4ea69, запушен)
+**Root Cause:** CI-прогоны 53627e77/d706e646 упали на lint-шаге `ruff check src/ tests/` — 10 ошибок I001 (неотсортированные импорты) в 8 файлах: src/core/indexing/index_guard.py:12, src/core/intelligence/tools_reg.py:81/176/205 (вложенные импорт-блоки), src/mcp/tools/graph_tools.py:478/629, tests ×4 (test_artifact_paths, test_index_runner_deadlock, test_lancedb_recreate, test_searcher). Coverage-порог НЕ при чём — локально 40.59% ≥ 38%. Накопление: ruff в dev deps не пинится (`ruff>=0.5.0`), CI ставит свежую версию (0.15.16) — I001 стал строже к вложенным импорт-блокам, файлы писались при старом ruff.
 **Fix:** `ruff check src/ tests/ --fix` (автосортировка импортов, diff = пустые строки + перестановка, семантика не тронута). Верификация: ruff clean; 53 теста затронутых файлов passed; полный pytest 761 passed, coverage 40.59% ≥ 38%.
 **Guard:** lint-шаг CI зелёный; риск T+30d — ruff без верхней границы (`<0.16` не добавлен) → при апдейте возможны новые срабатывания I001, лечатся `ruff check --fix`; записано в KNOWN_ISSUES.
 **verified_from_clean_state:** ✅ да — полный pytest --cov-fail-under=38: 761 passed, 40.59%.
@@ -1365,7 +1365,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-04 23:00] — CI clean-state: No module named pytest (FIXED)
 
 **Status:** ✅ Fixed (коммит в этой сессии)
-**Root Cause:** Linux-ветка verify_clean_state.sh ставила `pip install -e ".[dev]" --no-deps` — dev-зависимости (pytest и др.) не входят в requirements-lock.txt (runtime lock), а --no-deps пропускал их установку → venv без pytest (регрессия от 0735c08e, lockfile drift-gate).
+**Root Cause:** Linux-ветка verify_clean_state.sh ставила `pip install -e ".[dev]" --no-deps` — dev-зависимости (pytest и др.) не входят в requirements-lock.txt (runtime lock), а --no-deps пропускал их установку → venv без pytest (регрессия от d6256aa4, lockfile drift-gate).
 **Fix:** убран `--no-deps` в Linux-ветке (scripts/verify_clean_state.sh:74) — runtime из lock остаётся bit-exact (pip не апгрейдит удовлетворённые пакеты), dev-инструменты доставляются.
 **Guard:** логика теперь идентична рабочей Windows-ветке; bash -n OK; полный прогон — в CI.
 **verified_from_clean_state:** ⚠️ не проверено в этой среде — Linux-ветка выполняется только в CI (uname -s != Linux на Windows), локально не воспроизводится; синтаксис и логика проверены. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
@@ -1486,7 +1486,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-03 20:50] — Stale ghost table после fresh-path reset: switch_db не синхронизировал ссылки
 
 **Status:** ✅ Fixed (код+тесты, не запушено; синхронизировано в расширение)
-**Symptom:** после intel_reset_index (live MCP, 5ce0eaa3) реиндекс «завершился», но search_code остался в grep-fallback: fresh-БД пуста (0 строк), каноническая — снова wrapped-версии (2^64−19/−18) и мусорный count_rows. Интегрити-чек поймал «Not found» по удалённому пути → self-heal пересоздал, но данные вновь ушли не туда.
+**Symptom:** после intel_reset_index (live MCP, 38f1eacd) реиндекс «завершился», но search_code остался в grep-fallback: fresh-БД пуста (0 строк), каноническая — снова wrapped-версии (2^64−19/−18) и мусорный count_rows. Интегрити-чек поймал «Not found» по удалённому пути → self-heal пересоздал, но данные вновь ушли не туда.
 **Root Cause (2 звена):** (1) stale ghost table — db_manager.set_on_recreate_callback не имел вызывающих (известный пункт 2026-08-02 00:26): switch_db/fresh-path НЕ вызывал _on_recreate → writer/runner/freshness писали в удалённую каноническую таблицу (счётчик версий унаследован от мёртвого датасета). (2) intel_reset_index не освобождал PID-lock перед rmtree (в отличие от recreate_table_physical) → rmtree упирался в .write_lock → частичное удаление и смешанное состояние директорий.
 **Fix:** (1) switch_db (db_manager.py) вызывает _on_recreate после финализации таблицы; Indexer регистрирует _sync_table_ref на db_manager (indexer.py). (2) intel_reset_index (tools_reg.py): release PID-lock до rmtree, re-acquire после mkdir (зеркало recreate_table_physical).
 **Guard:** tests/test_lancedb_recreate.py +2 (switch_db/reset_connection вызывают callback; новая таблица не stale). Полный pytest 738 passed / 0 failed. Live-проверка: после Reload Window → intel_reset_index → search_code.
@@ -1584,10 +1584,10 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-01 23:55] — Contradiction Ledger: флапающий check_commit_exists + push v3.3.11 + верификация чанков
 
 **Status:** ✅ Fixed
-**Root Cause:** verify_diary.py check_commit_exists — git cat-file с timeout=5s; при старте MCP (auto-index, embedder, reranker 499MB, Defender scan) git не укладывался в 5s → TimeoutExpired → False → ложные «коммит не найден» (эволюция 22:02: 1 → 22:37: 2 → 23:01/23:47: 3 при том же diary; хеши 48e695b8/8f799dec/95a322d6/ac6e5ba0e/5a522ead/b39ef455 реально существуют — cat-file вручную все True).
+**Root Cause:** verify_diary.py check_commit_exists — git cat-file с timeout=5s; при старте MCP (auto-index, embedder, reranker 499MB, Defender scan) git не укладывался в 5s → TimeoutExpired → False → ложные «коммит не найден» (эволюция 22:02: 1 → 22:37: 2 → 23:01/23:47: 3 при том же diary; хеши ea31cd95/4f3a3788/4f690bea/b194a7b96/a338a02f/d5800297 реально существуют — cat-file вручную все True).
 **Fix:** scripts/verify_diary.py:331 — timeout 5→30s + одна retry-попытка; синхронизировано в расширение. Ledger после фикса: 37 ✅ / 0 ❌.
 **Guard:** retry+30s; при сомнении — `python scripts/verify_diary.py --skip-gate-zero` вручную.
-**Также:** push v3.3.11 e2817035..59fe58b0 (FF, origin/main=HEAD); верификация чанков: 4731 chunks / 306 files / 6030 symbols, jobs running=0, search_code семантический OK (векторы не нулевые), runtime blocked 0.0%, embed-fail в логах нет (ONNX fallback на старте — штатный auto-detect, llama.cpp активен).
+**Также:** push v3.3.11 79d9b24f..e460201c (FF, origin/main=HEAD); верификация чанков: 4731 chunks / 306 files / 6030 symbols, jobs running=0, search_code семантический OK (векторы не нулевые), runtime blocked 0.0%, embed-fail в логах нет (ONNX fallback на старте — штатный auto-detect, llama.cpp активен).
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest (676 passed) + живой MCP: поиск/индекс/счётчики верифицированы в этой сессии. yes (live: full reindex embed-phase без заморозки; LanceDB chunks 341/332; pytest 1553 passed)
 
 ---
@@ -1604,7 +1604,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 ## [2026-08-01 22:50] — HTTP 400 llama.cpp embedder: v1 (HF truncation) ОПРОВЕРГНУТ → v2 (native /tokenize) + полный реиндекс 4677 чанков
 
 **Status:** ✅ Fixed (v3.3.11, локально, не запушено)
-**Root Cause:** GGUF multilingual-e5-small: n_ctx_train=512 → llama.cpp капит слот до 512. HF-токенизатор ≠ GGUF-токенизатор (разные BPE): после усечения до 512 HF-токенов llama считает до 526 (замер 20 реальных чанков: макс 502, zh CHANGELOG; в прогоне 22:01 526>512) → HTTP 400 → реиндекс АБОРТИЛСЯ на 4512/4666 («Embedding failed for chunk 8», retry-loop перезапускал → симптом «вечно 4512»). Фикс 48e695b8 (v3.3.10) НЕ работал — запас 0-10 токенов.
+**Root Cause:** GGUF multilingual-e5-small: n_ctx_train=512 → llama.cpp капит слот до 512. HF-токенизатор ≠ GGUF-токенизатор (разные BPE): после усечения до 512 HF-токенов llama считает до 526 (замер 20 реальных чанков: макс 502, zh CHANGELOG; в прогоне 22:01 526>512) → HTTP 400 → реиндекс АБОРТИЛСЯ на 4512/4666 («Embedding failed for chunk 8», retry-loop перезапускал → симптом «вечно 4512»). Фикс ea31cd95 (v3.3.10) НЕ работал — запас 0-10 токенов.
 **Fix:** remote_embedder.py — подсчёт нативным /tokenize llama-server (лимит 480, запас 32 под спецтокены) + итеративный char-proportional cut (макс 4 итерации); HF-fallback 448 при недоступности /tokenize. Попутно: llama_install.py vulkaninfo → bytes+CREATE_NO_WINDOW (§5.16, был cp1251-краш reader-потока); pylance==9.0.0 в venv расширения + requirements (known_hashes bulk load, §5.19 API проверен to_lance().to_pandas()). Инцидент «умер с клиентом» — реиндекс detached (Start-Process).
 **Guard:** /tokenize-гарантия per-input ≤ 480 < 512; тест-мок плотный CJK (1 ток/симв) доказывает сходимость cut; правило: реиндекс только detached; чанки пишутся в Phase 3.
 **Reindex:** 22:37→22:47, 4677 chunks, FTS5 built (1901 names, 891 docs), HTTP 400=0, Aborted=0, E2E search_code OK.
@@ -1637,7 +1637,7 @@ verified_from_clean_state: ⚠️ не проверено — verify_clean_state
 
 **Status:** ✅ Done
 **Root Cause:** протокол требовал жёстких триггеров (§1.19), аудит audit.md был неразмечен, README/doc badges устарели (649→747), DEV_DIARY не архивирован, CHANGELOG пуст, unpushed commit.
-**Fix:** (1) §1.19 Hard Triggers в личный AGENTS.md (5 блокираторов «запрещено без»); (2) 29 вердиктов в experiments/audit.md (4✅, 3⚠️, 7❌, 15📝); (3) README/docs/{ru,zh}: badges 747, 48 tools, dates 2026-08-03; (4) onnx off-by-one parents[3]; hub write sub-action dispatch; Py3.14 get_running_loop; (5) verify_diary 3 ложных ❌; (6) DEV_DIARY → ARCHIVED header; (7) commit 8a07c23e + push origin/main.
+**Fix:** (1) §1.19 Hard Triggers в личный AGENTS.md (5 блокираторов «запрещено без»); (2) 29 вердиктов в experiments/audit.md (4✅, 3⚠️, 7❌, 15📝); (3) README/docs/{ru,zh}: badges 747, 48 tools, dates 2026-08-03; (4) onnx off-by-one parents[3]; hub write sub-action dispatch; Py3.14 get_running_loop; (5) verify_diary 3 ложных ❌; (6) DEV_DIARY → ARCHIVED header; (7) commit fdd20975 + push origin/main.
 **Guard:** pre-commit (verify_diary 25✅/0❌, stale_detector OK); bump_version --check ✅ (3.3.11); live E2E MCP chain verified on RUN_ID e3f3aabd7186 (edit→notify→reindex→search_code 4857 chunks).
 **verified_from_clean_state:** ✅ yes — clean clone+venv+install+pytest (747 passed) + live MCP chain verified.
 

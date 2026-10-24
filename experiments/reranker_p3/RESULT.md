@@ -31,7 +31,7 @@ respected. The anchor does what the spec says.
    for P3 was a junk JSON chunk at logit +1.65; FINAL n=1. Out of scope here
    (threshold untouched by design), but it explains the all-None holdout rows.
 
-## Full holdout table (branch, rev e5756f55 + anchor)
+## Full holdout table (branch, rev 84c8ae06 + anchor)
 
 ```
 P2  rank=1    n=2  (no P2 regression)

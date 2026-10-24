@@ -659,4 +659,4 @@ search_code(query, mode)
 | `scripts/monitor.py` | Мониторинг индексации | v3 — lock/auto-index/Not Found |
 | `src/providers/reranker/llama_runner.py` | Llama lifecycle | 1516 строк, осознанный техдолг |
 
-*Generated: 2026-07-20 | Version: 2a2cef3f*
+*Generated: 2026-07-20 | Version: 1732fdc8*

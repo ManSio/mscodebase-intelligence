@@ -109,11 +109,11 @@
 
 ## Git-мультисессия (2026-08-08)
 - `git commit` БЕЗ pathspec коммитит ВЕСЬ индекс — при параллельной сессии
-  украдёт её staged-правку (инцидент 568b1f27). Всегда `git commit -m ... -- <paths>`.
+  украдёт её staged-правку (инцидент a830f93f). Всегда `git commit -m ... -- <paths>`.
   index.lock чужой сессии не удалять — ждать освобождения (кап ~3 мин).
 - Новые .sh на Windows: git создаёт без exec-bit (100644) → CI clean-state
   падает «Permission denied» (exit 126) при прямом вызове из verify_clean_state.sh.
-  Guard: `git update-index --chmod=+x` ДО коммита (2026-08-12, ff67c1bf).
+  Guard: `git update-index --chmod=+x` ДО коммита (2026-08-12, c9010dea).
   Mode-only change pathspec-коммит НЕ захватывает — коммитить без pathspec.
 - Локальный ruff-кэш может пропускать BLE001 — перед push `ruff check src/ tests/ --no-cache`.
 
@@ -187,7 +187,7 @@
 - Правка CRLF-файлов с эмодзи: edit_file с ФАКТИЧЕСКИМ UTF-8 символом; \U0001F9E0
   в JSON — невалидный escape; python -c на Windows съедает \\ (bash) — нельзя.
 - Мусорные file-якоря (слепленные пути/завершающая пунктуация) из текста коммитов
-  → ЛОЖНЫЕ REFUTED от VOR (fail-closed _classify); фикс c3512740: extract_anchors
+  → ЛОЖНЫЕ REFUTED от VOR (fail-closed _classify); фикс 33aaa82c: extract_anchors
   на write-path отбрасывает несуществующие пути (project_root) и обрезает
   пунктуацию; read-path остаётся честным (удалённый файл = дрейф → REFUTED).
 - VOR счётчики (2026-08-16, Том): per-node matched/delivered в verify_cache.json
@@ -196,7 +196,7 @@
   (ресипт: «⏳ starved: N узлов»).
 
 ## Head-freshness for symbol anchors — COMMIT A DONE, COMMIT B DONE (2026-09-02, issues #21/#22)
-- **COMMIT A СДЕЛАН (08281f37, ветка feat/two-pass-symbol-resolver, 7 файлов, 328+/16-):**
+- **COMMIT A СДЕЛАН (e9a89fa9, ветка feat/two-pass-symbol-resolver, 7 файлов, 328+/16-):**
   A = поведение отказов: write-path guard на неоднозначность (#21: modification_guard +
   write_tools `_resolve_single_source_def` отказ при >1 definition) + VOR symbol-якорь
   fail-closed (#22: `_build_symbol_resolver` только True→VERIFIED / None→INCONCLUSIVE, НИКОГДА
@@ -220,7 +220,7 @@
   - `tests/test_symbol_freshness.py` (8 тестов: 6 evaluate_freshness сценариев + resolve_head_dirty
     не-git + PropertyGraph build_head roundtrip); test_verify_on_read адаптирован к B
     (fail-closed-тест → unverifiable-None → INCONCLUSIVE, REFUTED только на свежем индексе).
-- **Чистый-A-прогон (B-DoD, worktree 08281f37):** test_verify_on_read 47/47 на чистом A →
+- **Чистый-A-прогон (B-DoD, worktree e9a89fa9):** test_verify_on_read 47/47 на чистом A →
   A НЕ зависит от B. Полный clean-A pytest падает 158 от недоступности embedder/reranker
   (среда), не от кода — ортогонально B.
 - **Свежесть SymbolIndex НЕпроверяема без B** (нет поля HEAD) — B открывает честный REFUTED
@@ -236,7 +236,7 @@
 
 ## Clean-state verification (2026-09-22)
 - 
-erify_clean_state.sh --no-clone на локальном clone закоммиченного состояния (ревизия 44d451f6):
+erify_clean_state.sh --no-clone на локальном clone закоммиченного состояния (ревизия 87204524):
   1800 passed / 0 failed / 13 skipped (822s); lock-drift negative-control PASSED; guard inventory ALL PROVEN (3);
   revision gate VALID. Новый core (quiet_break_gate/redact/restraint) прошёл clean-state.
 - Если ветка не запушена, default clone с GitHub тестирует ЧУЖОЕ (origin) состояние — для честного

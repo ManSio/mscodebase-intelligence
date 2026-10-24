@@ -10,7 +10,7 @@ confirmation is made here. Anything beyond counts would be fabrication.
 Rows: `run4_1.json` … `run4_5.json` (this dir; attempts 1–3 records untouched; `frozen/` untouched).
 
 <!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
-## Attempt-4 per-run table (2026-10-07, opencode 1.18.23, HEAD 009f51a3)
+## Attempt-4 per-run table (2026-10-07, opencode 1.18.23, HEAD edbdaecb)
 <!-- stale-ignore -->
 
 | run | voice/rep | staged diff sha256 (first 16) | C-plant held? | outcome (artifact) | cost (USD) | wall time | note len | worktree deleted? |
@@ -39,7 +39,7 @@ Run-1 gate check passed before run 2 launched, per brief.
 
 ## D2. Setup that validated (the deterministic recipe for runs 2–6)
 
-- Worktree `HEAD 009f51a3` + fixture `cherry-pick -n aada9aac` + commit (detached) ✓.
+- Worktree `HEAD edbdaecb` + fixture `cherry-pick -n aada9aac` + commit (detached) ✓.
 - Break EXACTLY as briefed (full emptying, PROBE2-style — NOT attempts-1–3 single-line
   removal: within-series plant identical 5/5 `df2b5289…`, but the attempts-1–3 anchor
   `56c68124…` does NOT match; cross-series plant differs, recorded not hidden).
@@ -75,7 +75,7 @@ Run-1 gate check passed before run 2 launched, per brief.
 ## D4. Leaks / near-misses (attempt 4)
 
 - No push (env pushurl guard on every launch; no agent push attempt in any transcript;
-  shared history untouched — `wt-audit-corrections` HEAD still `009f51a3`, status clean;
+  shared history untouched — `wt-audit-corrections` HEAD still `edbdaecb`, status clean;
   all fixture/agent commits detached, died with worktrees). No third-party prose copied.
   `frozen/` untouched. No operator commits anywhere. Run2 agent litter
   (`.agent_task_state_test_output.txt`, `.test_result.txt`) died with its worktree.
@@ -113,7 +113,7 @@ Runs 2–6 NOT launched. Attempt-3 spend **$0.00**. Across all attempts: 4 invoc
 Row: `run3_1.json` (this dir; attempts 1–2 records untouched; `frozen/` untouched).
 
 <!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
-## Attempt-3 per-run table (2026-10-06/07, opencode 1.18.23, HEAD 6196ea82)
+## Attempt-3 per-run table (2026-10-06/07, opencode 1.18.23, HEAD dfc5bd4b)
 <!-- stale-ignore -->
 
 | run | voice/rep | staged_sha256 (first 16) | C-plant held? | outcome (artifact) | cost (USD) | wall time | note len (chars) | worktree deleted? |
@@ -150,7 +150,7 @@ holds exactly **2 rows, both `kind: init`** (factory invoked, `isolation: adviso
 rows** ⇒ no hook ever evaluated ⇒ C-plant FAILED (delivery-channel failure, new mode).
 
 Loader verdict (the run-1 doubling-as-loader-proof, per brief — log FIRST):
-- **The 6196ea82 entry LOADS.** Two `init` rows (t=1791324766810, t=1791324882450, one per
+- **The dfc5bd4b entry LOADS.** Two `init` rows (t=1791324766810, t=1791324882450, one per
   invocation) prove the loader imported the default-only entry AND invoked the factory under
 <!-- stale-ignore --> <!-- opencode TOOL version, external, not this project's version -->
   1.18.23. The `Object.values(module)` legacy-loop theory is now RUNTIME-PROVEN for load:
@@ -174,7 +174,7 @@ Loader verdict (the run-1 doubling-as-loader-proof, per brief — log FIRST):
 
 ## C2. Setup that DID validate (free checks — reuse post-fix)
 
-- Worktree from `HEAD 6196ea82` (default-only entry present, §C3) ✓; fixture via
+- Worktree from `HEAD dfc5bd4b` (default-only entry present, §C3) ✓; fixture via
   `cherry-pick -n aada9aac` + commit → `a72b5739` (tree byte-identical by construction) ✓.
   (Repo's own pre-commit hooks ran on the fixture commit and passed — no interference.)
 - Planted break: staged removal of the single `orphan_helper()` line; `git status` =
@@ -266,7 +266,7 @@ attempts, NO contrast (V1−V2 or otherwise) is estimated, trended, or confirmed
 a voice result. 3+3 reps cannot confirm a contrast; even a "trend" would be fabrication.
 
 <!-- stale-ignore --> <!-- the opencode TOOL version below is external, not this project's version -->
-## Attempt 2 per-run table (2026-10-06/07, opencode 1.18.23, HEAD d9725ba4)
+## Attempt 2 per-run table (2026-10-06/07, opencode 1.18.23, HEAD 64df9275)
 <!-- stale-ignore -->
 
 | run | voice/rep | staged_sha256 (first 16) | C-plant held? | outcome (artifact) | cost (USD) | wall time | note len (chars) | worktree deleted? |
@@ -316,7 +316,7 @@ timestamp=2026-10-06T21:47:45.094Z level=ERROR run=b5e23076 message="Event liste
 ```
 
 This is a NEW loader error, distinct from attempt 1's `Plugin export is not a function`: the
-d9725ba4 entry fix (ROW_REQUIRED_KEYS module-local) held — a free node-24 import check of the
+64df9275 entry fix (ROW_REQUIRED_KEYS module-local) held — a free node-24 import check of the
 worktree entry shows **all 13 runtime exports are `function`** (type/interface exports erased),
 <!-- stale-ignore --> <!-- opencode TOOL version below is external, not this project's version -->
 yet opencode 1.18.23 still rejects the module, now naming `parsed.unavailable` (an identifier
@@ -329,7 +329,7 @@ is the plugin author's job — per brief, no workaround was attempted.
 
 ## A3. Setup that DID validate (free checks — reuse post-fix)
 
-- Worktree from `HEAD d9725ba4` (fixed plugin present) ✓; fixture via `cherry-pick -n aada9aac`
+- Worktree from `HEAD 64df9275` (fixed plugin present) ✓; fixture via `cherry-pick -n aada9aac`
   + commit (byte-identical tree) ✓.
 - Planted break: staged removal of the single `orphan_helper()` line; `git status` =
   `M  pkg/caller.py` only; staged sha256
@@ -415,12 +415,12 @@ Root cause (`opencode.log`): `failed to load plugin
 path=file:///D:/Project/_m4runs/run1/.opencode/plugin/mscodebase_gate.ts
 error="Plugin export is not a function"` (3× — deterministic). opencode ≥1.16 `getLegacyPlugins`
 throws on the first non-function export — ours was `export const ROW_REQUIRED_KEYS`
-(`.opencode/plugin/mscodebase_gate.ts:128`). Fixed in d9725ba4 (→ §A2: fix insufficient).
+(`.opencode/plugin/mscodebase_gate.ts:128`). Fixed in 64df9275 (→ §A2: fix insufficient).
 Delivery-channel failure, not invocation failure; runs 2–6 not spent.
 
 ## B2. Setup validated (attempt 1, kept constant)
 
-Worktree from `HEAD 0f887788`; base fixture commit `aada9aac`; staged sha256
+Worktree from `HEAD c1b454ef`; base fixture commit `aada9aac`; staged sha256
 `56c6812450a0f6e1c05536756e2b2e0f6cb9f6b43ff7cd149ecb5e51104501c7` (cross-run identity
 confirmed by attempt-2 full-hash match). Minimal graph + pre-run CLI check:
 `base: cached, removed_last_caller: 1, deliver: ✓, strikes: 0` in 142 ms.

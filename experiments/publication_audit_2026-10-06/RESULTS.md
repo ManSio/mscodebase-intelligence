@@ -34,7 +34,7 @@ most 5 runs per model. Two defensible rules computed on them disagree about whic
 (items where a model agreed with itself across all its runs: qwen 11/16, longcat 10/16, deepseek 12/16;
 per-item modal agreement: longcat 0.588 ahead of qwen 0.479). Neither rule yields 8/10 vs 4/10, and
 the direction is not supported. The original run's per-item verdicts were never committed: the claim
-entered git in two Markdown-only commits (`8dc75932`, `03516b24`) and is absent from every other
+entered git in two Markdown-only commits (`d73908ce`, `bbba18d2`) and is absent from every other
 branch, the stash, the reflog, 2,435 Zed checkpoint trees, 4,650 unreachable blobs and the disk.
 
 **#6 — fail-closed headline.** `0.24` is glm-4.7-flash under the V2-en prompt; `0.38` is

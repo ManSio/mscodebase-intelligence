@@ -87,10 +87,10 @@ tool=bash status=completed
 }
 --- output ---
 3829c1ae chore(fixture): M4 planted caller for orphan_helper (detached, dies with worktree)
-77302111 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
-009f51a3 experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
-7f7d7362 fix(gates): helpers out of plugin dir, loader auto-loads every file
-a7626799 fix(gates): hooks never throw on malformed input, loader-proof test
+1a7610d3 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
+edbdaecb experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
+d292e3a0 fix(gates): helpers out of plugin dir, loader auto-loads every file
+0a904bab fix(gates): hooks never throw on malformed input, loader-proof test
 
 ---
 

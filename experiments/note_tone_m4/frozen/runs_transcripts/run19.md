@@ -103,15 +103,15 @@ tool=bash status=completed
 }
 --- output ---
 f4c3b997 chore(fixture): M4 planted caller for orphan_helper (detached, dies with worktree)
-77302111 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
-009f51a3 experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
-7f7d7362 fix(gates): helpers out of plugin dir, loader auto-loads every file
-a7626799 fix(gates): hooks never throw on malformed input, loader-proof test
-6196ea82 fix(gates): entry exports only default, helpers moved out of loader path
-d9725ba4 fix(gates): loader-safe plugin entry, length-matched M4 voices amendment
-0f887788 feat(gates): MSCODEBASE_ADVISORY_TEXT override for controlled voice experiments
-8f70f07b experiments(note-tone): freeze M4 voices and red-team, smoke scope only
-070b8f7a docs(experiments): Exp 30 second wave - D9 telemetry, red team fixes, research, M4 design
+1a7610d3 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
+edbdaecb experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
+d292e3a0 fix(gates): helpers out of plugin dir, loader auto-loads every file
+0a904bab fix(gates): hooks never throw on malformed input, loader-proof test
+dfc5bd4b fix(gates): entry exports only default, helpers moved out of loader path
+64df9275 fix(gates): loader-safe plugin entry, length-matched M4 voices amendment
+c1b454ef feat(gates): MSCODEBASE_ADVISORY_TEXT override for controlled voice experiments
+dda8edf8 experiments(note-tone): freeze M4 voices and red-team, smoke scope only
+75309dd0 docs(experiments): Exp 30 second wave - D9 telemetry, red team fixes, research, M4 design
 
 ---
 

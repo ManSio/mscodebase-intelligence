@@ -81,10 +81,10 @@ tool=bash status=completed
 }
 --- output ---
 0f107008 chore(fixture): M4 planted caller for orphan_helper (detached, dies with worktree)
-77302111 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
-009f51a3 experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
-7f7d7362 fix(gates): helpers out of plugin dir, loader auto-loads every file
-a7626799 fix(gates): hooks never throw on malformed input, loader-proof test
+1a7610d3 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
+edbdaecb experiments(note-tone): probe2 loader fixed, gate cli needs explicit python
+d292e3a0 fix(gates): helpers out of plugin dir, loader auto-loads every file
+0a904bab fix(gates): hooks never throw on malformed input, loader-proof test
 
 ---
 
@@ -1031,8 +1031,8 @@ tool=bash status=completed
   "command": "git log --oneline --follow tests/test_project_resolution_multiwindow.py | Select-Object -First 10"
 }
 --- output ---
-e7dc6456 feat(packaging): ship locales/adapters + isolate data & models
-229c7156 fix(multi-window): CWD-first project resolution for per-window MCP isolation
+05493c6e feat(packaging): ship locales/adapters + isolate data & models
+c113af25 fix(multi-window): CWD-first project resolution for per-window MCP isolation
 
 ---
 
@@ -1040,7 +1040,7 @@ e7dc6456 feat(packaging): ship locales/adapters + isolate data & models
 role=assistant
 ---
 
-So the tests were added in `229c7156` and the file was last modified in `e7dc6456`. Let me check if the tests were passing at the time of those commits by looking at what `_isolated` does vs what the failing tests do.
+So the tests were added in `c113af25` and the file was last modified in `05493c6e`. Let me check if the tests were passing at the time of those commits by looking at what `_isolated` does vs what the failing tests do.
 
 The issue is clear: the `TestCwdFirstIsolation` and `TestCwdSelfIndexGuard` tests don't clean up `MSCODEBASE_PROJECT_PATH`, so when running in the MCP environment, the env var takes priority over CWD.
 

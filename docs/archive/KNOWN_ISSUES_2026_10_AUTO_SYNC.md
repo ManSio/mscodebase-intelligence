@@ -113,16 +113,16 @@ of it was a second copy of the diary.
 ## 2026-09-02 20:51 — drift_gate заблокировал коммит: контроль остановил самого автора
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+- **Описание:** **Status:** ? Fixed (коммит A e9a89fa9 приземлился; B — отдельная незакоммиченная квитанция)
 **Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH проце...
 - **Статус:** автоматически синхронизировано
 
 
 
-## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
+## 2026-09-02 21:40 — COMMIT B (head-freshness) приземлился: 2e7d1284; + cp1251 encoding-инцидент
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+- **Описание:** **Status:** ✅ Fixed (коммит B 2e7d1284; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
 **Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутс...
 - **Статус:** автоматически синхронизировано
 
@@ -131,7 +131,7 @@ of it was a second copy of the diary.
 ## 2026-09-03 — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+- **Описание:** **Status:** ✅ Fixed (commit e75cb2b4; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
 **Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead h...
 - **Статус:** автоматически синхронизировано
 
@@ -140,7 +140,7 @@ of it was a second copy of the diary.
 ## 2026-09-03 19:30 — CI RED: circular import layer ↔ tools_reg (architecture_linter)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+- **Описание:** **Status:** ✅ Fixed (commit 5453c289; CI all-jobs green on ubuntu+windows)
 **Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer →...
 - **Статус:** автоматически синхронизировано
 
@@ -149,7 +149,7 @@ of it was a second copy of the diary.
 ## 2026-09-04 11:15 — CI RED: ruff lint errors caught only after push (3 commits)
 
 - **Источник:** AGENT_DIARY.md
-- **Описание:** **Status:** ✅ Fixed (commit 986c9be7)
+- **Описание:** **Status:** ✅ Fixed (commit 3207e6d6)
 **Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times ...
 - **Статус:** автоматически синхронизировано
 

@@ -280,7 +280,7 @@ tool=bash status=completed
 --- output ---
 4681e668 refactor(pkg): remove caller.py orphan_helper import and main
 9bbf8e1e chore(fixture): M4 planted caller for orphan_helper (detached, dies with worktree)
-77302111 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
+1a7610d3 experiments(note-tone): smoke 5 runs, rig works, no verdicts, measured cost
 
 ---
 
