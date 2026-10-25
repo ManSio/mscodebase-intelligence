@@ -915,7 +915,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             df = self._bm25_df
         except Exception:  # noqa: BLE001 — degraded BM25 never breaks search
             df = None
-        if df is None and self._chunk_store is None:
+        if df is None and getattr(self, "_chunk_store", None) is None:
             return pool
         have = set()
         for r in pool:
