@@ -983,6 +983,7 @@ class SymbolIndexAdapter(PureGraphMixin):
             "dist", "build", "target", ".tox", ".mypy_cache",
             ".ruff_cache", ".pytest_cache", "htmlcov", ".coverage",
             ".codebase_index", ".codebase_indices", ".codebase_models",
+            ".mscodebase", "experiments",
             ".zed", ".idea", ".vscode", "out",
         }
         return dir_name in skip_dirs

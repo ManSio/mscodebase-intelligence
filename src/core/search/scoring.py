@@ -183,6 +183,12 @@ def auto_detect_intent(query: str) -> str:
         r'\bguide\b', r'\btutorial\b', r'\bexample\b', r'\busage\b',
         r'\binstall\b', r'\bhow to\b', r'\bwhat is\b',
         r'\.md$', r'\.rst$', r'readme', r'changelog', r'license',
+        # E53: Russian doc-intent (E52: production docs hit@1 = 0).
+        r'докум', r'руководств', r'инструкц', r'описан', r'устроен',
+        r'как устро', r'установк', r'телеметр', r'границ', r'довер',
+        r'деград', r'adr', r'handoff', r'worktree', r'требован',
+        r'onnx', r'gguf', r'llama\.cpp', r'rrf', r'ранжирован',
+        r'active-узл', r'verify-on-read', r'zed',
     ]
     docs_score = sum(1 for p in docs_signals if re.search(p, q))
 
@@ -192,6 +198,10 @@ def auto_detect_intent(query: str) -> str:
         r'\bmodule\b', r'\bcomponent\b', r'\bdependency\b',
         r'\bcoupling\b', r'\bdiagram\b', r'\bflow\b',
         r'\bpattern\b', r'\bdesign\b', r'\bstructure\b',
+        # E53: Russian architecture/docs intent.
+        r'архитектур', r'схем', r'диаграм', r'компонент',
+        r'зависимост', r'структур', r'конвейер', r'pipeline',
+        r'поток', r'сло[йя]', r'поисков',
     ]
     arch_score = sum(1 for p in arch_signals if re.search(p, q))
 

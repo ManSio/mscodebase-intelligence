@@ -1,197 +1,197 @@
-# KNOWN ISSUES — MSCodeBase Intelligence
+﻿# KNOWN ISSUES — MSCodeBase Intelligence
 
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
 
 ---
-## 2026-10-24 — Audit backlog: ruff 278, docstrings 196, protocol guards 7 — 🟡 tech debt (PR)
+## 2026-10-25 — README rewritten; RU/ZH synchronized — 🟢
 
-- **ruff** (src/tests/scripts/tools): **278** errors; project-wide `ruff check .` — **1094**
-  (добавляются experiments/tools-скрипты). Top rules — W293 72, BLE001 63, I001 37,
-  F541 27, E402 26, F401 22, F841 7, F821 3, invalid-syntax 2; **176 auto-fixable**.
-- **invalid-syntax**: `scripts/live_search_audit.py` (Unexpected indentation, l.64) —
-  скрипт не запускается и не парсится; не импортируется тестами (проверено `git grep`),
-  поэтому гейты зелёные. Починить в том же lint-PR.
-- **flaky**: `tests/test_llama_mutex.py::test_start_sync_spawns_embedder_once_under_concurrency`
-  — проходит изолированно (1.66s), но падает в полном прогоне (1 failed / 2134 passed).
-  Класс P-005/P-011: concurrency-тест зависит от общего состояния соседних тестов; нужен
-  стресс-прогон ×8 до «фикса».
-- **docstrings**: `scripts/check_docstrings.py` — **196** публичных функций без docstring (rc=1).
-- **protocol guards**: `scripts/audit_protocol_guards.py` — 7 findings; измеренная FP-доля
-  **62.5% (5 из 8)** → **3 actionable** (в т.ч. `experiments/4A_unit_of_return/frozen/e7_HANDOUT_EN.recovered.md` без required field).
-- **План:** отдельный PR `chore(lint): …` + `docs(docstrings): …`; гейты не отключать,
-  порог не поднимать. До PR — статус tech debt, не «зелёно».
-- Проверено 2026-10-24: pytest 2135 passed / 7 skipped; run_all rc=0; third-party blocking=0.
+- Root `README.md`, `docs/ru/README.md`, `docs/zh/README.md` now describe the
+  Phase 3 text-first runtime (SQLite/FTS5 + PropertyGraph, optional providers),
+  measured quality with methodology, limitations and bug-report protocol.
+- Old claims removed: LanceDB/vector as default, 65 visible tools, inconsistent
+  test counts, 95% quality implication.
+- Historical architecture/search docs carry a Phase 3 status banner; they are
+  not silently presented as current.
 
 ---
-## 2026-10-24 — Чужой тред dev.to (55KB) дословно лежал в трекнутых файлах публичного MIT-репо — ✅ PURGED
+## 2026-10-25 — E57: auto docs routing by BM25 margin (no LLM) — 🟢
 
-- **Найдено:** аудит поднабора для XERJ Corpus Hub: 2 трекнутых артефакта (замороженный
-  тред dev.to, 73 комментария, 18 авторов) + инструментарий его выкачки/заморозки.
-  Дословный чужой текст в MIT-репо = заражение лицензией (dev.to — CC BY-NC-SA)
-  + согласие авторов корпуса не получено.
-- **Почему R3-сканер прошёл мимо:** advisory-правило R3 смотрело объём/домены; на себе
-  FP/живость не замерили (P-016-класс: наличие детектора ≠ живость; §19.8).
-- **Сделано 2026-10-24 (по команде владельца «вычистить всё связанное»):**
-  удалены из репо 2 дампа + 4 скрипта выкачки + досье активности (7 tracked файлов),
-  удалены 3 untracked harness-скрипта, удалён локальный сырой дамп (82 680 B, вне репо).
-  sha256 каждого — в карантинном манифесте:
-  `%LOCALAPPDATA%\mscodebase\audit-cache\purged_third_party_2026-10-24\MANIFEST.sha256`.
-- **Остаток (честно):** чужие байты остаются в **git-истории**; purge рабочего дерева —
-  не purge истории. Фильтрация истории (force-push/BFG) не выполнялась без явной команды.
-- Статус: ✅ P1 закрыт в рабочем дереве · OPEN_QUESTION: переписывать ли историю.
+- `docs_max - code_max > 4.0` -> docs channel, else code.
+- same-basename **0.688 → 0.792**, docs 5/8, **0 code false positives**;
+  code hit@1 0.825 unchanged; exact 0.708; p50 ~100 ms extra.
+- **Реализовано:** `MSCODEBASE_DOCS_MARGIN` (4.0), `Searcher.prefers_docs()`,
+  auto-ветка в `SearchCodeTool` при пустом `intent`; tests 27 pass.
+- Gold canonicalization (`docs/ru/X` for `docs/en/X`) всё ещё искажает exact.
 
 ---
-## 2026-10-03 — Третье состояние «я не видел» СУЩЕСТВУЕТ; сломана проводка (SUPERSEDES запись от 2026-10-03, перенесена в `KNOWN_ISSUES_2026_10.md`)
+## 2026-10-25 — E55/E56: chain modes; docs gold-language bottleneck — 🟡
 
-- **Что опровергнуто (Verified 2026-10-03, перевывод из кода, не из реестра):** «в системе
-  есть два состояния (`PASS`/`FAIL`) и **нет третьего**» и «частичное исключение существует
-  только для одного гейта — это фрагмент, а не метод». Оба утверждения неверны.
-- **Механизм есть и назван:** `tools/verification/gates.py:18` — коды `0` pass / `1` violation /
-  `2` unusable input; `:35` — `UNKNOWN = "not enough input to judge -> must never read as ALLOW"`;
-  `:53` G1→`UNKNOWN` на пустой выборке; `:174` G2→`UNKNOWN` на пустом клайме.
-  `tools/verification/g5_denominator.py:404,407` печатает `POPULATION UNDETERMINABLE` /
-  `POPULATION EMPTY`. Ещё 4 места печатают `POPULATION EMPTY` отказ не отдавать 0%
-  (`bootstrap_denominator_manifest.py:19`, `triage_protocol_findings.py:132`,
-  `e2e_quality_search.py:151`, `claims_audit/denominator_census.py:88`).
-- **Четвёртое состояние спроектировано и заморожено:** `experiments/prompt_robustness/frozen/
-  HYPOTHESES.md:49` (A4) — код возврата разведён на `0` PASS / `1` FAIL / `2` только POPULATION
-  ERROR / `3` UNKNOWN.
-- **Корень — проводка, а не механизм (знаменатель назван):** `gates.py` не подключён **ни к одному
-  из 11** гейтов pre-commit; `.githooks/pre-commit:78` возвращает `False` на **любой** ненулевой
-  код, то есть `rc=2` («unusable input») схлопывается в тот же красный, что и настоящее нарушение.
-  Третье состояние существует и при этом всё равно читается как «провал». **0 из 11.**
-- **Ещё 3 гейта вне цепочки:** `check_docstrings.py`, `check_lsp_health.py`, `check_zero_vectors.py`
-  существуют и не вызваны из `.githooks/pre-commit`.
-- **Что из старой записи остаётся верным:** счётчика наблюдений своего условия нет ни у одного
-  гейта (0 совпадений по `observ|seen|never_fired` в `scripts/*.py`); пороги гейтов выведены
-  только на посаженных нарушениях, то есть benign-only.
-- **Отдельно (Verified):** `src/mcp/tools/meta_tools.py:332` и `src/mcp/server_tools.py:597` —
-  две реализации одного вывода счётчиков; в первой `max(calls, 1)` даёт «Blocked 0.0%» при
-  `checks=0`, во второй явная ветка «данных нет». Починка **1 из 2**; баг присутствует во всех
-  4 деревьях (`wt-gate-fix`, `wt-pr-v3`, `mscb-wt-64`, основное).
-- **Побочный факт о самом реестре:** `_sync_known_issues` (`src/core/auto_doc_updater.py:372`)
-  дописывает записи в конец файла и **не проверяет лимит R1** — то есть автосинк сам является
-  драйвером переполнения. Плюс ~20 строк файла повреждены кодировкой (автосинк писал в cp866).
-- **Класс:** P-019 (правило знаем — не всюду) и P-022 (результат зависит от контекста запуска).
-- **Статус:** 🔴 Open (P1). Не реализовано: подключение `gates.py` к pre-commit, разведение
-  `rc=1`/`rc=2` в хуке, правка `meta_tools.py:332`, лимит R1 в автосинке.
+- **E55:** hybrid/quality/deep 0.688/0.771 (p50 45–48 ms); fast 0.542/0.729
+  (p50 19 ms); `nodemote/intent/ru/p3` — 0 эффекта на hit@1.
+- **E56:** exact-path docs_only 0.021/0.062; **translation-normalized docs_only
+  0.750**, oracle **0.812/0.917**; p50 131 ms. BM25 отдаёт `docs/ru/X.md` при
+  gold `docs/en/X.md` — это **gold canonicalization**, не слабый docs-канал.
+- **Дешёвый путь:** explicit `intent="docs"` + docs-only FTS (без LLM-router).
+  Параметры `demote/intent/ru/p3` на панели не помогают.
+- **Реализовано:** `Searcher.search_docs()` + `search_code(intent="docs")`;
+  exact 1/8, same-basename **6/8**; тест `tests/test_search_docs.py`.
+- **Добавлено:** language-dedupe (ru/en/zh → один документ, prefer query lang)
+  + `delete_files()`/prune в `scripts/reindex_text_only.py`.
+- Production: graph 12,753 nodes; index 7,314 chunks (0 experiments); tests 32 pass.
 
-<!-- ПЕРЕНЕСЕНО 2026-10-03 в KNOWN_ISSUES_2026_10.md: 2026-10-03 — Гейты умеют только «да» и «нет», но не умеют «я не видел» (Open, P1) — SUPERSEDED записью выше -->
+---
+## 2026-10-25 — AUDIT: graph=0, leakage, docs=0 — P0 graph fixed
 
+- **Graph:** production `graph.db` был 0 nodes; `index_project` блокируется
+  `DENSE_OFF`. Fixed: `scripts/rebuild_graph.py` → **12,753 nodes / 45,762 edges**.
+  Требуется рестарт MCP, чтобы сервер открыл новый graph.db.
+- **Leakage:** `experiments/frozen` индексировался (19/48 BM25). Fixed:
+  `SystemArtifacts` исключает `experiments/**`; index очищен (0 experiments,
+  7,314 chunks, FTS synced).
+- **Docs:** E53/E54 — lexical/explicit intent не дают docs hit@1 (0). Нужен
+  отдельный docs-only FTS канал (E48: 0.75/1.00), без LLM-router.
+- Baseline clean: **0.688/0.750**; code 0.825/0.900; docs 0/0.
 
+---
+## 2026-10-25 — E52: clean baseline — hit@1 0.688, hit@5 0.750; docs=0 — 🟡
 
+- Clean index: 7,258 chunks (удалено 9,089 experiments); leakage 0/48.
+- **clean production 0.688/0.750** (p50 72ms); contaminated 0.688/0.771.
+  **Supersede:** hit@5 0.771 → 0.750; hit@1 не изменился.
+- Subsets clean: code 0.825/0.900, docs 0.000/0.000.
+- **Oracle router** (code 0.825 + docs-only BM25 0.75) = **0.8125 hit@1 /
+  ~0.9167 hit@5**. 95% требует усиления code-канала или LLM-агента.
 
-## 2026-10-03 — Параллельные сессии без границ: 3 инцидента за один день (Open, P1)
-- **Инцидент 1 (каталог-призрак).** `tools/knowledge/` (15 файлов, включая замороженный
-  тред и referent отрицательного результата D-05) появился в общем дереве, через ~2 минуты
-  исчез. Сессия объявила «данные потеряны, P1, git не вернёт». **На деле каталог цел** —
-  он в worktree соседней сессии (`mscb-wt-64`). Признак, который я проглядел:
-  `CreationTime 03.10 07:20:05` у всех 15 файлов при `LastWriteTime 01.10` = копирование.
-- **Инцидент 2 (файл из чужого дерева).** В 08:38 соседняя сессия записала
-  `tools/verification/verify_public_claims.py` **в моё рабочее дерево** — без предупреждения.
-  Мой `git status` загрязнён; любой коммит собрал бы чужую работу.
-- **Инцидент 3 (ветка-территория).** Та же сессия переключила дерево `mscb-wt-64`
-  с `feat/protocol-triage-and-t10-guards` на `main`, пока я разбирался, что делать
-  с неслитой веткой. Мой план P1 устарел в момент составления.
-- **Общий корень:** нигде не было записано «одно дерево = одна сессия». Правило отсутствовало →
-  границ не существовало. Сессии не видели друг друга, но писали в общие файлы.
-- **Guard:** `scripts/check_parallel_sessions.py` — 11-й pre-commit. Показывает все чужие
-  worktree с ветками и незакоммиченными файлами; **BLOCK**, если застейдженный файл изменён
-  в другом дереве или это реестр (`AGENT_DIARY`/`KNOWN_ISSUES`/`EXPERIMENTS_LOG`/`WISDOM`/`ISSUE`),
-  который трогает другая сессия; advisory на worktree в `%TEMP%` и на «свои реестры».
-  Контроль: `--selftest` positive 1/1 + negative 2/2; проверенно реальное срабатывание —
-  застейдженный файл соседней сессии даёт BLOCK. **Правило в AGENTS.md §7.1b + глобальный §21.**
-- **Два бага гейта поймал сам и сам же починил (обязательно к изучению):**
-  (1) `_norm()` не был применён → гейт принимал **собственное** дерево за чужое и печатал
-  уверенную неправду; (2) контроль `%TEMP%` был написан от выдуманного пользователя `x`,
-  а не от реального `$TEMP`, поэтому «падающий» контроль не падал вовсе. **Selleftest,
-  построенный не на реальной среде, даёт зелёный свет ни о чём** (P-02 в новой формулировке).
-- **Статус:** 🔴 Open (P1) — правила и гейт есть, но **согласования владельца не было**:
-  активная сессия в чужом worktree активна прямо сейчас, а `mscb-wt-64` лежит в `%TEMP%`.
+---
+## 2026-10-25 — E51: frozen-панель проиндексирована (panel leakage) — 🔴 P0
 
+- `experiments/4A_unit_of_return/frozen/f5/queries.md` содержит те же probes и
+  находится в `chunks.db`; BM25 возвращает его как top-1 почти на всех запросах.
+- **E51b (фильтр `experiments/**`):** single 0.562/0.771; agent 0.438/0.792;
+  p50 140 ms; calls 2.0; tokens 1048.
+- **Следствие:** все BM25-числа E49/E50/E51 загрязнены; production 0.688 мог
+  тоже быть затронут. Нужно исключить frozen-панели из индекса/retrieval и
+  перепроверить baseline.
+- **Agentic:** детерминированный expansion+graph ухудшает hit@1; для 95% нужен
+  LLM-планировщик, а не фиксированная эвристика.
 
-## 2026-10-03 — Вендоренный файл Apache-2.0 без NOTICE (Open, документированное отступление)
-- **Локация:** `experiments/4A_unit_of_return/frozen/crystal_catalogue_2026-09-26.md`
-  (5 873 B) — дословная копия `catalogue/README.md` из `Tirthahq/crystal-memory` @3e30ed2.
-- **Состояние:** provenance-заголовок есть (URL, дата загрузки, лицензия, SHA), и в нём
-  **прямо сказано**, что NOTICE не воспроизводится. То есть это **зафиксированное отступление,
-  а не скрытая утечка** — ровно то, как должно выглядеть.
-- **Чего не хватает:** Apache-2.0 §4(c) обязывает воспроизвести NOTICE, **если он есть у
-  оригинала**. Наличие NOTICE в upstream **не проверено**. В репо нет ни одного файла
-  третьих сторон (`THIRD_PARTY*`/`NOTICE*`/`licenses/` → 0 вхождений).
-- **Guard/фикс:** проверить upstream на NOTICE; при наличии — добавить файл третьих сторон
-  в корень и дополнить provenance-заголовок. До проверки статус «документированное отступление».
-- **Статус:** 🟡 Open, низкий риск (5.9 KB, лицензия разрешает редактирование с указанием правок).
+---
+## 2026-10-25 — E49/E50: docs-reserve и score-router — zero-sum — 🟡
 
+- **E49:** reserve15 0.250/0.500/0.583 (хуже base 0.271 на 1k); reserve25
+  0.208/0.458/0.604; oracle 0.396/0.604/0.729; p50 245 ms.
+- **E50:** route@0.8–2.0 = 0.104/0.125/0.167; docs 8/8 при любом пороге;
+  code route 0; oracle 0.375/0.583/0.729.
+- **Вывод:** docs/code конкурируют за один бюджет; лексический score не
+  маршрутизирует. Нужен semantic classifier/agentic loop; статическая map
+  даёт потолок ~37–40% на 1k, 95% недостижимо.
 
-## 2026-10-03 — `tools/knowledge/`: корпус не отслеживается git и шарится между двумя worktree (Open, P1)
-> ⚠️ **Запись переписана в тот же день.** Первая версия утверждала «каталог исчез, вернуть
-> нечем» — это была **неверная интерпретация одного снимка** (см. «Ошибка» ниже). Файлы целы.
+---
+## 2026-10-25 — E48: two-channel map — docs BM25 сильный, routing ломает — 🟡
 
-- **Где на самом деле:** `%TEMP%\mscb-wt-64\tools\knowledge\` —
-  15 файлов, включая **`repoint_stale_refs.py`** (referent отрицательного результата **D-05**
-  в реестре паттернов) и второй слепок чужого треда (удалён 2026-10-24 по §20.1;
-  в рабочем дереве его больше нет).
-  В моём рабочем дереве они были видны 03.10 07:20 и исчезли ~07:22 — **`CreationTime 07:20:05`
-  у всех 15 при `LastWriteTime` 01.10 20:25–22:03 = сигнатура КОПИРОВАНИЯ**, а не создания.
-- **Ошибка агента (моя, записано как guard):** я увидел, что каталога нет в моём дереве, и
-  записал «потеря данных, P1, git не вернёт». На деле он **переехал в соседний worktree**
-  активной сессии. **Вывод «нет в этом дереве» ≠ «нет вообще»**, когда рядом работает
-  параллельная сессия: единственный корректный тест — спросить соседний worktree, а не
-  делать вывод по одному снимку `git status`. Это ровно класс «наличие ≠ живость», но
-  наоборот — **отсутствие ≠ потеря**.
-- **Реальный риск (остаётся):** каталог **неотслеживаем в обоих деревьях** (`?? tools/knowledge/`),
-  поэтому `git log`/`checkout` его не вернёт, а `git clean -fd` в любом из деревьев — **удалит
-  безвозвратно**. Он существует только на диске Temp.
-- **Guard:** research-корпусы — **только в треке** (`experiments/**/frozen/`) с sha256-манифестом.
-  Плюс CI-guard «untracked-каталог с артефактами исследования дольше N часов» и, отдельно,
-  **`mscb-wt-64` лежит в `%TEMP%`** — Temp очищается системой; постоянные worktree туда класть нельзя.
-- **Дубликат:** было два слепка одного треда (мой в audit-cache и второй в `tools/knowledge/`);
-  **оба удалены 2026-10-24**, sha256 — в карантинном манифесте. Урок остаётся: перед
-  заморозкой искать существующую копию, и держать один канон, а не два.
-- **Статус:** 🔴 Open (P1, риск потери). Обнаружено и переписано 2026-10-03.
+- **base** 1k/2k/4k = 0.271/0.458/0.562; **route** 0.292/0.458/0.562;
+  **oracle** 0.396/0.625/0.729; p50 323 ms.
+- Docs-gold (8): bm25_docs 0.75/1.00/1.00; route 0.125 (2/8).
+- **Потолок 1k = 39.6%**, 2k 62.5%, 4k 72.9%; 95% недостижимо.
+- **Решение:** всегда docs BM25 (без keyword classifier) + top-docs под
+  token-reserve; code 1k улучшать BM25-top-files + PageRank hybrid.
 
+---
+## 2026-10-25 — E47: docs в PageRank разбавляют code-граф — 🔴
 
-## 2026-10-03 — `tools/verification/`: 13 файлов верификации живут на неслитой ветке; `gate` падает на текущей (Open, P1)
-- **Root Cause (Verified 2026-10-03, исправлено после первой неверной версии):** файлы
-  **не удалены и не потеряны**. `tools/verification/gates.py` (25 356 B) плюс ещё 12 файлов
-  вешают в коммите `9462dc2f` на ветке **`feat/protocol-triage-and-t10-guards`**
-  (есть и локально, и в `origin`), которая **не является предком HEAD**
-  (`git merge-base --is-ancestor` → rc=1). Текущая ветка — `chore/bump-urllib3-pyjwt-cve`
-  @ `d1e77fad`. Удаляющего коммита нет: `git log --diff-filter=D -- tools/verification/gates.py` пуст.
-- **Почему выглядело как «исходника нет»:** компиляция `__pycache__/{gates,g5_denominator}.cpython-314.pyc`
-  от **01.10 23:35** — неотслеживаемый остаток от чекаута той ветки. Именно `.pyc`, а не исходник,
-  делает тул **видимым, но нерабочим**: MCP-тул `gate` → `rc=2: can't open file 'tools\verification\gates.py'`.
-- **Влияние:** на текущей ветке любой вердикт `gate` = **BLOCK, а не ALLOW** (§19.6 — гейт,
-  который не может ответить, не читается как разрешение). Проверки сессии 2026-10-03 были
-  ручными и помечены как не-механизированные (`experiments/audit_devto_judgements/HANDOFF.md`).
-- **⛔ Не делать руками:** не переписывать `gates.py` с нуля и не вытаскивать из `.pyc`.
-  Файл цел, лежит в git.
-- **Фикс (решение владельца):** merge либо cherry-pick ветки `feat/protocol-triage-and-t10-guards`.
-- **⛔ HALT — параллельная сессия:** эта ветка зачекаучена в **другом worktree**
-  `%TEMP%\mscb-wt-64` @ `74bfa2ad` → там работает другой агент.
-  Не переключать ветку и не вытягивать файлы из-под него в этом дереве (§3 HALT,
-  multi-agent-coordination: правка файла, редактируемого параллельно).
-- **Guard (после merge):** CI-гейт «MCP-тул зарегистрирован, но его скрипт отсутствует в
-  рабочем дереве» — иначе класс **«наличие ≠ живость»** (`.pyc` без `.py`, неслитая ветка)
-  повторится молча. Отдельно: `__pycache__`-ископаемые в трек не коммитить.
-- **Статус:** 🔴 Open (P1). Найдено 2026-10-03; root cause уточнён в тот же день
-  (первая версия записи ошибочно утверждала «исходник никогда не был в треке» — опровергнуто
-  `git log --all --follow`).
+- **base** (code-only) 1k/2k/4k = 0.271/0.458/0.562; **docs** = 0.042/0.188/0.458;
+  **docs_bm25** = 0.042/0.229/0.479; p50 1,113 ms.
+- Code-only 1k 32.5% → 5%; docs-only 1k 0 → 37.5% (только BM25).
+- **Вывод:** docs не в тот же PageRank; два канала (code PageRank + docs BM25),
+  слияние по бюджету; один PageRank на запрос. H1–H7 FAIL.
 
+---
+## 2026-10-25 — E46/E46b: PageRank repo map — работает, но не 95% — 🟡
 
-## 2026-10-03 — Тихий ноль и «свой контроль» на защите лишь частично (Open)
-- **Факт (Verified 2026-10-03, grep, не по памяти):** `sys.exit(2)` — **6 мест из 73 скриптов**
-  в `scripts/` (`diag_quality_hang.py:261,270`, `revision_gate.py:127`, `run_1L_live_arm.py:313,317`,
-  `smoke_livesync.py:27`). Знаменатель: `(Get-ChildItem scripts\*.py).Count` = 73.
-  **Покрытие НЕ доказано** — остальные 67 могут быть защищены иначе; это не измерение доли.
-- **Отсутствует вовсе (0 вхождений по репо):** маркер `coverage unknown` (печать того, чего
-  инструмент не видел) и assertion на совпадение популяций (`assert len(cache) == len(documents)`).
-- **Отсутствует:** claims ledger (число привязано к конфигу, при которой измерено) —
-  `claims ledger`, `claims_ledger`, `measured under`, `live config`, `config_stale`, `stale claim` → 0.
-- **Источник класса:** Tom Jones, «Implementation is where judgements go to become invisible»
-  (dev.to `4p1h`, 27.09.2026) + комментарии. Первоисточник удалён 2026-10-24 (§20.1);
-  sha256 сохранён в карантинном манифесте.
-- **Статус:** 🔴 Open. Не баг, а измеренный пробел покрытия. Эксперименты E-1/E-4/E-5 и
-  Red Team — в `HANDOFF.md` §3/§4.
+- **Граф:** 9,315 nodes / 47,286 edges / 759 code files (docs нет).
+- **E46 personalized:** 1k/2k/4k = 0.271/0.417/0.521; code-only 0.325/0.500/0.625; docs 0.
+- **E46b +RU→EN:** 0.271/0.458/0.562; code-only 0.325/0.550/0.675.
+- **Вердикт:** PageRank ≫ degree/global, но 95% на 1k недостижимо; docs-gold вне графа.
+  Нужны docs-узлы, персонализация RU→EN+symbols, BM25 top-files до PageRank.
+- **Артефакты:** `experiments/e46_pagerank_map/`, `e46b_pagerank_ru/`.
+
+---
+## 2026-10-25 — E45: structured agent plan — +1 h1, p50 72 ms — 🟢 worth API
+
+- **План:** primary + must_include + symbols, один запрос, без multi-query RRF.
+- **Результат:** baseline 0.688/0.771/79ms; plan_must **0.708**/0.771/71ms; plan_full 0.708/0.771/72ms.
+- **Вердикт:** один primary + must_include — маленький реальный выигрыш; symbols не дают.
+  Внедрить как опциональные поля `search_code` + tool `plan_search`. 95% не закрывает.
+- **Артефакты:** `experiments/e45_agent_plan/`.
+
+---
+## 2026-10-25 — E44: agent rewrites — keywords +1 h1; fusion/identifiers хуже — 🟡
+
+- **Плечи:** baseline / keywords / identifiers / agent_all на 48 запросах E30.
+- **Результат:** baseline 0.688/0.771, 84 ms; keywords **0.708**/0.771, 78 ms;
+  identifiers 0.583/0.750; agent_all 0.688/0.771, 147 ms.
+- **Вердикт:** одна чистая формулировка лучше флуда; агентский план должен выбирать primary query,
+  а не фьюзить все варианты. **Артефакты:** `experiments/e44_agent_rewrite/`.
+
+---
+## 2026-10-25 — E41–E43: chain audit — docs intent, experiments, concept tags — 🟡 open
+
+- **Диагностика:** RRF top5 35/48; 13 misses (8 docs gold, 5 recall).
+- **E41:** исключение `experiments/` — 0.688/0.771 → 0.688/0.750, p50 81→43 ms.
+- **E42:** intent-aware demote — без изменений; `auto_detect_intent` не распознаёт docs.
+- **E43:** concept tags ×0.9 — без изменений; ×1.1 — 0.188/0.250 (precision collapse).
+- **Вывод:** нужен точный symbol-level concept layer (аннотации), а не keyword-count boost.
+- **Артефакты:** `experiments/e41_no_experiments/`, `e42_intent_demote/`, `e43_concepts/`.
+
+---
+## 2026-10-25 — E40: RU→EN синонимы — ноль — 🟡 neutral
+
+- **Плечи:** baseline / ru_synonyms на 48 запросах E30; `synonyms_ru.py`.
+- **Результат:** оба 0.688/0.771, p50 159/176 ms. H6 PASS; H1/H2/H3/H4/H5 FAIL.
+- **Вердикт:** варианты дают те же top-5; RRF схлопывает дубликаты. Словарь — утилита,
+  не рычаг. 95% на панели недостижимо.
+- **Артефакты:** `experiments/e40_ru_synonyms/`.
+
+---
+## 2026-10-25 — E39: Qwen3-Reranker-0.6B — 29–55 s, хуже — 🔴 rejected
+
+- **Пилот:** 16 запросов E30; demote vs Qwen3 top10/top20 на corrected index.
+- **Результат:** demote 0.625/0.688, 116 ms; Qwen3 top10 0.500/0.562, 28.9 s;
+  top20 0.438/0.562, 54.8 s. H1–H6 FAIL.
+- **Вердикт:** не usable на CPU; качество ниже deterministic. Reranking не рычаг.
+  Deterministic 0.688/0.771/84 ms — потолок на этой панели.
+- **Артефакты:** `experiments/e39_qwen3_rerank/`.
+
+---
+## 2026-10-25 — E38: BGE-reranker-base — хуже deterministic — 🔴 rejected
+
+- **Плечи:** demote / bge_base_top10 / top20 на 48 запросах E30 (corrected index).
+- **Результат:** demote 0.688/0.771, 84 ms; BGE-base top10 0.625/0.708, 3139 ms;
+  top20 0.583/0.688, 6028 ms. H7 PASS (лучше MiniLM); остальные FAIL.
+- **Вердикт:** generic cross-encoder out-of-domain для кода. Детерминированный pipeline 0.688/0.771/84 ms.
+  Reranking не рычаг; только Qwen3-Reranker-0.6B как пилот.
+- **Артефакты:** `experiments/e38_code_aware_rerank/`.
+
+---
+## 2026-10-25 — E37: chunking 32/64/128 — качество не меняется; P3 off — 🟢
+- **Результат:** current/split32/split64/split128 — все h1 0.688, h5 0.771, MRR 0.713.
+- Нарезка не узкое место; top-5 определяется file-level ranking. P3 off: p50 87 ms,
+  качество не падает. `MSCODEBASE_P3_ANCHOR=false` по умолчанию.
+- **Артефакты:** `experiments/e37_chunking/`.
+
+---
+## 2026-10-25 — E36-audit: symbol_name пуст, P3 мёртв, graph-stage synthetic — 🟢 FIXED (index rebuilt)
+
+- **Root cause:** `write_text_records` читал `symbol_name` из `chunk_metadatas`, где его не было →
+  **0/16 158** чанков с symbol_name. FTS5/BM25 boosts, exact-name, graph hydration — мертвы.
+- **Fix:** AST-symbol→line-range mapping в `IndexPipeline.process_file`; reindex →
+  4 772/16 347 с symbol_name. Graph-stage: hydration + relative paths + line fallback.
+  P3: чтение `SQLiteChunkStore.get_file_head` вместо мёртвого `_bm25_df`.
+- **Corrected E36:** full h1 0.688/h5 **0.771**/p50 183 ms; no_p3 87 ms (P3 +96 ms без качества);
+  no_bucket 0.562; no_o1 0.667; no_demote 0.625; minimal 0.542/0.750.
+- **Остаток:** P3 отключать при выключенном reranker; E32/E33/E35 пере-прогнать на исправленном
+  индексе (E33 demote всё ещё +3 h1; E32/E35 без изменений).
+- **Артефакты:** `experiments/e36_ablation/`.
+
+---

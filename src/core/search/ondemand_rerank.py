@@ -52,8 +52,19 @@ def rerank_by_cosine(
 def split_embed_inputs(
     query: str,
     candidates: List[Dict[str, Any]],
+    max_chars: int = 1600,
 ) -> tuple[str, List[Dict[str, Any]], List[str], int]:
-    """(query, usable_cands, [query_text] + [doc_texts], skipped_no_text)."""
+    """(query, usable_cands, [query_text] + [doc_texts], skipped_no_text).
+
+    E25 protocol trimmed candidate texts to ~400 tokens before embedding
+    (tokenize-trim). A char cap is a tokenizer-free approximation; it keeps
+    on-demand rerank latency bounded on long chunks.
+    """
     usable = [c for c in candidates if (c.get("text_full") or c.get("text") or "")]
-    texts = [str(c.get("text_full") or c.get("text")) for c in usable]
+    texts = []
+    for c in usable:
+        t = str(c.get("text_full") or c.get("text"))
+        if max_chars and len(t) > max_chars:
+            t = t[:max_chars]
+        texts.append(t)
     return query, usable, [query] + texts, len(candidates) - len(usable)

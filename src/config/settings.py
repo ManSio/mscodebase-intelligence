@@ -176,24 +176,110 @@ class SearchConfig:
 
     # On-demand rerank (E25, Фаза 2 миграции): скорить top-N fused-кандидатов
     # живыми эмбеддингами в момент запроса вместо хранимых векторов + BGE.
-    # Off по умолчанию — поведение поиска неизменно без флага.
+    # Фаза 3: включён по умолчанию (owner decision 2026-10-24).
     # field(default_factory) — чтобы reload_config() перечитывал env.
     ondemand_rerank: bool = field(
         default_factory=lambda: os.getenv(
-            "MSCODEBASE_ONDEMAND_RERANK", "false"
+            "MSCODEBASE_ONDEMAND_RERANK", "true"
         ).lower()
         == "true"
     )
     ondemand_rerank_top_n: int = field(
         default_factory=lambda: int(os.getenv("MSCODEBASE_ONDEMAND_RERANK_TOP_N", "10"))
     )
+    # E25 protocol used a 400-token trim before embedding candidates; the
+    # char cap is a tokenizer-free approximation (~4 chars/token).
+    ondemand_rerank_max_chars: int = field(
+        default_factory=lambda: int(
+            os.getenv("MSCODEBASE_ONDEMAND_RERANK_MAX_CHARS", "1600")
+        )
+    )
 
     # Dense-off (E28, Фаза 3): true → НЕ выполнять dense-тир (эмбеддинг запроса +
     # векторный поиск в LanceDB). Кандидаты остаются из BM25/FTS5/graph.
-    # Off по умолчанию — поведение поиска неизменно без флага.
+    # Фаза 3: включён по умолчанию (owner decision 2026-10-24).
     dense_off: bool = field(
         default_factory=lambda: os.getenv(
-            "MSCODEBASE_DENSE_OFF", "false"
+            "MSCODEBASE_DENSE_OFF", "true"
+        ).lower()
+        == "true"
+    )
+
+    # E32: code-aware BM25 (identifier splitting, field boosts, proper BM25).
+    # Off by default; E32 measures it before enabling.
+    code_bm25: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_CODE_BM25", "false"
+        ).lower()
+        == "true"
+    )
+    code_bm25_k1: float = field(
+        default_factory=lambda: float(os.getenv("MSCODEBASE_CODE_BM25_K1", "1.2"))
+    )
+    code_bm25_b: float = field(
+        default_factory=lambda: float(os.getenv("MSCODEBASE_CODE_BM25_B", "0.45"))
+    )
+    code_bm25_stopwords: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_CODE_BM25_STOPWORDS", "true"
+        ).lower()
+        == "true"
+    )
+
+    # E40: Russian → English code-term synonym expansion.
+    # Off by default; E40 measures it on the real panel.
+    ru_synonyms: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_RU_SYNONYMS", "false"
+        ).lower()
+        == "true"
+    )
+
+    # E33: demote tests/docs/experiments/fixtures in the fused pool.
+    # Off by default; E33 measured +3 hit@1 on 48 real queries.
+    demote_non_code: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_DEMOTE_NON_CODE", "false"
+        ).lower()
+        == "true"
+    )
+    # E42: for docs-intent queries, do not demote docs/ (only tests/experiments).
+    demote_intent_aware: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_DEMOTE_INTENT_AWARE", "false"
+        ).lower()
+        == "true"
+    )
+
+    # E36-audit: P3 module-head anchors only pay off with a reranker; without
+    # one they add ~96 ms and do not change top-5. Off by default.
+    p3_anchor: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_P3_ANCHOR", "false"
+        ).lower()
+        == "true"
+    )
+
+    # E57: cheap automatic docs routing. Compare the best docs-only BM25 score
+    # with the best code score; docs if margin > threshold. No LLM.
+    docs_margin: float = field(
+        default_factory=lambda: float(os.getenv("MSCODEBASE_DOCS_MARGIN", "4.0"))
+    )
+
+    # Phase 3: text chunk store in SQLite/FTS5 (no stored vectors).
+    # Default ON; set MSCODEBASE_SQLITE_CHUNKS=false to fall back to LanceDB.
+    sqlite_chunks: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_SQLITE_CHUNKS", "true"
+        ).lower()
+        == "true"
+    )
+
+    # E26: prepend FILE/SYMBOLS/DOC to chunk text (Phase 1 of the migration).
+    # Default ON per owner decision; requires reindex for existing chunks.
+    augment_chunks: bool = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_AUGMENT_CHUNKS", "true"
         ).lower()
         == "true"
     )

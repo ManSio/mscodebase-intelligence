@@ -40,6 +40,9 @@ class BM25Mixin:
             self._bm25 = None
             self._bm25_ids = []
             self._bm25_df = None
+            self._bm25_idf = {}
+            self._bm25_doc_len = {}
+            self._bm25_avgdl = 0.0
         logger.debug("Индекс BM25 сброшен для реиндексации")
 
     def _reset_bm25(self) -> None:
@@ -52,6 +55,9 @@ class BM25Mixin:
             self._bm25 = None
             self._bm25_ids = []
             self._bm25_df = None
+            self._bm25_idf = {}
+            self._bm25_doc_len = {}
+            self._bm25_avgdl = 0.0
         logger.debug("BM25 сброшен после meta-patch")
 
     # ── Index building ────────────────────────────────────────
@@ -71,6 +77,17 @@ class BM25Mixin:
             # Double-check после захвата блокировки
             if self._bm25 is not None:
                 return
+            # Phase 3: BM25 source is the SQLite chunk store, not LanceDB.
+            if getattr(self, "_chunk_store", None) is not None:
+                try:
+                    if self._chunk_store.count() > 0:
+                        self._build_bm25_from_records(self._chunk_store.all_records())
+                        return
+                except Exception as e:
+                    logger.warning(f"BM25: SQLite chunk store unavailable: {e}")
+                    self._bm25 = {}
+                    return
+
             if self.indexer.table is None:
                 self._bm25 = {}
                 return
@@ -136,6 +153,88 @@ class BM25Mixin:
                 self._bm25 = {}
                 self._bm25_ids = []
                 self._bm25_df = None
+
+    def _build_bm25_from_records(self, records: List[dict]) -> None:
+        """Build BM25 from SQLite chunk records (Phase 3, no LanceDB)."""
+        if getattr(self, "_code_bm25", False):
+            self._build_code_bm25_from_records(records)
+            return
+        self._bm25_ids = []
+        self._bm25_df = None
+        self._bm25_rows = {}
+        if not records:
+            self._bm25 = {}
+            return
+        doc_count = len(records)
+        term_doc_freq: Dict[str, int] = {}
+        term_doc_scores: Dict[str, Dict[str, float]] = {}
+        for row in records:
+            doc_id = f"{row['file_path']}:{row['chunk_index']}"
+            self._bm25_rows[doc_id] = row
+            tokens = _tokenize(str(row.get("text", "")), self._tokenizer_re)
+            term_tf: Dict[str, float] = {}
+            for token in tokens:
+                term_tf[token] = term_tf.get(token, 0) + 1
+            self._bm25_ids.append(doc_id)
+            term_doc_scores[doc_id] = term_tf
+            for token in term_tf:
+                term_doc_freq[token] = term_doc_freq.get(token, 0) + 1
+        self._bm25 = {}
+        for doc_id, tf_dict in term_doc_scores.items():
+            self._bm25[doc_id] = {}
+            for term, tf in tf_dict.items():
+                df = term_doc_freq.get(term, 0)
+                idf = math.log((doc_count - df + 0.5) / (df + 0.5) + 1)
+                self._bm25[doc_id][term] = tf * idf
+        logger.debug(f"📊 BM25 индекс построен из SQLite: {len(self._bm25)} документов")
+
+    def _build_code_bm25_from_records(self, records: List[dict]) -> None:
+        """E32: code-aware BM25 (identifier split, field boosts, k1/b)."""
+        from .code_tokenizer import tokenize_code
+
+        self._bm25_ids = []
+        self._bm25_df = None
+        self._bm25_rows = {}
+        self._bm25_idf = {}
+        self._bm25_doc_len = {}
+        self._bm25_avgdl = 0.0
+        if not records:
+            self._bm25 = {}
+            return
+
+        stop = bool(getattr(self, "_code_bm25_stopwords", True))
+        term_doc_freq: Dict[str, int] = {}
+        term_tf: Dict[str, Dict[str, int]] = {}
+        total_len = 0
+        for row in records:
+            doc_id = f"{row['file_path']}:{row['chunk_index']}"
+            self._bm25_rows[doc_id] = row
+            name = tokenize_code(str(row.get("symbol_name", "")), stopwords=stop)
+            path = tokenize_code(str(row.get("file_path", "")), stopwords=stop)
+            body = tokenize_code(str(row.get("text", "")), stopwords=stop)
+            # Field boosts: name x3, path x2, body x1 (ripvec/pi-lens style).
+            tokens = name * 3 + path * 2 + body
+            tf: Dict[str, int] = {}
+            for tok in tokens:
+                tf[tok] = tf.get(tok, 0) + 1
+            term_tf[doc_id] = tf
+            self._bm25_ids.append(doc_id)
+            self._bm25_doc_len[doc_id] = len(tokens)
+            total_len += len(tokens)
+            for tok in tf:
+                term_doc_freq[tok] = term_doc_freq.get(tok, 0) + 1
+
+        n = len(records)
+        self._bm25_avgdl = (total_len / n) if n else 0.0
+        for term, df in term_doc_freq.items():
+            self._bm25_idf[term] = math.log(
+                1.0 + (n - df + 0.5) / (df + 0.5)
+            )
+        self._bm25 = term_tf
+        logger.debug(
+            f"📊 code BM25: {n} docs, avgdl={self._bm25_avgdl:.1f}, "
+            f"k1={self._code_bm25_k1}, b={self._code_bm25_b}"
+        )
 
     # ── Incremental update ────────────────────────────────────
 
@@ -219,13 +318,32 @@ class BM25Mixin:
         if not self._bm25:
             return []
 
-        query_tokens = _tokenize(query, self._tokenizer_re)
         scores: Dict[str, float] = {}
+        if getattr(self, "_code_bm25", False):
+            from .code_tokenizer import tokenize_code
 
-        for doc_id in self._bm25_ids:
-            scores[doc_id] = 0.0
-            for token in query_tokens:
-                scores[doc_id] += self._bm25[doc_id].get(token, 0.0)
+            query_tokens = tokenize_code(
+                query, stopwords=bool(getattr(self, "_code_bm25_stopwords", True))
+            )
+            k1 = float(getattr(self, "_code_bm25_k1", 1.2))
+            b = float(getattr(self, "_code_bm25_b", 0.45))
+            avg = float(getattr(self, "_bm25_avgdl", 0.0) or 1.0)
+            for doc_id in self._bm25_ids:
+                scores[doc_id] = 0.0
+                dl = float(getattr(self, "_bm25_doc_len", {}).get(doc_id, 0))
+                norm = k1 * (1.0 - b + b * dl / avg)
+                for token in query_tokens:
+                    tf = self._bm25.get(doc_id, {}).get(token, 0)
+                    if not tf:
+                        continue
+                    idf = getattr(self, "_bm25_idf", {}).get(token, 0.0)
+                    scores[doc_id] += idf * (tf * (k1 + 1.0)) / (tf + norm)
+        else:
+            query_tokens = _tokenize(query, self._tokenizer_re)
+            for doc_id in self._bm25_ids:
+                scores[doc_id] = 0.0
+                for token in query_tokens:
+                    scores[doc_id] += self._bm25[doc_id].get(token, 0.0)
 
         # Сортируем по убыванию скора
         top_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)[:limit]
@@ -233,6 +351,27 @@ class BM25Mixin:
         # Формируем результаты (используем кэшированный DataFrame)
         results = []
         try:
+            if self._bm25_df is None:
+                rows_by_id = getattr(self, "_bm25_rows", None) or {}
+                for doc_id in top_ids:
+                    if scores[doc_id] <= 0:
+                        continue
+                    row = rows_by_id.get(doc_id)
+                    if not row:
+                        continue
+                    results.append(
+                        {
+                            "text": row.get("text", ""),
+                            "text_full": row.get("text_full", row.get("text", "")),
+                            "metadata": {
+                                "file": row.get("file_path", ""),
+                                "chunk_index": row.get("chunk_index", 0),
+                                "indexed_at": row.get("indexed_at", ""),
+                                "layer": row.get("layer", ""),
+                            },
+                        }
+                    )
+                return results
             df = self._bm25_df
             if df is None or df.empty:
                 return results
