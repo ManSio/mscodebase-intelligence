@@ -12,8 +12,21 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
 from src.core.indexing.index_pipeline import IndexPipeline
+
+
+@pytest.fixture(autouse=True)
+def _text_cache_env(monkeypatch):
+    """These tests exercise embedding cache, not the text-only default."""
+    monkeypatch.setenv("MSCODEBASE_AUGMENT_CHUNKS", "false")
+    monkeypatch.setenv("MSCODEBASE_DENSE_OFF", "false")
+    from src.config.settings import reload_config
+
+    reload_config()
+    yield
+    reload_config()
 
 
 def _chunk_hash(text: str) -> str:
