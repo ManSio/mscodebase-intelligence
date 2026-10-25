@@ -35,7 +35,7 @@ Zed
       ▼
  server_factory.create_mcp_server()
       ├── create_service_collection()      DI container
-      ├── register_all_tools()             64 registered tools
+      ├── register_all_tools()             66 registered tools
       └── notification / extension hooks
       │
       ├── Search        core/search
@@ -99,15 +99,15 @@ Tool class 通过 constructor injection 获取 collection，不直接创建 inde
 
 ## 6. Tool 层
 
-服务器注册 **64 个工具**：
+服务器注册 **66 个工具**：
 
-- 31 个 core tool class（search、LSP、graph、analysis、write、lifecycle）；
+- 33 个 core tool class（search、LSP、graph、analysis、write、lifecycle）；
 - 16 个 `intel_*`；
 - 13 个 inline diagnostic；
 - 4 个 dev。
 
-`execute_script` 是第 65 个可选工具，仅在
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时注册。默认 allowlist 暴露 **49**
+`execute_script` 是第 67 个可选工具，仅在
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时注册。默认 allowlist 暴露精选子集
 个；`MSCODEBASE_MCP_TOOLS` 控制可见性（空值显示全部已注册工具）。
 
 `codebase(action=...)` 是 index、git、write 的 hub。搜索有 `search_code` 和

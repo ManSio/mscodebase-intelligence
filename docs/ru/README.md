@@ -150,9 +150,9 @@ python scripts/reindex_text_only.py --project .
 
 ## Инструменты
 
-Сервер регистрирует **64 инструмента** в четырёх группах; `execute_script`
+Сервер регистрирует **66 инструментов** в четырёх группах; `execute_script`
 добавляет один опциональный инструмент при
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает **49**;
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает выбранное подмножество;
 скрытые инструменты включаются через `MSCODEBASE_MCP_TOOLS` (пустая строка —
 показать все). Точный набор виден в startup-логе MCP и в
 `intel_get_runtime_status`.
@@ -243,7 +243,7 @@ C++, Scala и Dart. SQL, YAML, TOML, HTML, CSS и HCL/Terraform индексир
   эксперимент и не дефолтный путь.
 - **Fast mode — не quality mode:** быстрее, но заметно менее точен на смешанных
   natural-language вопросах. Для exact names и известных путей.
-- **Видимые tools — allowlist:** «64 tools» в исходниках не значит, что все 64
+- **Видимые tools — allowlist:** «66 tools» в исходниках не значит, что все 64
   видны конкретному клиенту; проверяйте `MSCODEBASE_MCP_TOOLS`.
 
 ## Как сообщать о баге

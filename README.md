@@ -154,9 +154,9 @@ Then restart the MCP server/Zed so the new process opens the rebuilt stores.
 
 ## Tools
 
-The server registers **64 tools** in four groups; `execute_script` adds one
+The server registers **66 tools** in four groups; `execute_script` adds one
 optional tool when `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. The default
-allowlist exposes **49** of them; hidden tools can be enabled with
+allowlist exposes a curated subset of them; hidden tools can be enabled with
 `MSCODEBASE_MCP_TOOLS` (empty string shows all). The exact visible set is
 reported in the MCP startup log and by `intel_get_runtime_status`.
 
@@ -250,7 +250,7 @@ These are deliberate, documented boundaries rather than hidden behavior:
   experiment and is not the default path.
 - **Fast mode is not quality mode:** it is faster but materially less accurate
   on mixed natural-language questions. Use it for exact names and known paths.
-- **Visible tools are allowlisted:** seeing "64 tools" in source does not mean
+- **Visible tools are allowlisted:** seeing "66 tools" in source does not mean
   all 64 are exposed to a given client; check `MSCODEBASE_MCP_TOOLS`.
 
 ## Reporting a bug

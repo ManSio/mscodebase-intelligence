@@ -142,9 +142,9 @@ python scripts/reindex_text_only.py --project .
 
 ## 工具
 
-服务器注册 **64 个工具**，分为四组；启用
+服务器注册 **66 个工具**，分为四组；启用
 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时增加一个可选的
-`execute_script`。默认 allowlist 暴露 **49 个**；隐藏工具可通过
+`execute_script`。默认 allowlist 暴露精选子集；隐藏工具可通过
 `MSCODEBASE_MCP_TOOLS` 启用（空字符串显示全部）。准确列表见 MCP 启动日志和
 `intel_get_runtime_status`。
 
@@ -229,7 +229,7 @@ TypeScript/TSX、Rust、Go、Java、C#、Ruby、PHP、Kotlin、Swift、C、C++�
   LLM planner/agent loop 是另一个实验，不是默认路径。
 - **Fast mode 不是 quality mode：** 更快，但在混合自然语言问题上明显更不准确。
   用于精确名称和已知路径。
-- **可见工具受 allowlist 控制：** 源码里的“64 tools”不代表某个客户端能看到
+- **可见工具受 allowlist 控制：** 源码里的“66 tools”不代表某个客户端能看到
   全部 64 个；检查 `MSCODEBASE_MCP_TOOLS`。
 
 ## 报告问题

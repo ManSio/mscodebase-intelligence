@@ -38,7 +38,7 @@ Zed
       ▼
  server_factory.create_mcp_server()
       ├── create_service_collection()      DI container
-      ├── register_all_tools()             64 registered tools
+      ├── register_all_tools()             66 registered tools
       └── notification / extension hooks
       │
       ├── Search        core/search
@@ -104,15 +104,15 @@ indexer и не открывают БД напрямую. Shutdown закрыв�
 
 ## 6. Tool layer
 
-Сервер регистрирует **64 инструмента**:
+Сервер регистрирует **66 инструментов**:
 
-- 31 core tool class (search, LSP, graph, analysis, write, lifecycle);
+- 33 core tool class (search, LSP, graph, analysis, write, lifecycle);
 - 16 `intel_*`;
 - 13 inline diagnostic;
 - 4 dev.
 
-`execute_script` — 65-й опциональный инструмент, только при
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает **49**;
+`execute_script` — 67-й опциональный инструмент, только при
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает выбранное подмножество;
 `MSCODEBASE_MCP_TOOLS` управляет видимостью (пусто — все зарегистрированные).
 
 `codebase(action=...)` — hub над index, git и write. У поиска есть

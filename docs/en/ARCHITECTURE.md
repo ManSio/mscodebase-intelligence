@@ -39,7 +39,7 @@ Zed
       ▼
  server_factory.create_mcp_server()
       ├── create_service_collection()      DI container
-      ├── register_all_tools()             64 registered tools
+      ├── register_all_tools()             66 registered tools
       └── notification / extension hooks
       │
       ├── Search        core/search
@@ -108,17 +108,17 @@ resources and releases background tasks.
 
 ## 6. Tool layer
 
-The server registers **64 tools**:
+The server registers **66 tools**:
 
-- 31 core tool classes (search, LSP, graph, analysis, write, lifecycle);
+- 33 core tool classes (search, LSP, graph, analysis, write, lifecycle);
 - 16 `intel_*` tools;
 - 13 inline diagnostic tools;
 - 4 dev tools.
 
-`execute_script` is a 65th, optional tool and is registered only when
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. The default allowlist exposes **49**
-tools; `MSCODEBASE_MCP_TOOLS` controls visibility (an empty value shows all
-registered tools).
+`execute_script` is a 67th, optional tool and is registered only when
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. The default allowlist exposes a
+curated subset; `MSCODEBASE_MCP_TOOLS` controls visibility (an empty value shows
+all registered tools).
 
 `codebase(action=...)` is a hub over index, git and write operations. Search
 has a dedicated `search_code` tool and a `plan_search` helper that returns a
