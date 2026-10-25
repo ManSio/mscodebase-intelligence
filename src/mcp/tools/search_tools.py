@@ -253,7 +253,8 @@ class SearchCodeTool(MCPTool):
         # Explicit intent="code" still wins; empty intent is auto.
         if not intent:
             _auto_searcher = self.resolve_searcher(explicit_project_root=_pr or None)
-            if _auto_searcher.prefers_docs(query):
+            _prefers = getattr(_auto_searcher, "prefers_docs", None)
+            if callable(_prefers) and _prefers(query) is True:
                 intent = "docs"
 
         if intent == "docs":
