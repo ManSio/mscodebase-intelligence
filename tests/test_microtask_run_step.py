@@ -72,7 +72,7 @@ def test_apply_mode_edits_and_verifies(tmp_path):
             "filePath": str(project / "src" / "mod.py"),
             "oldString": "return 1",
             "newString": "return 2",
-            "acceptance": "python -m pytest tests/test_mod.py -q",
+            "acceptance": "python -c \"import sys; sys.path.insert(0, '.'); from src.mod import f; assert f() == 2\"",
         },
     )
     assert result.returncode == 0, result.stdout + result.stderr
@@ -89,7 +89,7 @@ def test_apply_mode_reports_a_failing_acceptance(tmp_path):
             "filePath": str(project / "src" / "mod.py"),
             "oldString": "return 1",
             "newString": "return 3",
-            "acceptance": "python -m pytest tests/test_mod.py -q",
+            "acceptance": "python -c \"import sys; sys.path.insert(0, '.'); from src.mod import f; assert f() == 2\"",
         },
     )
     assert result.returncode == 1
@@ -106,7 +106,7 @@ def test_test_files_are_refused(tmp_path):
             "filePath": str(project / "tests" / "test_mod.py"),
             "oldString": "assert f() == 2",
             "newString": "assert True",
-            "acceptance": "python -m pytest tests/test_mod.py -q",
+            "acceptance": "python -c \"import sys; sys.path.insert(0, '.'); from src.mod import f; assert f() == 2\"",
         },
     )
     assert result.returncode == 1
