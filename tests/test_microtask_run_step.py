@@ -34,6 +34,7 @@ def _project(tmp_path: Path) -> Path:
     project = tmp_path / "repo"
     (project / "src").mkdir(parents=True)
     (project / "tests").mkdir()
+    (project / "src" / "__init__.py").write_text("", encoding="utf-8")
     (project / "src" / "mod.py").write_text("def f():\n    return 1\n", encoding="utf-8")
     (project / "tests" / "test_mod.py").write_text(
         "from src.mod import f\n\n\ndef test_f():\n    assert f() == 2\n", encoding="utf-8"
