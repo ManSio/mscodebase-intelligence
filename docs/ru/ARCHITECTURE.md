@@ -1,673 +1,243 @@
 <img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
 
-[🇬🇧 English](../en/ARCHITECTURE.md) • [🇷🇺 Русский](ARCHITECTURE.md) • [🇨🇳 中文](../zh/ARCHITECTURE.md)
+[English](../en/ARCHITECTURE.md) · [Русский](ARCHITECTURE.md) · [中文](../zh/ARCHITECTURE.md)
 
 # MSCodeBase Intelligence — Архитектура
 
-> **Версия:** 3.5.0
-> **Последнее обновление:** 2026-08-12  
-> **Архитектура:** 4-слойная архитектура + Graph-Native PropertyGraph Layer + Data Flow Layer (Точки входа → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) с Multi-Window Registry + DocSync
+> **Актуально на 2026-10-25.** Документ описывает дефолтный Phase 3 runtime:
+> SQLite FTS5/BM25 плюс PropertyGraph. Эмбеддинги, реранкинг и LanceDB/vector
+> path опциональны и отмечены явно.
 
 ---
 
-## Содержание
+## 1. Цели дизайна
 
-1. [Основные принципы](#1-core-principles)
-2. [Слойная архитектура](#2-layer-architecture)
-3. [DI-контейнер (ServiceCollection)](#3-di-container)
-4. [Слой инструментов (32 core + 16 intel + 13 inline + 4 dev = 65 всего)](#4-tool-layer)
-5. [PropertyGraph (v3.0)](#5-propertygraph-layer-v30)
-6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
-7. [Обработка ошибок](#7-error-handling)
-8. [Rate Limiting и отказоустойчивость](#8-rate-limiting--resilience)
-9. [Поток данных: Запрос → Ответ](#9-data-flow)
-10. [Обогащение метаданных (v2.4.4+)](#10-metadata-enrichment-v244)
-11. [Особенности Windows](#11-windows-specifics)
-12. [Multi-Window Registry (v2.3+)](#12-multi-window-registry-v23)
-13. [Стратегия тестирования](#13-testing-strategy)
-14. [Архитектурные инварианты](#14-architectural-invariants)
+Сервер даёт AI-ассистенту обоснованные локальные ответы о кодовой базе, не
+делая удалённый сервис или большую модель обязательными.
 
----
+1. **Local-first.** Поиск, граф и память проекта работают без сети.
+2. **Deterministic before probabilistic.** Точные символы, пути и BM25
+   проверяются раньше опциональных semantic-слоёв.
+3. **Fail open, not silent.** Нет embedder, пустой граф или stale index должны
+   давать диагноз, а не выдуманный ответ.
+4. **Один контракт для людей и агентов.** Одна tool schema для Zed, скриптов и
+   тестов.
+5. **Observable.** Runtime passport, index status, health report и logs —
+   полноценные инструменты, не debug-приложение.
 
-## 1. Основные принципы
+## 2. Runtime в двух словах
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│              Четыре слоя архитектуры                               │
-│                                                                  │
-│  Слой 1: main.py               (Точки входа, минималистичные)    │
-│  Слой 2: mcp/server.py          (DI-маршрутизация, регистрация)   │
-│  Слой 3: mcp/tools/*.py         (32 core + 13 inline + 4 dev)   │
-│  Слой 4: core/*.py              (Чистая бизнес-логика)            │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-**Ключевые правила:**
-- **Слой Core НЕ имеет MCP-импортов.** Это чистый Python с бизнес-логикой.
-- **Слой инструментов НИКОГДА не создаёт зависимости.** Всё приходит из DI.
-- **server.py ТОЛЬКО регистрирует** — никакой логики, форматирования, try/except.
-- **Зависимости направлены вниз:** Main ← Server ← Tools ← Core.
-
----
-
-## 2. Слойная архитектура
-
-### 2.0 Десятислойная runtime-архитектура (v2.4)
-
-```
- Слой 0: Filesystem                  — какие файлы есть на диске?
- Слой 1: SystemArtifacts             — это системный путь?
- Слой 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
- Слой 3: Registry (IndexerRegistry)  — какой Indexer принадлежит проекту?
- Слой 4: StateMachine (ProjectState) — в каком состоянии проект?
- Слой 5: RuntimeCoordinator          — можно ли выполнять запрос?
- Слой 6: ProjectContext              — как выглядит проект сейчас?
- Слой 7: Passport                    — какой процесс сейчас работает?
- Слой 8: Intel Layer                 — что делать с информацией?
- Слой 9: MCP Tools / AI Agent        — ответ пользователю
+```text
+Zed
+ ├── built-in LSP (autocomplete, diagnostics)
+ └── MCP client
+      │
+      ▼
+ src/main.py (stdio) или src/remote_main.py (HTTP)
+      │
+      ▼
+ server_factory.create_mcp_server()
+      ├── create_service_collection()      DI container
+      ├── register_all_tools()             64 registered tools
+      └── notification / extension hooks
+      │
+      ├── Search        core/search
+      ├── Index         core/indexing
+      ├── Graph         core/graph.py + core/search/graph_adapter.py
+      ├── Memory        core/intelligence
+      ├── Writes        core/modification_guard.py + mcp/tools/write_tools.py
+      └── Optional      providers/embedder, providers/reranker, LSP client
+      │
+      ▼
+ Storage
+      ├── <project>/.mscodebase/chunks.db       SQLite + FTS5
+      ├── <data_root>/projects/<hash>/graph.db  PropertyGraph
+      ├── <data_root>/projects/<hash>/intelligence/  memory, incidents
+      └── <data_root>/logs/                     server logs
 ```
 
-**Поток данных:**
-```
-Filesystem → SystemArtifacts → Bridge → Registry → StateMachine
-                                                          ↓
-MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
-```
+`<data_root>` — `%LOCALAPPDATA%/mscodebase` на Windows или платформенный
+эквивалент. Артефакты проекта лежат вне репозитория; `chunks.db` — единственный
+store внутри директории проекта.
 
-**Ключевое правило:** Инструмент НЕ обращается к Registry, Bridge или Passport напрямую.
-Всё — через `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`.
+## 3. Слои
 
-### 2.1 Точки входа
+| Слой | Ответственность | Основные модули |
+|---|---|---|
+| Entry | Старт процесса, project root, stdio/HTTP | `src/main.py`, `src/remote_main.py` |
+| Protocol | MCP server, lifecycle, hooks | `src/mcp/server.py`, `server_factory.py` |
+| Tool | Тонкие адаптеры: валидация, формат, error boundary | `src/mcp/tools/*.py`, `server_tools.py` |
+| Core | Search, indexing, graph, memory, write guards | `src/core/*` |
+| Providers | Опциональные embedders, rerankers, LSP | `src/providers/*`, `src/core/lsp_client.py` |
+| Storage | SQLite/FTS5, PropertyGraph, JSON memory, logs | `chunk_store.py`, `graph.py`, `intelligence/` |
 
-| Файл | Протокол | Назначение |
-|------|----------|------------|
-| `src/main.py` | MCP STDIO | AI-ассистент в Zed Chat |
-| `src/lsp_main.py` *(удалён)* | LSP STDIO | Заменён LSP-клиентом `src/core/lsp_client.py` |
+Tool layer не реализует ranking или parsing сам. Он резолвит project-scoped
+service и делегирует в core.
 
-Оба используют одну и ту же фабрику `create_service_collection()`.
+## 4. Точки входа и lifecycle
 
-### 2.2 MCP-сервер
+- `src/main.py` — stdio MCP server для Zed extension. Определяет extension/
+  project root, настраивает logging, запускает server loop.
+- `src/remote_main.py` — тот же сервер через authenticated HTTP transport.
+  Опционален и выключен без конфигурации.
+- `src/mcp/server_factory.py` — создаёт сервер, DI container, регистрирует
+  tools, notifications и shutdown handlers.
+- `src/mcp/server_tools.py` — регистрация и allowlist.
 
-`src/mcp/server.py` — **~68 строк** (было 3 100 до рефакторинга).
+Второй проект в другом окне Zed изолируется `ProjectIndexerRegistry`: у каждого
+проекта свои indexer/searcher/graph handles, LRU-лимит и resource monitoring.
 
-Обязанности:
-1. Определить корень проекта (`resolve_project_root()`)
-2. Создать DI-контейнер (`create_service_collection()`)
-3. Зарегистрировать 32 core + 16 intel + 13 inline + 4 dev = 65 всего
-4. Зарегистрировать system prompt (mscodebase-rules)
+## 5. Dependency injection
 
-**Здесь нет бизнес-логики.** Каждый инструмент — импорт из `mcp/tools/`.
+`src/core/di_container.py` даёт `ServiceCollection` и
+`create_service_collection(project_root)`. Сервисы — singletons в рамках
+процесса:
 
-### 2.3 Слой инструментов
+- project root и parser;
+- indexer/searcher и опциональный embedder;
+- PropertyGraph и symbol index;
+- `ProjectIndexerRegistry` / `MultiProjectSearcher`;
+- rate limiter, circuit breaker, notification broker.
 
-`src/mcp/tools/*.py` — **32 core (25 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
+Tool classes получают collection через constructor injection. Они не создают
+indexer и не открывают БД напрямую. Shutdown закрывает ресурсы и фоновые задачи.
 
-Каждый инструмент:
-- Наследуется от `MCPTool` (ABC)
-- Получает зависимости через конструктор (Constructor Injection)
-- Имеет ровно одну точку входа: `async def execute(**kwargs) -> dict`
-- Декорирован `@error_boundary(tool_name, timeout_ms)`
+## 6. Tool layer
 
-```python
-class SearchCodeTool(MCPTool):
-    """search_code — семантический поиск по коду."""
+Сервер регистрирует **64 инструмента**:
 
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="search_code")
-        self.searcher = services.resolve(Searcher)
-        self.symbol_index = services.resolve(SymbolIndex)
+- 31 core tool class (search, LSP, graph, analysis, write, lifecycle);
+- 16 `intel_*`;
+- 13 inline diagnostic;
+- 4 dev.
 
-    @error_boundary("search_code", timeout_ms=15000)
-    async def execute(
-        self,
-        query: str,
-        mode: str = "auto",
-        limit: int = 6,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        self.require_index()  # проверка готовности индекса
-        # ... логика поиска
-```
+`execute_script` — 65-й опциональный инструмент, только при
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает **49**;
+`MSCODEBASE_MCP_TOOLS` управляет видимостью (пусто — все зарегистрированные).
 
-### 2.4 Слой ядра
+`codebase(action=...)` — hub над index, git и write. У поиска есть
+`search_code` и `plan_search`, который возвращает детерминированный план
+(primary query, exact tokens, symbols, concepts, intent).
 
-`src/core/*.py` — **54 файла верхнего уровня** (123 с подпакетами) чистой бизнес-логики.
+Все tools обёрнуты в `error_boundary`: timeout, telemetry и structured error
+вместо зависшего MCP loop.
 
-Ключевые модули:
+## 7. Indexing pipeline
 
-| Модуль | Путь | Назначение |
-|--------|------|------------|
-| `di_container.py` | `src/core/di_container.py` | DI-контейнер (14 сервисов) |
-| `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
-| `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
-| `engine.py` | `src/core/search/engine.py` | Гибридный поиск (BM25 + Dense + FTS5 + RRF) |
-| `graph.py` | `src/core/graph.py` | PropertyGraph — SQLite граф свойств |
-| `graph_adapter.py` | `src/core/search/graph_adapter.py` | SymbolIndexAdapter — обёртка PropertyGraph |
-| `cypher_engine.py` | `src/core/search/cypher_engine.py` | Cypher→SQL для PropertyGraph |
-| `indexer.py` | `src/core/indexing/indexer.py` | LanceDB векторное хранилище + пайплайн индексации |
-| `symbol_index.py` | `src/core/indexing/symbol_index.py` | Граф вызовов (BFS, PageRank) |
-| `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST-парсер (32 расширения: core + shell + context + markdown) |
-| `file_guard.py` | `src/core/indexing/file_guard.py` | .gitignore + фильтр расширений |
-| `db_manager.py` | `src/core/indexing/db_manager.py` | Жизненный цикл таблиц LanceDB (PID-lock, reindex guard) |
-| `fts5_mixin.py` | `src/core/search/fts5_mixin.py` | FTS5-миксин полнотекстового поиска |
-| `scoring.py` | `src/core/search/scoring.py` | RRF + MMR diversity scoring |
-| `layer.py` | `src/core/intelligence/layer.py` | Intel Layer (16 intel_* инструментов) |
-| `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
-| `project_context.py` | `src/core/intelligence/project_context.py` | Снэпшот состояния проекта |
-| `llama_runner.py` | `src/providers/reranker/llama_runner.py` | Жизненный цикл llama-server.exe (реранкер) |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Эмбеддер llama.cpp GGUF (primary) + ONNX INT8 / LM Studio / Ollama fallback |
-| `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | Автосинхронизация доков с кодом (rename hook) |
-
-### 2.5 Search Engine (v3.3)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│   Search Pipeline (engine.py)                            │
-│                                                          │
-│   query_str → embed() → BM25 → FTS5 → 3-way RRF → MMR  │
-│                        ↕                                │
-│   MultiSignalScorer: api_signature, graph_diffusion,     │
-│   module_proximity, cochange_boost                       │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│   PropertyGraph (graph.py)                               │
-│   SQLite (WAL + mmap), nodes/edges, JSON properties      │
-│   — 15 меток узлов (File, Function, Class, Variable...)  │
-│   — 29 типов рёбер (CALLS, DEFINES, ASSIGNED_FROM, ...) │
-│   — Cypher query engine (MATCH→SQL)                     │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│   Data Flow Layer (v3.2.0)                               │
-│                                                          │
-│   1. Unified Walker — один Tree-sitter parse → вызовы +  │
-│      присваивания. Parse cache с хэшем содержимого.      │
-│   2. Conditional Flow — ASSIGNED_FROM рёбра содержат     │
-│      condition_path (if/for/while/try/except)            │
-│   3. Только внутри процедур — в пределах тела функций   │
-│   4. 16 языков: Python, Rust, TS, TSX, Go, JS,          │
-│      Java, C#, Ruby, PHP, Kotlin, Swift, C, C++,        │
-│      Scala, Dart                                         │
-└─────────────────────────────────────────────────────────┘
+```text
+discover files
+  → FileGuard (extensions, size, binaries, system dirs, .gitignore)
+  → parser (Tree-sitter; language-specific extractors)
+  → chunks + symbols + calls/imports/assignments/decorators/overrides
+  → SQLiteChunkStore (text + FTS5) and PropertyGraph
 ```
 
-### 2.6 Эмбеддер: llama.cpp GGUF (native, предпочтительно), ONNX INT8 — fallback
-
-MCP-сервер теперь использует multilingual-e5-small через **llama.cpp GGUF** (`llama-server.exe`) как основной эмбеддер; **ONNX Runtime (CPU, in-process)** — fallback, когда llama.cpp недоступен (автоопределение при старте: ONNX-предзагрузка отменяется, как только llama.cpp поднялся):
-
-- **Модель**: `intfloat/multilingual-e5-small` (384-dim), GGUF; fallback — INT8 ONNX
-- **Runtime**: llama.cpp (`:8080`, llama-server); fallback — ONNX in-process
-- **Архитектура**: llama.cpp — отдельный процесс; ONNX in-process только как fallback
-- **Производительность**: ~16-50 ch/s (llama.cpp CPU, зависит от нагрузки)
-- **RAM**: ~1.7 GB (2× llama-server: embed + reranker); ONNX fallback ~265 MB
-- **Конфиг**: модель определяется автоматически (GGUF из `models/`); legacy `EMBEDDING_DIMENSION`/`EMBEDDING_PROVIDER` не используются
-
-Реранкер по-прежнему работает через llama-server (1 процесс, не 2).
-
-Legacy fallback-провайдеры (LM Studio, Ollama, remote ONNX) остаются доступны через `remote_embedder.py` для кастомных настроек.
-
----
-
-## 3. DI-контейнер
-
-### 3.1 ServiceCollection
-
-```python
-# src/core/di_container.py
-
-services = ServiceCollection()
-
-# Регистрация синглтона:
-services.add_singleton(Indexer, indexer_instance)
-
-# Регистрация ленивой фабрики:
-services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
-
-# Разрешение:
-indexer = services.resolve(Indexer)  # каждый раз тот же экземпляр
-```
-
-### 3.2 Зарегистрированные сервисы (11)
-
-| # | Сервис | Тип | Создаётся |
-|---|--------|-----|-----------|
-| 1 | ProjectRootKey | singleton | `project_root` (sentinel-ключ) |
-| 2 | CodeParser | singleton | `CodeParser()` |
-| 3 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
-| 4 | ProjectRegistry | singleton | `ProjectRegistry()` |
-| 5 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
-| 6 | PropertyGraph | singleton | `PropertyGraph(.codebase/graph.db)` |
-| 7 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
-| 8 | NotificationBroker | singleton | `NotificationBroker()` |
-| 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
-| 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
-| 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
-
-> Чистка (Задача 2/5): удалены мёртвые регистрации DbPathKey, FileGuard,
-> SymbolIndex, ResourceMonitor, ResourceMonitorKey (никогда не резолвились).
-
----
-
-## 4. Слой инструментов
-
-### 4.1 Регистрация инструментов
-
-В `src/mcp/server_tools.py`:
-
-```python
-def register_all_tools(mcp, services):
-    tool_classes = [
-        # Search (3)
-        SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
-        # Hub: codebase (write/index/git/notify — мультиплексирован по action)
-        CodebaseTool,
-        # Spoke: AST Sandbox (3 слоя: AST валидация + runtime __import__ wrapper + subprocess изоляция)
-        ExecuteScriptTool,
-        # Analysis (5)
-        StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
-        ScanChangesTool, GenerateChunkSummariesTool,
-        # Graph (3 — Фаза 2: graph_query мультиплексирует cypher + related + flow)
-        CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
-        # Investigation (3)
-        GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
-        # Lifecycle (4)
-        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool, GetActionReceiptTool,
-    ]
-    # +16 intel_* инструментов + 13 inline diagnostic + 4 dev
-    # Всего: 65 зарегистрировано (32 core + 16 intel + 13 inline + 4 dev)
-```
-
-**Фильтр видимости инструментов:** по умолчанию видим набор из allowlist `MSCODEBASE_MCP_TOOLS` (см. `src/mcp/server_tools.py`). Установите `MSCODEBASE_MCP_TOOLS=""`, чтобы показать все 65 (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`).
-
-### 4.2 Все инструменты по группам
-
-| Группа | Файл | Инструменты |
-|--------|------|-------------|
-| **Поиск** (3) | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **LSP** (6) | `lsp_tools.py` | lsp_find_references, lsp_find_definition, lsp_document_symbols, lsp_get_type_info, lsp_get_diagnostics, lsp_get_code_actions |
-| **Hub: codebase** (1) | `codebase_tool.py` | codebase(action=index/git/rename/move/delete/replace/insert/notify) |
-| **Spoke: Sandbox** (1) | `codebase_tool.py` | execute_script(code) — AST + runtime import wrapper + subprocess изоляция (опционально, env-флаг) |
-| **Анализ** (5) | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **Граф** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, detect_communities |
-| **Расследование** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
-| **Дубликаты** (1) | `duplication_tool.py` | find_duplicates |
-| **Контекст** (1) | `context_tool.py` | get_context |
-| **Жизненный цикл** (3) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action |
-| **Doc** (1) | `doc_tools.py` | stale_detector |
-| **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **Intelligence** (14) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node |
-| **Diagnostic inline** (13) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact |
-
-> **Всего:** 65 зарегистрировано (32 core + 16 intel + 13 inline + 4 dev). По умолчанию видим набор из allowlist `MSCODEBASE_MCP_TOOLS` (см. `src/mcp/server_tools.py`). Показать все: `MSCODEBASE_MCP_TOOLS=""`.
-
-## 5. Обработка ошибок
-
-### 5.1 Декоратор error_boundary
-
-Каждый инструмент обёрнут в `@error_boundary`:
-
-```python
-@error_boundary("tool_name", timeout_ms=15000, max_retries=1)
-async def execute(self, **kwargs) -> dict:
-    ...
-```
-
-Гарантирует:
-1. **Реальный таймаут** через `asyncio.wait_for(timeout_ms / 1000.0)`
-2. **Унифицированный JSON** всегда: `{"status": "ok"|"error"|"timeout"|"warning", "message": "...", "detail": "...", "latency_ms": 123}`
-3. **Контролируемые ошибки** (`ToolError`) → возврат как есть, без повтора
-4. **Неожиданные ошибки** → логируются с полным traceback, возвращаются как `"status": "error"`
-5. **Повтор при таймауте** — настраивается через `max_retries`
-
-### 5.2 Иерархия ToolError
-
-```python
-ToolError          # Базовый: status, message, detail, recoverable
-├── IndexNotReadyError  # Индекс пуст (warning, recoverable)
-└── RateLimitError      # Превышен rate limit (warning, recoverable)
-```
-
----
-
-## 6. Rate Limiting и отказоустойчивость
-
-### 6.1 SlidingWindowRateLimiter
-
-```python
-limiter = SlidingWindowRateLimiter()  # asyncio.Lock для thread safety
-
-ok = await limiter.acquire("notify_change", max_per_sec=10.0)
-if not ok:
-    raise RateLimitError(detail="Слишком много вызовов notify_change")
-```
-
-### 6.2 DebounceBatch
-
-Заменяет немедленный `searcher.reindex()` при каждом изменении файла:
-
-```python
-batch = DebounceBatch(callback=searcher.reindex, config=DebounceConfig(
-    debounce_ms=500,    # 500ms после последнего события
-    max_batch_size=100, # или при 100 файлах — немедленный сброс
-    max_wait_ms=5000,   # защита от бесконечного debounce
-))
-await batch.add("file.py")  # BM25 перестроится через 500ms (или при 100 файлах)
-```
-
-### 6.3 CircuitBreaker
-
-```python
-cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0, name="lm_studio")
-
-result = await cb.call(
-    lambda: embedder.embed_batch(texts),
-    fallback={"status": "fallback", "message": "LM Studio недоступен"}
-)
-# Состояния: CLOSED → OPEN (5 ошибок) → HALF_OPEN (через 30s) → CLOSED (успех)
-```
-
----
-
-## 7. Поток данных
-
-```
-Zed AI Agent
-    │
-    ▼
-MCP Tool Call (например, search_code("find indexer"))
-    │
-    ▼
-error_boundary decorator
-    ├── проверка таймаута (asyncio.wait_for)
-    ├── проверка rate limit (SlidingWindowRateLimiter)
-    └── выполнение инструмента
-            │
-            ▼
-    MCPTool.execute(**kwargs)
-        │
-        ├── self.require_index()  → IndexNotReadyError если пуст
-        ├── services.resolve(Searcher)
-        ├── engine.hybrid_search(query)
-        │       │
-        │       ▼
-        │   core/search/engine.py
-        │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + llama.cpp GGUF, ONNX fallback)
-        │       ├── FTS5 search (SQLite FTS5, trigram+porter)
-        │       └── 3-way RRF fusion + MMR diversity
-        │
-        └── return {"status": "ok", "results": [...]}
-                │
-                ▼
-        error_boundary → {"status": "ok", ...latency_ms}
-                │
-                ▼
-        Zed Chat (форматированный JSON-ответ)
-```
-
----
-
-## 8. Обогащение метаданных (v2.4.4+)
-
-### 8.1 Метаданные чанка
-
-Каждый чанк в LanceDB хранит 6 полей метаданных для детерминированной
-фильтрации и multi-granularity retrieval:
-
-| Поле | Тип | Пример | Назначение |
-|------|-----|--------|------------|
-| `layer` | string | `"core"` | Архитектурный слой: core/mcp/utils/tests/... |
-| `module_name` | string | `"core.parser"` | Логическое имя модуля из пути файла |
-| `hierarchy_level` | string | `"method"` | Уровень: function/method/class/impl/lines |
-| `is_public` | bool | `true` | Публичный/приватный (`_`-префикс) |
-| `symbol_type` | string | `"method_definition"` | AST-тип узла |
-| `parent_id` | string | md5-хеш | Детерминированный хеш родителя |
-
-Определение слоя — автоматическое, по пути файла:
-
-| Путь | layer |
-|------|-------|
-| `src/core/*` | `core` |
-| `src/mcp/tools/*` | `mcp_tools` |
-| `src/mcp/*` | `mcp` |
-| `src/utils/*` | `utils` |
-| `tests/*` | `tests` |
-| `docs/*` | `docs` |
-| `.agents/*` | `agents` |
-| `scripts/*` | `scripts` |
-| `.github/*` | `ci` |
-| прочее | `root` |
-
-### 8.2 Flat Tree Hierarchy (SproutRAG-style)
-
-`parent_id` — детерминированный md5-хеш:
-
-- **Для метода:** `md5(file_path + "::" + class_name)` — parent = класс
-- **Для функции:** `md5(file_path)` — parent = модуль
-- **Для части гигантской функции:** `md5(file_path + "::" + symbol_name)` — parent = функция
-
-Позволяет делать multi-granularity retrieval без графовой БД:
-- Найти все методы класса → `get_chunks_by_parent_id("md5_hash")`
-- Подняться до модуля → aggregation по parent_id
-
-### 8.3 Фильтрация по слою в search_code
-
-```python
-# Только core-слой
-search_code(query="DI container", filter_layer="core")
-
-# Только tests
-search_code(query="test_parser", filter_layer="tests")
-
-# Без фильтра (все слои, как раньше)
-search_code(query="parser")
-```
-
-Фильтрация по слою работает на уровне LanceDB через `.where(prefilter=True)` — векторный поиск идёт только по чанкам указанного слоя. BM25 пост-фильтруется по layer из metadata.
-
----
-
-## 9. Особенности Windows
-
-### 9.1 Разрешение путей
-
-`PROJECT_PATH` может содержать литерал `$ZED_WORKTREE_ROOT` (env var не разрешается Zed на Windows).
-Решение: `resolve_project_root()` проверяет 7 fallback-стратегий:
-
-1. Переданный аргумент
-2. LSP→MCP bridge (временный файл от LSP, который знает `root_uri`)
-3. `PROJECT_PATH` env var (разрешается, если не `$ZED`)
-4. `ext_root`, если это git-репозиторий
-5. `ZED_WORKTREE_ROOT` env var
-6. CWD (из Zed `settings.json`)
-7. `ext_root` как финальный fallback
-
-### 9.2 Безопасность git-подпроцессов
-
-```python
-env["GIT_TERMINAL_PROMPT"] = "0"    # Нет интерактивных запросов
-env["GIT_ASKPASS"] = "echo"         # Нет credential helper
-env["GIT_PAGER"] = "cat"            # Нет пейджера
-creationflags = subprocess.CREATE_NO_WINDOW  # Нет консольного окна
-```
-
-### 9.3 Поддержка длинных путей
-
-SafePathManager использует `to_win_long_path()` (добавление `\\?\`) для путей длиннее 260 символов.
-
----
-
-## 10. Multi-Window Registry (v2.3+)
-
-v2.3+ поддерживает **несколько открытых проектов в Zed одновременно**.
-Раньше DI хранил singleton `Indexer` — при переключении окон state ломался
-(один `file_guard`, один `db_path`, общий `SymbolIndex`).
-
-### 10.1 `ProjectIndexerRegistry`
-
-`src/core/indexing/project_indexer_registry.py` — потокобезопасный реестр объектов `Indexer`:
-
-```python
-registry = ProjectIndexerRegistry(
-    max_cached=5,                      # LRU лимит (5 проектов = 1-2.5GB RAM)
-    resource_monitor=get_global_resource_monitor(),  # adaptive throttling
-)
-
-# Per-project ленивое создание через factory:
-def _create_indexer(p: Path) -> Indexer:
-    return Indexer(
-        db_path=_generate_unique_db_path(p),
-        file_guard=FileGuard(p),
-        symbol_index=SymbolIndex(),  # изолирован
-        project_path=p, ...
-    )
-
-services.add_singleton(IndexerFactoryKey, _create_indexer)
-indexer = registry.get_indexer(project_path, factory=_create_indexer)
-```
-
-**Гарантии:**
-- **Изоляция:** каждое окно получает свой `FileGuard`/`SymbolIndex`/`db_path`.
-- **LRU:** при открытии 6-го проекта самый старый `Indexer` вытесняется.
-- **Pressure-evict:** при RAM > 1GB или CPU > 85% — принудительный evict
-  **перед** созданием нового `Indexer` (предотвращает OOM).
-- **Cleanup:** `_safe_close()` обнуляет LanceDB connection + `gc.collect()`
-  (для Windows mmap handles).
-
-### 10.2 `ResourceMonitor`
-
-`src/core/indexing/resource_monitor.py` — stdlib-only мониторинг (без `psutil`):
-
-| Платформа | Метод |
-|-----------|-------|
-| POSIX | `resource.getrusage(RUSAGE_SELF).ru_maxrss` |
-| Windows | `psapi.GetProcessMemoryInfo` через `ctypes` |
-| CPU | `resource.getrusage` utime+stime delta / wall-clock |
-
-**Пороги:**
-- Soft: 768MB / 75% CPU → throttle индексации (0.1s задержка между файлами)
-- Hard: 1024MB / 85% CPU → pressure-evict + 0.5-2s задержка
-
-```python
-monitor = get_global_resource_monitor()
-snap = monitor.sample()  # ResourceSnapshot (rss_mb, cpu_percent, threads)
-
-if monitor.is_under_pressure():
-    delay = monitor.suggest_throttle_delay_sec()
-    time.sleep(delay)  # в Indexer.index_project между файлами
-```
-
-### 10.3 Per-workspace DI (multi-window)
-
-Standalone LSP (`src/lsp_main.py`) **удалён** (WONTFIX, см.
-`docs/en/investigations/LSP_WONTFIX.md`). Per-workspace DI живёт в
-`ProjectIndexerRegistry` (v2.3+):
-
-```python
-registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
-indexer = registry.get_indexer(project_path, factory=factory)
-# → создаёт изолированный per-project Indexer (LRU max_cached=5 + pressure eviction)
-```
-
-Каждое окно/workspace получает собственный Indexer с собственной LanceDB БД
-и PropertyGraph (пути хэшируются вне проекта — Задача 4/5).
-
-### 10.4 MCP `resolve_indexer_for_request`
-
-`src/mcp/tools/base.py` — единая точка получения per-project Indexer:
-
-```python
-def resolve_indexer_for_request(services, explicit_project_root=None):
-    target = explicit_project_root or resolve_project_root() or DI_default
-    registry = services.resolve(ProjectIndexerRegistry)
-    factory = services.resolve(IndexerFactoryKey)
-    return registry.get_indexer(target, factory=factory)
-
-class MCPTool:
-    def resolve_indexer(self, project_root=None):
-        return resolve_indexer_for_request(self._services, project_root)
-```
-
-**Все MCP-инструменты** должны использовать `self.resolve_indexer(...)`
-вместо `self._services.resolve(Indexer)` — последний больше не работает
-(Indexer не singleton).
-
-### 10.5 HealthReport `_check_resources`
-
-`src/core/code_health.py` — добавлен метод:
-
-```python
-def _check_resources(self):
-    summary = get_global_resource_monitor().get_summary()
-    self.metrics["process_rss_mb"] = summary["rss_mb"]
-    self.metrics["process_cpu_percent"] = summary["cpu_percent"]
-    self.metrics["registry_cached_projects"] = ...
-    self.metrics["registry_evictions"] = ...
-    if summary["under_hard_pressure"]:
-        self.issues.append({...})
-```
-
----
-
-## 11. Стратегия тестирования
-
-```
-tests/
-├── test_error_handler.py     # 18 тестов — ToolError, error_boundary
-├── test_rate_limiter.py      # 21 тестов — SlidingWindow, DebounceBatch, CircuitBreaker
-├── test_di_container.py      # 13 тестов — ServiceCollection, 11 services
-├── test_resource_monitor.py  # 11 тестов — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
-├── test_parser.py            # 4 теста — Tree-sitter парсинг
-├── test_execution_contract.py# 10 тестов — verify_action
-├── test_task_queue.py        # 6 тестов — очередь фоновых задач
-├── test_branch_aware_index.py# 8 тестов — get_branch_info
-├── test_symbol_index_call_graph.py  # 8 тестов — граф вызовов
-├── ... (ещё 20 тестовых файлов)
-```
-
-**Всего: 853 теста.**
-
-Запуск:
-```bash
-pytest tests/ -m "not integration and not benchmark"
-```
-
----
-
-## Быстрая справка
-
-| Команда | Описание |
-|---------|----------|
-| `python -m src.main` | Запуск MCP-сервера (STDIO) |
-| `pytest tests/` | Запуск всех тестов |
-| `pytest tests/test_di_container.py -v` | Только тесты DI-контейнера |
-| `python -c "from src.mcp.server import create_mcp_server; mcp = create_mcp_server()"` | Проверка загрузки сервера |
-
----
-
-## 12. Архитектурные инварианты
-
-Эти правила НЕ должны нарушаться ни одним новым PR.
-
-```
-1. Инструмент не обращается к Registry напрямую.
-2. Инструмент не читает Bridge напрямую.
-3. Инструмент работает только через RuntimeCoordinator.
-4. RuntimeCoordinator не знает про Search / Indexer / Memory.
-5. ProjectContext — immutable snapshot (не запускает операций).
-6. Все системные файлы определяются только через SystemArtifacts.
-7. Индексатор никогда не индексирует системные артефакты.
-8. Любой путь проекта проходит через единый resolver (resolve_project_root).
-9. Все Intel-инструменты используют ProjectContext (не низкоуровневые API).
-10. Любой новый runtime-компонент обязан иметь одну ответственность.
-11. Слой Core не имеет MCP-импортов.
-12. Инструменты не создают зависимости — всё через DI.
-13. server.py регистрирует — не содержит бизнес-логики.
-```
-
-**Проверка при code review:** любой PR должен отвечать на вопрос
-«Какой существующий слой расширяется?». Если ответ «никакой, я сделал
-новый Manager/Services/Provider» — это повод остановиться.
+Правила:
+
+- `experiments/**` **исключён из индекса**. Там frozen-панели и run artifacts;
+  их индексация заставляла BM25 возвращать саму панель вместо кода. Файлы
+  остаются в git.
+- Incremental indexing обновляет chunks и graph rows файла одной транзакцией.
+- Полный vector reindex намеренно блокируется при
+  `MSCODEBASE_DENSE_OFF=true`. Используйте `scripts/reindex_text_only.py` для
+  текста и `scripts/rebuild_graph.py` для графа.
+- `build_head` пишется только после полного успешного индекса, чтобы freshness
+  можно было сверить с git HEAD.
+- `FileGuard` и `SafePathManager` отсекают пути вне проекта и системные
+  директории до parsing.
+
+## 8. Storage
+
+| Store | Путь | Назначение |
+|---|---|---|
+| Chunk store | `<project>/.mscodebase/chunks.db` | Текст, metadata, FTS5 |
+| Graph | `<data_root>/projects/<hash>/graph.db` | Символы, файлы, typed edges |
+| Memory | `<data_root>/projects/<hash>/intelligence/` | Память, инциденты, jobs |
+| Logs | `<data_root>/logs/` | Диагностика сервера и tools |
+
+LanceDB — legacy/optional vector store. Дефолтный text-first путь её не требует
+и не использует как основной источник candidates при
+`MSCODEBASE_SQLITE_CHUNKS=true`.
+
+## 9. Интеграция поиска
+
+Поиск — крупнейшая core-подсистема. Дефолтный путь:
+
+1. SQLite FTS5/BM25 candidates;
+2. опциональный symbol/graph stage для identifier-shaped запросов;
+3. опциональный on-demand rerank;
+4. exact-name boost и symbol deduplication;
+5. docs routing на уровне tool при сильном BM25-разрыве.
+
+Полный RRF/MMR/anchor pipeline в `core/search/engine.py` относится к
+опциональному dense/LanceDB path или старым путям. Он не применяется молча к
+каждому Phase 3 запросу. Точное разделение — в
+[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
+
+## 10. Intelligence и память
+
+`core/intelligence/` реализует память проекта и инциденты:
+
+- ADR и known issues хранятся как записи со статусом и evidence;
+- инциденты можно логировать, искать и предсказывать по runtime data;
+- `verify-on-read` помечает факты как verified/refuted/superseded;
+- retraction/supersede сохраняют историю вместо удаления.
+
+Память локальна и project-scoped. Это не общий chat log.
+
+## 11. Записи и безопасность
+
+Write tools (`rename`, `move`, `safe_delete`, `replace`, `insert_before/after`)
+работают с символами, а не с сырым текстом. Pipeline:
+
+1. resolve symbol и references;
+2. impact summary;
+3. `ack_impact`, если файл load-bearing;
+4. preview;
+5. apply только с `apply=true`, затем refresh chunks/graph.
+
+Cross-file rename может использовать basedpyright LSP; при timeout —
+fallback на SymbolIndex. `execute_script` выключен по умолчанию; при включении
+использует AST validation, import wrapper и subprocess sandbox.
+
+## 12. Concurrency и multi-window
+
+- Один indexer/searcher на проект через registry.
+- SQLite writes сериализуются lock'ом chunk store; reads безопасны между
+  потоками.
+- Background indexing использует watchdog heartbeat и job state: агент
+  опрашивает статус, не блокируя редактор.
+- Внешние процессы — `Popen` + `communicate(timeout=...)`, не
+  `capture_output` в daemon threads (Windows pipe deadlock).
+- Reindex fast-fail возвращает понятную ошибку вместо зависания.
+
+## 13. Отказы и операционные проверки
+
+| Симптом | Первая проверка | Исправление |
+|---|---|---|
+| Graph tools пусты | nodes/edges в `graph.db` | `python scripts/rebuild_graph.py` |
+| Поиск возвращает experiment docs | в индексе есть `experiments/**` | reindex; FileGuard их исключает |
+| Docs всегда мимо | gold `docs/en`, ответ `docs/ru` | нормализовать по basename |
+| Index stale | `codebase(action="index", path="status")` | `scripts/reindex_text_only.py` |
+| Embedder missing | `debug_runtime_passport()` | text path работает; настроить provider |
+| Tools не видны | `MSCODEBASE_MCP_TOOLS` | добавить имена или пустое значение |
+
+## 14. Тесты и проверка
+
+- `pytest tests/` — unit/integration suite; markers разделяют integration и
+  benchmark.
+- `python scripts/smoke_e2e.py --project .` — реальные embed/rerank/search без
+  моков, когда providers доступны.
+- `scripts/rebuild_graph.py` и `scripts/reindex_text_only.py` — штатные пути
+  починки graph/index drift.
+- Search experiments — в `experiments/` с frozen inputs и raw runs; это источник
+  чисел качества в README.
+
+## 15. Связанные документы
+
+- [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) — retrieval, ranking, modes и limits.
+- [ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md) — исторический deep dive и
+  опциональные детали.
+- [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) — поведение без providers.
+- [INSTALL.md](INSTALL.md) — установка и команды починки.
+- [README.md](../../README.md) — текущий публичный контракт и качество.

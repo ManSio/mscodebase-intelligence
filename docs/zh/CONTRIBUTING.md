@@ -15,7 +15,7 @@ pip install -r requirements.txt
 pip install -e "."
 ```
 
-要求：Python 3.10+，Windows（主要）或 Linux（实验性）。
+要求：Python 3.14+，Windows（主要）或 Linux（实验性）。
 
 ---
 

@@ -2,489 +2,321 @@
 
 <img src="../../logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
 
-[🇬🇧 English](../../README.md) • [🇷🇺 Русский](../ru/README.md) • [🇨🇳 中文](README.md)
+[English](../../README.md) · [Русский](../ru/README.md) · [中文](README.md)
 
 # MSCodebase Intelligence
 
-**Zed IDE 的 AI 驱动语义代码搜索 MCP 服务器 — 深度代码分析 MCP 服务器**
+**面向 Zed 的本地优先代码智能：词法搜索、调用图、影响分析、项目记忆和安全写入工具，通过 MCP 提供。**
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
 [![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![Tests](https://img.shields.io/badge/tests-1371%20passed-brightgreen)](../../tests/)
+[![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
 
-[功能特性](#-功能特性) • [快速开始](#-快速开始) • [工具列表](#-mcp-工具共49个) • [文档地图](#-文档地图) • [安装指南](INSTALL.md) • [架构说明](ARCHITECTURE.md) • [贡献指南](../../CONTRIBUTING.md) • [安全策略](../../SECURITY.md)
-
-*最后更新：2026-08-03*
+*更新于 2026-10-25。英文页面为准；本翻译可能滞后。*
 
 </div>
 
 ---
 
-## 🎯 定位
+## 这是什么
 
-**MSCodeBase Intelligence** 是一个面向 **Zed IDE** 的 MCP 服务器，为 AI 助手提供 **对整个代码库的深度理解**：语义搜索、调用图、项目记忆、诊断。
+MSCodebase Intelligence 是一个**本地 MCP 服务器**，让 Zed 中的 AI 助手对代码库
+获得有依据的视图。它不是聊天模型，也不是编辑器 LSP 的替代品。它回答：
 
-这**不是** LSP 服务器，也不是编辑器内置自动补全的替代品。它是编辑器之上的"代码智能"层：
+- 符号在哪里定义？谁在调用？修改后会破坏什么？
+- 哪些文件与问题相关——代码、测试还是文档？
+- 项目已经做过哪些决定？哪些事故仍未关闭？
+- rename/move/replace 能否安全预览并应用？
 
-```
-┌─────────────────────────────────────────────────────┐
-│                      Zed IDE                         │
-│  ┌───────────────────────────────────────────────┐  │
-│  │        LSP（内置自动补全、                      │  │
-│  │        内联提示、诊断）                         │  │
-│  └───────────────────────────────────────────────┘  │
-│                        │                              │
-│                        ▼                              │
-│  ┌───────────────────────────────────────────────┐  │
-│  │  MSCodeBase（MCP 服务器）                     │  │
-│  │  · 代码库语义搜索                              │  │
-│  │  · 调用图与影响分析                            │  │
-│  │  · 项目记忆（ADR、技术债务）                   │  │
-│  │  · 自诊断与自愈                                │  │
-│  │  · 为 AI 助手提供 61 个工具                    │  │
-│  └───────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────┘
-```
+当前默认是**文本优先检索**：SQLite FTS5/BM25 加 Tree-sitter/PropertyGraph 索引。
+Embedding 和 reranker 提供程序存在，但都是可选的，默认路径不需要它们。这是
+刻意选择：服务器离线仍可用，延迟可预测，向量数据库不会成为单点故障。
 
-### 能力对比
+## 当前可用的能力
 
-| 功能 | MSCodeBase | 标准 LSP（pyright/pylsp） |
-|---------|:----------:|:---------------------------:|
-| 🔍 **语义搜索**（BM25 + 向量 + 重排序） | ✅ | ❌ |
-| 🧠 **调用图 + 影响分析** | ✅ | ❌ |
-| 🗃️ **项目记忆**（ADR、已知问题） | ✅ | ❌ |
-| 🏥 **自诊断 + 自愈** | ✅ | ❌ |
-| 🔎 **跨仓库搜索** | ✅ | ❌ |
-| 🤖 **RAG 答案生成**（mode=ask） | ✅ | ❌ |
-| 🔬 **搜索透明度**（per-stage 评分分解） | ✅ | ❌ |
-| 🏛️ **架构漂移检测**（chain/hub/circular） | ✅ | ❌ |
-| ✅ **声明验证**（AI 代理事实核查） | ✅ | ❌ |
-| ✏️ **内联自动补全** | ❌ | ✅ |
-| 🏷️ **内联提示** | ❌ | ✅ |
+| 领域 | 作用 | 备注 |
+|---|---|---|
+| 代码搜索 | 对解析后的 chunk 做 BM25/FTS5；符号/路径信号；可选图扩展 | `search_code` |
+| 文档搜索 | 独立的 `docs/**` FTS 通道，BM25 分差足够大时自动启用 | 无 LLM 路由器 |
+| 符号智能 | 定义、callers/callees、references、impact、structural search | `get_symbol_info`, `impact_analysis`, `structural_search` |
+| 图 | 文件/符号 PropertyGraph：call、import、assignment、decorator、override | 用 `scripts/rebuild_graph.py` 重建 |
+| 项目记忆 | ADR、事故、known issues、retract/supersede | `intel_*` |
+| 安全写入 | rename、move、delete、replace、insert，带 preview/impact | `codebase(action=...)` |
+| 诊断 | runtime passport、health、index status、logs、jobs | `debug_runtime_passport`, `get_health_report` |
+| LSP rename | 基于 basedpyright 的跨文件 rename + SymbolIndex fallback | 仅 rename |
 
-### LSP：仅用于重命名（混合模式）
+## 搜索质量：有测量，也有边界
 
-MSCodeBase **在 `codebase(action="rename")` 中使用 LSP** — LSP 客户端（`src/core/lsp_client.py`）启动 **basedpyright** 以实现精确的跨文件重命名与 AST 分析（lsp_find_references / lsp_find_definition / lsp_document_symbols / lsp_get_type_info / lsp_get_diagnostics / lsp_get_code_actions），超时时自动回退到 SymbolIndex（Tree-sitter）。所有其他功能通过 **61 个 MCP 工具** 实现。
+没有测量方法的数字没有意义。下面是内部的 **48 查询面板**（33 个真实项目问题
+加 15 个 docstring 派生问题），在干净索引上评估，排除 `experiments/**`，图存在。
+这不是通用 benchmark，也不代表所有语言或仓库。
 
-独立的 LSP 服务器（`src/lsp_main.py`）是实验性组件，**在 Zed 中无法工作** — 参见 [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)。
+| 路径 | hit@1 | hit@5 | 含义 |
+|---|---:|---:|---|
+| 代码，quality | 0.825 | 0.900 | 40 个代码问题中 33 个首位命中正确的文件 |
+| 文档，精确路径 | 0.000 | 0.125 | Gold 指向 `docs/en/X`，检索常返回 `docs/ru/X` |
+| 文档，同文件名 | 0.750 | 0.750 | 把翻译视为同一文档 |
+| 总体 quality | 0.688 | 0.750 | 代码和文档按面板标注混合 |
+| 总体 auto docs route | 0.792 | 0.875 | BM25-margin 路由 + 文档通道；翻译已归一化 |
+| Fast | 0.542 | 0.729 | 质量较低、延迟较低；用于精确/简单查找 |
 
-### 支持平台
+这些数字**不**代表：
 
-在 **Windows** 上设计和测试。macOS 和 Linux 应可工作，但尚未经过官方验证。
+- **不是 95% 准确率。** 该面板上没有任何静态方案达到这个水平。双通道 repo map
+  （代码 PageRank + 文档 BM25）在 1k/2k/4k token 下、理想路由时约 40%/62%/73%
+  gold 文件覆盖率；单独 PageRank 在代码查询上约 33%/55%/68%。它是上下文选择
+  工具，不是搜索替代品。
+- **不是所有本地 reranker 都有帮助。** 多个模型被测量后拒绝：它们降低 hit@1
+  或增加不可接受的延迟。
+- **不是文档通道坏了。** 它经常返回另一种语言的正确文档（`docs/ru/X` 而不是
+  `docs/en/X`）。这是 gold 标注问题，不是检索失败。
 
-### 支持语言
+面板、原始运行、假设和 summary 位于 `experiments/`。它是可复现的实验记录，
+不是营销文案。
 
-| 语言 | 解析 | 调用图 | Data Flow (ASSIGNED_FROM) |
-|---|---|---|---|
-| **Python** | ✅ | ✅ | ✅ |
-| **TypeScript** | ✅ | ✅ | ✅ |
-| **TSX** | ✅ | ✅ | ✅ |
-| **Rust** | ✅ | ✅ | ✅ |
-| **Go** | ✅ | ✅ | ✅ |
-| **JavaScript** | ✅ | ✅ | ✅ |
-| **Java** | ✅ | ✅ | ✅ |
-| **C#** | ✅ | ✅ | ✅ |
-| **Ruby** | ✅ | ✅ | ✅ |
-| **PHP** | ✅ | ✅ | ✅ |
-| **Kotlin** | ✅ | ✅ | ✅ |
-| **Swift** | ✅ | ✅ | ✅ |
-| **C** | ✅ | ✅ | ✅ |
-| **C++** | ✅ | ✅ | ✅ |
-| **Scala** | ✅ | ✅ | ✅ |
-| **Dart** | ✅ | ✅ | ✅ |
-| **Shell** | ✅ | ⚪ | ⚪ |
-| **Bash** | ✅ | ⚪ | ⚪ |
+## 搜索如何工作
 
-## ✨ 功能特性
+默认路径是确定性的：
 
-| 功能 | 描述 |
-|---------|-------------|
-| 🔍 **统一搜索** | `search_code(query, mode, intent_hint)` — 单一工具：fast/quality/deep/context/ask/auto |
-| 🧠 **智能层** | 16 个高级 `intel_*` 工具：自诊断、拓扑、记忆、错误预测 |
-| 🗃️ **项目记忆** | ADR、已知问题、技术债务 — 跨会话自动持久化 |
-| 🌐 **跨仓库搜索** | 使用 `@mention` 语法跨多个项目搜索 |
-| 🌳 **调用图** | 完整调用图：定义 + 调用方 + 被调用方 + 影响分析 |
-| 🏗 **结构搜索** | 13 种 AST 模式（class_inheritance、async_function、decorator 等） |
-| 🔎 **上下文搜索** | 查找相似代码 — 粘贴片段，获取语义重复 |
-| 🪣 **多桶 RAG** | 代码/文档桶，软权重，intent_hint（code/docs/auto） |
-| 🤖 **mode=ask** | 通过 phi-4 生成 RAG 答案（server 配置） |
-| 💾 **LanceDB v2** | 向量数据库，支持项目隔离（增量 BM25 重索引） |
-| 🛡 **限流** | DebounceBatch + CircuitBreaker — 防止 VFS 循环 |
-| 🏥 **自诊断** | `get_health_report` + `index_health` — 完整检查与恢复 |
-| 🧪 **整洁架构** | DI 容器（18 个服务），62 个工具（29 core + 16 intel + 13 inline + 4 dev），1371 个测试 |
-| 🪟 **多窗口** | `ProjectIndexerRegistry` — 每个项目独立 Indexer，LRU 5，ResourceMonitor 限流 |
-| ✏️ **Write Tools** | `codebase(action=...)` — 统一枢纽：rename、move、delete、replace、insert、ack |
-| ⚡ **Meta-Patching** | LanceDB `move_chunks_metadata` — 无需重新嵌入即可重命名 file_path（50ms vs 5s） |
-| ⚙️ **SYSTEM_PROFILE** | `light`（同步）/ `server`（异步，带 phi-4） |
-| 🔗 **数据流图** | `ASSIGNED_FROM` 边追踪变量赋值。Unified Walker + Conditional Flow（if/for/while/try）。MSCodeBase 上 29 种边类型。 |
+1. **Parse/index** — 文件 → chunk + PropertyGraph。
+2. **Retrieve** — SQLite FTS5/BM25、符号/路径信号，可选图邻居。
+3. **Rank/clean** — 可选 on-demand rerank、exact-name boost 和符号去重。
+   RRF/MMR/dense fusion 属于可选 LanceDB/vector 路径，不是每个默认查询都会执行。
+4. **Docs routing** — 最佳 docs 分数超过最佳 code 分数达到可配置 margin
+   （`MSCODEBASE_DOCS_MARGIN`，默认 `4.0`）时走文档通道。
+5. **Return** — 带 metadata 的 chunk/文件；`intent="docs"` 或
+   `intent="code"` 可覆盖自动选择。
 
----
+路由中没有 LLM。它只是一次额外 FTS 查询和分数比较：本地、可解释、成本低。
 
-## 🚀 快速开始
+可选层：
 
-在 Zed 中安装 `mscodebase-intelligence` 扩展，然后：
+- Embedding 提供程序（llama.cpp GGUF、ONNX、LM Studio/Ollama）提供 vector
+  candidates。
+- 配置提供程序时的 on-demand rerank。
+- Graph expansion 和 PageRank 风格 repo ranking。
+
+当 `MSCODEBASE_DENSE_OFF=true`（当前默认）时，代码/文档查询不依赖 embedding
+server。
+
+## 快速开始
+
+要求：Windows 是已验证平台；Python 3.14+；Zed 安装
+`mscodebase-intelligence` 扩展。
 
 ```bash
 cd <repo-root>
 python install.py
-
-# 重启 Zed（File → Quit → 重新打开）
-# 验证：intel_get_runtime_status()
+# 仅同步代码，不提问：
+python install.py --sync
+# CI 模式，不提问：
+python install.py --yes
 ```
 
-**install.py 完成以下操作：**
-1. 将 39+ 个源文件复制到扩展目录
-2. 安装 Python 依赖
-3. 下载 llama-server.exe + GGUF 重排序模型（bge-reranker-v2-m3）。嵌入器（multilingual-e5-small INT8）为单独的 ONNX 模型
-4. 在 Zed 的 settings.json 中配置 MCP
+`install.py` 会把服务器复制到 Zed 扩展目录、安装依赖、可选准备模型，并写入
+MCP 配置。完成后重启 Zed。
 
-另见：[AI_INSTALLATION_PROMPT.md](../../AI_INSTALLATION_PROMPT.md)、[INSTALL.md](INSTALL.md)
+在 agent panel 中验证：
 
-### 提供者
-
-MCP 自动选择最佳可用提供者：
-
-```
-ONNX/OpenVINO INT8（进程内）→ llama.cpp GGUF（GPU）→ LM Studio（如果运行中）→ 仅 BM25
-   ~0.5 GB RAM                ~1.7 GB RAM (2× llama-server)   ~6 GB RAM             无嵌入
-   e5-small 嵌入器（384dim）     重排序器（bge-reranker-v2-m3）   外部 API
+```text
+debug_runtime_passport()
+intel_get_runtime_status()
+codebase(action="index", path="status")
 ```
 
-基准测试：[docs/research/2026-07-10-final-benchmark.md](../research/2026-07-10-final-benchmark.md)
-
----
-
-## 📚 文档地图
-
-| 文档 | 描述 | 受众 | 语言 |
-|----------|-------------|----------|-----------|
-| **[INSTALL.md](INSTALL.md)** | 安装、设置、卸载 | 用户 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | 整洁架构、层次、DI | 开发者 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md)** | 深度架构：流水线、生命周期、对比 | 架构师 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md)** | 搜索流水线：BM25 → RRF → 重排序 | 开发者 | 🇬🇧 |
-| **[GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md)** | 5 级优雅降级（llama.cpp → ONNX → BM25） | DevOps | 🇬🇧 |
-| **[ARCHITECTURE_LAYERS.md](ARCHITECTURE_LAYERS.md)** | 10 个运行时层次 | 架构师 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[FAQ.md](FAQ.md)** | 常见问题 | 全部 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[TELEMETRY.md](TELEMETRY.md)** | 指标、ETA、数据收集 | DevOps | 🇬🇧 🇷🇺 🇨🇳 |
-| **[investigations/ONNX_SESSION_REPORT.md](../en/investigations/ONNX_SESSION_REPORT.md)** | 完整 ONNX 迁移、7 个修复、基准测试 | 支持 | 🇬🇧 |
-| **[investigations/LSP_WONTFIX.md](investigations/LSP_WONTFIX.md)** | Windows 上 LSP 调研（WONTFIX） | 支持 | 🇬🇧 🇨🇳 |
-| **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)** | Windows 特性、受限模式 | Windows 用户 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[CHANGELOG.md](CHANGELOG.md)** | 版本历史 | 全部 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[CONTRIBUTING.md](CONTRIBUTING.md)** | 如何贡献、PR | 贡献者 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[SECURITY.md](SECURITY.md)** | 安全策略、漏洞 | 安全人员 | 🇬🇧 🇷🇺 🇨🇳 |
-| **[../../AGENTS.md](../../AGENTS.md)** | AI 代理系统规则 | AI 代理 | 🇬🇧 |
-| **[../../SECURITY.md](../../SECURITY.md)** | 安全策略、报告漏洞 | 安全人员 | 🇬🇧 |
-| **[../../CODE_OF_CONDUCT.md](../../CODE_OF_CONDUCT.md)** | 社区准则 | 贡献者 | 🇬🇧 |
-
-| **[../../KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)** | 已知问题与技术债务注册表 | 全部 | 🇬🇧 |
-
-所有文档相互引用。提供 3 种语言：English、Русский、中文。
-
----
-
-## 🔧 MCP 工具（共 61 个）
-
-### 核心搜索
-
-| 工具 | 使用场景 |
-|------|-------------|
-| `search_code(query, mode, filter_layer, intent_hint)` | **主搜索工具。** `mode="auto"` / `"fast"` / `"quality"` / `"deep"` / `"context"` / `"ask"`。`intent_hint="code"` / `"docs"` / `"auto"` — 软桶权重。`filter_layer="core"` — 在特定架构层内搜索 |
-| `structural_search(pattern)` | AST 搜索：`class_inheritance`、`async_function`、`function_with_decorator` 等 |
-| `cross_repo_search(query @repo)` | 跨多项目搜索（单体仓库） |
-| `cross_project_deps(action)` | 跨项目依赖图：`graph` / `deps` / `cycles` / `impact` |
-| `get_symbol_info(query)` | 调用图：调用方、被调用方、影响文件 |
-| `execute_script(code, timeout, args)` | **沙箱 Python 执行（3 层）。** AST 验证 + runtime `__import__` 包装 + subprocess 隔离。审计日志。返回 `{stdout, stderr, exit_code, duration_ms, truncated, timed_out}` |
-| `impact_analysis(symbol)` | 符号变更影响分析（风险分数、深度） |
-
-### 索引管理（通过 `codebase(action="index", ...)`）
-
-| 操作 | 使用场景 |
-|------|-------------|
-| `codebase(action="index", path="status")` | 索引状态：块数、文件数、符号数（`get_index_status`） |
-| `codebase(action="index", path="progress")` | 索引进度（阶段、百分比） |
-| `codebase(action="index", path="project_dir", project_root=...)` | 开始完整项目索引（`index_project_dir`） |
-| `codebase(action="index", path="timeline")` | 按日期查看索引历史 |
-| `codebase(action="index", path="health")` | 索引诊断与自我恢复（`index_health`） |
-| `notify_change(file_path)` | 强制更新某个文件的索引（通过 DebounceBatch）— inline 工具 |
-| `generate_chunk_summaries(root)` | 代码块的 LLM 生成描述 |
-| `scan_changes(project_root)` | 架构差异 — 分析自上次基线以来的变更 |
-
-### 系统与诊断
-
-| 工具 | 使用场景 |
-|------|-------------|
-| `get_health_report()` | **完整自诊断：** 索引、嵌入器、日志、同步 |
-| `get_logs(project_root)` | 项目日志中的最新错误和警告 |
-| `read_live_file(path)` | 从 LSP 内存读取文件（含未保存的更改） |
-
-### 分析
-
-| 工具 | 使用场景 |
-|------|-------------|
-| `get_hotspots(project_root)` | 热点 — 高缺陷率的文件 |
-| `get_repo_rank(project_root, top_k)` | 符号重要性排名（调用图上的 PageRank） |
-| `get_bug_correlation(project_root)` | 缺陷-变更关联分析 |
-| `get_repo_map(project_root)` | 项目地图：文件树 + 关键符号 |
-| `graph_query(action="related", target=path)` | 通过共同变更/缺陷关联相关的文件（通过 `related` 操作） |
-| `graph_query(action, target)` | 图查询：`impact` / `feature` / `deps` / `tests` / `cypher` / `flow` / `drift` / `verify` |
-| `find_similar_bugs(error)` | 通过错误文本从历史中查找类似缺陷 |
-
-### Git 与历史（通过 `codebase(action="git", ...)`）
-
-| 操作 | 使用场景 |
-|------|-------------|
-| `codebase(action="git", path="log", ...)` | 语义化提交历史（`get_commit_history`） |
-| `codebase(action="git", path="history", ...)` | 特定文件的变更历史 |
-| `codebase(action="git", path="branch")` | 分支信息 + 索引状态（`get_branch_info`） |
-
-### 生命周期与验证
-
-| 工具 | 使用场景 |
-|------|-------------|
-| `submit_background_task(type, root)` | 运行长任务：`bug_correlation` / `build_knowledge_graph` / `full_analysis` |
-| `get_task_status(task_id)` | 后台任务状态 |
-| `verify_action(action_type)` | 验证：`file_write` / `git_commit` / `git_push` / `index_sync` |
-
-### Write Tools — `codebase(action=...)`
-
-| 操作 | 使用场景 |
-|------|-------------|
-| `codebase(action="rename", old, new, apply)` | 在所有文件中重命名符号（预览/应用，冲突检查） |
-| `codebase(action="move", symbol, to_file, apply)` | 将符号移动到另一个文件（预览/应用，导入更新） |
-| `codebase(action="safe_delete", symbol, force, apply)` | 安全删除并检查引用（强制模式） |
-| `codebase(action="replace", symbol, new_code, apply)` | 替换函数/类主体（预览/应用） |
-| `codebase(action="insert_before", anchor, new_code, apply)` | 在锚点符号前插入代码（预览/应用） |
-| `codebase(action="insert_after", anchor, new_code, apply)` | 在锚点主体后插入代码（预览/应用） |
-| `codebase(action="ack_impact", file_path)` | 确认影响以解除 modification guard |
-
-### 智能层（intel_*）— 16 个高级工具
-
-| 工具 | 功能 |
-|------|-------------|
-| `intel_get_runtime_status()` | 聚合健康状态：嵌入器、索引、资源使用 |
-| `intel_trigger_reindex()` | 即发即弃的重索引（不阻塞 Zed） |
-| `intel_get_job_status(job_id)` | 后台任务进度 |
-| `intel_code_topology(symbol)` | 调用图 + 模块拓扑（< 2 秒） |
-| `intel_get_project_memory()` | 项目记忆地图：ADR、known_issues、tech_debt |
-| `intel_log_incident(...)` | 记录事件到项目历史 |
-| `intel_analyze_incident(error)` | 查找类似事件 + 现成解决方案 |
-| `intel_add_memory_node(section, data)` | 添加记录到项目记忆 |
-| `intel_get_hotspots()` | 缺陷负载最高的 Top-5 文件 |
-| `intel_predict_root_cause(error)` | 从日志 + 历史预测根本原因 |
-| `intel_get_telemetry(days)` | 按工具统计的遥测、资源使用、LLM 统计 |
-| `intel_auto_collect_adrs(max_commits)` | 从提交历史自动生成 ADR |
-| `intel_reset_index()` | 删除并从头重建索引 |
-| `intel_retract_memory_node(node_id, reason)` | 撤回记忆节点（ACTIVE/VERIFIED → REFUTED，必须提供原因） |
-| `intel_restore_memory_node(node_id, reason)` | 从 REFUTED 恢复节点（手动返回，ADR-0002/0003） |
-| `intel_supersede_memory_node(node_id, reason, new_node_id)` | 将节点标记为 SUPERSEDED — 被更新的事实取代 |
-
-> `intel_tool_health()`、`intel_explain_project_state()`、`intel_get_project_context()` — 见下方诊断工具。
-
-### 开发工具（4 个）
-
-| 工具 | 功能 |
-|------|-------------|
-| `generate_docs(project_root)` | 从 PropertyGraph 生成 Markdown 文档（DEPRECATED — 使用 auto_update_docs） |
-| `bump_version(project_root, part, dry_run)` | 提升项目版本 + 更新 CHANGELOG |
-| `auto_update_docs(project_root, action)` | 自动更新文档：update/check |
-| `install_git_hooks(project_root, action)` | 安装 pre-commit 钩子：install/uninstall/status |
-
-### 诊断工具（7 个）
-
-| 工具 | 功能 |
-|------|-------------|
-| `debug_runtime_passport()` | 进程护照：RUN_ID、PID、构建信息 |
-| `get_runtime_counters()` | 运行时计数器：调用次数、阻塞次数、警告次数 |
-| `intel_execution_timeline(limit)` | 最近操作时间线及耗时 |
-| `intel_get_project_context(root)` | 单一快照：状态、索引、健康、记忆 |
-| `intel_explain_project_state(root)` | 人类可读的项目状态诊断 |
-| `intel_tool_health()` | 工具成功率、延迟、置信度 |
-| `refresh_db_connection()` | 重置数据库句柄并重新连接 |
-
----
-
-## 🏗️ 架构
-
-### 基于 DI 容器的整洁架构
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                   MCP 服务器（约 600 行）                         │
-│            src/mcp/server.py + server_tools.py + server_factory.py │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │              DI 容器（18 个服务）                          │   │
-│  │  src/core/di_container.py — ServiceCollection             │   │
-│  │                                                           │   │
-│  │  ┌──────────┐  ┌────────────┐  ┌──────────────────────┐  │   │
-│  │  │ Indexer  │  │  Searcher  │  │  DebounceBatch       │  │   │
-│  │  │ Embedder │  │  SymbolIdx │  │  CircuitBreaker      │  │   │
-│  │  │ Parser   │  │  FileGuard │  │  RateLimiter         │  │   │
-│  │  └──────────┘  └────────────┘  └──────────────────────┘  │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                           │                                       │
-│              ┌────────────┴────────────┐                         │
-│              ▼                          ▼                         │
-│  ┌────────────────────┐  ┌────────────────────────────────────┐  │
-│  │  28 个工具类      │  │  16 intel_* + 13 inline 工具      │  │
-│  │  src/mcp/tools/*.py│  │  intelligence/layer.py +         │  │
-│  │  + codebase hub     │  │  server_tools.py (inline)       │  │
-│  │  构造函数注入      │  │  error_boundary 装饰器            │  │
-│  │  1 execute_script   │  │  asyncio.wait_for(timeout)       │  │
-│  └────────────────────┘  └────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────┐     ┌───────────────────┐
-│  RemoteEmbedder  │     │  LanceDB v2       │
-│  (LM Studio /    │     │  (向量数据库)      │
-│   Ollama / ONNX) │     │  BM25 + 向量      │
-└─────────────────┘     └───────────────────┘
-```
-
----
-
-## ⚡ 性能
-
-| 模式 | 延迟 | 最佳用途 |
-|:-----|:--------|:---------|
-| `search_code(query, mode="fast")` | ~80-500ms | 简单关键词/精确名称 |
-| `search_code(query, mode="quality")` | ~250-2000ms | 带重排序的语义搜索 |
-| `search_code(query, mode="deep")` | ~2-5s | 跨模块复杂调研 |
-| `search_code(query, mode="context")` | ~200-800ms | 通过片段查找相似代码 |
-| `get_symbol_info(query)` | ~200-1500ms | 符号定义 + 调用图 |
-| `impact_analysis(symbol)` | ~1-5s | 变更影响分析 |
-
-### 环境变量
-
-| 变量 | 默认值 | 描述 |
-|----------|---------|-------------|
-| `LM_STUDIO_URL` | `http://localhost:1234/v1` | LM Studio API 端点 |
-| `LM_STUDIO_PORT` | `1234` | LM Studio 端口 |
-| `OLLAMA_URL` | `http://localhost:11434` | Ollama API 端点 |
-| `LOG_LEVEL` | `INFO` | 日志详细级别 |
-| `ZED_WINDOWS_QUIRKS.md` | *（见文件）* | Windows 特定说明 |
-
----
-
-## 🔧 故障排除
-
-### MCP 服务器无响应
-
-**症状：** 工具超时，无响应。
-
-**检查清单：**
-1. **File → Quit** → 重新打开项目
-2. 运行 `python install.py` 重新配置
-3. 检查日志：`%LOCALAPPDATA%\mscodebase\logs\`（data_root）
-
-### 索引为空（0 个块）
-
-在代理面板中运行：
-```
-intel_trigger_reindex()
-```
-
-然后验证：`get_index_status()`
-
-### LM Studio 连接问题
+如果图为空但 chunk 存在，只重建图（不计算 vector）：
 
 ```bash
-# 验证服务器是否响应：
-python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:1234/v1/health').read())"
+python scripts/rebuild_graph.py
 ```
 
-预期输出：`{"status":"ok"}`。
-
----
-
-## 📁 项目结构
-
-```
-mscodebase-intelligence/
-├── src/
-│   ├── main.py                   # MCP 服务器入口点（约 194 行）
-│   ├── lsp_main.py               # LSP 服务器（基于 DI，用于 didSave 索引）
-│   ├── mcp/
-│   │   ├── server.py             # MCP 服务器创建（约 597 行）
-│   │   ├── server_factory.py     # DI 设置 + 服务器生命周期
-│   │   ├── server_tools.py       # 工具注册 + 12 个 inline 工具（约 607 行）
-│   │   └── tools/                # 16 个模块 + base 类
-│   │       ├── codebase_tool.py  # codebase(action=...) hub + execute_script
-│   │       ├── search_tools.py   # search_code、get_symbol_info、impact_analysis
-│   │       ├── indexing_tools.py # notify_change、index_project_dir、index_health
-│   │       ├── git_tools.py      # get_branch_info、get_commit_history、get_file_history
-│   │       ├── system_tools.py   # get_index_status、get_health_report、read_live_file、get_logs
-│   │       ├── analysis_tools.py # structural_search、get_repo_map、get_repo_rank、scan_changes
-│   │       ├── graph_tools.py    # cross_repo_search、cross_project_deps、graph_query
-│   │       ├── investigation_tools.py  # get_bug_correlation、get_hotspots、find_similar_bugs
-│   │       ├── lifecycle_tools.py      # submit_background_task、get_task_status、verify_action
-│   │       ├── meta_tools.py     # IndexTool、GitTool、SystemTool（codebase hub 的 spoke）
-│   │       └── write_tools.py    # WriteTool（rename、move、delete、replace、insert）
-│   ├── core/
-│   │   ├── di_container.py       # ★ DI 容器（18 个服务，ServiceCollection）
-│   │   ├── error_handler.py      # ★ error_boundary + ToolError
-│   │   ├── rate_limiter.py       # ★ SlidingWindowRateLimiter + DebounceBatch + CircuitBreaker
-│   │   ├── indexer.py            # LanceDB 向量存储
-│   │   ├── searcher.py           # 混合搜索（BM25 + 密集向量 + RRF）
-│   │   ├── symbol_index.py       # 调用图（BFS、影响分析）
-│   │   ├── intelligence_layer.py # intel_* 工具（14 个高级）
-│   │   ├── llama_runner.py       # llama.cpp 生命周期管理器 ★
-│   ├── remote_embedder.py    # ONNX/OpenVINO multilingual-e5-small INT8（进程内）+ LM Studio / Ollama fallback
-│   │   ├── reranker.py           # 多提供者重排序（HTTP 到提供者）
-│   │   ├── parser.py             # Tree-sitter AST
-│   │   ├── health_report.py      # 自诊断引擎
-│   │   └── ...
-│   └── utils/
-│       ├── paths.py              # SafePathManager、to_win_long_path
-│       └── zed_config.py         # 自动配置 Zed 设置
-├── docs/
-│   ├── en/               # 英文文档
-│   ├── ru/               # 俄文文档
-│   └── zh/               # 中文文档
-├── tests/                        # 853 个测试（pytest）
-├── .agents/skills/               # AI 代理技能
-├── install.py                    # 安装程序
-└── README.md
-```
-
----
-
-## 🛠️ 开发
-
-参见 [CONTRIBUTING.md](CONTRIBUTING.md) 了解：
-- 如何添加新的 MCP 工具
-- 测试结构与 CI 流水线
-- 提交信息约定
-
-### 开发者快速开始
+如果索引过期或缺失，重建文本 chunk 和图：
 
 ```bash
-# 设置
+python scripts/reindex_text_only.py --project .
+```
+
+然后重启 MCP/Zed，让新进程打开重建后的存储。
+
+## 工具
+
+服务器注册 **64 个工具**，分为四组；启用
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 时增加一个可选的
+`execute_script`。默认 allowlist 暴露 **49 个**；隐藏工具可通过
+`MSCODEBASE_MCP_TOOLS` 启用（空字符串显示全部）。准确列表见 MCP 启动日志和
+`intel_get_runtime_status`。
+
+| 组 | 示例 | 用途 |
+|---|---|---|
+| 搜索与分析 | `search_code`, `plan_search`, `get_symbol_info`, `impact_analysis`, `structural_search`, `graph_query` | 代码、符号、关系、impact |
+| 索引与系统 | `codebase(action="index"...)`, `notify_change`, `read_live_file`, `get_health_report`, `get_logs` | 索引新鲜度和诊断 |
+| Intelligence | `intel_get_runtime_status`, `intel_get_project_memory`, `intel_log_incident`, `intel_analyze_incident`, `intel_predict_root_cause` | 记忆、事故、runtime |
+| 写入与生命周期 | `codebase(action="rename"...)`, `move`, `safe_delete`, `replace`, `insert_before/after`, `ack_impact` | 预览/应用安全修改 |
+| Dev | `bump_version`, `auto_update_docs`, `install_git_hooks`, `generate_docs` | 仓库维护 |
+
+`codebase` 是 hub：`action` 选择 index、git 或 write。请查看 MCP 客户端中的
+tool schema，不要依赖可能过时的手写列表。
+
+## 架构
+
+```text
+Zed
+ │
+ ├── built-in LSP (autocomplete, diagnostics)
+ │
+ └── MCP client
+      │
+      ▼
+ MSCodebase MCP server
+   ├── Search      SQLite FTS5/BM25, symbol/path signals, optional graph
+   ├── Graph       PropertyGraph: calls, imports, assignments, decorators, overrides
+   ├── Index       parser → chunks → FTS5 + graph; freshness checks
+   ├── Memory      ADRs, incidents, known issues, retract/supersede
+   ├── Writes      rename/move/delete/replace/insert with impact guards
+   ├── Diagnostics runtime passport, health, jobs, logs, telemetry
+   └── Optional    embedding providers, reranker, LSP rename
+```
+
+规范数据位置在仓库之外：
+
+- `%LOCALAPPDATA%/mscodebase/projects/<hash>/` — 每项目 graph、memory、jobs。
+- `%LOCALAPPDATA%/mscodebase/logs/` — 服务器日志。
+- `<project>/.mscodebase/chunks.db` — Phase 3 文本 chunk store。
+
+LanceDB 仍属于 legacy/可选 vector path；默认 text-first 模式不需要它。
+
+## 配置
+
+所有设置都是 environment variables，defaults 在 `src/config/settings.py`。搜索
+相关重点：
+
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `MSCODEBASE_DENSE_OFF` | `true` | 跳过 dense/vector retrieval；使用 FTS5、symbols、graph |
+| `MSCODEBASE_SQLITE_CHUNKS` | `true` | 使用 SQLite/FTS5 chunk store |
+| `MSCODEBASE_DEMOTE_NON_CODE` | `false` | 在 fused pool 中降低 tests/docs/experiments |
+| `MSCODEBASE_DEMOTE_INTENT_AWARE` | `false` | docs intent 时不降低 docs |
+| `MSCODEBASE_DOCS_MARGIN` | `4.0` | 自动文档路由阈值（docs − code score） |
+| `MSCODEBASE_ONDEMAND_RERANK` | `true` | 可选 live rerank；需要 provider |
+| `MSCODEBASE_P3_ANCHOR` | `false` | module-head anchors；无 reranker 时增加延迟 |
+| `MSCODEBASE_MCP_TOOLS` | default set | 工具 allowlist；空 = 全部 |
+
+`experiments/**` 被有意排除在索引之外。那里是 frozen 面板和运行产物；索引它们
+曾让 BM25 返回面板本身而不是代码。文件仍保留在 git 中。
+
+## 支持的语言
+
+Python 是主要且完整验证的语言。Tree-sitter 解析覆盖 JavaScript、
+TypeScript/TSX、Rust、Go、Java、C#、Ruby、PHP、Kotlin、Swift、C、C++、Scala
+和 Dart。SQL、YAML、TOML、HTML、CSS、HCL/Terraform 作为上下文索引，不保证
+同等 call graph 覆盖。图和 data-flow 深度取决于 grammar；并非所有语言都有
+相同边类型。
+
+## 限制与已知问题
+
+这些是有意记录、公开的边界，不是隐藏行为：
+
+- **Docs gold 与语言：** 文档通道可能返回 `docs/ru/X.md`，而 gold 是
+  `docs/en/X.md`。文档是正确的，精确路径指标不是。评估翻译时按 basename 归一化。
+- **自动文档路由是启发式：** margin 可配置，并在 48 查询面板上调过。带有强
+  文档词的代码查询仍可能被路由到 docs；`intent="code"` 是退路。
+- **Graph rebuild 与 text reindex 分离：** `MSCODEBASE_DENSE_OFF=true` 时
+  完整 vector reindex 被有意阻止。图用 `scripts/rebuild_graph.py`，chunk 用
+  `scripts/reindex_text_only.py`。
+- **不宣称 95%：** 静态检索和测试过的本地 reranker 在该内部面板上都没有达到。
+  LLM planner/agent loop 是另一个实验，不是默认路径。
+- **Fast mode 不是 quality mode：** 更快，但在混合自然语言问题上明显更不准确。
+  用于精确名称和已知路径。
+- **可见工具受 allowlist 控制：** 源码里的“64 tools”不代表某个客户端能看到
+  全部 64 个；检查 `MSCODEBASE_MCP_TOOLS`。
+
+## 报告问题
+
+有用的报告是一个小实验，而不只是一个数字。请包含：
+
+1. 准确的 tool call 和参数（`query`、`mode`、`intent`、`limit`）。
+2. `debug_runtime_passport()` 和 `codebase(action="index", path="status")`。
+3. 是否重建过图（`scripts/rebuild_graph.py`），以及是否启用
+   `MSCODEBASE_DENSE_OFF` / `MSCODEBASE_ONDEMAND_RERANK`。
+4. 期望文件与实际返回文件；是精确路径还是同文件名（翻译算同一文档）。
+5. 可复现的最小查询，以及 `%LOCALAPPDATA%/mscodebase/logs/` 的相关日志。
+
+这样可以把四种看起来相似的问题分开：排序差、候选缺失、索引过期/为空、
+gold 标注不匹配。
+
+## 项目结构
+
+```text
+src/
+  main.py                 MCP entry point
+  mcp/
+    server.py             server creation
+    server_factory.py     DI and lifecycle
+    server_tools.py       tool registration and inline tools
+    tools/                search, index, graph, memory, write, lifecycle tools
+  core/
+    search/               engine, FTS5/BM25, scoring, query plan, graph adapter
+    indexing/             parser, chunk store, index pipeline, file guard
+    intelligence/         project memory, incidents, health, jobs
+    graph.py              PropertyGraph
+    di_container.py       service collection
+  config/settings.py      environment-backed settings
+  providers/              optional embedders and rerankers
+experiments/              frozen panels, run artifacts, summaries
+scripts/                  install/reindex/graph/smoke utilities
+tests/                    pytest suite
+docs/                     architecture, installation, operations, research
+```
+
+## 开发
+
+```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 直接运行 MCP 服务器（测试）
-python -m src.main
+# 聚焦搜索测试
+pytest tests/test_search_docs.py tests/test_query_plan.py \
+  tests/test_experiment_output_guard.py tests/test_searcher.py -q
 
-# 运行测试
+# 完整测试套件（integration/benchmark 由 marker 选择）
 pytest tests/ -m "not integration and not benchmark"
+
+# Live smoke：真实服务，无 mock
+python scripts/smoke_e2e.py --project .
 ```
 
----
+仓库使用 Conventional Commits，实验输入保存在 `experiments/**/frozen/`，结果记录
+在 `EXPERIMENTS_LOG.md`、`AGENT_DIARY.md` 和 `KNOWN_ISSUES.md`。
 
-## 📄 许可证
+## 文档地图
 
-MIT 许可证 — 详见 [LICENSE](../../LICENSE)。
+| 文档 | 内容 |
+|---|---|
+| [docs/en/INSTALL.md](../en/INSTALL.md) | 安装、卸载、平台说明 |
+| [docs/en/ARCHITECTURE.md](../en/ARCHITECTURE.md) | 分层、DI、模块边界 |
+| [docs/en/ARCHITECTURE_DEEP.md](../en/ARCHITECTURE_DEEP.md) | Pipeline 与 lifecycle |
+| [docs/en/SEARCH_PIPELINE.md](../en/SEARCH_PIPELINE.md) | Retrieval、fusion、scoring、rerank |
+| [docs/en/GRACEFUL_DEGRADATION.md](../en/GRACEFUL_DEGRADATION.md) | provider 不可用时的行为 |
+| [docs/en/ZED_WINDOWS_QUIRKS.md](../en/ZED_WINDOWS_QUIRKS.md) | Windows 与 Zed |
+| [docs/en/CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
+| [AGENTS.md](../../AGENTS.md) | AI agent 规则 |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | 开放问题与技术债 |
+| [EXPERIMENTS_LOG.md](../../EXPERIMENTS_LOG.md) | 实验假设与原始结果 |
 
----
+## Research notes
 
-## 🙏 致谢
+- [PageRank vs RAG on a real codebase](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj)
+- [Fact-checking one AI's audit with another](https://dev.to/mansio/i-asked-one-ai-to-fact-check-another-ais-audit-of-my-own-code-1ac3)
+- [The silent vector contamination bug](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7)
 
-- [Zed IDE](https://zed.dev/) — 代码编辑器
-- [LM Studio](https://lmstudio.ai/) — 本地 LLM 推理
-- [LanceDB](https://lancedb.github.io/) — 向量数据库
-- [Model Context Protocol](https://modelcontextprotocol.io/) — MCP 标准
+## 许可证
+
+MIT。见 [LICENSE](../../LICENSE)。
+
+## 致谢
+
+Zed、Model Context Protocol、Tree-sitter、SQLite/FTS5，以及让离线优先助手
+变得实用的本地推理项目。

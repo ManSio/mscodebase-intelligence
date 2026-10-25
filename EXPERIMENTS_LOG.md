@@ -1,4 +1,547 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-10-25] — E57: automatic docs routing without LLM (BM25 margin)
+
+**Keyword router:** exact 0.625/0.708, same-basename 0.708/0.812; 4 code FP.
+**BM25 margin router** (`docs_max - code_max > 4.0`):
+```
+t=2  base_h1=0.729 docs=5/8 code_fp=4
+t=3  base_h1=0.771 docs=5/8 code_fp=2
+t=4  base_h1=0.792 docs=5/8 code_fp=0  <-- implement
+t=5  base_h1=0.792 docs=5/8 code_fp=0
+```
+Exact overall at t=4 = 0.708; same-basename **0.688 → 0.792**, code hit@1
+unchanged 0.825, 0 code false positives. Held-out odd/even: best odd t=3 →
+even 0.875; t=4 full 0.792.
+
+**Implemented:** `MSCODEBASE_DOCS_MARGIN` (default 4.0),
+`Searcher.prefers_docs()`, auto branch in `SearchCodeTool` when `intent` empty.
+Tests: `tests/test_search_docs.py` (4). No LLM router.
+
+
+## [2026-10-25] — E55/E56: chain modes + docs channel; gold-language bottleneck
+
+**E55 (real chain, clean index + graph 12,753 nodes):**
+```
+hybrid    h1=0.688 h5=0.771 code 0.825/0.900 docs 0.000/0.125 p50=45ms
+fast      h1=0.542 h5=0.729 code 0.625/0.850 docs 0.125/0.125 p50=19ms
+quality   h1=0.688 h5=0.771 code 0.825/0.900 docs 0.000/0.125 p50=48ms
+deep      h1=0.688 h5=0.771
+nodemote/intent/ru/p3 — все 0.688/0.771, без эффекта.
+```
+**E56 (docs-only FTS):** exact-path docs_only 0.021/0.062 (docs subset 0.125/0.375);
+**translation-normalized (same basename) docs_only 0.750**, oracle **0.812/0.917**;
+p50 131ms.
+
+**Вывод:** docs-канал не слабый — BM25 возвращает `docs/ru/X.md`, а gold панели
+указывает `docs/en/X.md`; **gold canonicalization** (языковые варианты) —
+бутылочное горлышко, не ранжирование. Дешёвый путь: explicit intent +
+docs-only FTS (без LLM-router) → **0.812/0.917**. Параметры `demote/intent/ru/p3`
+на этой панели не двигают hit@1.
+
+
+## [2026-10-25] — E53/E54: cheap intent + explicit intent — docs всё ещё 0 hit@1
+
+**E53 (lexical intent-aware, clean index):**
+```
+baseline  h1=0.688 h5=0.750 code 0.825/0.900 docs 0.000/0.000 p50=88ms
+intent    h1=0.688 h5=0.771 code 0.825/0.900 docs 0.000/0.125 p50=86ms
+```
+False-positive docs intent на code-gold: **4** (E28-29, E28-32, D01, D12).
+
+**E54 (explicit intent по gold):** baseline 0.688/0.750; explicit 0.688/0.771;
+code 0.825/0.900; docs 0.000/0.125. Даже идеальный intent не двигает docs hit@1.
+**Вывод:** docs отсутствуют в candidate pool; нужен отдельный docs-only FTS
+канал (E48: docs-only BM25 = 0.75/1.00), без LLM-router.
+
+## [2026-10-25] — AUDIT: цепочка и модули (graph=0, leakage, docs=0)
+
+- **P0 graph:** production `graph.db` был 57 KB / **0 nodes**; `index_project`
+  блокируется `DENSE_OFF` → граф не строится. Восстановлен graph-only rebuild:
+  **12,753 nodes / 45,762 edges**, 0 experiment nodes.
+- **P0 leakage:** `experiments/frozen` индексировался → 19/48 BM25 запросов
+  находили саму панель. Исправлено: `SystemArtifacts` исключает `experiments/**`;
+  тест обновлён. Production index очищен: **0 experiments, 7,314 chunks**.
+- **E53/E54:** lexical intent даёт только +1 docs hit@5; docs остаются 0 hit@1.
+- Baseline clean: **0.688 hit@1 / 0.750 hit@5**; code 0.825/0.900, docs 0/0.
+- Tests: 32 passed (`query_plan`, experiment guard, searcher, fts5, graph).
+
+
+## [2026-10-25] — E52: clean-index baseline audit (leakage quantified)
+
+**Clean index:** удалено 9,089 из 16,347 chunks (`experiments/**`, `.mscodebase/**`),
+осталось 7,258. Leakage-файл в clean top-100: **0/48** (в contaminated — 19/48).
+
+```
+contaminated BM25         hit@1=0.458 hit@5=0.750 p50=185ms
+contaminated production   hit@1=0.688 hit@5=0.771 p50=144ms
+clean BM25                hit@1=0.542 hit@5=0.771 p50=140ms
+clean production          hit@1=0.688 hit@5=0.750 p50=72ms
+```
+Subsets clean: BM25 code 0.625/0.875, docs 0.125/0.250;
+production **code 0.825/0.900, docs 0.000/0.000**.
+
+**Вердикты:** H1 FAIL (0.542 < 0.55); H2–H9 PASS; H10 FAIL (docs 0).
+**Вывод:** production hit@1 **не завышен** (0.688 = 0.688); hit@5 был слегка
+завышен (0.771 → **0.750**); BM25 был повреждён leakage (0.458 → 0.542).
+Production силён на code (0.825/0.900), но **ноль на docs**. Oracle с идеальным
+router: **0.8125 hit@1 / ~0.9167 hit@5**; 95% всё ещё нет.
+
+
+## [2026-10-25] — E51/E51b: agentic loop + **panel leakage found**
+
+**E51 (contaminated):** `single_top1` для большинства запросов =
+`experiments/4A_unit_of_return/frozen/f5/queries.md` — frozen-файл панели
+проиндексирован и содержит те же probes. BM25 возвращает саму панель.
+Цифры E51 непригодны для качества.
+
+**E51b (фильтр `experiments/**`):**
+```
+single  hit@1=0.562 hit@5=0.771
+agent   hit@1=0.438 hit@5=0.792
+p50=140ms calls=2.0 tokens=1048
+```
+Code (40): single 0.650/0.875; agent 0.525/0.875.
+Docs (8): single 0.125/0.250; agent 0.000/0.375.
+
+**Вердикты:** H1/H2/H3/H5/H8/H9/H10 FAIL; H4/H6/H7/H11 PASS.
+**Вывод:** детерминированный expansion+graph **ухудшает hit@1** (0.438 vs 0.562),
+hit@5 +2.1 п.п. Главный блокер — **index hygiene**: frozen-панели нельзя
+индексировать/искать. Настоящий agentic loop требует LLM-планировщика,
+а не фиксированной эвристики.
+
+
+## [2026-10-25] — E49/E50: hybrid + docs reserve / score routing — zero-sum
+
+**E49 (резерв docs):** base 0.271/0.458/0.562; reserve15 0.250/0.500/0.583;
+reserve25 0.208/0.458/0.604; oracle 0.396/0.604/0.729; p50 245 ms.
+Code: reserve15 0.250/0.525/0.600. Docs: reserve15 0.250/0.375/0.500;
+reserve25 0.375/0.500/0.750. **Вывод:** бюджет нулевой суммы; резерв 15%
+ухудшает 1k (0.250 < 0.271); H1–H7,H9 FAIL.
+
+**E50 (score router):** base 0.271; docs 0.104/0.125/0.167; oracle
+0.375/0.583/0.729; все route@0.8–2.0 = 0.104/0.125/0.167; p50 460 ms.
+Docs-запросы route: **8/8 при любом пороге** — BM25-score docs всегда выше.
+Code route 0; docs route 0.625/0.750/1.000. **Вывод:** лексический score —
+не сигнал маршрутизации; нужен semantic classifier/agentic loop.
+Артефакты: `experiments/e49_hybrid_reserve/`, `e50_score_route/`.
+
+
+## [2026-10-25] — E48: two-channel repo map (code PageRank + docs BM25)
+
+**Вопрос:** сработает ли двухканальная схема после провала E47 (docs dilution).
+
+**Вход:** 759 code / 348 docs; один PageRank + один BM25 на запрос; слияние
+route/interleave/split; oracle — верхняя граница с идеальной маршрутизацией.
+**Сырой вывод:**
+```
+base          1k=0.271 2k=0.458 4k=0.562
+bm25_docs     1k=0.125 2k=0.167 4k=0.167
+route         1k=0.292 2k=0.458 4k=0.562
+interleave    1k=0.208 2k=0.438 4k=0.625
+split75       1k=0.208 2k=0.438 4k=0.604
+split50       1k=0.146 2k=0.396 4k=0.625
+oracle        1k=0.396 2k=0.625 4k=0.729
+p50=323ms
+```
+Docs-gold (8): **bm25_docs 0.75/1.00/1.00**; route 0.125; interleave 0.375/0.375/0.75;
+oracle 0.75/1.00/1.00. Code-gold (40): base 0.325/0.550/0.675; oracle same.
+
+**Вердикты:** H1–H5, H7, H8 FAIL; H6 PASS (323 ms).
+**Вывод:** docs BM25 — сильный отдельный канал (75/100/100), но keyword-routing
+ловит лишь 2 из 8 docs-запросов; oracle-потолок 39.6% на 1k (чуть ниже 40%),
+62.5% на 2k, 72.9% на 4k. **95% недостижимо** с этими двумя каналами.
+**Урок:** не классифицировать docs по словам — всегда запрашивать docs BM25 и
+добавлять top-docs под небольшой token-reserve; code-канал на 1k улучшать
+BM25-top-files + PageRank hybrid.
+
+
+## [2026-10-25] — E47: PageRank + docs nodes + BM25 seed — docs dilution
+
+**Вопрос:** поднимут ли docs-узлы и BM25-seed покрытие repo map.
+
+**Вход:** 759 code + 348 docs = 1,107 files; docs→code по упоминаниям символов;
+RU→EN; BM25 top-20 seed. **Сырой вывод:**
+```
+bm25          1k=0.062 2k=0.062 4k=0.062
+base          1k=0.271 2k=0.458 4k=0.562
+docs          1k=0.042 2k=0.188 4k=0.458
+docs_bm25     1k=0.042 2k=0.229 4k=0.479
+p50=1113ms
+```
+Code-only: base 0.325/0.550/0.675; docs 0.050/0.225/0.475.
+Docs-only: base 0/0/0; docs 0/0/0.375; docs_bm25 0/0.375/0.500; bm25 0.375/0.375/0.375.
+
+**Вердикты:** H1–H6 FAIL; H7 FAIL (как ожидалось: BM25 overall < PageRank).
+**Вывод:** наивные docs-узлы **разбавляют** code-граф (code 1k 32.5%→5%);
+BM25-seed не сливает каналы; docs выигрывает только через отдельный BM25
+(37.5% на 1k). p50 1.1 c — три PageRank на запрос слишком медленно.
+**Урок:** docs не в тот же PageRank; два канала (code PageRank + docs BM25) и
+слияние по бюджету/типу запроса, один PageRank на запрос.
+
+
+## [2026-10-25] — E46/E46b: Aider-style personalized PageRank repo map
+
+**Вопрос:** даёт ли file-level graph + personalized PageRank (Aider-style)
+высокое покрытие gold-файлов в token-budgeted repo map.
+
+**Вход:** E30 48 запросов; complete PropertyGraph 9,315 nodes / 47,286 edges /
+759 code files (docs в графе нет); бюджеты 1k/2k/4k; без эмбеддингов/LLM.
+
+**Сырой вывод (E46):**
+```
+degree        1k=0.000 2k=0.021 4k=0.146
+global        1k=0.021 2k=0.042 4k=0.104
+personalized  1k=0.271 2k=0.417 4k=0.521
+code-only     1k=0.325 2k=0.500 4k=0.625
+docs          1k=0.000 2k=0.000 4k=0.000
+```
+E46b (+RU→EN personalization): personalized 0.271/0.458/0.562; code-only
+0.325/0.550/0.675; docs 0.000. p50 ~205ms.
+
+**Вердикты:** H2 PASS (personalized ≫ global), H5 PASS, H6 PASS (≫ degree).
+**H1/H3/H4 FAIL** (1k 32.5% code, 2k 50%, 4k 62.5% — ниже 60/80/95).
+E46b H1 FAIL (1k не вырос), H2/H3/H4 FAIL; RU→EN даёт +5 п.п. на 2k/4k.
+
+**Вывод:** PageRank — реальный context-selection механизм, но не замена поиску и
+не 95% на 1k. Для высокого покрытия нужны docs-узлы в графе, лучшая
+персонализация (RU→EN+точные символы) и/или BM25 top-files до PageRank.
+Артефакты: `experiments/e46_pagerank_map/`, `e46b_pagerank_ru/`.
+
+
+## [2026-10-25] — E45: structured agent plan — +1 h1 (0.688 → 0.708), p50 72 ms
+
+**Вопрос:** даёт ли структурированный план (primary + must_include + symbols)
+выигрыш над текущим query expansion, без флуда вариантов.
+
+**Вход:** E30 48 запросов; frozen plans sha `093003f4…`; corrected index, demote ON,
+P3 off, без реранкера/графа.
+
+**Сырой вывод:**
+```
+baseline      h1=0.688 h5=0.771 mrr=0.713 p50=79ms
+plan_primary  h1=0.708 h5=0.750 mrr=0.718 p50=69ms
+plan_must     h1=0.708 h5=0.771 mrr=0.722 p50=71ms
+plan_symbols  h1=0.708 h5=0.750 mrr=0.718 p50=72ms
+plan_full     h1=0.708 h5=0.771 mrr=0.722 p50=72ms
+```
+
+**Вердикты:** H1 PASS (+1 h1), H5 PASS (p50 <150ms). H2/H3/H4/H6 FAIL
+(must/symbols не дают +1 h1; full 0.708 <0.75; 95% нет).
+
+**Вывод:** один primary query + must_include даёт +1 h1 и сохраняет h5, быстрее baseline.
+Агентский план — реальльный UX/латентный выигрыш, но не закрывает 95%.
+Артефакты: `experiments/e45_agent_plan/`.
+
+
+## [2026-10-25] — E44: agent-style rewrites — keywords +1 h1; identifier/fusion хуже
+
+**Вопрос:** если агент даст несколько формулировок запроса, улучшит ли это fused retrieval.
+
+**Вход:** E30 48 запросов; frozen rewrites sha `9f87fbb2…` (original, keywords,
+identifiers, RU→EN, concepts); corrected index, demote ON, P3 off, без реранкера.
+
+**Сырой вывод:**
+```
+baseline     h1=0.688 h5=0.771 mrr=0.713 p50=84ms
+keywords     h1=0.708 h5=0.771 mrr=0.723 p50=78ms
+identifiers  h1=0.583 h5=0.750 mrr=0.652 p50=69ms
+agent_all    h1=0.688 h5=0.771 mrr=0.713 p50=147ms
+```
+
+**Вердикт:** keywords-only — маленький выигрыш (+1 h1, +0.010 MRR, быстрее).
+Identifier-only хуже (шумная экстракция); фьюжн всех вариантов нейтрален и медленнее.
+Идея агентского планирования верна, но нужен **один primary query**, а не флуд вариантов.
+Артефакты: `experiments/e44_agent_rewrite/`.
+
+
+## [2026-10-25] — E41–E43: chain audit — experiments pollution, docs intent, concept tags
+
+**Диагностика цепочки (48 запросов):**
+```
+BM25 top1/top5/top10/top50 = 18/28/33/38
+FTS5 top1/top5/top10/top50 = 22/34/36/41
+RRF  top1/top5/top10/top50 = 25/35/37/40
+gold not in RRF top5 = 13/48; из них 8 — docs gold
+```
+Причина misses: часть — recall (gold нет в top50), часть — docs gold вытеснен
+demote/bucket weights; `auto_detect_intent` классифицирует docs-запросы как code.
+
+**E41 (исключить experiments/):** baseline 0.688/0.771; no_experiments 0.688/0.750
+(p50 81→43 ms). Качество не выросло; query-файлы уже демотируются, но latency/шум меньше.
+
+**E42 (intent-aware demote):** baseline и intent-aware оба 0.688/0.771; docs_h1=0/8.
+`auto_detect_intent` не распознал docs-запросы (code-сигналы перевесили).
+
+**E43 (concept tags):** baseline 0.688/0.750; concept ×0.9 — 0.688/0.750 (не входит в top5);
+concept ×1.1 — **0.188/0.250** (concept-кандидаты вытеснили всё). Наивный concept boost
+не работает: теги слишком широкие, нужна точность/ручные аннотации.
+
+**Вывод:** цепочка не «сломана» в одном месте; это набор ограничений:
+docs-intent misclassification, broad concept tags, recall misses, strict docs gold.
+Детерминированный pipeline остаётся 0.688/0.771. Для concept-фичи нужен отдельный
+точный слой аннотаций (symbol-level), а не keyword-count boost.
+
+
+## [2026-10-25] — E40: RU→EN словарь синонимов — ноль (0.688/0.771 без изменений)
+
+**Вопрос:** улучшает ли curated RU→EN словарь кодовых терминов (+фразы) recall
+на 48 реальных запросах (в основном русский NL).
+
+**Вход:** E30-панель; `synonyms_ru.py` (RU_EN + RU_PHRASES), варианты до 4, RRF;
+corrected index, demote ON, P3 off, без реранкера.
+
+**Сырой вывод:**
+```
+baseline      h1=0.688 h5=0.771 mrr=0.713 p50=159ms
+ru_synonyms   h1=0.688 h5=0.771 mrr=0.713 p50=176ms
+```
+
+**Вердикты:** H6 PASS (нет потери precision). **H1/H2/H3/H4/H5 FAIL** — качество не изменилось.
+
+**Вывод:** RU↔EN синонимы нейтральны: добавленные варианты дают те же top-5, RRF
+схлопывает дубликаты. Словарь оставлен как утилита (флаг off), но не рычаг качества.
+Артефакты: `experiments/e40_ru_synonyms/`.
+
+
+## [2026-10-25] — E39 pilot: Qwen3-Reranker-0.6B — 29–55 s, качество хуже; rejected
+
+**Вопрос:** даёт ли code-aware Qwen3-Reranker-0.6B выигрыш на 16-запросном пилоте
+(каждый 3-й из E30), corrected index.
+
+**Вход:** `QUERIES_PILOT.jsonl` sha `3a8e6581…`; Qwen3-Reranker-0.6B-seq-cls ONNX
+(1.19 GB, fp16, CPU), prompt-формат из model card, sigmoid.
+
+**Сырой вывод:**
+```
+demote        h1=0.625 h5=0.688 mrr=0.646 p50=116ms
+qwen3_top10   h1=0.500 h5=0.562 mrr=0.512 p50=28941ms
+qwen3_top20   h1=0.438 h5=0.562 mrr=0.490 p50=54788ms
+```
+
+**Вердикты:** H1/H2/H3/H4/H5/H6 FAIL. Qwen3 не usable на CPU: 29–55 s; качество ниже
+deterministic. Все протестированные reranker'ы (MiniLM, BGE-base, BGE-M3, Qwen3) проиграли.
+Reranking — не рычаг; deterministic pipeline 0.688/0.771/84ms — потолок на этой панели.
+Артефакты: `experiments/e39_qwen3_rerank/`.
+
+
+## [2026-10-25] — E38: BGE-reranker-base — снова хуже deterministic (0.688 → 0.625)
+
+**Вопрос:** даёт ли BGE-reranker-base int8 (XLM-R cross-encoder, 279 MB) выигрыш
+над deterministic demote на corrected-индексе.
+
+**Вход:** E30 48 запросов; demote ON, P3 off; BGE-base top10/top20; ONNX CPU.
+
+**Сырой вывод:**
+```
+demote          h1=0.688 h5=0.771 mrr=0.713 p50=84ms
+bge_base_top10  h1=0.625 h5=0.708 mrr=0.658 p50=3139ms
+bge_base_top20  h1=0.583 h5=0.688 mrr=0.627 p50=6028ms
+```
+
+**Вердикты:** H7 PASS (лучше MS MARCO MiniLM 0.417). **H1/H2/H3/H4/H5/H6 FAIL**.
+
+**Вывод:** generic cross-encoder снова out-of-domain для кода; deterministic
+pipeline сильнее. Reranking не рычаг на этой панели. Остаётся только Qwen3-Reranker-0.6B
+(1.2 GB ONNX, CPU 1–3 s) как пилот. Артефакты: `experiments/e38_code_aware_rerank/`.
+
+
+## [2026-10-25] — E37: chunking 32/64/128 строк — качество не меняется
+
+**Вопрос:** улучшает ли line-granularity chunking (32/64/128 строк, 25% overlap)
+fused retrieval на 48 реальных запросах после исправления symbol_name.
+
+**Вход:** E30-панель; corrected index 16,347 чанков; E33 demote ON, P3 off, без
+эмбеддингов/реранкера. Temp SQLite/FTS5 stores на каждую нарезку.
+
+**Сырой вывод:**
+```
+current   h1=0.688 h5=0.771 mrr=0.713 p50=151ms
+split32   h1=0.688 h5=0.771 mrr=0.713 p50=161ms
+split64   h1=0.688 h5=0.771 mrr=0.713 p50=131ms
+split128  h1=0.688 h5=0.771 mrr=0.713 p50=136ms
+```
+
+**Вердикт:** все плечи идентичны; H1/H2/H3/H4/H6 FAIL, H5 PASS. Нарезка не узкое
+место: исходные чанки уже в основном ≤32 строк (13 992/16 347), а top-5 определяется
+file-level ranking/candidate set. Артефакты: `experiments/e37_chunking/`.
+
+## [2026-10-25] — E36-audit: symbol_name был пуст; corrected baseline 0.688/0.771
+
+**Root cause:** `write_text_records` брал symbol_name из `chunk_metadatas`, где его не было →
+0/16 158 чанков. FTS5/BM25 boosts, exact-name и graph hydration были мертвы; E32–E35
+измеряли повреждённый индекс.
+
+**Fix:** AST-symbol→line-range mapping в `IndexPipeline.process_file`; reindex →
+4 772/16 347 с symbol_name. Graph-stage hydration + relative paths + line fallback.
+P3: now reads `get_file_head`; off by default (0 качества, +96 ms без reranker).
+
+**Corrected ablation:** full h1 0.688/h5 0.771/p50 183 ms; no_p3 87 ms;
+no_bucket 0.562; no_o1 0.667; no_demote 0.625; minimal 0.542/0.750.
+Главные рычаги — bucket weights, demote non-code, O1; P3 только с reranker.
+Артефакты: `experiments/e36_ablation/`.
+
+
+## [2026-10-24] — E35: маленький MS MARCO MiniLM rerank — out-of-domain, качество рушится
+
+**Вопрос:** даёт ли маленький ONNX cross-encoder (ms-marco-MiniLM-L-6-v2 int8, 23 MB)
+лучший quality/latency, чем BGE-M3, на 48 реальных запросах.
+
+**Вход:** E30-панель sha `d4934cb7…`; E33 demote ON; модель ONNX CPU, 512 токенов.
+Плечи: demote, minilm_top10, minilm_top20.
+
+**Сырой вывод:**
+```
+demote        h1=0.688 h5=0.729 mrr=0.705 p50=85ms
+minilm_top10  h1=0.417 h5=0.646 mrr=0.513 p50=723ms
+minilm_top20  h1=0.417 h5=0.542 mrr=0.469 p50=1405ms
+```
+
+**Вердикты:** H4 PASS (p50 <1s). **H1/H2/H3/H5/H6/H7 FAIL** — качество резко хуже demote.
+
+**Вывод:** MS MARCO MiniLM — web-passage модель, не code-aware; на коде рушит fused ranking.
+Нужен code-aware reranker (Qwen3-Reranker-0.6B и т.п.) или recall-работа (chunking/query expansion).
+Лучший результат остаётся E33 demote 0.688/0.729. Артефакты: `experiments/e35_small_rerank/`.
+
+## [2026-10-24] — E34b: сильные graph/PRF boosts — снова нулевой результат
+
+**Вход:** E30 48 запросов; graph ×1.5, PRF ×1.2, both. Все детерминированные.
+**Сырой вывод:** все плечи h1 0.688 / h5 0.729 / MRR 0.705 / p50 93–94ms — идентично.
+**Вывод:** усиление boost не помогает: добавленные кандидаты не gold или дубликаты.
+Детерминированное расширение пула исчерпано на этой панели. Артефакты: `experiments/e34b_boost/`.
+
+
+## [2026-10-24] — E34: graph expansion + PRF — нулевой результат (top-5 не изменился)
+
+**Вопрос:** улучшают ли детерминированные PRF (top-1 symbol) и graph expansion
+(callers/callees top-3) fused retrieval на 48 реальных запросах, поверх E33 demote.
+
+**Вход:** E30-панель sha `d4934cb7…`; SQLite 16 158 чанков, граф 13 744 узла.
+Плечи: demote, demote_prf, demote_graph, demote_graph_prf.
+
+**Сырой вывод:**
+```
+demote             h1=0.688 h5=0.729 mrr=0.705 p50=119ms
+demote_prf         h1=0.688 h5=0.729 mrr=0.705 p50=108ms
+demote_graph       h1=0.688 h5=0.729 mrr=0.705 p50=108ms
+demote_graph_prf   h1=0.688 h5=0.729 mrr=0.705 p50=114ms
+```
+
+**Вердикты:** H5 PASS (p50 <300ms). **H1/H2/H3/H4/H6/H7 FAIL** — все метрики идентичны.
+
+**Вывод:** добавленные PRF/graph-кандидаты не вошли в top-5: их score (0.8×/0.6× top-1)
+ниже существующего ядра. Детерминированное расширение пула само по себе не двигает top-5;
+нужен ranker или сильный boost. E33 demote остаётся единственным детерминированным
+выигрышем. Следующий шаг — маленький cross-encoder (E35). Артефакты: `experiments/e34_graph_prf/`.
+
+
+## [2026-10-24] — E33: детерминированный demote tests/docs даёт +3 hit@1 (0.625 → 0.688)
+
+**Вопрос:** какие детерминированные сигналы (без эмбеддингов/реранкера) улучшают
+fused retrieval на 48 реальных запросах.
+
+**Вход:** E30-панель sha `d4934cb7…`; SQLite 16 158 чанков, граф 13 744 узла.
+Плечи: baseline, FTS5 field weights, +demote non-code, +caller prior/exact-name.
+
+**Сырой вывод:**
+```
+baseline                  h1=0.625 h5=0.708 mrr=0.657 p50=155ms
+fts_weights               h1=0.625 h5=0.708 mrr=0.657 p50=103ms
+fts_weights_demote        h1=0.688 h5=0.729 mrr=0.705 p50=97ms
+fts_weights_demote_prior  h1=0.667 h5=0.708 mrr=0.681 p50=98ms
+```
+
+**Вердикты:** H2 PASS (demote +3 h1), H5 PASS (p50 <300ms).
+**H1 FAIL** (FTS5 weights нейтральны), **H3 FAIL** (caller prior хуже),
+**H4 FAIL** (0.688 <0.70), **H6 FAIL** (не 95%).
+
+**Вывод:** `demote tests/docs/experiments/fixtures ×0.3` — реальный детерминированный
+выигрыш: +3 hit@1 при p50 97 ms. FTS5 weights — нейтральны; caller prior — вреден.
+Следующий шаг: добавить demote в прод под флагом, затем комбинировать с graph expansion
+и маленьким cross-encoder. Артефакты: `experiments/e33_deterministic/`.
+
+
+## [2026-10-24] — E32: code-aware BM25 (identifier split + field boosts) — h1 не вырос, h5 +1
+
+**Вопрос:** улучшает ли code-aware BM25 (camelCase/snake_case split, field boosts
+name×3/path×2, proper k1/b, stopwords) fused retrieval на 48 реальных запросах.
+
+**Вход:** E30-панель sha `d4934cb7…`; SQLite 16 158 чанков, граф 13 744 узла.
+Плечи: baseline, code_b75, code_b45, code_b45_stop. Без эмбеддингов и реранкера.
+
+**Сырой вывод:**
+```
+baseline       h1=0.625 h5=0.729 mrr=0.662 p50=90ms
+code_b75       h1=0.562 h5=0.708 mrr=0.620 p50=98ms
+code_b45       h1=0.604 h5=0.729 mrr=0.651 p50=100ms
+code_b45_stop  h1=0.604 h5=0.750 mrr=0.655 p50=90ms
+```
+
+**Вердикты:** H2 PASS (b45 > b75 по h5), H4 PASS (p50 90–100 ms).
+**H1 FAIL** (h1 не вырос), **H3 FAIL** (stopwords не дали h1), **H5 FAIL** (не 95%).
+
+**Вывод:** code-aware BM25 — нейтрален по h1; stopwords+b45 дают +1 h5 (0.750).
+Узкое место — recall/ranking, не токенизация. Следующие: graph expansion,
+query expansion/PRF, маленький cross-encoder, semantic anchors.
+Артефакты: `experiments/e32_code_bm25/`.
+
+
+## [2026-10-24] — E31: BGE-M3 cross-encoder rerank on 48 real queries (best h1 0.646, but 6.6–19.5 s)
+
+**Вопрос:** даёт ли cross-encoder BGE-M3 выигрыш над fused retrieval без хранения векторов.
+
+**Вход:** E30-панель 48 запросов, sha `d4934cb7…`; SQLite/FTS5 16 158 чанков,
+PropertyGraph 13 744 узла. Конфиги: no_rerank, BGE top10/top30/top50.
+`top50` не завершён — harness timeout 30 мин.
+
+**Сырой вывод:**
+```
+no_rerank  h1=0.625 h5=0.729 mrr=0.662 p50=107ms
+BGE top10  h1=0.646 h5=0.771 mrr=0.698 p50=6577ms
+BGE top30  h1=0.562 h5=0.812 mrr=0.662 p50=19521ms
+```
+
+**Вердикты:** H2 PASS (top30 h5 +4), H5 PASS (не 95%), H6 PASS (BGE > cosine 0.604).
+**H1 FAIL** (top30 h1 хуже no_rerank), **H3 FAIL** (p50 19.5 s), **H7 FAIL** (top10 ≠ top30).
+H4 ⏳ (top50 timeout).
+
+**Вывод:** BGE top10 даёт лучший h1 (0.646), но p50 6.6 s; top30 даёт h5 0.812, но h1 0.562
+и 19.5 s. 95% не достигнуто (max h1 0.646, h5 0.812). BGE-M3 Q4 слишком тяжёл для CPU;
+следующий шаг — маленький ONNX cross-encoder (bge-reranker-base / MiniLM) + усиление recall
+(code-aware BM25, exact-name, graph/query expansion). Артефакты: `experiments/e31_bge_rerank/`.
+
+
+## [2026-10-24] — E30: production-like on-demand rerank on 48 real queries (on-demand rerank does NOT beat fusion)
+
+**Вопрос:** даёт ли on-demand rerank (embeddinggemma-2 / e5) выигрыш в качестве
+на реальных запросах проекта при текущем SQLite/FTS5 retrieval, и какой ценой.
+
+**Вход (заморожен ДО прогона):** `experiments/e30_prod_rerank/frozen/QUERIES.jsonl`,
+sha256 `d4934cb7875bd239745fd935dcdef4a6e3e206781b400303c677505de56d9fac`,
+48 запросов: 33 из E28 + 15 свежих docstring-запросов. Гипотезы — `frozen/HYPOTHESES.md`
+(5 из 8 ожидались к провалу). Модели: Q8 (309 MB), Q4 UD-Q4_K_XL (176 MB), e5 Q8 (132 MB).
+Индекс: 16 158 чанков / 1 473 файла, граф 13 744 узла / 45 455 рёбер.
+
+**Сырой вывод (один прогон; ключевые конфиги — два):**
+```
+no_rerank (clean) h1=0.625 h5=0.729 mrr=0.662 p50=109ms
+e5 384 top10      h1=0.354 h5=0.729 mrr=0.500 p50=912ms
+Q8 768 top10      h1=0.604 h5=0.729 mrr=0.653 p50=4285ms
+Q8 256 top10      h1=0.583 h5=0.729 mrr=0.646 p50=2630ms
+Q4 768 top10      h1=0.562 h5=0.729 mrr=0.632 p50=1867ms
+```
+Повтор Q8/Q4/e5/no_rerank: качество идентично, p50 109 / 1148 / 5141 / 3872 ms.
+
+**Вердикты:** H2 PASS (MRL 256), H5 PASS (e5 ≥2× быстрее), H4/H6/H8 FAIL как ожидалось.
+**H1 FAIL** (Q4 vs Q8 = 2/48), **H3 FAIL** (top20 не меняет h5), **H7 FAIL** —
+`no_rerank` hit@1 0.625 > Q8 0.604: on-demand rerank не даёт выигрыша, стоит ~40× latency.
+
+**Вывод:** на этой панели fused retrieval лучше on-demand rerank по hit@1 и в 40 раз
+быстрее. Держать `MSCODEBASE_ONDEMAND_RERANK` выключенным до панели >100 запросов;
+если rerank нужен — Q8 768 (0.604, 4–5 с) или Q8 256 (0.583, 2.6 с). Это **не**
+отменяет E25 (другой пул/индекс), но отменяет перенос E25-вывода на прод-панель.
+
+**Артефакты:** `experiments/e30_prod_rerank/{SUMMARY.md,frozen/,results/}`.
+
 ## [2026-10-10] — EXP-29 разрез symbol/NL: закрывает H5, корректирует число EXP-28 (PARTIAL)
 
 **Зачем:** EXP-28 оставил H5 как «⏳ не проверено» — в панели не было разметки symbol-vs-NL.
@@ -3142,3 +3685,8 @@ GATE-примеры (verbatim): OK — «FreshnessChecker проверяет а�
 **Вывод:** E26-символы уже сняли сливки; 0.6B-описания избыточны (mrr +0.006 —
 микроскопический рескоринг без перестановок). Doc2Query в этом виде — НЕТ.
 
+
+**E56 follow-up (implemented):** `search_docs` language-dedupe (ru/en/zh -> one
+doc, prefer query language); `SQLiteChunkStore.delete_files` + full-run prune in
+`scripts/reindex_text_only.py`. Live docs check: exact 1/8, same-basename 6/8.
+Tests: `test_search_docs.py` (3), `test_chunk_store_delete_files.py` (1).
