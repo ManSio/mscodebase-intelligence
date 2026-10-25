@@ -21,8 +21,8 @@ DEF_RE = re.compile(r"^(def|class)\s+(\w+)", re.M)
 
 
 def augment_enabled() -> bool:
-    """E26 augmentation flag. Default OFF (no behavior change)."""
-    return os.getenv("MSCODEBASE_AUGMENT_CHUNKS", "").lower() in ("1", "true", "yes")
+    """E26 augmentation flag. Phase 3 default ON (owner decision 2026-10-24)."""
+    return os.getenv("MSCODEBASE_AUGMENT_CHUNKS", "true").lower() in ("1", "true", "yes")
 
 
 def module_doc(body: str) -> str:

@@ -2,8 +2,8 @@
 
 - Template exactness is pinned (frozen AUG_TEMPLATE): FILE/SYMBOLS/DOC order,
   dedup, 500-char doc cap, backslash normalization, empty cases.
-- Wiring: flag OFF (default) leaves parse output byte-identical;
-  flag ON prefixes every chunk (AST and fallback share the choke point).
+- Wiring: flag ON (Phase 3 default) prefixes every chunk; flag OFF leaves
+  parse output byte-identical (AST and fallback share the choke point).
 - Formula guard lives in experiments (E26 exact TF*IDF); here we pin the INPUT.
 """
 from __future__ import annotations
@@ -65,9 +65,9 @@ def test_build_file_prefix_empty_case():
     assert build_file_prefix("x.py", "x = 1\n") == "FILE: x.py\nSYMBOLS: \nDOC: \n"
 
 
-def test_flag_default_off_and_parsing(monkeypatch):
+def test_flag_default_on_and_parsing(monkeypatch):
     monkeypatch.delenv("MSCODEBASE_AUGMENT_CHUNKS", raising=False)
-    assert augment_enabled() is False
+    assert augment_enabled() is True
 
 
 def test_flag_on_values(monkeypatch):
@@ -87,7 +87,7 @@ def _make_parser(tmp_path):
 
 
 def test_wiring_off_leaves_texts_unchanged(tmp_path, monkeypatch):
-    monkeypatch.delenv("MSCODEBASE_AUGMENT_CHUNKS", raising=False)
+    monkeypatch.setenv("MSCODEBASE_AUGMENT_CHUNKS", "false")
     f = tmp_path / "m.py"
     f.write_text(BODY, encoding="utf-8")
     parsed = _make_parser(tmp_path).parse_file(f, "m.py")
@@ -111,7 +111,7 @@ def test_wiring_on_prefixes_every_chunk(tmp_path, monkeypatch):
 def test_wiring_on_off_differ_only_by_prefix(tmp_path, monkeypatch):
     f = tmp_path / "m.py"
     f.write_text(BODY, encoding="utf-8")
-    monkeypatch.delenv("MSCODEBASE_AUGMENT_CHUNKS", raising=False)
+    monkeypatch.setenv("MSCODEBASE_AUGMENT_CHUNKS", "false")
     off = _make_parser(tmp_path).parse_file(f, "m.py")
     monkeypatch.setenv("MSCODEBASE_AUGMENT_CHUNKS", "true")
     on = _make_parser(tmp_path).parse_file(f, "m.py")

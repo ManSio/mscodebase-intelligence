@@ -7,7 +7,7 @@
 # Поддержка ТОЛЬКО Python 3.14+ (2026-08-21) — маркеров python_version нет.
 
 # MCP Protocol
-mcp==1.28.1  # 1.x: транспортный протокол; 2.x меняет его — не бампить без проверки
+mcp==1.30.0  # 1.30.0: security fix (CVE-2026-59951); 2.x меняет транспорт — не бампить без проверки
 # PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1); единственная НЕ-stdlib
 # зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3).
 PyYAML==6.0.3

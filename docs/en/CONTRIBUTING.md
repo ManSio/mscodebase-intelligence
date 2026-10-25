@@ -19,7 +19,7 @@ pip install -r requirements.txt
 pip install -e "."
 ```
 
-Requirements: Python 3.10+, Windows (primary) or Linux (experimental).
+Requirements: Python 3.14+, Windows (primary) or Linux (experimental).
 
 ---
 

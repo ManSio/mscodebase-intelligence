@@ -169,10 +169,15 @@ class FTS5Mixin:
     def _fts5_search(self, query: str, limit: int = 10) -> List[dict]:
         """FTS5 hybrid search — returns results with RRF scores.
 
-        This is the NEW tier that gets added to hybrid_search_async.
-        Results carry ``metadata.chunk_index`` (best-effort) so they merge
-        correctly via RRF with BM25/dense results keyed on file:chunk_index.
+        Phase 3: when the SQLite chunk store is active, query it directly
+        (persistent FTS5, no LanceDB table access).
         """
+        if getattr(self, "_chunk_store", None) is not None:
+            try:
+                if self._chunk_store.count() > 0:
+                    return self._chunk_store.search(query, limit)
+            except Exception as e:
+                logger.debug(f"SQLite FTS5 search error: {e}")
         self._build_fts5_index()
         if self._fts5 is None or self._fts5.is_empty:
             return []

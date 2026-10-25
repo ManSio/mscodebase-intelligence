@@ -81,6 +81,11 @@ def apply_replacement(text: str, old: str, new: str) -> tuple[str | None, str]:
 def run_acceptance(cmd: str, cwd: Path) -> tuple[int, str]:
     if not cmd:
         return 0, ""
+    env = dict(os.environ)
+    prefix = str(cwd)
+    if env.get("PYTHONPATH"):
+        prefix += os.pathsep + env["PYTHONPATH"]
+    env["PYTHONPATH"] = prefix
     proc = subprocess.run(
         cmd,
         cwd=str(cwd),
@@ -90,6 +95,7 @@ def run_acceptance(cmd: str, cwd: Path) -> tuple[int, str]:
         encoding="utf-8",
         errors="replace",
         timeout=900,
+        env=env,
     )
     return proc.returncode, ((proc.stdout or "") + (proc.stderr or ""))[-800:]
 

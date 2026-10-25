@@ -65,10 +65,10 @@ def test_split_prefers_text_full_and_counts_skipped():
     assert len(usable) == 2
 
 
-def test_engine_wiring_present_and_flag_defaults_off():
+def test_engine_wiring_present_and_flag_defaults_on():
     import os
 
-    assert os.getenv("MSCODEBASE_ONDEMAND_RERANK", "false") == "false"
+    assert os.getenv("MSCODEBASE_ONDEMAND_RERANK", "true") == "true"
     from src.core.search import engine as E
 
     assert hasattr(E.Searcher, "_apply_ondemand_reranker_async")

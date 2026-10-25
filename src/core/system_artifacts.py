@@ -130,9 +130,10 @@ _MEASUREMENT_JSON_STEMS: Set[str] = {
 # experiments/**/results|work (ctx-дампы по 329 чанков, judged_raw.json —
 # 249). Душит лексику (кейс P2) и раздувает холодный FTS-билд (2.47s).
 # Git-трекинг НЕ трогаем (§17: frozen/results обязаны жить в репо) —
-# исключаем только из ИНДЕКСА. Исходники экспериментов (*.py) индексируются.
+# исключаем только из ИНДЕКСА. E52: experiments/** целиком (включая frozen),
+# потому что frozen-панели утекают в BM25; E41 подтвердил отсутствие потери
+# качества и ускорение поиска.
 _EXPERIMENT_ROOT = "experiments"
-_EXPERIMENT_OUTPUT_DIRS = frozenset({"results", "work"})
 
 
 # ─── Public API ─────────────────────────────────────────────
@@ -234,18 +235,15 @@ class SystemArtifacts:
 
     @classmethod
     def is_experiment_output(cls, path: Path) -> bool:
-        """Проверяет, является ли файл выводом эксперимента.
+        """Проверяет, является ли файл артефактом experiments/.
 
-        experiments/**/results/** и experiments/**/work/** — сырьё прогонов
-        (ctx-дампы, judged_raw.json, work-файлы). В индекс не берём;
-        frozen/-входы и *.py-исходники — берём.
+        E52: experiments/** целиком исключаем из индекса. Раньше пропускались
+        только results/work, а frozen-панели индексировались и утекали в BM25
+        (E30 panel: 19/48 запросов находили сам файл панели). E41 показал, что
+        удаление experiments/** не ухудшает hit@1 и ускоряет поиск (81→43 ms).
+        Git-трекинг не трогаем (§17): frozen/results остаются в репозитории.
         """
-        parts = [p.lower() for p in Path(path).parts]
-        try:
-            i = parts.index(_EXPERIMENT_ROOT)
-        except ValueError:
-            return False
-        return any(p in _EXPERIMENT_OUTPUT_DIRS for p in parts[i + 1 :])
+        return _EXPERIMENT_ROOT in {p.lower() for p in Path(path).parts}
 
     # ─── Layer 5: Measurement Hygiene ───────────────────────
 

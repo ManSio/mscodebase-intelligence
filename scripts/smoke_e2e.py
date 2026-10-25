@@ -102,7 +102,7 @@ def _health(url: str, timeout: float = 3.0) -> bool:
 def check_services() -> dict:
     """Проверяет health всех трёх сервисов."""
     services = {
-        "embedder": ("http://127.0.0.1:8080/health", 384),  # e5-small dim
+        "embedder": ("http://127.0.0.1:8080/health", 768),  # embeddinggemma-2 dim
         "reranker": ("http://127.0.0.1:8081/health", None),
         "onnx": ("http://127.0.0.1:9876/health", None),
     }
@@ -127,8 +127,8 @@ def check_embed() -> tuple[bool, str]:
         data = r.json()
         vec = data["data"][0]["embedding"]
         dim = len(vec)
-        ok = dim == 384
-        return ok, f"dim={dim} (e5-small: 384) {'✅' if ok else '❌'}"
+        ok = dim == 768
+        return ok, f"dim={dim} (embeddinggemma-2: 768) {'✅' if ok else '❌'}"
     except Exception as e:  # noqa: BLE001 — диагностика
         return False, f"embed error: {e}"
 

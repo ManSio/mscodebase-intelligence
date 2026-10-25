@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from datetime import datetime
@@ -17,6 +18,7 @@ from typing import Any, Dict, Optional
 from src.config.settings import get_config
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.search.query_plan import apply_plan_boosts, build_plan
 from src.core.utils.grep_fallback import grep_fallback as _grep_fallback
 from src.mcp.tools.base import MCPTool
 from src.utils.i18n import _
@@ -207,6 +209,10 @@ class SearchCodeTool(MCPTool):
         intent_hint: str = "auto",
         explain: bool = False,
         project_root: str = "",
+        primary_query: str = "",
+        must_include: Optional[list[str]] = None,
+        symbols: Optional[list[str]] = None,
+        intent: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         from src.core.error_handler import record_tool_result
@@ -243,7 +249,66 @@ class SearchCodeTool(MCPTool):
         raw = None  # для телеметрии
 
         # === Диспетчеризация по режиму ===
-        if mode in ("fast", "quality", "smart"):
+        # E57: cheap automatic docs routing (BM25 margin; no LLM/router).
+        # Explicit intent="code" still wins; empty intent is auto.
+        if not intent:
+            _auto_searcher = self.resolve_searcher(explicit_project_root=_pr or None)
+            _prefers = getattr(_auto_searcher, "prefers_docs", None)
+            if callable(_prefers) and _prefers(query) is True:
+                intent = "docs"
+
+        if intent == "docs":
+            # E56: explicit docs intent -> dedicated docs-only FTS channel.
+            # No LLM/router; agent knows it wants documentation.
+            _searcher = self.resolve_searcher(explicit_project_root=_pr or None)
+            _t0 = time.perf_counter()
+            _docs = _searcher.search_docs(query, limit=effective_limit)
+            raw = {
+                "results": _docs,
+                "mode": "quality",
+                "timing_ms": {"total_ms": (time.perf_counter() - _t0) * 1000},
+                "cache_hit": False,
+                "model_info": "docs_fts",
+                "rerank_timing": {},
+                "query": query,
+            }
+            results_count = len(
+                [r for r in _docs if SearchCodeTool._is_real_result(r)]
+            )
+            result_str = stale_banner + self._format_results(
+                raw, "quality", project_header=project_header
+            )
+        elif primary_query or must_include or symbols:
+            # E45: agent-supplied plan — one primary query + exact boosts.
+            _searcher = self.resolve_searcher(explicit_project_root=_pr or None)
+            _q = (primary_query or "").strip() or query
+            _t0 = time.perf_counter()
+            _pool = await _searcher.hybrid_search_async(
+                _q,
+                limit=max(30, effective_limit * 4),
+                expand=False,
+                layer=filter_layer,
+                intent_hint=intent or intent_hint,
+            )
+            _boosted = apply_plan_boosts(
+                _pool, must_include, symbols
+            )[:effective_limit]
+            raw = {
+                "results": _boosted,
+                "mode": "quality",
+                "timing_ms": {"total_ms": (time.perf_counter() - _t0) * 1000},
+                "cache_hit": False,
+                "model_info": "plan",
+                "rerank_timing": {},
+                "query": _q,
+            }
+            results_count = len(
+                [r for r in _boosted if SearchCodeTool._is_real_result(r)]
+            )
+            result_str = stale_banner + self._format_results(
+                raw, "quality", project_header=project_header
+            )
+        elif mode in ("fast", "quality", "smart"):
             # INC-6D31: sync search_with_mode — в отдельный поток (asyncio.to_thread).
             # Внутри (hybrid_search) в этом потоке НЕТ running loop → берётся ветка
             # asyncio.run(hybrid_search_async) напрямую — тот путь, который
@@ -782,8 +847,26 @@ class ImpactAnalysisTool(MCPTool):
         }
 
 
+class PlanSearchTool(MCPTool):
+    """plan_search — deterministic query plan for an agent.
+
+    Returns primary query, exact must_include tokens, symbols, concepts and
+    intent. The agent can pass the plan fields to search_code.
+    """
+
+    def __init__(self, services: ServiceCollection):
+        super().__init__(services, tool_name="plan_search")
+
+    async def execute(self, query: str, project_root: str = "") -> str:
+        if not query or not query.strip():
+            return _("❌ Query is empty")
+        plan = build_plan(query)
+        return json.dumps(plan, ensure_ascii=False, indent=2)
+
+
 __all__ = [
     "SearchCodeTool",
+    "PlanSearchTool",
     "GetSymbolInfoTool",
     "ImpactAnalysisTool",
     "_is_complex_query",

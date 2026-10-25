@@ -137,6 +137,28 @@ class IndexPipeline:
         if not chunk_texts:
             return None
 
+        # E36-audit: chunk metadata carried no symbol_name, so FTS5/BM25/graph
+        # hydration all lost the symbol signal. Map AST symbols to chunk line
+        # ranges before the text store write.
+        _metas = parsed.get("chunk_metadatas", [])
+        if symbols and _metas:
+            _ordered = sorted(
+                (s for s in symbols if s.get("name")),
+                key=lambda s: int(s.get("line", 0) or 0),
+            )
+            for _meta in _metas:
+                _line = int(_meta.get("start_line", 0) or 0)
+                _best = None
+                for _s in _ordered:
+                    if int(_s.get("line", 0) or 0) <= _line:
+                        _best = _s
+                    else:
+                        break
+                if _best:
+                    _full = str(_best.get("name", ""))
+                    _meta.setdefault("symbol_name", _full.split(".")[-1])
+                    _meta.setdefault("symbol_qualified", _full)
+
         # ─── Chunk-level content-addressed cache ───────────
         # Вычисляем chunk_hash для каждого чанка. Если хэш уже есть в БД,
         # переиспользуем сохранённый вектор (skip embed_batch).
@@ -148,6 +170,31 @@ class IndexPipeline:
         for t in chunk_texts:
             h = "ch:" + hashlib.sha256(t.encode("utf-8")).hexdigest()[:32]
             chunk_hashes.append(h)
+
+        # ─── Phase 3: vector-free indexing (SQLite/FTS5 store) ────────
+        # When dense is off, do NOT compute or store embeddings: the chunk
+        # text goes to SQLite and vectors are recomputed on demand at query
+        # time (E25). This is what blocks the heavy vector reindex.
+        try:
+            from src.config.settings import get_config as _get_cfg
+
+            if getattr(_get_cfg().search, "dense_off", False):
+                return {
+                    "rel_path": rel_path_str,
+                    "current_hash": current_hash,
+                    "chunk_texts": parsed["chunk_texts"],
+                    "chunk_texts_full": parsed.get("chunk_texts_full", []),
+                    "chunk_metadatas": parsed.get("chunk_metadatas", []),
+                    "chunk_hashes": chunk_hashes,
+                    "health": parsed.get("health", {"score": 0.0, "band": ""}),
+                    "source": source,
+                    "embeddings": [],
+                    "skip_vectors": True,
+                    "file_mtime_ns": parsed.get("file_mtime_ns", 0),
+                    "file_size": parsed.get("file_size", 0),
+                }
+        except Exception as _cfg_err:
+            logger.debug(f"dense_off check failed: {_cfg_err}")
 
         # Загружаем известные векторы из БД (если table доступен)
         known_vectors: dict = {}

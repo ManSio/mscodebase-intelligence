@@ -1,6 +1,6 @@
 """E28 (Фаза 3): dense-off флаг — гасит dense-тир, ничего не ломая.
 
-Контракт: default OFF (плот-ап путь не тронут), флаг гасит и эмбеддинг запроса,
+Контракт Phase 3: default ON (text-first), флаг гасит и эмбеддинг запроса,
 и vector search; BM25/FTS5/graph продолжают работать.
 """
 from __future__ import annotations
@@ -13,11 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-def test_flag_default_off():
+def test_flag_default_on():
     from src.config.settings import SearchConfig
 
-    assert os.environ.get("MSCODEBASE_DENSE_OFF", "false") == "false"
-    assert SearchConfig().dense_off is False
+    assert os.environ.get("MSCODEBASE_DENSE_OFF", "true") == "true"
+    assert SearchConfig().dense_off is True
 
 
 def test_env_enables_flag(monkeypatch):

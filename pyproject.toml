@@ -31,7 +31,7 @@ dependencies = [
     # Исключение: numpy/pandas/onnxruntime на Python<3.11 (CI matrix включает 3.10,
     # EOL 2026-10; lock-версия требует >=3.11) — там per-Python диапазон; после дропа 3.10 запинить.
     # MCP Protocol
-    "mcp==1.28.1",  # 1.x: транспортный протокол; 2.x меняет его — не бампить без проверки
+    "mcp==1.30.0",  # 1.30.0: security fix (CVE-2026-59951); 2.x меняет транспорт — не бампить без проверки
     # PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1). Единственная НЕ-stdlib
     # зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3,
     # API yaml.safe_load проверен). Бамп — по §5.19.

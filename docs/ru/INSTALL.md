@@ -6,8 +6,12 @@
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
-> **MSCodebase Intelligence** — MCP-сервер для семантического поиска кода в Zed IDE.
+> **MSCodebase Intelligence** — MCP-сервер локального code intelligence в Zed IDE.
 > Работает как расширение Zed. Разработка в `<repo-root>`.
+
+> **Phase 3 (2026-10-25):** дефолтная установка — text-first
+> (SQLite FTS5/BM25 + PropertyGraph). Загрузка моделей и vector path
+> опциональны; LanceDB — legacy/optional, а не дефолтный retrieval store.
 
 ---
 

@@ -437,8 +437,9 @@ def step_copy(lines, lang):
         ".env",
         "llama_msvc",   # управляется step_llama
         "llama_vulkan",  # управляется step_llama
-        "models",        # управляется step_gguf
-    }
+         "models",        # управляется step_gguf
+         "experiments",   # эксперименты не нужны в расширении
+     }
     items = [i for i in PROJECT_ROOT.iterdir() if i.name not in skip]
     copied = skipped = deleted = 0
 

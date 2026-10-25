@@ -90,6 +90,7 @@ def register_all_tools(mcp, services):
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
+        PlanSearchTool,
         SearchCodeTool,
     )
 
@@ -99,6 +100,7 @@ def register_all_tools(mcp, services):
         SetProjectTool,
         # Search (3)
         SearchCodeTool,
+        PlanSearchTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
         # LSP (6) — точный AST через basedpyright (вариант C+D+E, 2026-08-06/07)
@@ -174,6 +176,7 @@ def register_all_tools(mcp, services):
             # (см. server_tools.py:140); без этого класс не существует и allowlist пуст.
             # ML-native (не заменяются E2B)
             "search_code",
+            "plan_search",
             "get_symbol_info",
             "impact_analysis",
             "lsp_find_references",

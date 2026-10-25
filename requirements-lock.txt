@@ -3,7 +3,7 @@ annotated-types==0.7.0
 anyio==4.14.2
 attrs==26.1.0
 cattrs==26.1.0
-certifi==2026.6.17
+certifi==2026.10.19
 cffi==2.1.0
 click==8.4.2
 colorama==0.4.6
@@ -11,7 +11,7 @@ colorama==0.4.6
 # Verified: pyjwt 2.15.0 + cryptography 50.0.0 RS256 roundtrip + import mcp ok.
 cryptography==50.0.0
 deprecation==2.1.0
-filelock==3.31.0
+filelock==4.2.1
 flatbuffers==25.12.19
 fsspec==2026.6.0
 h11==0.16.0
@@ -28,7 +28,7 @@ lance-namespace-urllib3-client==0.8.6
 lancedb==0.34.0
 lsprotocol==2025.0.0
 markdown-it-py==4.2.0
-mcp==1.28.1
+mcp==1.30.0
 mdurl==0.1.2
 numpy==2.4.6
 onnxruntime==1.27.0
