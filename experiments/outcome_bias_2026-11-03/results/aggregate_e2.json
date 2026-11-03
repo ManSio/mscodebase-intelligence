@@ -1,0 +1,299 @@
+{
+  "verdict_rows": [
+    {
+      "model": "qwen/qwen3.6-flash",
+      "leak": {
+        "driver": 12.0,
+        "warehouse": 9.0,
+        "nurse": 38.0,
+        "engineer": 2.0
+      },
+      "pos_gap": -4.0,
+      "neg_delta": 0.0
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash",
+      "leak": {
+        "driver": 64.0,
+        "warehouse": 56.8,
+        "nurse": 70.4,
+        "engineer": 63.0
+      },
+      "pos_gap": 9.0,
+      "neg_delta": 0.0
+    },
+    {
+      "model": "z-ai/glm-4.7-flash",
+      "leak": {
+        "driver": 4.0,
+        "warehouse": 9.0,
+        "nurse": 9.0,
+        "engineer": 9.0
+      },
+      "pos_gap": 3.0,
+      "neg_delta": 0.0
+    }
+  ],
+  "cells": {
+    "qwen/qwen3.6-flash": {
+      "driver::no_harm": [
+        80,
+        80,
+        85,
+        85,
+        85
+      ],
+      "driver::harm": [
+        95,
+        95,
+        95,
+        95,
+        95
+      ],
+      "warehouse::no_harm": [
+        85,
+        80,
+        80,
+        85,
+        80
+      ],
+      "warehouse::harm": [
+        90,
+        90,
+        95,
+        90,
+        90
+      ],
+      "nurse::no_harm": [
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "nurse::harm": [
+        80,
+        90,
+        90,
+        90,
+        90
+      ],
+      "engineer::no_harm": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "engineer::harm": [
+        80,
+        80,
+        85,
+        80,
+        85
+      ],
+      "pos_control::mild": [
+        85,
+        85,
+        85,
+        85,
+        85
+      ],
+      "pos_control::severe": [
+        100,
+        100,
+        10,
+        95,
+        100
+      ],
+      "neg_control::a": [
+        95,
+        95,
+        95,
+        95,
+        95
+      ],
+      "neg_control::b": [
+        95,
+        95,
+        95,
+        95,
+        95
+      ]
+    },
+    "deepseek/deepseek-v4-flash": {
+      "driver::no_harm": [
+        0,
+        20,
+        20,
+        20,
+        20
+      ],
+      "driver::harm": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "warehouse::no_harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "warehouse::harm": [
+        9,
+        80,
+        80,
+        80,
+        80
+      ],
+      "nurse::no_harm": [
+        10,
+        10,
+        9,
+        9,
+        10
+      ],
+      "nurse::harm": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "engineer::no_harm": [
+        20,
+        0,
+        20,
+        20,
+        20
+      ],
+      "engineer::harm": [
+        80,
+        80,
+        75,
+        80,
+        80
+      ],
+      "pos_control::mild": [
+        75,
+        75,
+        55,
+        75,
+        75
+      ],
+      "pos_control::severe": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "neg_control::a": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ],
+      "neg_control::b": [
+        80,
+        80,
+        80,
+        80,
+        80
+      ]
+    },
+    "z-ai/glm-4.7-flash": {
+      "driver::no_harm": [
+        5,
+        5,
+        5,
+        5,
+        5
+      ],
+      "driver::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "warehouse::no_harm": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "warehouse::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "nurse::no_harm": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "nurse::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "engineer::no_harm": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "engineer::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "pos_control::mild": [
+        7,
+        5,
+        5,
+        7,
+        6
+      ],
+      "pos_control::severe": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "neg_control::a": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "neg_control::b": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ]
+    }
+  },
+  "errors": 0,
+  "empty": 0
+}

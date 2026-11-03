@@ -3690,3 +3690,25 @@ GATE-примеры (verbatim): OK — «FreshnessChecker проверяет а�
 doc, prefer query language); `SQLiteChunkStore.delete_files` + full-run prune in
 `scripts/reindex_text_only.py`. Live docs check: exact 1/8, same-basename 6/8.
 Tests: `test_search_docs.py` (3), `test_chunk_store_delete_files.py` (1).
+
+## [2026-11-03] EXP-OUTCOME-1 — outcome bias: hosted + local, exact readout (⏳ mixed)
+
+**Источник:** аудит отчёта Sara Bezjak (gemma-2-2b-it, activation patching). Наш вопрос: воспроизводится ли эффект «исхода» на hosted и локальной модели, и что именно он делает с оценкой действия.
+
+**Дизайн (frozen before run):** парные истории, действие идентично, меняется только исход (harm/no-harm); позитивный контроль (тот же исход, разная тяжесть действия), негативный (только название улицы). E1 0-9 hosted; E2 0-100 hosted (SUPERSEDED — system-промпт противоречил user-промпту); E2FIX — исправленный 0-100; E3/E4/E5/E6 — локальная qwen2.5-3b-instruct (E5/E6 — exact readout по logprobs, digit mass ~1.0).
+
+**Сырьё:** experiments/outcome_bias_2026-11-03/results/raw_e{1,2,2fix,3,4,5_local,5_hosted,6}.jsonl; манифесты rozen/MANIFEST-{5,6}.json; отчёт RESULTS.md.
+
+**Числа:**
+- Hosted E2FIX, GLM 0-100: no-harm 0-20, harm 92-100 (4/4); pos control 38 vs 100; neg 0. **Instrument valid.**
+- Hosted qwen/deepseek: pos control 5 и 0 -> не цитируются.
+- Local exact E5: leak 5.36/5.91/6.66/6.01 (4/4), mass 1.0; pos 7.50 vs 8.94; neg 0.067.
+- Local E6, 4 held-out истории, 2x2 action x outcome: outcome gap > action gap 4/4; но action gap без вреда +3.98/+0.48/-0.86/-2.48 -> **H1 FAIL (1/4)**.
+
+**Вердикт:** ⏳ доминирование исхода воспроизводится (hosted GLM; local 4/4), но утверждение «модель читает тяжесть, вред её скрывает» **не прошло held-out** — E4 был одной историей. E2 отозван (наш prompt-баг), E6 — отрицательный результат по action-readability.
+
+**Гейты, добавленные в этом же коммите:** prompts.py (scale consistency + тест), eadout.py (expected_blame/digit_mass/mass_gate/fraction_*, scale-following), 	ests/test_readout.py, 	ests/test_prompt_scale_consistency.py (16 passed, контроли умеют падать), scripts/freeze_manifest.py (--selftest PASSED; проверка raw-after-freeze), CI step + pre-commit hook.
+
+**Процессные ошибки (свои):** E2 — system/user scale mismatch; E2 — хэши после прогона; un_e6.py изменён после freeze (--retry) -> reeze_manifest check корректно FAIL; записано, не перезаморожено молча.
+
+**Связи:** experiments/outcome_bias_2026-11-03/RESULTS.md, EXTERNAL_AUDIT.md, PENDING_LEDGER.md (источник), docs/archive/ не затронут.

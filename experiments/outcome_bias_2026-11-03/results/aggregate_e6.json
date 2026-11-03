@@ -1,0 +1,50 @@
+[
+  {
+    "story": "cyclist",
+    "mild_noharm": 0.022,
+    "severe_noharm": 4.001,
+    "mild_harm": 5.607,
+    "severe_harm": 7.036,
+    "action_gap_noharm": 3.979,
+    "action_gap_harm": 1.43,
+    "collapse": 0.641,
+    "outcome_gap_mild": 5.584,
+    "min_mass": 1.0
+  },
+  {
+    "story": "cook",
+    "mild_noharm": 1.436,
+    "severe_noharm": 1.917,
+    "mild_harm": 4.282,
+    "severe_harm": 6.854,
+    "action_gap_noharm": 0.481,
+    "action_gap_harm": 2.572,
+    "collapse": -4.344,
+    "outcome_gap_mild": 2.846,
+    "min_mass": 1.0
+  },
+  {
+    "story": "lifeguard",
+    "mild_noharm": 4.003,
+    "severe_noharm": 3.141,
+    "mild_harm": 5.169,
+    "severe_harm": 5.723,
+    "action_gap_noharm": -0.861,
+    "action_gap_harm": 0.554,
+    "collapse": 1.644,
+    "outcome_gap_mild": 1.166,
+    "min_mass": 1.0
+  },
+  {
+    "story": "electrician",
+    "mild_noharm": 3.092,
+    "severe_noharm": 0.617,
+    "mild_harm": 7.802,
+    "severe_harm": 8.092,
+    "action_gap_noharm": -2.475,
+    "action_gap_harm": 0.291,
+    "collapse": 1.117,
+    "outcome_gap_mild": 4.709,
+    "min_mass": 0.945
+  }
+]

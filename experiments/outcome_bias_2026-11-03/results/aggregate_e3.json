@@ -1,0 +1,105 @@
+{
+  "verdict_rows": [
+    {
+      "model": "qwen2.5-3b-instruct",
+      "leak": {
+        "driver": 6.0,
+        "warehouse": 7.0,
+        "nurse": 7.0,
+        "engineer": 7.0
+      },
+      "pos_gap": 0.0,
+      "neg_delta": 0.0
+    }
+  ],
+  "cells": {
+    "qwen2.5-3b-instruct": {
+      "driver::no_harm": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "driver::harm": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "warehouse::no_harm": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "warehouse::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "nurse::no_harm": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "nurse::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "engineer::no_harm": [
+        2,
+        2,
+        2,
+        2,
+        2
+      ],
+      "engineer::harm": [
+        9,
+        9,
+        9,
+        9,
+        9
+      ],
+      "pos_control::mild": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "pos_control::severe": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "neg_control::a": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "neg_control::b": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ]
+    }
+  },
+  "errors": 0,
+  "empty": 0
+}
