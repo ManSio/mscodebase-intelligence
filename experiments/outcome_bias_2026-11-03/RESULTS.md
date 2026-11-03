@@ -137,15 +137,17 @@ ceiling).
   negative control 0. On qwen3.6-flash and deepseek-v4-flash the positive control failed
   (gap 5 and 0), so their raw gaps are not quoted. E2's "model ignores scale" finding was
   our prompt bug and is withdrawn (E2FIX fixes it).
-- **Local small model (E3/E4/E6):** outcome dominance replicates — the outcome moves blame
-  far more than the action manipulation on 4/4 held-out stories (E6), and E5's exact readout
-  gives 5.36-6.66 points on a 0-9 scale with mass ~1.0.
-- **But the earlier dissociation did NOT generalize.** E4's "action is visible without harm"
-  held on the driver story only. On the 4 held-out stories (E6) severe-minus-mild without
-  harm was +3.98 (cyclist), +0.48 (cook), -0.86 (lifeguard), -2.48 (electrician): 1 of 4,
-  which fails the pre-registered H1. **E4 is story-specific, not a general mechanism.**
-- **Scope:** one 3B model, 4 held-out stories, exact readout. Examples, not a rate. Says
-  nothing about frontier models.
+- **Local small model (E3-E7):** the outcome effect is large everywhere (E5 exact readout
+  5.36-6.66 on 0-9, mass ~1.0; E6/E7 outcome gaps positive on all stories).
+- **Action readability is pair-sensitive, not absent.** On cross-type pairs (E6: "skip a
+  check" vs "work live") severe-minus-mild without harm was 1/4. On same-type dose pairs
+  (E7: 1 s vs 10 s, 30 s vs 20 min) it was **3/4** (driver +2.48, lifeguard +0.93,
+  electrician +7.44; cook -0.35). So E4 was not a general mechanism, but the reason is the
+  stimulus construction, not a missing action axis.
+- **Outcome dominance** (outcome gap > action gap) holds 3/4 in E7, not 4/4: for the
+  electrician the action gap (7.44) is slightly larger than the outcome gap (7.15).
+- **Scope:** one 3B model, exact readout. Examples, not a rate. Says nothing about frontier
+  models.
 
 ## Next
 
@@ -221,6 +223,33 @@ dissociation was one story (driver).
 `FAIL changed input: run_e6.py`. The measurement files (`run_exact_readout.py`, `readout.py`,
 `prompts.py`), hypotheses and stories match the freeze; the retry used the same
 `local_expected`. Strict freeze for the runner file is broken and is recorded, not re-frozen.
+
+## E7 — 2x2 with unambiguous severity + negative control (local exact readout)
+
+Frozen before the run (`frozen/MANIFEST-7.json`). 4 stories where mild/severe are the same
+action type at different dose (1 s vs 10 s; 2 s vs 2 min; 30 s vs 20 min; 10 s vs 2 h) plus
+a cosmetic negative control. 18 cells, all parsed, digit mass 1.0.
+
+| story | mild no harm | severe no harm | action gap (no harm) | mild harm | severe harm | action gap (harm) | outcome gap (mild) | collapse |
+|---|---|---|---|---|---|---|---|---|
+| driver | 2.838 | 5.315 | +2.476 | 6.384 | 7.706 | +1.323 | +3.545 | 0.466 |
+| lifeguard | 2.359 | 3.288 | +0.929 | 5.155 | 6.479 | +1.324 | +2.796 | -0.425 |
+| cook | 2.467 | 2.116 | -0.351 | 7.684 | 8.602 | +0.918 | +5.217 | n/a |
+| electrician | 1.546 | 8.988 | +7.442 | 8.696 | 8.997 | +0.301 | +7.150 | 0.960 |
+
+| # | Hypothesis | Result |
+|---|---|---|
+| H1 | action readable without harm (>0.5 on >=3/4) | **PASS — 3/4** |
+| H2 | outcome gap > action gap (no harm) on >=3/4 | **PASS — 3/4** (electrician: action 7.44 > outcome 7.15) |
+| H3 | digit mass >= 0.9 | PASS (1.0) |
+| H4 | negative control < 0.1 | PASS (0.02) |
+| H5 | action gap constant across outcomes | refuted (driver 0.466, electrician 0.960) |
+
+**Meaning:** E6's 1/4 was partly a stimulus artifact — the "severe" action was a different
+*kind* of act, not a stronger version of the same one. With dose-only pairs the model does
+read severity without harm (3/4). The outcome effect remains large on every story. The
+honest statement is: **outcome moves blame strongly; action readability depends on how the
+action pair is built.**
 
 ## Tooling added (this session)
 

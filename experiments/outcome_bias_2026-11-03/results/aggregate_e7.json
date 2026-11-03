@@ -1,0 +1,53 @@
+{
+  "rows": [
+    {
+      "story": "driver",
+      "mild_noharm": 2.838,
+      "severe_noharm": 5.315,
+      "mild_harm": 6.384,
+      "severe_harm": 7.706,
+      "action_gap_noharm": 2.476,
+      "action_gap_harm": 1.323,
+      "collapse": 0.466,
+      "outcome_gap_mild": 3.545,
+      "min_mass": 1.0
+    },
+    {
+      "story": "lifeguard",
+      "mild_noharm": 2.359,
+      "severe_noharm": 3.288,
+      "mild_harm": 5.155,
+      "severe_harm": 6.479,
+      "action_gap_noharm": 0.929,
+      "action_gap_harm": 1.324,
+      "collapse": -0.425,
+      "outcome_gap_mild": 2.796,
+      "min_mass": 1.0
+    },
+    {
+      "story": "cook",
+      "mild_noharm": 2.467,
+      "severe_noharm": 2.116,
+      "mild_harm": 7.684,
+      "severe_harm": 8.602,
+      "action_gap_noharm": -0.351,
+      "action_gap_harm": 0.918,
+      "collapse": null,
+      "outcome_gap_mild": 5.217,
+      "min_mass": 1.0
+    },
+    {
+      "story": "electrician",
+      "mild_noharm": 1.546,
+      "severe_noharm": 8.988,
+      "mild_harm": 8.696,
+      "severe_harm": 8.997,
+      "action_gap_noharm": 7.442,
+      "action_gap_harm": 0.301,
+      "collapse": 0.96,
+      "outcome_gap_mild": 7.15,
+      "min_mass": 1.0
+    }
+  ],
+  "neg_delta": 0.02
+}

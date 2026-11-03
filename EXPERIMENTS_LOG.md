@@ -3712,3 +3712,5 @@ Tests: `test_search_docs.py` (3), `test_chunk_store_delete_files.py` (1).
 **Процессные ошибки (свои):** E2 — system/user scale mismatch; E2 — хэши после прогона; un_e6.py изменён после freeze (--retry) -> reeze_manifest check корректно FAIL; записано, не перезаморожено молча.
 
 **Связи:** experiments/outcome_bias_2026-11-03/RESULTS.md, EXTERNAL_AUDIT.md, PENDING_LEDGER.md (источник), docs/archive/ не затронут.
+
+**E7 follow-up (2026-11-03):** same-type dose pairs (1s vs 10s, 2s vs 2min, 30s vs 20min, 10s vs 2h), local exact readout, negative control 0.02, digit mass 1.0. H1 action readable without harm: **3/4**; H2 outcome gap > action gap: **3/4** (electrician action 7.44 > outcome 7.15). E6's 1/4 was partly a cross-type stimulus artifact: the 'severe' action was a different kind of act, not a stronger dose of the same one. Corrected statement: outcome moves blame strongly; action readability is pair-sensitive. Raw: esults/raw_e7.jsonl; freeze rozen/MANIFEST-7.json.

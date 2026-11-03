@@ -1,0 +1,12 @@
+{
+  "frozen_at_epoch": 1793730859.1440694,
+  "frozen_at_utc": "2026-11-03T18:34:19Z",
+  "files": {
+    "experiments/outcome_bias_2026-11-03/frozen/HYPOTHESES-7.md": "dfaeece3bcf7cf9559166e4eeaab2bf9eb9bef77e39230178c72bc961b1624fb",
+    "experiments/outcome_bias_2026-11-03/frozen/STORIES-7.jsonl": "b79b729b7d9d9483327e27eb916abd6a21b1f33723f5f5f5878d2f486c2e2fd7",
+    "experiments/outcome_bias_2026-11-03/run_e7.py": "f27fe89b124214cd6a360c172807750821b9b95b5b55ed323cfc6443b12bcaf9",
+    "experiments/outcome_bias_2026-11-03/run_exact_readout.py": "8c2f099e8dea9f7ebe7b3e94305f9d0a7fd014a389ae4be9fd351e5f5e77d07a",
+    "experiments/outcome_bias_2026-11-03/readout.py": "6694d0a0c6e7987d8614b052947b1e6b48d1731ad369943863a6a2891ca73e35",
+    "experiments/outcome_bias_2026-11-03/prompts.py": "c3a1d4a78b8e6e5dec7798aeb1c26129496b90219ed0d5032d077effe1a1a939"
+  }
+}
