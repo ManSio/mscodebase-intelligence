@@ -60,20 +60,19 @@ def test_probe_uses_communicate_with_inner_timeout(tmp_path, monkeypatch):
     report._check_execution_contract()
 
     assert spawned["proc"].kwargs.get("stdout") is subprocess.PIPE
-    assert spawned["proc"].timeout == 10  # < внешнего бюджета 15s (нет гонки)
+    assert spawned["proc"].kwargs.get("stdin") is subprocess.DEVNULL
+    assert spawned["proc"].timeout == 5
     assert report.metrics.get("last_commit") == "abc1234 subject line"
     assert not [w for w in report.warnings if w["component"] == "execution_contract"]
 
 
-def test_probe_kills_the_child_on_timeout(tmp_path, monkeypatch):
+def test_probe_timeout_is_a_metric_not_a_warning(tmp_path, monkeypatch):
+    """Медленный git в песочнице MCP — не проблема пользователя (2026-11-07)."""
     proc = _SlowPopen()
-
     monkeypatch.setattr(health_mod.subprocess, "Popen", lambda *a, **k: proc)
     report = HealthReport(project_path=Path(tmp_path))
     report._check_execution_contract()
 
     assert proc.killed is True
-    assert any(
-        w["component"] == "execution_contract" and "таймаут" in w["message"].lower()
-        for w in report.warnings
-    )
+    assert report.metrics.get("git_probe") == "timeout"
+    assert not [w for w in report.warnings if w["component"] == "execution_contract"]

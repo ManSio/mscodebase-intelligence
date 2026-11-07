@@ -630,14 +630,15 @@ class HealthReport:
                 # Popen + communicate(timeout) — безопасный паттерн; 10s < 15s
                 # внешнего бюджета, чтобы не было гонки двух таймаутов.
                 proc = subprocess.Popen(
-                    ["git", "log", "--oneline", "-1"],
+                    ["git", "rev-parse", "--short", "HEAD"],
                     cwd=str(self.project_path),
+                    stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
                     env=_env,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
-                out, _ = proc.communicate(timeout=10)
+                out, _ = proc.communicate(timeout=5)
                 return (out or b"").strip().decode("utf-8", "replace")
             except subprocess.TimeoutExpired:
                 if proc is not None:
@@ -673,12 +674,11 @@ class HealthReport:
                     }
                 )
             elif last_commit == -3:
-                self.warnings.append(
-                    {
-                        "component": "execution_contract",
-                        "message": "Превышен внутренний таймаут Git команды",
-                    }
-                )
+                # Git медленный/завис в этом процессе — это НЕ проблема
+                # пользователя (наблюдение 2026-11-07: любой git-спавн из MCP
+                # не укладывается в 10 с, вне MCP — 40 мс). Метрика вместо
+                # постоянного warning'а в каждом отчёте.
+                self.metrics["git_probe"] = "timeout"
             else:
                 self.metrics["last_commit"] = last_commit
 

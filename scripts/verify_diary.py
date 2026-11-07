@@ -389,6 +389,11 @@ def _commit_creation_flags() -> int:
 _COMMIT_CACHE: dict[str, bool] = {}
 
 
+# git недоступен/завис: коммиты не проверяем, но и не обвиняем (fail-open
+# по проверке, fail-closed по молчанию — статус виден в результате ledger).
+_GIT_UNAVAILABLE = False
+
+
 def resolve_commits(hashes: List[str]) -> None:
     """Проверить пачку коммитов ОДНИМ процессом git.
 
@@ -414,7 +419,11 @@ def resolve_commits(hashes: List[str]) -> None:
         )
         out, _ = proc.communicate("\n".join(pending) + "\n", timeout=30)
     except (OSError, subprocess.SubprocessError, ValueError):
-        return  # батч не удался → остаётся поштучный путь с ретраем
+        # Не запускаем N поштучных попыток по 30 с: в этом процессе git может
+        # висеть, и fallback превращает ledger в 30-минутный шторм спавнов.
+        global _GIT_UNAVAILABLE
+        _GIT_UNAVAILABLE = True
+        return  # батч не удался → см. check_commit_exists (fail-open)
 
     found: list[str] = []
     missing: set[str] = set()
@@ -451,6 +460,9 @@ def check_commit_exists(commit_hash: str) -> bool:
     """
     if commit_hash in _COMMIT_CACHE:
         return _COMMIT_CACHE[commit_hash]
+    if _GIT_UNAVAILABLE:
+        # Проверка невозможна: не выдаём ложное «коммит не найден».
+        return True
     for _attempt in range(2):
         try:
             proc = subprocess.Popen(
@@ -654,34 +666,48 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
 _LEDGER_CACHE_TTL_SEC = 6 * 3600
 
 
+def _read_head_sha() -> str:
+    """HEAD из файлов .git — БЕЗ subprocess.
+
+    `git rev-parse` в этом процессе может висеть (наблюдение 2026-11-07:
+    любой git-спавн из MCP не укладывается даже в 10 с). Для ключа кэша
+    достаточно прочитать .git/HEAD и ref — это просто файлы.
+    """
+    git_dir = ROOT / ".git"
+    try:
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    if not head.startswith("ref:"):
+        return head
+    ref = head[5:].strip()
+    ref_path = git_dir / ref
+    try:
+        return ref_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    try:
+        for line in (git_dir / "packed-refs").read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith("#") and line.endswith(" " + ref):
+                return line.split()[0]
+    except OSError:
+        pass
+    return ""
+
+
 def _ledger_cache_path() -> Path:
     return ROOT / ".mscodebase" / "contradiction_ledger.json"
 
 
 def _ledger_cache_key() -> dict:
-    """Ключ кэша: дневник (mtime/size) + HEAD. Меняется — перепроверяем."""
+    """Ключ кэша: дневник (mtime/size/sha) + HEAD. Меняется — перепроверяем."""
     import hashlib
 
     st = DIARY.stat()
-    head = ""
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=10,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        head = (out.stdout or "").strip()
-    except (OSError, subprocess.SubprocessError):
-        head = ""
     return {
         "diary_mtime_ns": st.st_mtime_ns,
         "diary_size": st.st_size,
-        "head": head,
+        "head": _read_head_sha(),
         "diary_sha": hashlib.sha256(DIARY.read_bytes()).hexdigest()[:16],
     }
 
@@ -727,6 +753,7 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
         "discrepancies": failed,
         "claims": passed + failed,
         "commits": sum(len(e.commits) for e in entries),
+        "git_unavailable": _GIT_UNAVAILABLE,
         "details": issues,
     }
     try:

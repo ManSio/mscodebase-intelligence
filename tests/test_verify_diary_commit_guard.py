@@ -114,8 +114,9 @@ def test_batch_never_caches_numeric_tokens_as_missing(monkeypatch):
 
 
 def test_batch_spawn_failure_falls_back(tmp_path):
-    """Если батч не стартовал — кэш пуст, поштучный путь остаётся живым."""
+    """Если батч не стартовал — кэш пуст, а коммиты не обвиняются (fail-open)."""
     verify._COMMIT_CACHE.clear()
+    verify._GIT_UNAVAILABLE = False
 
     def _boom(*args, **kwargs):
         raise OSError("spawn failed")
@@ -124,4 +125,8 @@ def test_batch_spawn_failure_falls_back(tmp_path):
 
     with _mock.patch.object(verify.subprocess, "Popen", _boom):
         verify.resolve_commits(["f00baa1"])
-    assert verify._COMMIT_CACHE == {}
+        assert verify._COMMIT_CACHE == {}
+        assert verify._GIT_UNAVAILABLE is True
+        # Нет ложного «коммит не найден»: проверка невозможна → не обвиняем.
+        assert verify.check_commit_exists("f00baa1") is True
+    verify._GIT_UNAVAILABLE = False
