@@ -12,9 +12,21 @@
 """
 
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.core.auto_doc_updater import AutoDocUpdater
+
+
+def _month_dates() -> tuple[str, str]:
+    """Даты «прошлый месяц» и «текущий месяц» относительно СЕГОДНЯ.
+
+    Хардкод (2026-09/2026-10) превращал тест в бомбу замедленного действия:
+    в ноябре обе записи становились «старыми» и тест падал без изменения кода.
+    """
+    now = datetime.now()
+    prev = now.replace(day=1) - timedelta(days=1)
+    return prev.strftime("%Y-%m-%d"), now.strftime("%Y-%m-%d")
 
 FIXTURE_README = """\
 # MSCodebase Intelligence
@@ -185,43 +197,48 @@ def test_update_readme_tools_count_is_env_independent(tmp_path, monkeypatch):
 
 def test_archive_old_entries_moves_stale_sections(tmp_path):
     """_archive_old_entries: раздел старше 1 месяца уходит в архив."""
+    old_date, new_date = _month_dates()
+    old_prefix = old_date[:7]
     root = tmp_path / "proj"
     root.mkdir(parents=True)
     known = root / "KNOWN_ISSUES.md"
     known.write_text(
         "# KNOWN ISSUES\n\n"
-        "## [2026-09-15] — старая запись\n- текст старой записи\n"
-        "## [2026-10-20] — новая запись\n- текст новой записи\n",
+        f"## [{old_date}] — старая запись\n- текст старой записи\n"
+        f"## [{new_date}] — новая запись\n- текст новой записи\n",
         encoding="utf-8",
     )
     updater = AutoDocUpdater()
     result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
 
-    assert "2026-09-15" not in result
-    assert "2026-10-20" in result
+    assert old_date not in result
+    assert new_date in result
 
     archive_dir = root / "docs" / "archive"
-    arch = archive_dir / "KNOWN_ISSUES_2026_09.md"
+    arch = archive_dir / f"KNOWN_ISSUES_{old_prefix.replace('-', '_')}.md"
     assert arch.exists()
-    assert "2026-09-15" in arch.read_text(encoding="utf-8")
+    assert old_date in arch.read_text(encoding="utf-8")
 
 
 def test_archive_old_entries_keeps_current_month(tmp_path):
     """_archive_old_entries: записи текущего месяца остаются в живом файле."""
+    now = datetime.now()
+    first = now.strftime("%Y-%m-01")
+    today = now.strftime("%Y-%m-%d")
     root = tmp_path / "proj"
     root.mkdir(parents=True)
     known = root / "KNOWN_ISSUES.md"
     known.write_text(
         "# KNOWN ISSUES\n\n"
-        "## [2026-10-01] — октябрь\n- запись октября\n"
-        "## [2026-10-22] — сегодня\n- запись сегодня\n",
+        f"## [{first}] — начало месяца\n- запись\n"
+        f"## [{today}] — сегодня\n- запись сегодня\n",
         encoding="utf-8",
     )
     updater = AutoDocUpdater()
     result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
 
-    assert "2026-10-01" in result
-    assert "2026-10-22" in result
+    assert first in result
+    assert today in result
     assert not (root / "docs" / "archive").exists()
 
 
