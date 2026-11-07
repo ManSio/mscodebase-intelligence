@@ -1,0 +1,286 @@
+{
+  "arm": "qwen3_top20",
+  "pool": 20,
+  "n": 16,
+  "hit1": 0.4375,
+  "hit5": 0.5625,
+  "mrr": 0.4895833333333333,
+  "p50_ms": 54788.48420000031,
+  "p95_ms": 87076.84300000255,
+  "mean_ms": 60479.85939374962,
+  "errors": 0,
+  "rows": [
+    {
+      "id": "E30-E28-01",
+      "query": "Почему в ограничителе скорости используется threading.Lock, а не asyncio.Lock, и с каким инцидентом это связано?",
+      "gold": "src/core/rate_limiter.py",
+      "files": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "ISSUE.md",
+        "src/core/intelligence/alert_store.py",
+        "src/core/indexing/db_manager.py",
+        "ISSUE.md"
+      ],
+      "ms": 87076.84300000255,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-04",
+      "query": "Как решается проблема, что idle-watchdog убивает общий embedder во время полной переиндексации?",
+      "gold": "src/core/embedder_lease.py",
+      "files": [
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py"
+      ],
+      "ms": 54763.24889999887,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-07",
+      "query": "Что делает validate_scores с неоценёнными чанками, у которых score равен NaN или Inf?",
+      "gold": "src/providers/reranker/reranker_scoring.py",
+      "files": [
+        "src/providers/reranker/reranker_scoring.py",
+        "experiments/evalmut/probe_evalmut_transfer.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py"
+      ],
+      "ms": 81669.27039999791,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-10",
+      "query": "Почему в RRF-слиянии ранги считаются отдельно для каждого канала, а не общим enumerate?",
+      "gold": "docs/en/SEARCH_PIPELINE.md",
+      "files": [
+        "docs/zh/SEARCH_PIPELINE.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py"
+      ],
+      "ms": 87029.8342999995,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-13",
+      "query": "Какой вердикт получает ACTIVE-узел памяти, если резолвер недоступен и проверка не дала результата?",
+      "gold": "docs/adr/0003-verify-on-read.md",
+      "files": [
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/intelligence/tools_reg.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "ms": 76633.24069999726,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-16",
+      "query": "Насколько переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом?",
+      "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "files": [
+        "docs/zh/ARCHITECTURE.md",
+        "README.md",
+        "docs/ru/ARCHITECTURE.md",
+        "docs/en/ARCHITECTURE.md",
+        "experiments/root_cause_eval/incident_dataset_full.json"
+      ],
+      "ms": 53244.44489999951,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-19",
+      "query": "ubatch embed 512 rerank 1024 resolve_ubatch",
+      "gold": "src/providers/reranker/llama_install.py",
+      "files": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "AGENT_DIARY.md",
+        "experiments/embeddinggemma/bench.py",
+        "src/providers/reranker/llama_install.py"
+      ],
+      "ms": 97280.7064999979,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-22",
+      "query": "PropertyGraph add_node add_edge SQLite transaction per node edge",
+      "gold": "src/core/graph.py",
+      "files": [
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py"
+      ],
+      "ms": 49990.41070000021,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-25",
+      "query": "FreshnessChecker to_pandas columns lancedb broken dead code",
+      "gold": "src/core/indexing/freshness.py",
+      "files": [
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "AGENT_DIARY.md",
+        "src/core/indexing/indexer.py"
+      ],
+      "ms": 61465.79870000278,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.5,
+      "error": null
+    },
+    {
+      "id": "E30-E28-28",
+      "query": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+      "gold": "src/core/indexing/db_manager.py",
+      "files": [
+        "src/core/indexing/db_writer.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/indexer_table.py",
+        "AGENT_DIARY.md"
+      ],
+      "ms": 47156.672699999035,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-E28-31",
+      "query": "переиндексация одного изменённого файла notify change rate limit",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "files": [
+        "src/mcp/tools/indexing_tools.py",
+        "src/sync/server.py",
+        "src/mcp/tools/indexing_tools.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py"
+      ],
+      "ms": 44229.25119999854,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-D01",
+      "query": "MSCodebase Intelligence Семантический поиск по кодовой базе для Zed IDE.",
+      "gold": "src/__init__.py",
+      "files": [
+        "docs/ru/README.md",
+        "docs/ru/README.md",
+        "src/core/structural_search.py",
+        "src/core/intelligence/layer.py",
+        "docs/research/2026-07-11-zed-deep-dive.md"
+      ],
+      "ms": 54813.71950000175,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    },
+    {
+      "id": "E30-D04",
+      "query": "Автоматический парсер .gitignore для исключения файлов из индексации.",
+      "gold": "src/core/gitignore_parser.py",
+      "files": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py"
+      ],
+      "ms": 52295.560199996544,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-D07",
+      "query": "MCP Tool Registration for Intelligence Layer.",
+      "gold": "src/core/intelligence/tools_reg.py",
+      "files": [
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "ms": 40901.28410000034,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0,
+      "error": null
+    },
+    {
+      "id": "E30-D10",
+      "query": "Cypher query engine — компонент для подмножества openCypher.",
+      "gold": "src/core/search/cypher_parser.py",
+      "files": [
+        "src/core/search/cypher_ast.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_ast.py"
+      ],
+      "ms": 18733.046000001195,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.3333333333333333,
+      "error": null
+    },
+    {
+      "id": "E30-D13",
+      "query": "find_duplicates — детектор дупликации кода (AST-отпечатки + minhash-LSH).",
+      "gold": "src/mcp/tools/duplication_tool.py",
+      "files": [
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py"
+      ],
+      "ms": 60394.41850000003,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,4417 @@
+{
+  "hybrid": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 45.083400000294205,
+    "p95_ms": 77.91790000192123,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "fast": {
+    "hit@1": 0.5416666666666666,
+    "hit@5": 0.7291666666666666,
+    "p50_ms": 18.7435000007099,
+    "p95_ms": 34.621200000401586,
+    "subsets": {
+      "code": [
+        0.625,
+        0.85
+      ],
+      "docs": [
+        0.125,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+          "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "docs/research/2026-07-11-telemetry-and-metrics.md",
+          "src/core/embedder/onnx_server.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "docs/ru/HANDFOFF.md",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "src/providers/reranker/reranker_scoring.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "EXPERIMENTS_LOG.md",
+          "src/providers/reranker/reranker_scoring.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+          "scripts/check_lsp_health.py",
+          "docs/en/investigations/LSP_WONTFIX.md",
+          "docs/ru/investigations/LSP_WONTFIX.md",
+          "tools/knowledge/RESEARCH-protocol-landscape.md"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "docs/ru/GRACEFUL_DEGRADATION.md",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "tools/knowledge/RESEARCH-protocol-landscape.md"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "docs/ru/SEARCH_PIPELINE.md",
+          "docs/zh/SEARCH_PIPELINE.md",
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/trust_boundary.py",
+          "docs/blog/README.md",
+          "docs/research/2026-07-12-e5-base-migration.md",
+          "tools/knowledge/REDTEAM-protocol.md"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "docs/ru/TELEMETRY.md",
+          "docs/ru/TELEMETRY.md",
+          "ISSUE.md",
+          "scripts/e2e_quality_search.py",
+          "scripts/summarize_1L_categories.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "docs/adr/0003-verify-on-read.md",
+          "docs/adr/0003-verify-on-read.md",
+          "docs/adr/0002-retraction-receipt.md",
+          "src/core/project_resolution.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "docs/ru/HANDFOFF.md",
+          "docs/ru/INSTALL.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/archive/KNOWN_ISSUES_2026_07.md",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "docs/ru/SYSTEM_REQUIREMENTS.md",
+          "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+          "docs/research/2026-07-09-provider-benchmark.md",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "src/core/indexing/index_project_runner.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/mcp/tools/search_tools.py",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md",
+          "src/mcp/tools/search_tools.py"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "AGENT_DIARY.md",
+          "src/core/bootstrap_tests.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "AGENT_DIARY.md",
+          "src/core/indexing/freshness.py",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "src/core/indexing/freshness.py",
+          "docs/en/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/providers/embedder/canary_set.json",
+          "src/core/indexing/parser.py",
+          "src/providers/embedder/canary_set.json",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "docs/archive/ARCHITECTURE_2026-07-20.md",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "AGENT_DIARY.md",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0005-pkg-anchors.md",
+          "src/core/intelligence/verify_on_read.py"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "docs/ru/ARCHITECTURE.md",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "src/core/rate_limiter.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "docs/research/2026-07-12-e5-base-migration.md",
+          "docs/research/2026-07-12-e5-base-migration.md",
+          "src/providers/reranker/multi_provider.py",
+          "docs/research/2026-07-12-e5-base-migration.md",
+          "docs/research/2026-07-12-e5-base-migration.md"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "docs/ru/GRACEFUL_DEGRADATION.md",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md",
+          "docs/research/2026-07-11-zed-deep-dive.md",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "docs/archive/KNOWN_ISSUES_2026_09.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/system_artifacts.py",
+          "src/core/system_artifacts.py",
+          "scripts/check_lsp_health.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "EXPERIMENTS_LOG.md"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_lexer.py",
+          "src/core/search/cypher_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/core/indexing/indexer_table.py",
+          "src/providers/embedder/remote_embedder.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "docs/ru/SECURITY.md",
+          "README.md",
+          "docs/zh/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "examples/plugins/verify_claim/plugin.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/remote_main.py",
+          "ISSUE.md",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "quality": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 47.91424999712035,
+    "p95_ms": 82.04440000554314,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "deep": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 47.87225000109174,
+    "p95_ms": 82.47670000127982,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "quality_nodemote": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 47.07444999803556,
+    "p95_ms": 82.71830000012415,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "docs/ru/SEARCH_PIPELINE.md",
+          "docs/zh/SEARCH_PIPELINE.md",
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "docs/ru/TELEMETRY.md",
+          "docs/ru/TELEMETRY.md",
+          "scripts/e2e_quality_search.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "docs/ru/HANDFOFF.md",
+          "src/core/lsp_project_bridge.py",
+          "docs/ru/INSTALL.md",
+          "adapters/zed/zed_config.py"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md",
+          "docs/zh/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "src/core/indexing/index_project_runner.py",
+          "docs/archive/AGENT_DIARY_2026_08.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "docs/archive/KNOWN_ISSUES_2026_09.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "docs/archive/KNOWN_ISSUES_2026_09.md",
+          "src/core/sandbox/executor.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md",
+          "src/core/intelligence/verify_on_read.py"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "docs/en/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "docs/archive/KNOWN_ISSUES_2026_09.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "docs/ru/SECURITY.md",
+          "docs/ru/INSTALL.md"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "quality_intent": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 47.46460000023944,
+    "p95_ms": 81.42280000174651,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "quality_ru": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 63.03639999896404,
+    "p95_ms": 117.59639999945648,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "src/core/embedder_lease.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  },
+  "quality_p3": {
+    "hit@1": 0.6875,
+    "hit@5": 0.7708333333333334,
+    "p50_ms": 89.26034999967669,
+    "p95_ms": 140.66559999628225,
+    "subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "files": [
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/database_lock.py",
+          "ISSUE.md",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "files": [
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/indexing/file_guard.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/indexing/file_guard.py",
+          "src/core/indexing/file_guard.py"
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "files": [
+          "src/core/embedder_lease.py",
+          "src/core/intelligence/health.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py",
+          "src/core/intelligence/health.py",
+          "src/core/indexing/watchdog.py"
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "files": [
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/reindex_ledger.py",
+          "src/core/redact.py"
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "files": [
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py",
+          "src/core/quiet_break_gate.py"
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "files": [
+          "src/providers/reranker/reranker_scoring.py",
+          "src/core/artifact_gc.py",
+          "src/providers/reranker/reranker_scoring.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/reranker_scoring.py"
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "files": [
+          "src/core/error_envelope.py",
+          "src/core/error_envelope.py",
+          "scripts/check_lsp_health.py",
+          "src/mcp/server_tools.py",
+          "src/mcp/context.py"
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "files": [
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/search/agentic_search.py"
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "src/core/search/trace.py",
+          "docs/ru/SEARCH_PIPELINE.md",
+          "src/core/search/scoring.py",
+          "src/core/search/trace.py"
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "files": [
+          "src/core/trust_boundary.py",
+          "src/core/search/agentic_search.py",
+          "src/core/bootstrap_trace_plugin.py",
+          "src/core/language_imports.py",
+          "src/core/log_manager.py",
+          "src/core/search/agentic_search.py"
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "files": [
+          "scripts/check_lsp_health.py",
+          "scripts/summarize_1L_categories.py",
+          "scripts/e2e_quality_search.py",
+          "src/plugins/loader.py",
+          "src/core/runtime_coordinator.py"
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "files": [
+          "src/core/intelligence/layer.py",
+          "src/core/doc_llm_verifier.py",
+          "src/core/project_resolution.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/instruction_scan.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "files": [
+          "src/core/project_resolution.py",
+          "src/core/lsp_project_bridge.py",
+          "adapters/zed/zed_config.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt",
+          "docs/ru/HANDFOFF.md"
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "files": [
+          "tools/knowledge/CONSOLIDATION.md",
+          "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/ru/ZED_WINDOWS_QUIRKS.md",
+          "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+          "docs/en/ZED_WINDOWS_QUIRKS.md"
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_runner.py",
+          "docs/zh/ARCHITECTURE.md",
+          "docs/en/ARCHITECTURE.md",
+          "docs/ru/ARCHITECTURE.md"
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "files": [
+          "src/core/indexing/index_project_runner.py",
+          "ISSUE.md",
+          "AGENT_DIARY.md",
+          "ISSUE.md",
+          "ISSUE.md",
+          "src/core/indexing/db_manager.py",
+          "src/core/indexing/index_project_runner.py",
+          "src/core/indexing/db_manager.py"
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "files": [
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "src/core/artifact_gc.py",
+          "scripts/collect_telemetry.py",
+          "src/core/artifact_gc.py"
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "files": [
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_install.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "files": [
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/startup_diagnostics.py",
+          "src/core/indexing/database_lock.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/indexing/database_lock.py",
+          "src/core/indexing/startup_diagnostics.py"
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "files": [
+          "src/providers/embedder/remote_embedder.py",
+          "src/core/embedder_lease.py",
+          "AGENT_DIARY.md",
+          "AGENT_DIARY.md",
+          "docs/archive/DEV_DIARY_2026_07.md",
+          "docs/archive/AGENT_DIARY_2026_07.md",
+          "src/providers/embedder/remote_embedder.py"
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "files": [
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "EXPERIMENTS_LOG.md",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py",
+          "src/core/graph.py"
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "files": [
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "src/core/search/cypher_sql.py",
+          "AGENT_DIARY.md",
+          "src/core/search/cypher_sql.py"
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "files": [
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "src/core/bootstrap_tests.py",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md",
+          "src/core/sandbox/executor.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "files": [
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py",
+          "src/core/indexing/parser.py"
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "files": [
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/scoring.py",
+          "src/core/search/engine.py",
+          "src/core/search/engine.py"
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "files": [
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/index_guard.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/indexing/indexer_table.py"
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "files": [
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/verify_on_read.py",
+          "src/core/intelligence/verify_on_read.py",
+          "docs/adr/0003-verify-on-read.md",
+          "src/core/intelligence/tools_reg.py"
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "files": [
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/indexing/project_indexer_registry.py",
+          "src/core/multi_project_searcher.py"
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "files": [
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py",
+          "scripts/triage_protocol_findings.py",
+          "src/core/rate_limiter.py",
+          "src/mcp/tools/indexing_tools.py",
+          "src/sync/server.py"
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "files": [
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py",
+          "src/providers/reranker/multi_provider.py"
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "files": [
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/bm25.py",
+          "src/core/search/bm25.py",
+          "src/core/search/cypher_lexer.py",
+          "src/core/search/bm25.py",
+          "src/core/commit_memory.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "files": [
+          "src/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/intelligence/layer.py",
+          "docs/ru/README.md",
+          "docs/ru/README.md"
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "files": [
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py",
+          "src/core/bootstrap_pipeline.py",
+          "src/providers/reranker/llama_runner.py"
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "files": [
+          "src/core/doc_sync_engine.py",
+          "scripts/negative_controls_runner.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py",
+          "src/core/doc_sync_engine.py",
+          "src/core/doc_sync_engine.py",
+          "src/core/indexing/symbol_index.py",
+          "src/main.py"
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "files": [
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py",
+          "src/core/gitignore_parser.py"
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "files": [
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "src/core/indexing/freshness.py",
+          "AGENT_DIARY.md"
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "files": [
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "files": [
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/tools_reg.py",
+          "src/core/intelligence/layer.py"
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "files": [
+          "src/core/lsp_project_bridge.py",
+          "src/core/system_artifacts.py",
+          "src/core/lsp_project_bridge.py",
+          "src/core/platform_utils.py",
+          "src/core/runtime_coordinator.py",
+          "src/core/lsp_project_bridge.py"
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "files": [
+          "src/core/relpath.py",
+          "src/core/relpath.py",
+          "src/core/indexing/symbol_index.py",
+          "tools/microtask_pipeline/run_step.py",
+          "src/core/indexing/symbol_index.py",
+          "src/core/indexing/symbol_index.py"
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "files": [
+          "src/core/search/cypher_executor.py",
+          "src/core/search/cypher_engine.py",
+          "src/core/search/cypher_parser.py",
+          "src/core/search/cypher_ast.py",
+          "src/core/search/cypher_lexer.py"
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "files": [
+          "src/core/search/trace.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py",
+          "src/remote_main.py",
+          "src/core/indexing/indexer_table.py",
+          "src/core/notification_broker.py",
+          "src/mcp/tools/search_tools.py"
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "files": [
+          "src/mcp/__init__.py",
+          "adapters/zed/zed_config.py",
+          "src/core/lsp_project_bridge.py",
+          "README.md",
+          "mscodebase_intelligence.egg-info/SOURCES.txt"
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "files": [
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/mcp/tools/duplication_tool.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py",
+          "src/core/duplication.py"
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "files": [
+          "src/plugins/loader.py",
+          "src/plugins/loader.py",
+          "examples/plugins/verify_claim/plugin.py",
+          "src/plugins/manifest.py",
+          "src/plugins/registry.py"
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "files": [
+          "src/remote_main.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/sync/server.py",
+          "src/remote_main.py",
+          "src/sync/server.py"
+        ]
+      }
+    ]
+  }
+}

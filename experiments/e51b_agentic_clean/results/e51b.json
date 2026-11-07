@@ -1,0 +1,1311 @@
+{
+  "n": 48,
+  "summary": {
+    "agent_hit@1": 0.4375,
+    "agent_hit@5": 0.7916666666666666,
+    "single_hit@1": 0.5625,
+    "single_hit@5": 0.7708333333333334
+  },
+  "p50_ms": 140.38969999819528,
+  "p95_ms": 215.78739999677055,
+  "avg_tool_calls": 2.0,
+  "avg_tokens": 1047.9791666666667,
+  "rows": [
+    {
+      "id": "E30-E28-01",
+      "gold": "src/core/rate_limiter.py",
+      "agent_top1": "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+      "agent_top5": [
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/core/indexing/db_manager.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "single_top1": "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+      "single_top5": [
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/core/indexing/db_manager.py",
+        "tools/knowledge/RESEARCH-protocol-landscape.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 792,
+      "idents": [
+        "lock",
+        "docs",
+        "section"
+      ]
+    },
+    {
+      "id": "E30-E28-02",
+      "gold": "src/core/redact.py",
+      "agent_top1": "src/core/redact.py",
+      "agent_top5": [
+        "src/core/redact.py",
+        "scripts/redact.py",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "tools/knowledge/PATTERNS.md"
+      ],
+      "single_top1": "src/core/redact.py",
+      "single_top5": [
+        "src/core/redact.py",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "src/core/intelligence/embed_progress.py",
+        "docs/RESEARCH_SUBAGENTS_OPENCODE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 733,
+      "idents": [
+        "investigations",
+        "gate",
+        "docs"
+      ]
+    },
+    {
+      "id": "E30-E28-03",
+      "gold": "src/core/gitignore_parser.py",
+      "agent_top1": "src/core/gitignore_parser.py",
+      "agent_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/index_parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/file_guard.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "single_top1": "src/core/gitignore_parser.py",
+      "single_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/en/investigations/LSP_WONTFIX.md",
+        "docs/ru/investigations/LSP_WONTFIX.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1191,
+      "idents": [
+        "core",
+        "project_path",
+        "gitignore_path"
+      ]
+    },
+    {
+      "id": "E30-E28-04",
+      "gold": "src/core/embedder_lease.py",
+      "agent_top1": "src/core/embedder/onnx_server.py",
+      "agent_top5": [
+        "src/core/embedder/onnx_server.py",
+        "src/core/embedder_lease.py",
+        "src/providers/embedder/remote_embedder.py",
+        "EXPERIMENTS_LOG.md",
+        "src/core/intelligence/health.py"
+      ],
+      "single_top1": "EXPERIMENTS_LOG.md",
+      "single_top5": [
+        "EXPERIMENTS_LOG.md",
+        "src/core/intelligence/health.py",
+        "docs/research/2026-07-11-telemetry-and-metrics.md",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/embedder/onnx_server.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1157,
+      "idents": [
+        "update_all",
+        "loop",
+        "section"
+      ]
+    },
+    {
+      "id": "E30-E28-05",
+      "gold": "src/core/reindex_ledger.py",
+      "agent_top1": "src/core/reindex_ledger.py",
+      "agent_top5": [
+        "src/core/reindex_ledger.py",
+        "tools/knowledge/PENDING_LEDGER.md",
+        "docs/ru/HANDFOFF.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/redact.py"
+      ],
+      "single_top1": "docs/ru/HANDFOFF.md",
+      "single_top5": [
+        "docs/ru/HANDFOFF.md",
+        "src/core/reindex_ledger.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/redact.py",
+        "tools/knowledge/PENDING_LEDGER.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1029,
+      "idents": [
+        "layer",
+        "zombie",
+        "docs"
+      ]
+    },
+    {
+      "id": "E30-E28-06",
+      "gold": "src/core/quiet_break_gate.py",
+      "agent_top1": "src/core/quiet_break_gate.py",
+      "agent_top5": [
+        "src/core/quiet_break_gate.py",
+        "src/mcp/tools/graph_tools.py",
+        "scripts/revision_gate.py",
+        "scripts/ruff_gate.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "src/core/quiet_break_gate.py",
+      "single_top5": [
+        "src/core/quiet_break_gate.py",
+        "src/mcp/tools/graph_tools.py",
+        "EXPERIMENTS_LOG.md",
+        "WISDOM.md",
+        "docs/ru/UNIVERSAL_ENGINE_PLAN.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1500,
+      "idents": [
+        "core",
+        "diff",
+        "root"
+      ]
+    },
+    {
+      "id": "E30-E28-07",
+      "gold": "src/providers/reranker/reranker_scoring.py",
+      "agent_top1": "docs/archive/AGENT_DIARY_2026_08.md",
+      "agent_top5": [
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/providers/reranker/reranker_scoring.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/archive/KNOWN_ISSUES_2026_07.md",
+        "scripts/revision_gate.py"
+      ],
+      "single_top1": "docs/archive/AGENT_DIARY_2026_08.md",
+      "single_top5": [
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/providers/reranker/reranker_scoring.py",
+        "EXPERIMENTS_LOG.md",
+        "scripts/revision_gate.py",
+        "src/core/search/engine.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1440,
+      "idents": [
+        "isinstance",
+        "evalmut",
+        "index"
+      ]
+    },
+    {
+      "id": "E30-E28-08",
+      "gold": "src/core/error_envelope.py",
+      "agent_top1": "src/core/error_handler.py",
+      "agent_top5": [
+        "src/core/error_handler.py",
+        "src/core/error_envelope.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "scripts/check_lsp_health.py",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "single_top1": "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+      "single_top5": [
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "scripts/check_lsp_health.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/error_handler.py",
+        "ISSUE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 997,
+      "idents": [
+        "archive",
+        "check_lsp_health",
+        "docs"
+      ]
+    },
+    {
+      "id": "E30-E28-09",
+      "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+      "agent_top1": "src/core/system_artifacts.py",
+      "agent_top5": [
+        "src/core/system_artifacts.py",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/search/agentic_search.py",
+        "tools/knowledge/RESEARCH-protocol-landscape.md"
+      ],
+      "single_top1": "src/core/indexing/startup_diagnostics.py",
+      "single_top5": [
+        "src/core/indexing/startup_diagnostics.py",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/search/agentic_search.py",
+        "tools/knowledge/RESEARCH-protocol-landscape.md",
+        "scripts/console_flash_monitor.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1392,
+      "idents": [
+        "llama",
+        "remaining",
+        "L1_GGUF"
+      ]
+    },
+    {
+      "id": "E30-E28-10",
+      "gold": "docs/en/SEARCH_PIPELINE.md",
+      "agent_top1": "docs/ru/SEARCH_PIPELINE.md",
+      "agent_top5": [
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py",
+        "src/providers/reranker/multi_provider.py"
+      ],
+      "single_top1": "docs/ru/SEARCH_PIPELINE.md",
+      "single_top5": [
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py",
+        "docs/archive/DEV_DIARY_2026_07.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1483,
+      "idents": [
+        "results_map",
+        "rank",
+        "scores"
+      ]
+    },
+    {
+      "id": "E30-E28-11",
+      "gold": "docs/TRUST_BOUNDARY.md",
+      "agent_top1": "src/core/bootstrap_trace_plugin.py",
+      "agent_top5": [
+        "src/core/bootstrap_trace_plugin.py",
+        "src/core/trust_boundary.py",
+        "docs/blog/README.md",
+        "src/core/indexing/database_lock.py",
+        "docs/TRUST_BOUNDARY.md"
+      ],
+      "single_top1": "src/core/bootstrap_trace_plugin.py",
+      "single_top5": [
+        "src/core/bootstrap_trace_plugin.py",
+        "src/core/trust_boundary.py",
+        "docs/blog/README.md",
+        "docs/TRUST_BOUNDARY.md",
+        "docs/research/2026-07-12-e5-base-migration.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 762,
+      "idents": [
+        "core",
+        "bootstrap_trace_plugin",
+        "root"
+      ]
+    },
+    {
+      "id": "E30-E28-12",
+      "gold": "docs/en/TELEMETRY.md",
+      "agent_top1": "docs/ru/TELEMETRY.md",
+      "agent_top5": [
+        "docs/ru/TELEMETRY.md",
+        "scripts/e2e_quality_search.py",
+        "ISSUE.md",
+        "scripts/check_lsp_health.py",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "single_top1": "docs/ru/TELEMETRY.md",
+      "single_top5": [
+        "docs/ru/TELEMETRY.md",
+        "scripts/e2e_quality_search.py",
+        "ISSUE.md",
+        "scripts/check_lsp_health.py",
+        "scripts/summarize_1L_categories.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 663,
+      "idents": [
+        "section",
+        "e2e_quality_search",
+        "SYMBOLS"
+      ]
+    },
+    {
+      "id": "E30-E28-13",
+      "gold": "docs/adr/0003-verify-on-read.md",
+      "agent_top1": "scripts/smoke_memory.py",
+      "agent_top5": [
+        "scripts/smoke_memory.py",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0002-retraction-receipt.md",
+        "scripts/check_lsp_health.py",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "single_top1": "docs/adr/0003-verify-on-read.md",
+      "single_top5": [
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0002-retraction-receipt.md",
+        "src/core/project_resolution.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1463,
+      "idents": [
+        "REFUTED",
+        "ACTIVE",
+        "section"
+      ]
+    },
+    {
+      "id": "E30-E28-14",
+      "gold": "docs/en/HANDFOFF.md",
+      "agent_top1": "docs/ru/ZED_WINDOWS_QUIRKS.md",
+      "agent_top5": [
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/core/project_resolution.py",
+        "src/core/lsp_project_bridge.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/search/cross_project_deps.py"
+      ],
+      "single_top1": "docs/ru/HANDFOFF.md",
+      "single_top5": [
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/INSTALL.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/core/project_resolution.py",
+        "src/mcp/tools/git_tools.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 877,
+      "idents": [
+        "docs",
+        "section",
+        "SQLite"
+      ]
+    },
+    {
+      "id": "E30-E28-15",
+      "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "agent_top1": "docs/ru/ZED_WINDOWS_QUIRKS.md",
+      "agent_top5": [
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/zh/ZED_WINDOWS_QUIRKS.md",
+        "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md"
+      ],
+      "single_top1": "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+      "single_top5": [
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/ru/HANDFOFF.md",
+        "docs/archive/KNOWN_ISSUES_2026_07.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 659,
+      "idents": [
+        "window_id",
+        "docs",
+        "investigations"
+      ]
+    },
+    {
+      "id": "E30-E28-16",
+      "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "agent_top1": "docs/ru/SYSTEM_REQUIREMENTS.md",
+      "agent_top5": [
+        "docs/ru/SYSTEM_REQUIREMENTS.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "docs/research/2026-07-09-provider-benchmark.md",
+        "docs/zh/ARCHITECTURE.md",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "single_top1": "docs/ru/SYSTEM_REQUIREMENTS.md",
+      "single_top5": [
+        "docs/ru/SYSTEM_REQUIREMENTS.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "docs/research/2026-07-09-provider-benchmark.md",
+        "src/providers/reranker/llama_runner.py",
+        "docs/zh/ARCHITECTURE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 664,
+      "idents": [
+        "llama",
+        "docs",
+        "section"
+      ]
+    },
+    {
+      "id": "E30-E28-17",
+      "gold": "src/core/indexing/db_writer.py",
+      "agent_top1": "scripts/reindex_text_only.py",
+      "agent_top5": [
+        "scripts/reindex_text_only.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "src/core/indexing/index_project_runner.py"
+      ],
+      "single_top1": "docs/archive/KNOWN_ISSUES_2026_09.md",
+      "single_top5": [
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/indexing/index_project_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1491,
+      "idents": [
+        "lock",
+        "archive",
+        "_bounded_link"
+      ]
+    },
+    {
+      "id": "E30-E28-18",
+      "gold": "src/core/artifact_gc.py",
+      "agent_top1": "docs/en/TELEMETRY.md",
+      "agent_top5": [
+        "docs/en/TELEMETRY.md",
+        "scripts/collect_telemetry.py",
+        "src/core/artifact_gc.py",
+        "docs/ru/TELEMETRY.md",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "single_top1": "src/core/artifact_gc.py",
+      "single_top5": [
+        "src/core/artifact_gc.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/log_manager.py",
+        "WISDOM.md",
+        "src/main.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1314,
+      "idents": [
+        "data_root",
+        "core",
+        "artifact_gc"
+      ]
+    },
+    {
+      "id": "E30-E28-19",
+      "gold": "src/providers/reranker/llama_install.py",
+      "agent_top1": "src/providers/reranker/llama_install.py",
+      "agent_top5": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/multi_provider.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/search/ondemand_rerank.py"
+      ],
+      "single_top1": "src/providers/reranker/llama_install.py",
+      "single_top5": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "AGENT_DIARY.md",
+        "docs/en/investigations/ONNX_SESSION_REPORT.md",
+        "docs/research/2026-07-09-final-report.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1131,
+      "idents": [
+        "reranker",
+        "llama",
+        "providers"
+      ]
+    },
+    {
+      "id": "E30-E28-20",
+      "gold": "src/providers/reranker/llama_runner.py",
+      "agent_top1": "tools/knowledge/repoint_stale_refs.py",
+      "agent_top5": [
+        "tools/knowledge/repoint_stale_refs.py",
+        "src/providers/reranker/llama_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/indexing/database_lock.py",
+        "src/mcp/server_factory.py"
+      ],
+      "single_top1": "src/providers/reranker/llama_runner.py",
+      "single_top5": [
+        "src/providers/reranker/llama_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/mcp/server_factory.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1480,
+      "idents": [
+        "lock",
+        "handle",
+        "reranker"
+      ]
+    },
+    {
+      "id": "E30-E28-21",
+      "gold": "src/providers/embedder/remote_embedder.py",
+      "agent_top1": "src/providers/embedder/remote_embedder.py",
+      "agent_top5": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder/onnx_server.py",
+        "src/core/embedder_lease.py",
+        "src/mcp/tools/search_tools.py",
+        "docs/archive/DEV_DIARY_2026_07.md"
+      ],
+      "single_top1": "src/providers/embedder/remote_embedder.py",
+      "single_top5": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/mcp/tools/search_tools.py",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "src/core/embedder/onnx_server.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1110,
+      "idents": [
+        "indexer",
+        "indexing",
+        "providers"
+      ]
+    },
+    {
+      "id": "E30-E28-22",
+      "gold": "src/core/graph.py",
+      "agent_top1": "EXPERIMENTS_LOG.md",
+      "agent_top5": [
+        "EXPERIMENTS_LOG.md",
+        "scripts/run_experiment_pagerank.py",
+        "docs/adr/0004-typed-dependency-edges.md",
+        "src/core/graph.py",
+        "AGENT_DIARY.md"
+      ],
+      "single_top1": "EXPERIMENTS_LOG.md",
+      "single_top5": [
+        "EXPERIMENTS_LOG.md",
+        "src/core/graph.py",
+        "AGENT_DIARY.md",
+        "src/core/search/graph_adapter.py",
+        "src/core/search/graph_adapter_pure.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1432,
+      "idents": [
+        "graph",
+        "batch",
+        "label"
+      ]
+    },
+    {
+      "id": "E30-E28-23",
+      "gold": "src/core/search/cypher_sql.py",
+      "agent_top1": "src/core/search/cypher_sql.py",
+      "agent_top5": [
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_lexer.py",
+        "src/core/search/cypher_ast.py"
+      ],
+      "single_top1": "src/core/search/cypher_sql.py",
+      "single_top5": [
+        "src/core/search/cypher_sql.py",
+        "AGENT_DIARY.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/archive/KNOWN_ISSUES_2026_10_AUTO_SYNC.md",
+        "src/core/search/cypher_executor.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1047,
+      "idents": [
+        "fixed",
+        "section",
+        "such"
+      ]
+    },
+    {
+      "id": "E30-E28-24",
+      "gold": "src/core/bootstrap_tests.py",
+      "agent_top1": "src/core/bootstrap_tests.py",
+      "agent_top5": [
+        "src/core/bootstrap_tests.py",
+        "docs/adr/0004-typed-dependency-edges.md",
+        "AGENT_DIARY.md",
+        "src/core/bootstrap_pipeline.py",
+        "docs/blog/bootstrap-pipeline-devto.md"
+      ],
+      "single_top1": "src/core/bootstrap_tests.py",
+      "single_top5": [
+        "src/core/bootstrap_tests.py",
+        "AGENT_DIARY.md",
+        "src/core/bootstrap_pipeline.py",
+        "docs/adr/0004-typed-dependency-edges.md",
+        "docs/blog/bootstrap-pipeline-devto.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 993,
+      "idents": [
+        "stats",
+        "core",
+        "trace"
+      ]
+    },
+    {
+      "id": "E30-E28-25",
+      "gold": "src/core/indexing/freshness.py",
+      "agent_top1": "scripts/negative_controls/fixtures/dead_guard_negative_control.py",
+      "agent_top5": [
+        "scripts/negative_controls/fixtures/dead_guard_negative_control.py",
+        "scripts/negative_controls/fixtures/dead_guard.py",
+        "AGENT_DIARY.md",
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "single_top1": "AGENT_DIARY.md",
+      "single_top5": [
+        "AGENT_DIARY.md",
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/en/SEARCH_PIPELINE.md",
+        "src/core/indexing/indexer_table.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1445,
+      "idents": [
+        "hash",
+        "mtime",
+        "size"
+      ]
+    },
+    {
+      "id": "E30-E28-26",
+      "gold": "src/core/indexing/parser.py",
+      "agent_top1": "src/core/indexing/parser.py",
+      "agent_top5": [
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "scripts/patch_parser.py",
+        "src/core/search/cypher_ast.py"
+      ],
+      "single_top1": "src/core/indexing/parser.py",
+      "single_top5": [
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "scripts/patch_parser.py",
+        "AGENT_DIARY.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 996,
+      "idents": [
+        "file_path",
+        "query",
+        "expected_chunk"
+      ]
+    },
+    {
+      "id": "E30-E28-27",
+      "gold": "src/core/search/engine.py",
+      "agent_top1": "src/core/search/fts5_index.py",
+      "agent_top5": [
+        "src/core/search/fts5_index.py",
+        "src/core/search/fts5_mixin.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/search/scoring.py",
+        "src/core/search/engine.py"
+      ],
+      "single_top1": "docs/archive/KNOWN_ISSUES_2026_09.md",
+      "single_top5": [
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/search/scoring.py",
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "src/core/search/engine.py",
+        "AGENT_DIARY.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1215,
+      "idents": [
+        "search",
+        "dict",
+        "docs"
+      ]
+    },
+    {
+      "id": "E30-E28-28",
+      "gold": "src/core/indexing/db_manager.py",
+      "agent_top1": "src/core/indexing/indexer_table.py",
+      "agent_top5": [
+        "src/core/indexing/indexer_table.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "src/core/indexing/index_guard.py",
+        "src/core/indexing/db_manager.py"
+      ],
+      "single_top1": "src/core/indexing/indexer_table.py",
+      "single_top5": [
+        "src/core/indexing/indexer_table.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "src/core/indexing/index_guard.py",
+        "src/core/indexing/db_manager.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1406,
+      "idents": [
+        "schema",
+        "table",
+        "indexer_table"
+      ]
+    },
+    {
+      "id": "E30-E28-29",
+      "gold": "src/core/intelligence/verify_on_read.py",
+      "agent_top1": "docs/adr/0003-verify-on-read.md",
+      "agent_top5": [
+        "docs/adr/0003-verify-on-read.md",
+        "src/core/intelligence/verify_on_read.py",
+        "docs/blog/verify-on-read.md",
+        "docs/adr/0002-retraction-receipt.md",
+        "docs/adr/0005-pkg-anchors.md"
+      ],
+      "single_top1": "src/core/intelligence/verify_on_read.py",
+      "single_top5": [
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/intelligence/tools_reg.py",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0005-pkg-anchors.md",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1280,
+      "idents": [
+        "core",
+        "intelligence",
+        "verify_on_read"
+      ]
+    },
+    {
+      "id": "E30-E28-30",
+      "gold": "src/core/indexing/project_indexer_registry.py",
+      "agent_top1": "src/core/indexing/project_indexer_registry.py",
+      "agent_top5": [
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/multi_project_searcher.py",
+        "src/core/project_resolution.py",
+        "pyproject.toml",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "docs/ru/ARCHITECTURE.md",
+      "single_top5": [
+        "docs/ru/ARCHITECTURE.md",
+        "src/core/multi_project_searcher.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/en/ARCHITECTURE.md",
+        "src/mcp/tools/base.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1044,
+      "idents": [
+        "name",
+        "core",
+        "projects_to_search"
+      ]
+    },
+    {
+      "id": "E30-E28-31",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "agent_top1": "src/core/rate_limiter.py",
+      "agent_top5": [
+        "src/core/rate_limiter.py",
+        "src/mcp/tools/indexing_tools.py",
+        "src/sync/server.py",
+        "src/mcp/server_tools.py",
+        "docs/zh/ARCHITECTURE.md"
+      ],
+      "single_top1": "src/mcp/tools/indexing_tools.py",
+      "single_top5": [
+        "src/mcp/tools/indexing_tools.py",
+        "src/sync/server.py",
+        "src/core/rate_limiter.py",
+        "src/mcp/server_tools.py",
+        "docs/zh/HANDFOFF.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1260,
+      "idents": [
+        "notify_change",
+        "indexer",
+        "asyncio"
+      ]
+    },
+    {
+      "id": "E30-E28-32",
+      "gold": "src/providers/reranker/search_result_reranker.py",
+      "agent_top1": "docs/research/2026-07-12-e5-base-migration.md",
+      "agent_top5": [
+        "docs/research/2026-07-12-e5-base-migration.md",
+        "src/providers/reranker/multi_provider.py",
+        "docs/ru/LM_STUDIO_SETUP.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/zh/LM_STUDIO_SETUP.md"
+      ],
+      "single_top1": "docs/research/2026-07-12-e5-base-migration.md",
+      "single_top5": [
+        "docs/research/2026-07-12-e5-base-migration.md",
+        "src/providers/reranker/multi_provider.py",
+        "docs/ru/LM_STUDIO_SETUP.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "src/core/search/utils.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 795,
+      "idents": [
+        "reranker",
+        "base",
+        "ONNX"
+      ]
+    },
+    {
+      "id": "E30-E28-33",
+      "gold": "src/core/search/bm25.py",
+      "agent_top1": "src/core/search/bm25.py",
+      "agent_top5": [
+        "src/core/search/bm25.py",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/commit_memory.py",
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/CONTRIBUTING.md"
+      ],
+      "single_top1": "docs/ru/GRACEFUL_DEGRADATION.md",
+      "single_top5": [
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/commit_memory.py",
+        "src/core/search/bm25.py",
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/FAQ.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1230,
+      "idents": [
+        "doc_id",
+        "getattr",
+        "_bm25"
+      ]
+    },
+    {
+      "id": "E30-D01",
+      "gold": "src/__init__.py",
+      "agent_top1": "docs/research/2026-07-11-zed-deep-dive.md",
+      "agent_top5": [
+        "docs/research/2026-07-11-zed-deep-dive.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "src/core/structural_search.py",
+        "src/core/search/bm25.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "single_top1": "src/__init__.py",
+      "single_top5": [
+        "src/__init__.py",
+        "docs/ru/README.md",
+        "docs/research/2026-07-11-zed-deep-dive.md",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 594,
+      "idents": [
+        "docs",
+        "section",
+        "__init__"
+      ]
+    },
+    {
+      "id": "E30-D02",
+      "gold": "src/core/bootstrap_pipeline.py",
+      "agent_top1": "src/core/bootstrap_pipeline.py",
+      "agent_top5": [
+        "src/core/bootstrap_pipeline.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/search/engine.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "scripts/smoke_e2e.py"
+      ],
+      "single_top1": "src/core/bootstrap_pipeline.py",
+      "single_top5": [
+        "src/core/bootstrap_pipeline.py",
+        "src/providers/reranker/llama_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/autonomous_fix.py",
+        "docs/ru/ARCHITECTURE_LAYERS.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1480,
+      "idents": [
+        "reranker",
+        "llama",
+        "server"
+      ]
+    },
+    {
+      "id": "E30-D03",
+      "gold": "src/core/doc_sync_engine.py",
+      "agent_top1": "docs/adr/0003-verify-on-read.md",
+      "agent_top5": [
+        "docs/adr/0003-verify-on-read.md",
+        "docs/ru/CONTRIBUTING.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "docs/ru/README.md",
+        "tools/knowledge/REDTEAM-protocol.md"
+      ],
+      "single_top1": "src/core/doc_sync_engine.py",
+      "single_top5": [
+        "src/core/doc_sync_engine.py",
+        "src/main.py",
+        "src/core/indexing/symbol_index.py",
+        "scripts/negative_controls_runner.py",
+        "src/mcp/server_factory.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1101,
+      "idents": [
+        "core",
+        "logger",
+        "symbols"
+      ]
+    },
+    {
+      "id": "E30-D04",
+      "gold": "src/core/gitignore_parser.py",
+      "agent_top1": "src/core/gitignore_parser.py",
+      "agent_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/index_parser.py",
+        "src/core/indexing/file_guard.py",
+        "src/core/indexing/parser.py",
+        "src/core/intelligence/embed_progress.py"
+      ],
+      "single_top1": "src/core/gitignore_parser.py",
+      "single_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "src/core/intelligence/embed_progress.py",
+        "docs/ru/SECURITY.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 828,
+      "idents": [
+        "core",
+        "gitignore",
+        "SystemArtifacts"
+      ]
+    },
+    {
+      "id": "E30-D05",
+      "gold": "src/core/indexing/freshness.py",
+      "agent_top1": "src/core/indexing/freshness.py",
+      "agent_top5": [
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "EXPERIMENTS_LOG.md",
+        "src/core/indexing/indexer.py"
+      ],
+      "single_top1": "src/core/indexing/freshness.py",
+      "single_top5": [
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "src/mcp/tools/search_tools.py",
+        "src/core/indexing/indexer.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1445,
+      "idents": [
+        "FreshnessChecker",
+        "hash",
+        "stat"
+      ]
+    },
+    {
+      "id": "E30-D06",
+      "gold": "src/core/indexing/symbol_index.py",
+      "agent_top1": "src/core/indexing/symbol_index.py",
+      "agent_top5": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/resource_monitor.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/indexing/indexer.py"
+      ],
+      "single_top1": "src/core/indexing/symbol_index.py",
+      "single_top5": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/resource_monitor.py",
+        "src/core/relation_extractor.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/ru/ARCHITECTURE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 697,
+      "idents": [
+        "core",
+        "symbol_index",
+        "indexing"
+      ]
+    },
+    {
+      "id": "E30-D07",
+      "gold": "src/core/intelligence/tools_reg.py",
+      "agent_top1": "src/core/intelligence/tools_reg.py",
+      "agent_top5": [
+        "src/core/intelligence/tools_reg.py",
+        "src/mcp/server_tools.py",
+        "src/core/intelligence/layer.py",
+        "src/mcp/tools/search_tools.py",
+        "src/mcp/tools/base.py"
+      ],
+      "single_top1": "src/core/intelligence/tools_reg.py",
+      "single_top5": [
+        "src/core/intelligence/tools_reg.py",
+        "docs/en/HANDFOFF.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "docs/en/ARCHITECTURE.md",
+        "README.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 694,
+      "idents": [
+        "core",
+        "indexing",
+        "search"
+      ]
+    },
+    {
+      "id": "E30-D08",
+      "gold": "src/core/lsp_project_bridge.py",
+      "agent_top1": "src/core/lsp_project_bridge.py",
+      "agent_top5": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "docs/research/lsp-archive/lsp_main.py",
+        "src/core/indexing/file_guard.py",
+        "scripts/check_lsp_health.py"
+      ],
+      "single_top1": "src/core/lsp_project_bridge.py",
+      "single_top5": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "scripts/check_lsp_health.py",
+        "docs/research/lsp-archive/lsp_main.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 780,
+      "idents": [
+        "Layer",
+        "core",
+        "Guard"
+      ]
+    },
+    {
+      "id": "E30-D09",
+      "gold": "src/core/relpath.py",
+      "agent_top1": "src/core/relpath.py",
+      "agent_top5": [
+        "src/core/relpath.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/index_project_runner.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "src/core/relpath.py",
+      "single_top5": [
+        "src/core/relpath.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/db_writer.py",
+        "EXPERIMENTS_LOG.md",
+        "tools/stale_detector/stale_check.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 930,
+      "idents": [
+        "parsed",
+        "core",
+        "embeddings"
+      ]
+    },
+    {
+      "id": "E30-D10",
+      "gold": "src/core/search/cypher_parser.py",
+      "agent_top1": "src/core/search/cypher_engine.py",
+      "agent_top5": [
+        "src/core/search/cypher_engine.py",
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_lexer.py"
+      ],
+      "single_top1": "src/core/search/cypher_executor.py",
+      "single_top5": [
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_lexer.py",
+        "src/core/search/cypher_engine.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 239,
+      "idents": [
+        "core",
+        "search",
+        "openCypher"
+      ]
+    },
+    {
+      "id": "E30-D11",
+      "gold": "src/core/search/trace.py",
+      "agent_top1": "src/mcp/tools/predict_tools.py",
+      "agent_top5": [
+        "src/mcp/tools/predict_tools.py",
+        "src/core/eta_predictor.py",
+        "src/core/search/trace.py",
+        "src/core/notification_broker.py",
+        "src/core/indexing/indexer_table.py"
+      ],
+      "single_top1": "src/core/search/trace.py",
+      "single_top5": [
+        "src/core/search/trace.py",
+        "src/core/notification_broker.py",
+        "src/core/indexing/indexer_table.py",
+        "src/mcp/tools/search_tools.py",
+        "src/core/intelligence/verify_on_read.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1105,
+      "idents": [
+        "core",
+        "tracer",
+        "publish_sync"
+      ]
+    },
+    {
+      "id": "E30-D12",
+      "gold": "src/mcp/__init__.py",
+      "agent_top1": "src/mcp/server_factory.py",
+      "agent_top5": [
+        "src/mcp/server_factory.py",
+        "src/mcp/__init__.py",
+        "src/mcp/context.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/mcp/server_tools.py"
+      ],
+      "single_top1": "src/mcp/__init__.py",
+      "single_top5": [
+        "src/mcp/__init__.py",
+        "docs/ru/SECURITY.md",
+        "README.md",
+        "docs/zh/README.md",
+        "docs/ru/README.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 340,
+      "idents": [
+        "MSCodeBase",
+        "section",
+        "https"
+      ]
+    },
+    {
+      "id": "E30-D13",
+      "gold": "src/mcp/tools/duplication_tool.py",
+      "agent_top1": "src/mcp/tools/duplication_tool.py",
+      "agent_top5": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "tools/knowledge/NEGATIVE.md"
+      ],
+      "single_top1": "src/mcp/tools/duplication_tool.py",
+      "single_top5": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "tools/knowledge/NEGATIVE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 976,
+      "idents": [
+        "minhash",
+        "EXPERIMENTS_LOG",
+        "experiments"
+      ]
+    },
+    {
+      "id": "E30-D14",
+      "gold": "src/plugins/loader.py",
+      "agent_top1": "src/plugins/loader.py",
+      "agent_top5": [
+        "src/plugins/loader.py",
+        "examples/plugins/verify_claim/plugin.py",
+        "src/plugins/manifest.py",
+        "src/plugins/trust_store.py",
+        "src/plugins/registry.py"
+      ],
+      "single_top1": "src/plugins/loader.py",
+      "single_top5": [
+        "src/plugins/loader.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "examples/plugins/verify_claim/plugin.py",
+        "src/plugins/manifest.py",
+        "src/plugins/trust_store.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1058,
+      "idents": [
+        "plugins",
+        "manifest",
+        "spec"
+      ]
+    },
+    {
+      "id": "E30-D15",
+      "gold": "src/remote_main.py",
+      "agent_top1": "src/remote_main.py",
+      "agent_top5": [
+        "src/remote_main.py",
+        "src/sync/server.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "ISSUE.md",
+        "src/sync/__init__.py"
+      ],
+      "single_top1": "src/remote_main.py",
+      "single_top5": [
+        "src/remote_main.py",
+        "ISSUE.md",
+        "src/sync/server.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/ru/ARCHITECTURE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 565,
+      "idents": [
+        "remote_main",
+        "sync",
+        "SYMBOLS"
+      ]
+    }
+  ]
+}

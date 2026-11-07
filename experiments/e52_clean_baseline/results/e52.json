@@ -1,0 +1,1226 @@
+{
+  "kept": 7258,
+  "removed": 9089,
+  "contaminated": {
+    "bm25": {
+      "hit@1": 0.4583333333333333,
+      "hit@5": 0.75,
+      "p50_ms": 185.04975000178092,
+      "leakage_queries": 19
+    },
+    "production": {
+      "hit@1": 0.6875,
+      "hit@5": 0.7708333333333334,
+      "p50_ms": 143.90620000267518
+    },
+    "bm25_subsets": {
+      "code": [
+        0.55,
+        0.875
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "production_subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.125
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  "clean": {
+    "bm25": {
+      "hit@1": 0.5416666666666666,
+      "hit@5": 0.7708333333333334,
+      "p50_ms": 139.61320000089472,
+      "leakage_queries": 0
+    },
+    "production": {
+      "hit@1": 0.6875,
+      "hit@5": 0.75,
+      "p50_ms": 71.50114999967627
+    },
+    "bm25_subsets": {
+      "code": [
+        0.625,
+        0.875
+      ],
+      "docs": [
+        0.125,
+        0.25
+      ]
+    },
+    "production_subsets": {
+      "code": [
+        0.825,
+        0.9
+      ],
+      "docs": [
+        0.0,
+        0.0
+      ]
+    },
+    "rows": [
+      {
+        "id": "E30-E28-01",
+        "gold": "src/core/rate_limiter.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-02",
+        "gold": "src/core/redact.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-03",
+        "gold": "src/core/gitignore_parser.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-04",
+        "gold": "src/core/embedder_lease.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-05",
+        "gold": "src/core/reindex_ledger.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-06",
+        "gold": "src/core/quiet_break_gate.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-07",
+        "gold": "src/providers/reranker/reranker_scoring.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-08",
+        "gold": "src/core/error_envelope.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-09",
+        "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-10",
+        "gold": "docs/en/SEARCH_PIPELINE.md",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-11",
+        "gold": "docs/TRUST_BOUNDARY.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-12",
+        "gold": "docs/en/TELEMETRY.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-13",
+        "gold": "docs/adr/0003-verify-on-read.md",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-14",
+        "gold": "docs/en/HANDFOFF.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-15",
+        "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-16",
+        "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-17",
+        "gold": "src/core/indexing/db_writer.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-18",
+        "gold": "src/core/artifact_gc.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-19",
+        "gold": "src/providers/reranker/llama_install.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-20",
+        "gold": "src/providers/reranker/llama_runner.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-21",
+        "gold": "src/providers/embedder/remote_embedder.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-22",
+        "gold": "src/core/graph.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-23",
+        "gold": "src/core/search/cypher_sql.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-24",
+        "gold": "src/core/bootstrap_tests.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-25",
+        "gold": "src/core/indexing/freshness.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-26",
+        "gold": "src/core/indexing/parser.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-27",
+        "gold": "src/core/search/engine.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-28",
+        "gold": "src/core/indexing/db_manager.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-29",
+        "gold": "src/core/intelligence/verify_on_read.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-30",
+        "gold": "src/core/indexing/project_indexer_registry.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-31",
+        "gold": "src/mcp/tools/indexing_tools.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-E28-32",
+        "gold": "src/providers/reranker/search_result_reranker.py",
+        "bm25": [
+          0,
+          0
+        ],
+        "production": [
+          0,
+          0
+        ]
+      },
+      {
+        "id": "E30-E28-33",
+        "gold": "src/core/search/bm25.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D01",
+        "gold": "src/__init__.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D02",
+        "gold": "src/core/bootstrap_pipeline.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D03",
+        "gold": "src/core/doc_sync_engine.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D04",
+        "gold": "src/core/gitignore_parser.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D05",
+        "gold": "src/core/indexing/freshness.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D06",
+        "gold": "src/core/indexing/symbol_index.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D07",
+        "gold": "src/core/intelligence/tools_reg.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D08",
+        "gold": "src/core/lsp_project_bridge.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D09",
+        "gold": "src/core/relpath.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D10",
+        "gold": "src/core/search/cypher_parser.py",
+        "bm25": [
+          0,
+          1
+        ],
+        "production": [
+          0,
+          1
+        ]
+      },
+      {
+        "id": "E30-D11",
+        "gold": "src/core/search/trace.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D12",
+        "gold": "src/mcp/__init__.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D13",
+        "gold": "src/mcp/tools/duplication_tool.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D14",
+        "gold": "src/plugins/loader.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      },
+      {
+        "id": "E30-D15",
+        "gold": "src/remote_main.py",
+        "bm25": [
+          1,
+          1
+        ],
+        "production": [
+          1,
+          1
+        ]
+      }
+    ]
+  }
+}

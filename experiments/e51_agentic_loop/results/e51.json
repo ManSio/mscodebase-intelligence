@@ -1,0 +1,1311 @@
+{
+  "n": 48,
+  "summary": {
+    "agent_hit@1": 0.4375,
+    "agent_hit@5": 0.7083333333333334,
+    "single_hit@1": 0.4583333333333333,
+    "single_hit@5": 0.75
+  },
+  "p50_ms": 104.69519999969634,
+  "p95_ms": 179.12449999857927,
+  "avg_tool_calls": 2.0,
+  "avg_tokens": 1091.0416666666667,
+  "rows": [
+    {
+      "id": "E30-E28-01",
+      "gold": "src/core/rate_limiter.py",
+      "agent_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "agent_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/misc_probes/exp2_lock_attacker.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/misc_probes/exp2_lock_attacker.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1184,
+      "idents": [
+        "holder",
+        "experiments",
+        "outcome"
+      ]
+    },
+    {
+      "id": "E30-E28-02",
+      "gold": "src/core/redact.py",
+      "agent_top1": "src/core/redact.py",
+      "agent_top5": [
+        "src/core/redact.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "scripts/redact.py"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/redact.py",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "experiments/bootstrap/tarantula_analysis.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1041,
+      "idents": [
+        "gate",
+        "section",
+        "experiments"
+      ]
+    },
+    {
+      "id": "E30-E28-03",
+      "gold": "src/core/gitignore_parser.py",
+      "agent_top1": "src/core/gitignore_parser.py",
+      "agent_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/index_parser.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/indexing/file_guard.py",
+        "experiments/microtask_vs_single/runs/C-c4c9296fdc_file_guard-20261020T205437Z/briefs/T1.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "experiments/microtask_vs_single/runs/C-c4c9296fdc_file_guard-20261020T205437Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-c4c9296fdc_file_guard-20261021T004806Z/briefs/T1.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1462,
+      "idents": [
+        "core",
+        "project_path",
+        "gitignore_path"
+      ]
+    },
+    {
+      "id": "E30-E28-04",
+      "gold": "src/core/embedder_lease.py",
+      "agent_top1": "src/core/embedder_lease.py",
+      "agent_top5": [
+        "src/core/embedder_lease.py",
+        "src/core/embedder/onnx_server.py",
+        "src/providers/embedder/remote_embedder.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "EXPERIMENTS_LOG.md",
+        "src/core/intelligence/health.py",
+        "docs/research/2026-07-11-telemetry-and-metrics.md",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1450,
+      "idents": [
+        "update_all",
+        "loop",
+        "watchdog"
+      ]
+    },
+    {
+      "id": "E30-E28-05",
+      "gold": "src/core/reindex_ledger.py",
+      "agent_top1": "src/core/reindex_ledger.py",
+      "agent_top5": [
+        "src/core/reindex_ledger.py",
+        "tools/knowledge/PENDING_LEDGER.md",
+        "experiments/prompt_robustness/PENDING_LEDGER.md",
+        "experiments/xerj-integration/PENDING_LEDGER.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/HANDFOFF.md",
+        "src/core/reindex_ledger.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/redact.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1141,
+      "idents": [
+        "Windows",
+        "section",
+        "only"
+      ]
+    },
+    {
+      "id": "E30-E28-06",
+      "gold": "src/core/quiet_break_gate.py",
+      "agent_top1": "src/core/quiet_break_gate.py",
+      "agent_top5": [
+        "src/core/quiet_break_gate.py",
+        "src/mcp/tools/graph_tools.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "scripts/revision_gate.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/quiet_break_gate.py",
+        "src/mcp/tools/graph_tools.py",
+        "EXPERIMENTS_LOG.md",
+        "experiments/closure_walk/frozen/files_manifest.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1469,
+      "idents": [
+        "core",
+        "result",
+        "root"
+      ]
+    },
+    {
+      "id": "E30-E28-07",
+      "gold": "src/providers/reranker/reranker_scoring.py",
+      "agent_top1": "experiments/bootstrap/e17_impact_score.py",
+      "agent_top5": [
+        "experiments/bootstrap/e17_impact_score.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/providers/reranker/reranker_scoring.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/providers/reranker/reranker_scoring.py",
+        "EXPERIMENTS_LOG.md",
+        "experiments/evalmut/README.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1409,
+      "idents": [
+        "isinstance",
+        "float",
+        "evalmut"
+      ]
+    },
+    {
+      "id": "E30-E28-08",
+      "gold": "src/core/error_envelope.py",
+      "agent_top1": "src/core/error_handler.py",
+      "agent_top5": [
+        "src/core/error_handler.py",
+        "src/core/error_envelope.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "scripts/check_lsp_health.py"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "scripts/check_lsp_health.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "experiments/root_cause_eval/incident_dataset.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1111,
+      "idents": [
+        "check_lsp_health",
+        "section",
+        "agent_task_state"
+      ]
+    },
+    {
+      "id": "E30-E28-09",
+      "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+      "agent_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "agent_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/system_artifacts.py",
+        "docs/ru/ARCHITECTURE_DEEP.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/indexing/startup_diagnostics.py",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/search/agentic_search.py",
+        "tools/knowledge/RESEARCH-protocol-landscape.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1361,
+      "idents": [
+        "llama",
+        "L1_GGUF",
+        "GGUF"
+      ]
+    },
+    {
+      "id": "E30-E28-10",
+      "gold": "docs/en/SEARCH_PIPELINE.md",
+      "agent_top1": "docs/ru/SEARCH_PIPELINE.md",
+      "agent_top5": [
+        "docs/ru/SEARCH_PIPELINE.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py"
+      ],
+      "single_top1": "docs/ru/SEARCH_PIPELINE.md",
+      "single_top5": [
+        "docs/ru/SEARCH_PIPELINE.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1452,
+      "idents": [
+        "results_map",
+        "rank",
+        "scores"
+      ]
+    },
+    {
+      "id": "E30-E28-11",
+      "gold": "docs/TRUST_BOUNDARY.md",
+      "agent_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "agent_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/claims_audit/RESULTS.md",
+        "src/core/bootstrap_trace_plugin.py",
+        "experiments/prompt_robustness/FINDINGS.md",
+        "src/core/trust_boundary.py"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/claims_audit/RESULTS.md",
+        "src/core/bootstrap_trace_plugin.py",
+        "experiments/prompt_robustness/FINDINGS.md",
+        "src/core/trust_boundary.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 908,
+      "idents": [
+        "experiments",
+        "core",
+        "bootstrap_trace_plugin"
+      ]
+    },
+    {
+      "id": "E30-E28-12",
+      "gold": "docs/en/TELEMETRY.md",
+      "agent_top1": "docs/ru/TELEMETRY.md",
+      "agent_top5": [
+        "docs/ru/TELEMETRY.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/1L_live_arm/report.md",
+        "scripts/e2e_quality_search.py",
+        "ISSUE.md"
+      ],
+      "single_top1": "docs/ru/TELEMETRY.md",
+      "single_top5": [
+        "docs/ru/TELEMETRY.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/1L_live_arm/report.md",
+        "scripts/e2e_quality_search.py",
+        "ISSUE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1227,
+      "idents": [
+        "code_first",
+        "section",
+        "experiments"
+      ]
+    },
+    {
+      "id": "E30-E28-13",
+      "gold": "docs/adr/0003-verify-on-read.md",
+      "agent_top1": "experiments/1V_memory_contamination/memory_contamination.py",
+      "agent_top5": [
+        "experiments/1V_memory_contamination/memory_contamination.py",
+        "scripts/smoke_memory.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0002-retraction-receipt.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0002-retraction-receipt.md",
+        "src/core/project_resolution.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1432,
+      "idents": [
+        "REFUTED",
+        "section",
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "E30-E28-14",
+      "gold": "docs/en/HANDFOFF.md",
+      "agent_top1": "docs/ru/ZED_WINDOWS_QUIRKS.md",
+      "agent_top5": [
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T011210Z/worker_outputs/T1.json",
+        "src/core/project_resolution.py",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T005213Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T010509Z/briefs/T1.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/INSTALL.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T011210Z/worker_outputs/T1.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1089,
+      "idents": [
+        "section",
+        "active_workspace_id",
+        "SQLite"
+      ]
+    },
+    {
+      "id": "E30-E28-15",
+      "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "agent_top1": "experiments/windows_portability/RESULTS.md",
+      "agent_top5": [
+        "experiments/windows_portability/RESULTS.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/zh/ZED_WINDOWS_QUIRKS.md",
+        "docs/en/ZED_WINDOWS_QUIRKS.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/windows_portability/RESULTS.md",
+        "docs/en/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1060,
+      "idents": [
+        "experiments",
+        "section",
+        "node"
+      ]
+    },
+    {
+      "id": "E30-E28-16",
+      "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "agent_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "agent_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/SYSTEM_REQUIREMENTS.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "docs/en/investigations/ONNX_SESSION_REPORT.md",
+        "docs/research/2026-07-09-provider-benchmark.md"
+      ],
+      "single_top1": "experiments/4A_unit_of_return/frozen/f5/queries.md",
+      "single_top5": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/SYSTEM_REQUIREMENTS.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "experiments/root_cause_eval/incident_dataset_full.json",
+        "experiments/root_cause_eval/incident_dataset.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 872,
+      "idents": [
+        "section",
+        "docs",
+        "experiments"
+      ]
+    },
+    {
+      "id": "E30-E28-17",
+      "gold": "src/core/indexing/db_writer.py",
+      "agent_top1": "scripts/reindex_text_only.py",
+      "agent_top5": [
+        "scripts/reindex_text_only.py",
+        "experiments/microtask_vs_single/harness/freeze_manifest.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/archive/AGENT_DIARY_2026_07.md"
+      ],
+      "single_top1": "docs/archive/KNOWN_ISSUES_2026_09.md",
+      "single_top5": [
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/indexing/index_project_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1491,
+      "idents": [
+        "lock",
+        "archive",
+        "_bounded_link"
+      ]
+    },
+    {
+      "id": "E30-E28-18",
+      "gold": "src/core/artifact_gc.py",
+      "agent_top1": "docs/en/TELEMETRY.md",
+      "agent_top5": [
+        "docs/en/TELEMETRY.md",
+        "experiments/reranker_p3/RESULT.md",
+        "experiments/reranker_p3/README.md",
+        "src/core/artifact_gc.py",
+        "scripts/collect_telemetry.py"
+      ],
+      "single_top1": "experiments/reranker_p3/RESULT.md",
+      "single_top5": [
+        "experiments/reranker_p3/RESULT.md",
+        "experiments/reranker_p3/README.md",
+        "src/core/artifact_gc.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/log_manager.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 812,
+      "idents": [
+        "experiments",
+        "reranker_p3",
+        "core"
+      ]
+    },
+    {
+      "id": "E30-E28-19",
+      "gold": "src/providers/reranker/llama_install.py",
+      "agent_top1": "experiments/embed_real_path_vs_raw/exp_ubatch_threshold.py",
+      "agent_top5": [
+        "experiments/embed_real_path_vs_raw/exp_ubatch_threshold.py",
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "experiments/embed_real_path_vs_raw/exp_feed_queue.py",
+        "src/providers/reranker/multi_provider.py"
+      ],
+      "single_top1": "src/providers/reranker/llama_install.py",
+      "single_top5": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "experiments/embed_real_path_vs_raw/exp_feed_queue.py",
+        "AGENT_DIARY.md",
+        "docs/en/investigations/ONNX_SESSION_REPORT.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1057,
+      "idents": [
+        "reranker",
+        "providers",
+        "llama"
+      ]
+    },
+    {
+      "id": "E30-E28-20",
+      "gold": "src/providers/reranker/llama_runner.py",
+      "agent_top1": "src/providers/reranker/llama_runner.py",
+      "agent_top5": [
+        "src/providers/reranker/llama_runner.py",
+        "tools/knowledge/repoint_stale_refs.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/indexing/database_lock.py",
+        "experiments/lock_zombie/README.md"
+      ],
+      "single_top1": "src/providers/reranker/llama_runner.py",
+      "single_top5": [
+        "src/providers/reranker/llama_runner.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/core/indexing/database_lock.py",
+        "experiments/lock_zombie/README.md",
+        "src/core/indexing/startup_diagnostics.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1480,
+      "idents": [
+        "lock",
+        "handle",
+        "reranker"
+      ]
+    },
+    {
+      "id": "E30-E28-21",
+      "gold": "src/providers/embedder/remote_embedder.py",
+      "agent_top1": "src/providers/embedder/remote_embedder.py",
+      "agent_top5": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder/onnx_server.py",
+        "src/core/embedder_lease.py",
+        "src/mcp/tools/search_tools.py",
+        "docs/archive/DEV_DIARY_2026_07.md"
+      ],
+      "single_top1": "src/providers/embedder/remote_embedder.py",
+      "single_top5": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/mcp/tools/search_tools.py",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "src/core/embedder/onnx_server.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1110,
+      "idents": [
+        "indexer",
+        "indexing",
+        "providers"
+      ]
+    },
+    {
+      "id": "E30-E28-22",
+      "gold": "src/core/graph.py",
+      "agent_top1": "experiments/noderag/run_experiment.py",
+      "agent_top5": [
+        "experiments/noderag/run_experiment.py",
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "EXPERIMENTS_LOG.md",
+        "experiments/neuro_symbolic_spike.py",
+        "experiments/misc_probes/run_experiment_v2.py"
+      ],
+      "single_top1": "experiments/misc_probes/exp_graph_write_throughput.py",
+      "single_top5": [
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "EXPERIMENTS_LOG.md",
+        "src/core/graph.py",
+        "experiments/neuro_symbolic_spike.py",
+        "experiments/misc_probes/run_experiment_v2.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1394,
+      "idents": [
+        "graph",
+        "mutex",
+        "batch"
+      ]
+    },
+    {
+      "id": "E30-E28-23",
+      "gold": "src/core/search/cypher_sql.py",
+      "agent_top1": "src/core/search/cypher_sql.py",
+      "agent_top5": [
+        "src/core/search/cypher_sql.py",
+        "experiments/microtask_vs_single/runs/A-6e63f85ac3_cypher_executor-20261021T012114Z/agent_output.json",
+        "experiments/microtask_vs_single/frozen/corpus/6e63f85ac3_cypher_executor.json",
+        "experiments/microtask_vs_single/runs/C-6e63f85ac3_cypher_executor-20261021T003045Z/worker_outputs/T1.json",
+        "experiments/microtask_vs_single/runs/C-6e63f85ac3_cypher_executor-20261021T003045Z/plan.json"
+      ],
+      "single_top1": "src/core/search/cypher_sql.py",
+      "single_top5": [
+        "src/core/search/cypher_sql.py",
+        "AGENT_DIARY.md",
+        "experiments/microtask_vs_single/runs/A-6e63f85ac3_cypher_executor-20261021T012114Z/agent_output.json",
+        "experiments/microtask_vs_single/frozen/corpus/6e63f85ac3_cypher_executor.json",
+        "experiments/microtask_vs_single/runs/C-6e63f85ac3_cypher_executor-20261021T003045Z/worker_outputs/T1.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1047,
+      "idents": [
+        "core",
+        "search",
+        "FILTER"
+      ]
+    },
+    {
+      "id": "E30-E28-24",
+      "gold": "src/core/bootstrap_tests.py",
+      "agent_top1": "src/core/bootstrap_tests.py",
+      "agent_top5": [
+        "src/core/bootstrap_tests.py",
+        "experiments/bootstrap/build_gemma_tests.py",
+        "experiments/bootstrap/build_gemma_tests_v2.py",
+        "experiments/bootstrap/check_graph_tests.py",
+        "docs/adr/0004-typed-dependency-edges.md"
+      ],
+      "single_top1": "src/core/bootstrap_tests.py",
+      "single_top5": [
+        "src/core/bootstrap_tests.py",
+        "experiments/bootstrap/e17_pilot_report.md",
+        "experiments/bootstrap/e17_golden.json",
+        "experiments/bootstrap/e17_pilot_experiment.py",
+        "experiments/bootstrap/e17_mutation_validate.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 993,
+      "idents": [
+        "core",
+        "Project",
+        "MSCodeBase"
+      ]
+    },
+    {
+      "id": "E30-E28-25",
+      "gold": "src/core/indexing/freshness.py",
+      "agent_top1": "scripts/negative_controls/fixtures/dead_guard_negative_control.py",
+      "agent_top5": [
+        "scripts/negative_controls/fixtures/dead_guard_negative_control.py",
+        "scripts/negative_controls/fixtures/dead_guard.py",
+        "AGENT_DIARY.md",
+        "src/core/indexing/freshness.py",
+        "experiments/misc_probes/sandbox_lancedb_race.py"
+      ],
+      "single_top1": "AGENT_DIARY.md",
+      "single_top5": [
+        "AGENT_DIARY.md",
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/en/SEARCH_PIPELINE.md",
+        "src/core/indexing/indexer_table.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1445,
+      "idents": [
+        "hash",
+        "mtime",
+        "size"
+      ]
+    },
+    {
+      "id": "E30-E28-26",
+      "gold": "src/core/indexing/parser.py",
+      "agent_top1": "experiments/e26_ast/e26_bm25.py",
+      "agent_top5": [
+        "experiments/e26_ast/e26_bm25.py",
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "scripts/patch_parser.py"
+      ],
+      "single_top1": "src/core/indexing/parser.py",
+      "single_top5": [
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json",
+        "docs/archive/DEV_DIARY_2026_07.md",
+        "scripts/patch_parser.py",
+        "experiments/reranker_p3/RESULT-chunker.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 996,
+      "idents": [
+        "file_path",
+        "query",
+        "expected_chunk"
+      ]
+    },
+    {
+      "id": "E30-E28-27",
+      "gold": "src/core/search/engine.py",
+      "agent_top1": "src/core/search/fts5_index.py",
+      "agent_top5": [
+        "src/core/search/fts5_index.py",
+        "experiments/misc_probes/run_experiment_fts5.py",
+        "experiments/fts5_search.py",
+        "experiments/e32_code_bm25/frozen/HYPOTHESES.md",
+        "experiments/e32_code_bm25/run_code_bm25.py"
+      ],
+      "single_top1": "docs/archive/KNOWN_ISSUES_2026_09.md",
+      "single_top5": [
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "src/core/search/scoring.py",
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "src/core/search/engine.py",
+        "experiments/bootstrap/e17_golden.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1215,
+      "idents": [
+        "search",
+        "dict",
+        "docs"
+      ]
+    },
+    {
+      "id": "E30-E28-28",
+      "gold": "src/core/indexing/db_manager.py",
+      "agent_top1": "experiments/misc_probes/sandbox_lancedb_race.py",
+      "agent_top5": [
+        "experiments/misc_probes/sandbox_lancedb_race.py",
+        "experiments/misc_probes/sandbox_lancedb_drop.py",
+        "experiments/misc_probes/sandbox_lancedb_rmtree.py",
+        "src/core/indexing/indexer_table.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "single_top1": "src/core/indexing/indexer_table.py",
+      "single_top5": [
+        "src/core/indexing/indexer_table.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "src/core/indexing/index_guard.py",
+        "src/core/indexing/db_manager.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1406,
+      "idents": [
+        "schema",
+        "table",
+        "indexer_table"
+      ]
+    },
+    {
+      "id": "E30-E28-29",
+      "gold": "src/core/intelligence/verify_on_read.py",
+      "agent_top1": "docs/adr/0003-verify-on-read.md",
+      "agent_top5": [
+        "docs/adr/0003-verify-on-read.md",
+        "src/core/intelligence/verify_on_read.py",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read-20261021T003710Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read-20261021T010303Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read_noop-20261020T214700Z/briefs/T1.md"
+      ],
+      "single_top1": "src/core/intelligence/verify_on_read.py",
+      "single_top5": [
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/intelligence/tools_reg.py",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read-20261021T003710Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read-20261021T010303Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-8a05b599f6_verify_on_read_noop-20261020T214700Z/briefs/T1.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1500,
+      "idents": [
+        "core",
+        "intelligence",
+        "verify_on_read"
+      ]
+    },
+    {
+      "id": "E30-E28-30",
+      "gold": "src/core/indexing/project_indexer_registry.py",
+      "agent_top1": "src/core/indexing/project_indexer_registry.py",
+      "agent_top5": [
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/multi_project_searcher.py",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T011210Z/worker_outputs/T1.json",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T005213Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/C-e7dc645652_project_resolution-20261021T010509Z/briefs/T1.md"
+      ],
+      "single_top1": "docs/ru/ARCHITECTURE.md",
+      "single_top5": [
+        "docs/ru/ARCHITECTURE.md",
+        "src/core/multi_project_searcher.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "docs/en/ARCHITECTURE.md",
+        "src/mcp/tools/base.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1044,
+      "idents": [
+        "name",
+        "core",
+        "projects_to_search"
+      ]
+    },
+    {
+      "id": "E30-E28-31",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "agent_top1": "src/core/rate_limiter.py",
+      "agent_top5": [
+        "src/core/rate_limiter.py",
+        "experiments/context_engine/strategy_a_data_v2.json",
+        "src/mcp/tools/indexing_tools.py",
+        "src/sync/server.py",
+        "experiments/closure_walk/frozen/files_manifest_after.json"
+      ],
+      "single_top1": "src/mcp/tools/indexing_tools.py",
+      "single_top5": [
+        "src/mcp/tools/indexing_tools.py",
+        "src/sync/server.py",
+        "src/core/rate_limiter.py",
+        "src/mcp/server_tools.py",
+        "experiments/context_engine/strategy_a_data_v2.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 1260,
+      "idents": [
+        "notify_change",
+        "indexer",
+        "asyncio"
+      ]
+    },
+    {
+      "id": "E30-E28-32",
+      "gold": "src/providers/reranker/search_result_reranker.py",
+      "agent_top1": "experiments/e31_bge_rerank/SUMMARY.md",
+      "agent_top5": [
+        "experiments/e31_bge_rerank/SUMMARY.md",
+        "experiments/e31_bge_rerank/frozen/MANIFEST.md",
+        "experiments/e31_bge_rerank/run_bge.py",
+        "docs/research/2026-07-12-e5-base-migration.md",
+        "src/providers/reranker/multi_provider.py"
+      ],
+      "single_top1": "docs/research/2026-07-12-e5-base-migration.md",
+      "single_top5": [
+        "docs/research/2026-07-12-e5-base-migration.md",
+        "src/providers/reranker/multi_provider.py",
+        "docs/ru/LM_STUDIO_SETUP.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "experiments/late_enrichment/bench.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 795,
+      "idents": [
+        "reranker",
+        "base",
+        "ONNX"
+      ]
+    },
+    {
+      "id": "E30-E28-33",
+      "gold": "src/core/search/bm25.py",
+      "agent_top1": "src/core/search/bm25.py",
+      "agent_top5": [
+        "src/core/search/bm25.py",
+        "experiments/e26_ast/e26_bm25.py",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "experiments/e32_code_bm25/run_code_bm25.py",
+        "src/core/commit_memory.py"
+      ],
+      "single_top1": "docs/ru/GRACEFUL_DEGRADATION.md",
+      "single_top5": [
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "src/core/commit_memory.py",
+        "src/core/search/bm25.py",
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/FAQ.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1230,
+      "idents": [
+        "doc_id",
+        "getattr",
+        "_bm25"
+      ]
+    },
+    {
+      "id": "E30-D01",
+      "gold": "src/__init__.py",
+      "agent_top1": "docs/research/2026-07-11-zed-deep-dive.md",
+      "agent_top5": [
+        "docs/research/2026-07-11-zed-deep-dive.md",
+        "docs/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "src/core/structural_search.py",
+        "experiments/bootstrap/e17_research_comparative_analysis.md",
+        "src/core/search/bm25.py"
+      ],
+      "single_top1": "src/__init__.py",
+      "single_top5": [
+        "src/__init__.py",
+        "docs/ru/README.md",
+        "docs/research/2026-07-11-zed-deep-dive.md",
+        "docs/adr/0003-verify-on-read.md",
+        "experiments/1V_memory_contamination/memory_contamination_verify.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 594,
+      "idents": [
+        "docs",
+        "section",
+        "__init__"
+      ]
+    },
+    {
+      "id": "E30-D02",
+      "gold": "src/core/bootstrap_pipeline.py",
+      "agent_top1": "src/core/bootstrap_pipeline.py",
+      "agent_top5": [
+        "src/core/bootstrap_pipeline.py",
+        "src/providers/reranker/llama_runner.py",
+        "experiments/context_engine/strategy_a_data.json",
+        "experiments/context_engine/strategy_a_data_v2.json",
+        "src/core/search/engine.py"
+      ],
+      "single_top1": "src/core/bootstrap_pipeline.py",
+      "single_top5": [
+        "src/core/bootstrap_pipeline.py",
+        "experiments/context_engine/strategy_a_data.json",
+        "src/providers/reranker/llama_runner.py",
+        "experiments/context_engine/strategy_a_data_v2.json",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 1340,
+      "idents": [
+        "reranker",
+        "llama",
+        "server"
+      ]
+    },
+    {
+      "id": "E30-D03",
+      "gold": "src/core/doc_sync_engine.py",
+      "agent_top1": "docs/adr/0003-verify-on-read.md",
+      "agent_top5": [
+        "docs/adr/0003-verify-on-read.md",
+        "docs/ru/CONTRIBUTING.md",
+        "docs/archive/AGENT_DIARY_2026_07.md",
+        "docs/ru/README.md",
+        "tools/knowledge/REDTEAM-protocol.md"
+      ],
+      "single_top1": "src/core/doc_sync_engine.py",
+      "single_top5": [
+        "src/core/doc_sync_engine.py",
+        "src/main.py",
+        "src/core/indexing/symbol_index.py",
+        "scripts/negative_controls_runner.py",
+        "src/mcp/server_factory.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1101,
+      "idents": [
+        "core",
+        "logger",
+        "symbols"
+      ]
+    },
+    {
+      "id": "E30-D04",
+      "gold": "src/core/gitignore_parser.py",
+      "agent_top1": "src/core/gitignore_parser.py",
+      "agent_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/index_parser.py",
+        "src/core/indexing/file_guard.py",
+        "experiments/microtask_vs_single/runs/A-c4c9296fdc_file_guard-20261020T204714Z/agent_output.json",
+        "experiments/microtask_vs_single/runs/C-c4c9296fdc_file_guard-20261020T205437Z/worker_outputs/T1.json"
+      ],
+      "single_top1": "src/core/gitignore_parser.py",
+      "single_top5": [
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "src/core/intelligence/embed_progress.py",
+        "docs/ru/SECURITY.md",
+        "experiments/microtask_vs_single/runs/A-c4c9296fdc_file_guard-20261020T204714Z/agent_output.json"
+      ],
+      "tool_calls": 2,
+      "tokens": 828,
+      "idents": [
+        "core",
+        "gitignore",
+        "SystemArtifacts"
+      ]
+    },
+    {
+      "id": "E30-D05",
+      "gold": "src/core/indexing/freshness.py",
+      "agent_top1": "src/core/indexing/freshness.py",
+      "agent_top5": [
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "EXPERIMENTS_LOG.md",
+        "src/core/indexing/indexer.py"
+      ],
+      "single_top1": "src/core/indexing/freshness.py",
+      "single_top5": [
+        "src/core/indexing/freshness.py",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "AGENT_DIARY.md",
+        "src/mcp/tools/search_tools.py",
+        "src/core/indexing/indexer.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1445,
+      "idents": [
+        "FreshnessChecker",
+        "hash",
+        "stat"
+      ]
+    },
+    {
+      "id": "E30-D06",
+      "gold": "src/core/indexing/symbol_index.py",
+      "agent_top1": "src/core/indexing/symbol_index.py",
+      "agent_top5": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/resource_monitor.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/relation_extractor.py"
+      ],
+      "single_top1": "src/core/indexing/symbol_index.py",
+      "single_top5": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/resource_monitor.py",
+        "src/core/relation_extractor.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/ru/ARCHITECTURE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 697,
+      "idents": [
+        "core",
+        "symbol_index",
+        "indexing"
+      ]
+    },
+    {
+      "id": "E30-D07",
+      "gold": "src/core/intelligence/tools_reg.py",
+      "agent_top1": "src/core/intelligence/tools_reg.py",
+      "agent_top5": [
+        "src/core/intelligence/tools_reg.py",
+        "src/mcp/server_tools.py",
+        "src/core/intelligence/layer.py",
+        "mscodebase_intelligence.egg-info/SOURCES.txt",
+        "src/core/intelligence/embed_progress.py"
+      ],
+      "single_top1": "src/core/intelligence/tools_reg.py",
+      "single_top5": [
+        "src/core/intelligence/tools_reg.py",
+        "docs/en/HANDFOFF.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "docs/en/ARCHITECTURE.md",
+        "README.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 694,
+      "idents": [
+        "core",
+        "indexing",
+        "search"
+      ]
+    },
+    {
+      "id": "E30-D08",
+      "gold": "src/core/lsp_project_bridge.py",
+      "agent_top1": "src/core/lsp_project_bridge.py",
+      "agent_top5": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "docs/research/lsp-archive/lsp_main.py",
+        "experiments/microtask_vs_single/runs/C-c4c9296fdc_file_guard-20261020T205437Z/briefs/T1.md",
+        "experiments/microtask_vs_single/runs/A-c4c9296fdc_file_guard-20261020T204714Z/agent_output.json"
+      ],
+      "single_top1": "src/core/lsp_project_bridge.py",
+      "single_top5": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "scripts/check_lsp_health.py",
+        "docs/research/lsp-archive/lsp_main.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 780,
+      "idents": [
+        "Layer",
+        "core",
+        "Guard"
+      ]
+    },
+    {
+      "id": "E30-D09",
+      "gold": "src/core/relpath.py",
+      "agent_top1": "src/core/relpath.py",
+      "agent_top5": [
+        "src/core/relpath.py",
+        "experiments/bootstrap/e17_pilot_answers.json",
+        "experiments/bootstrap/e17_shards/shard_11.answers.json",
+        "experiments/claims_audit/a14_verify_gate_posix.py",
+        "src/core/indexing/symbol_index.py"
+      ],
+      "single_top1": "src/core/relpath.py",
+      "single_top5": [
+        "src/core/relpath.py",
+        "experiments/bootstrap/e17_pilot_answers.json",
+        "experiments/bootstrap/e17_shards/shard_11.answers.json",
+        "experiments/foreign_repo_audit/audit_vs_our_guards.py",
+        "src/core/indexing/symbol_index.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1168,
+      "idents": [
+        "slash",
+        "directory",
+        "matching"
+      ]
+    },
+    {
+      "id": "E30-D10",
+      "gold": "src/core/search/cypher_parser.py",
+      "agent_top1": "src/core/search/cypher_engine.py",
+      "agent_top5": [
+        "src/core/search/cypher_engine.py",
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_lexer.py"
+      ],
+      "single_top1": "src/core/search/cypher_executor.py",
+      "single_top5": [
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_lexer.py",
+        "src/core/search/cypher_engine.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 239,
+      "idents": [
+        "core",
+        "search",
+        "openCypher"
+      ]
+    },
+    {
+      "id": "E30-D11",
+      "gold": "src/core/search/trace.py",
+      "agent_top1": "src/mcp/tools/predict_tools.py",
+      "agent_top5": [
+        "src/mcp/tools/predict_tools.py",
+        "src/core/eta_predictor.py",
+        "src/core/search/trace.py",
+        "src/core/notification_broker.py",
+        "experiments/evalmut/README.md"
+      ],
+      "single_top1": "src/core/search/trace.py",
+      "single_top5": [
+        "src/core/search/trace.py",
+        "src/core/notification_broker.py",
+        "experiments/evalmut/README.md",
+        "experiments/universal-engine/e09_upload_bombs.py",
+        "src/core/indexing/indexer_table.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 857,
+      "idents": [
+        "core",
+        "tracer",
+        "publish_sync"
+      ]
+    },
+    {
+      "id": "E30-D12",
+      "gold": "src/mcp/__init__.py",
+      "agent_top1": "src/mcp/server_factory.py",
+      "agent_top5": [
+        "src/mcp/server_factory.py",
+        "src/mcp/__init__.py",
+        "src/mcp/context.py",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "src/mcp/server_tools.py"
+      ],
+      "single_top1": "src/mcp/__init__.py",
+      "single_top5": [
+        "src/mcp/__init__.py",
+        "docs/ru/SECURITY.md",
+        "README.md",
+        "docs/zh/README.md",
+        "docs/ru/README.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 340,
+      "idents": [
+        "MSCodeBase",
+        "section",
+        "https"
+      ]
+    },
+    {
+      "id": "E30-D13",
+      "gold": "src/mcp/tools/duplication_tool.py",
+      "agent_top1": "src/mcp/tools/duplication_tool.py",
+      "agent_top5": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "experiments/misc_probes/exp_dup.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "single_top1": "src/mcp/tools/duplication_tool.py",
+      "single_top5": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "experiments/misc_probes/exp_dup.py",
+        "EXPERIMENTS_LOG.md",
+        "docs/archive/AGENT_DIARY_2026_08.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 721,
+      "idents": [
+        "minhash",
+        "experiments",
+        "exp_dup"
+      ]
+    },
+    {
+      "id": "E30-D14",
+      "gold": "src/plugins/loader.py",
+      "agent_top1": "src/plugins/loader.py",
+      "agent_top5": [
+        "src/plugins/loader.py",
+        "examples/plugins/verify_claim/plugin.py",
+        "src/plugins/manifest.py",
+        "src/plugins/trust_store.py",
+        "src/plugins/registry.py"
+      ],
+      "single_top1": "src/plugins/loader.py",
+      "single_top5": [
+        "src/plugins/loader.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "examples/plugins/verify_claim/plugin.py",
+        "src/plugins/manifest.py",
+        "src/plugins/trust_store.py"
+      ],
+      "tool_calls": 2,
+      "tokens": 1058,
+      "idents": [
+        "plugins",
+        "manifest",
+        "spec"
+      ]
+    },
+    {
+      "id": "E30-D15",
+      "gold": "src/remote_main.py",
+      "agent_top1": "src/remote_main.py",
+      "agent_top5": [
+        "src/remote_main.py",
+        "src/sync/server.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "ISSUE.md",
+        "src/sync/__init__.py"
+      ],
+      "single_top1": "src/remote_main.py",
+      "single_top5": [
+        "src/remote_main.py",
+        "ISSUE.md",
+        "src/sync/server.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/ru/ARCHITECTURE.md"
+      ],
+      "tool_calls": 2,
+      "tokens": 565,
+      "idents": [
+        "remote_main",
+        "sync",
+        "SYMBOLS"
+      ]
+    }
+  ]
+}

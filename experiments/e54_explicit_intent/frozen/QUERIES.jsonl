@@ -1,0 +1,48 @@
+{"id": "E30-E28-01", "query": "Почему в ограничителе скорости используется threading.Lock, а не asyncio.Lock, и с каким инцидентом это связано?", "gold_file": "src/core/rate_limiter.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-02", "query": "Насколько надёжно модуль redact вырезает секреты и по какому принципу он ловит credential-строки?", "gold_file": "src/core/redact.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-03", "query": "Почему парсер .gitignore использует формат 'gitignore', а не 'gitwildmatch'?", "gold_file": "src/core/gitignore_parser.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-04", "query": "Как решается проблема, что idle-watchdog убивает общий embedder во время полной переиндексации?", "gold_file": "src/core/embedder_lease.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-05", "query": "Какое главное ограничение наложено на модуль durable reindex ledger, чтобы он не мог сломать индексацию?", "gold_file": "src/core/reindex_ledger.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-06", "query": "Как quiet-break gate ведёт себя при инфраструктурном сбое git или графа?", "gold_file": "src/core/quiet_break_gate.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-07", "query": "Что делает validate_scores с неоценёнными чанками, у которых score равен NaN или Inf?", "gold_file": "src/providers/reranker/reranker_scoring.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-08", "query": "Зачем в конверте ошибок MCP-инструментов есть поле next_action?", "gold_file": "src/core/error_envelope.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-09", "query": "На сколько уровней деградации рассчитана система и что происходит, когда внешние провайдеры недоступны?", "gold_file": "docs/en/GRACEFUL_DEGRADATION.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-10", "query": "Почему в RRF-слиянии ранги считаются отдельно для каждого канала, а не общим enumerate?", "gold_file": "docs/en/SEARCH_PIPELINE.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-11", "query": "Как система относится к инструкциям из проиндексированного чужого репозитория — как к командам или как к данным?", "gold_file": "docs/TRUST_BOUNDARY.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-12", "query": "Сохраняются ли метрики по инструментам между перезапусками MCP-сервера?", "gold_file": "docs/en/TELEMETRY.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-13", "query": "Какой вердикт получает ACTIVE-узел памяти, если резолвер недоступен и проверка не дала результата?", "gold_file": "docs/adr/0003-verify-on-read.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-14", "query": "Каким способом MCP-сервер определяет открытый в Zed проект на Windows, если переменные окружения не передаются?", "gold_file": "docs/en/HANDFOFF.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-15", "query": "Что известно о переменной ZED_WORKTREE_ROOT на Windows?", "gold_file": "docs/en/ZED_WINDOWS_QUIRKS.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-16", "query": "Насколько переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом?", "gold_file": "docs/en/SYSTEM_REQUIREMENTS.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-17", "query": "begin_write _write_lock RLock reindex freeze", "gold_file": "src/core/indexing/db_writer.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-18", "query": "ArtifactGC 30d projects 90d telemetry 7d logs retention", "gold_file": "src/core/artifact_gc.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-19", "query": "ubatch embed 512 rerank 1024 resolve_ubatch", "gold_file": "src/providers/reranker/llama_install.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-20", "query": "_InterProcessLock _is_pid_alive OpenProcess SYNCHRONIZE stale PID", "gold_file": "src/providers/reranker/llama_runner.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-21", "query": "search_code timeout idle embedder _revive_llama_cpp hot-reload", "gold_file": "src/providers/embedder/remote_embedder.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-22", "query": "PropertyGraph add_node add_edge SQLite transaction per node edge", "gold_file": "src/core/graph.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-23", "query": "collect Cypher json_group_array cypher_sql", "gold_file": "src/core/search/cypher_sql.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-24", "query": "TESTS edges verifying tests decoys bootstrap_tests", "gold_file": "src/core/bootstrap_tests.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-25", "query": "FreshnessChecker to_pandas columns lancedb broken dead code", "gold_file": "src/core/indexing/freshness.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-26", "query": "CodeParser _parse_with_tree_sitter _walk_node AST chunks", "gold_file": "src/core/indexing/parser.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-27", "query": "hybrid_search_async reciprocal_rank_fusion FTS5 BM25", "gold_file": "src/core/search/engine.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-28", "query": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB", "gold_file": "src/core/indexing/db_manager.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-29", "query": "ленивая проверка факта памяти verify on read статус ADR", "gold_file": "src/core/intelligence/verify_on_read.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-30", "query": "per project indexer registry multi window пулы по путям проектов", "gold_file": "src/core/indexing/project_indexer_registry.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-31", "query": "переиндексация одного изменённого файла notify change rate limit", "gold_file": "src/mcp/tools/indexing_tools.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-32", "query": "ранжирование результатов реранкером BGE M3 перестановка топ", "gold_file": "src/providers/reranker/search_result_reranker.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-33", "query": "bm25 ключевые слова медленный но точный полнотекстовый", "gold_file": "src/core/search/bm25.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-D01", "query": "MSCodebase Intelligence Семантический поиск по кодовой базе для Zed IDE.", "gold_file": "src/__init__.py", "source": "docstring"}
+{"id": "E30-D02", "query": "Запускает pytest-трассу; возвращает (exit_code, seconds).", "gold_file": "src/core/bootstrap_pipeline.py", "source": "docstring"}
+{"id": "E30-D03", "query": "Полная проверка: все .md против всех символов из src/.", "gold_file": "src/core/doc_sync_engine.py", "source": "docstring"}
+{"id": "E30-D04", "query": "Автоматический парсер .gitignore для исключения файлов из индексации.", "gold_file": "src/core/gitignore_parser.py", "source": "docstring"}
+{"id": "E30-D05", "query": "Инкрементальная сверка: stat-first → hash-confirm → hot-reload.", "gold_file": "src/core/indexing/freshness.py", "source": "docstring"}
+{"id": "E30-D06", "query": "Symbol Index — отслеживание определений и использований символов между файлами.", "gold_file": "src/core/indexing/symbol_index.py", "source": "docstring"}
+{"id": "E30-D07", "query": "MCP Tool Registration for Intelligence Layer.", "gold_file": "src/core/intelligence/tools_reg.py", "source": "docstring"}
+{"id": "E30-D08", "query": "Публичный геттер для директории bridge-файлов.", "gold_file": "src/core/lsp_project_bridge.py", "source": "docstring"}
+{"id": "E30-D09", "query": "Return the canonical POSIX relative path (backslashes -> slashes).", "gold_file": "src/core/relpath.py", "source": "docstring"}
+{"id": "E30-D10", "query": "Cypher query engine — компонент для подмножества openCypher.", "gold_file": "src/core/search/cypher_parser.py", "source": "docstring"}
+{"id": "E30-D11", "query": "Сериализует в dict (без None значений для краткости).", "gold_file": "src/core/search/trace.py", "source": "docstring"}
+{"id": "E30-D12", "query": "MCP (Model Context Protocol) сервер для интеграции с Zed IDE.", "gold_file": "src/mcp/__init__.py", "source": "docstring"}
+{"id": "E30-D13", "query": "find_duplicates — детектор дупликации кода (AST-отпечатки + minhash-LSH).", "gold_file": "src/mcp/tools/duplication_tool.py", "source": "docstring"}
+{"id": "E30-D14", "query": "Импортирует entrypoint плагина (разрешённый путь, отдельный от execute_script).", "gold_file": "src/plugins/loader.py", "source": "docstring"}
+{"id": "E30-D15", "query": "Заглушка, если LiveSyncServer не поднялся.", "gold_file": "src/remote_main.py", "source": "docstring"}
