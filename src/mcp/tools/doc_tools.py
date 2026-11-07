@@ -28,11 +28,13 @@ class StaleDetectorTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="stale_detector")
 
-    @error_boundary("stale_detector", timeout_ms=60000)
+    @error_boundary("stale_detector", timeout_ms=90000)
     async def execute(
         self,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        import time as _time
+
         # INC-MULTI-WINDOW: корень из резолвера (CWD-first, per-window), а не
         # из __file__: в installed-режиме __file__ = каталог расширения, и
         # stale_detector сканировал чужую документацию расширения (аудит Bot_snow #6).
@@ -40,6 +42,8 @@ class StaleDetectorTool(MCPTool):
 
         project_root = resolve_project_root()
         config_path = project_root / "tools" / "stale_detector" / "stale_config.json"
+        _t0 = _time.perf_counter()
+        logger.info(f"[stale] start root={project_root}")
 
         config = self._load_config(config_path)
         actual_version = self._get_actual_version(project_root)
@@ -52,6 +56,10 @@ class StaleDetectorTool(MCPTool):
         # (см. инцидент 2026-09-05 — stale_detector стабильно падал по -32001).
         results = await asyncio.to_thread(
             self._scan_docs, project_root, actual_version, config
+        )
+        logger.info(
+            f"[stale] scan done in {_time.perf_counter() - _t0:.1f}s, "
+            f"docs={len(results)}"
         )
         total_hits = sum(r["total_hits"] for r in results)
         errors = sum(

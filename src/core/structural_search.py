@@ -274,10 +274,16 @@ class StructuralSearcher:
         if file_extensions is None:
             file_extensions = list(self.parser.parsers.keys())
 
-        # Собираем файлы
-        files_to_scan = []
+        # Собираем файлы. Обход с ОБРЕЗКОЙ каталогов: rglob сначала обходил
+        # venv/experiments/models (~2 ГБ), потом фильтровал — 15 с таймаута на
+        # штатном паттерне (наблюдение 2026-11-07).
+        files_to_scan: List[Path] = []
+        seen_prefixes = set()
         for ext in file_extensions:
-            files_to_scan.extend(project_path.rglob(f"*{ext}"))
+            if ext in seen_prefixes:
+                continue
+            seen_prefixes.add(ext)
+            files_to_scan.extend(self._iter_source_files(project_path, ext))
 
         # Исключаем мусор
         files_to_scan = [
@@ -388,6 +394,26 @@ class StructuralSearcher:
             current = current.parent
 
         return ""
+
+    _PRUNE_DIRS = {
+        "__pycache__", "node_modules", ".git", "venv", ".venv",
+        ".tox", ".eggs", "build", "dist", ".mscodebase",
+        ".codebase_models", "models", "llama_msvc.bak", "experiments",
+    }
+
+    def _iter_source_files(self, project_path: Path, ext: str):
+        """Файлы с расширением ext, без обхода тяжёлых каталогов."""
+        import os
+
+        root = str(project_path)
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in self._PRUNE_DIRS and not d.endswith(".egg-info")
+            ]
+            for name in filenames:
+                if name.lower().endswith(ext.lower()):
+                    yield Path(dirpath) / name
 
     def _should_scan_file(self, file_path: Path) -> bool:
         """Проверяет стоит ли сканировать файл."""
