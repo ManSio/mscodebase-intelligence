@@ -90,4 +90,32 @@ health critical, автоиндексация каждый старт «complete
 - **Класс:** тот же, что P0 со статусом (один store мигрировали, читателя
   оставили на старом). Тест: `tests/test_freshness_sqlite.py`.
 
+## АУДИТ ЦЕПОЧКИ + ЧИСТКА (2026-11-07, вечер)
+
+**Мусор:** удалено 8.15 GB (12.79 → 4.64 GB): `isolated/`-копии в
+`experiments/microtask_vs_single/runs` (8.3 GB, node_modules + session DB,
+результаты 2 MB сохранены), 304 `__pycache__`, 2 `.pytest_cache`,
+`.coverage`, `llama_server_stderr.log` (15 MB), `spike.db`,
+`.git/next-index-9724.lock` (22.09).
+
+**Найдено и исправлено (`08f4854`):**
+- `structural_search` таймаутил 15 с: `rglob` по venv/models/experiments →
+  обход с обрезкой; теперь 167 файлов / 2.7 с.
+- `predict_change` таймаут 120 с: `_git` ждал DEFAULT_TIMEOUT=300 и держал
+  index-lock → 20 с + `GIT_OPTIONAL_LOCKS=0` + stdin=DEVNULL.
+- 6 LSP-тулов: бюджет 15 с меньше холодного старта basedpyright → 60 с.
+- `stale_detector`: 7 с вне MCP, таймаут 60 с внутри → бюджет 90 с +
+  логирование root/elapsed (гипотеза проверяется по логу, не угадывается).
+
+**Найдено, не исправлено:** `graph_query(related)` и `intel_get_hotspots`
+пустые, пока `CommitMemory` не обновлён (кеш 2 записи); `codebase git log`
+по умолчанию отдаёт 10 коммитов из кеша.
+
+**Самопойманный инцидент (P-19, 4-й):** правка `lsp_tools.py` через
+PowerShell `Get-Content -Raw | Set-Content -Encoding utf8` перекодировала
+кириллицу в мохибейк; поймано тестами `test_lsp_tools.py` (2 падения),
+откачено `git checkout`, правка повторена через `edit`, 10/10 зелёные.
+Guard работает: тест заметил то, что глазами не видно.
+
+
 
