@@ -252,6 +252,36 @@ class SQLiteChunkStore:
                 conn.execute("SELECT COUNT(DISTINCT file_path) FROM chunks").fetchone()[0]
             )
 
+    def indexed_state(self) -> Dict[str, Any]:
+        """Per-file stat/hash state for incremental freshness checks.
+
+        Возвращает ``{"_has_stat": True, "_paths": {rel: {"hash", "mtime_ns", "size"}}}``
+        — тот же контракт, что FreshnessChecker ждёт от LanceDB, поэтому
+        hot-reload работает и в Phase 3, где таблица LanceDB пуста.
+        """
+        with self._lock:
+            conn = self._ensure_conn()
+            rows = conn.execute(
+                """
+                SELECT file_path,
+                       MAX(file_hash),
+                       MAX(file_mtime_ns),
+                       MAX(file_size)
+                FROM chunks
+                GROUP BY file_path
+                """
+            ).fetchall()
+        paths: Dict[str, Dict[str, Any]] = {}
+        for fp, fhash, mtime_ns, size in rows:
+            if not fp:
+                continue
+            paths[str(fp)] = {
+                "hash": str(fhash or ""),
+                "mtime_ns": int(mtime_ns or 0),
+                "size": int(size or 0),
+            }
+        return {"_has_stat": True, "_paths": paths}
+
     def search(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """FTS5 candidate retrieval, ranked by BM25.
 

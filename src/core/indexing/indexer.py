@@ -208,6 +208,7 @@ class Indexer(IndexerTableMixin):
             calculate_file_hash=self._calculate_file_hash,
             interval_sec=get_config().performance.freshness_interval_sec,
             is_reindexing=self.db_manager.is_reindexing,
+            chunk_store=self._chunk_store,
         )
 
         # ─── Chunk Summarizer ───────────────────────────────

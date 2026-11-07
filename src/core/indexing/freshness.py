@@ -37,6 +37,7 @@ class FreshnessChecker:
         calculate_file_hash: Callable,
         interval_sec: float = 30.0,
         is_reindexing: Optional[Callable] = None,
+        chunk_store: Any = None,
     ):
         self.table = table
         self.file_guard = file_guard
@@ -44,6 +45,10 @@ class FreshnessChecker:
         self._calculate_file_hash = calculate_file_hash
         self._interval_sec = max(0.0, float(interval_sec))
         self._is_reindexing = is_reindexing or (lambda: False)
+        # Phase 3: активный индекс — SQLite/FTS5, таблица LanceDB пуста.
+        # Без этого проверка видит «пустой индекс» и hot-reload не работает
+        # (правки, сделанные при выключенном сервере, не подхватываются).
+        self._chunk_store = chunk_store
         self._lock = threading.Lock()
         self._last_check = 0.0
 
@@ -139,10 +144,19 @@ class FreshnessChecker:
     def _read_indexed_state(self) -> Dict[str, Any]:
         """Читает file_path/file_hash (+ mtime/size если есть) из индекса.
 
+        Phase 3: источник — SQLite chunk store; LanceDB-таблица пуста, и
+        прежний путь возвращал пустое состояние → hot-reload молчал.
+
         to_pandas(columns=...) не работает в lancedb 0.34 — старый код падал.
         Рабочий паттерн: table.to_lance().to_pandas(columns=[...]) —
         замерено 102.2ms на 10366 чанков / 574 файла.
         """
+        if self._chunk_store is not None:
+            try:
+                if int(self._chunk_store.count() or 0) > 0:
+                    return self._chunk_store.indexed_state()
+            except Exception as exc:  # noqa: BLE001 — падаем в LanceDB-путь
+                logger.debug(f"chunk_store.indexed_state failed: {exc}")
         cols = ["file_path", "file_hash", "file_mtime_ns", "file_size"]
         try:
             df = self.table.to_lance().to_pandas(columns=cols)
