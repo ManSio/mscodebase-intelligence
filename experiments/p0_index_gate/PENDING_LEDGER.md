@@ -1,0 +1,61 @@
+# PENDING_LEDGER — P0 «индекс есть, статус пуст» (2026-11-07)
+
+> Реестры (`AGENT_DIARY.md`, `tools/knowledge/PATTERNS.md`) содержат
+> незакоммиченные правки другой сессии, поэтому здесь — предложение, а не
+> запись в реестр (§21.3).
+
+## Что было
+
+- Phase 3 (`dense_off=true`, с 2026-10-24) держит чанки в
+  `<project>/.mscodebase/chunks.db`: **7 314 чанков / 487 файлов**.
+- `IndexStatusReporter.get_status()` читал только `table.count_rows()` (LanceDB),
+  который пуст → `total_chunks=0`.
+- `require_ready_project()` (`src/mcp/tools/base.py:428`) блокировал
+  `search_code`, `get_symbol_info`, 6 LSP-тулов и 5 write-действий.
+- Автоиндексация видела 0, вызывала `index_project()`, а тот под тем же флагом
+  возвращал 0 → состояние не могло самоисправиться.
+
+## Что сделано
+
+- `IndexStatusReporter` принимает `chunk_store`, берёт максимум из LanceDB и
+  SQLite, отдаёт `store: sqlite|lancedb|none`, не делает stale-scan по LanceDB,
+  когда читает SQLite.
+- `index_project()` при `dense_off` запускает текстовую полную индексацию
+  (`_index_text_only_project`: чанки → SQLite/FTS5 + AST-граф, без эмбеддингов)
+  вместо `return 0`.
+- Коммиты: `97a32f1` (фикс), `3515795` (гейт §19.1 + date-dependent тесты),
+  `30adbee` (33 папки экспериментов / 265 файлов).
+- Числа: `get_status()` → `total_chunks=7314, unique_files=487, status=active,
+  store=sqlite` (было `0 / empty`). Полный прогон: 2 174 passed, 6 skipped.
+
+## Предложение в AGENT_DIARY.md
+
+```markdown
+## [2026-11-07] P0 — индекс есть, статус пуст: Phase 3 читали не тот store
+
+**Симптом:** `search_code`/`get_symbol_info`/LSP/write — «Index is empty»,
+health critical, автоиндексация каждый старт «completed (0 files)».
+**Root Cause:** Phase 3 хранит чанки в SQLite, а `get_status()` считал
+`LanceDB.count_rows()` (=0); `index_project()` под `dense_off` возвращал 0.
+**Fix:** `97a32f1` — статус берёт максимум из двух store, под `dense_off`
+работает текстовая полная индексация. **Guard:** `tests/test_status_sqlite_store.py`
+(3 контроля + «без store гейт блокирует»).
+**Число:** 7 314 чанков / 487 файлов при `total_chunks=0` до фикса.
+```
+
+## Предложение в KNOWN_ISSUES.md
+
+```markdown
+## 2026-11-07 — P0: статус индекса читал LanceDB при индексе в SQLite — 🟢 fixed
+- Phase 3: 7 314 чанков в `.mscodebase/chunks.db`, `total_chunks=0` →
+  все поисковые/LSP/write-тулы блокировались 13 дней.
+- Fix `97a32f1`; тест `tests/test_status_sqlite_store.py`.
+```
+
+## Что осталось вне этой задачи
+
+- `tools/factory/` + `tests/test_factory.py` — untracked, решение владельца.
+- `scripts/check_write_bytes.py`, `scripts/recurrence.py` — guard P-19, untracked.
+- 6 frozen-манифестов (E49, E52–E54, E56, E57) нарушают «≥2 ожидаемых провала»;
+  внесены в закрытый allowlist `audit_protocol_guards.py`, задним числом не
+  правятся (§17).
