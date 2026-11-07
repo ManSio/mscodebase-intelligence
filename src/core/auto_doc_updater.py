@@ -28,6 +28,21 @@ from typing import List, Optional, Set, Tuple
 logger = logging.getLogger(__name__)
 
 
+def _ledger_autosync_enabled() -> bool:
+    """Реестры (KNOWN_ISSUES/AGENT_DIARY) — документы агента, не автодока.
+
+    Автосинк трижды дописывал сотни строк в трекнутый KNOWN_ISSUES.md
+    (2026-09-30 ×2: +267 и +241 строки; 2026-11-07: +242) и ломал гейт
+    check_known_issues. Включается только явно: MSCODEBASE_AUTODOC_LEDGERS=1.
+    """
+    return os.getenv("MSCODEBASE_AUTODOC_LEDGERS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 @dataclass
 class BrokenRef:
     """Одна битая ссылка в документации."""
@@ -102,12 +117,20 @@ class AutoDocUpdater:
         except Exception as e:
             errors.append(f"❌ README.md: {e}")
 
-        # Шаг 3: KNOWN_ISSUES.md синхронизация
-        try:
-            known_changed = self._sync_known_issues(root)
-            steps.append(f"✅ KNOWN_ISSUES.md: {'синхронизирован' if known_changed else 'актуален'}")
-        except Exception as e:
-            errors.append(f"❌ KNOWN_ISSUES.md: {e}")
+        # Шаг 3: KNOWN_ISSUES.md — это РЕЕСТР (его ведёт агент по протоколу),
+        # а не автогенерируемый документ. Автосинк уже трижды дописывал сотни
+        # строк в трекнутый файл и ломал гейт. По умолчанию не трогаем.
+        if _ledger_autosync_enabled():
+            try:
+                known_changed = self._sync_known_issues(root)
+                steps.append(f"✅ KNOWN_ISSUES.md: {'синхронизирован' if known_changed else 'актуален'}")
+            except Exception as e:
+                errors.append(f"❌ KNOWN_ISSUES.md: {e}")
+        else:
+            steps.append(
+                "⏭ KNOWN_ISSUES.md: пропущен (реестр агента; "
+                "MSCODEBASE_AUTODOC_LEDGERS=1 чтобы включить)"
+            )
 
         # Собираем отчёт
         report_lines = [

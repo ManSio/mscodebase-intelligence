@@ -283,3 +283,41 @@ def test_sync_known_issues_archives_when_over_limit(tmp_path):
     live_lines = known_path.read_text(encoding="utf-8").splitlines()
     assert len(live_lines) <= 300, f"живой файл {len(live_lines)} строк > 300"
     assert "2026-10-25" in "\n".join(live_lines)
+
+
+def test_update_all_does_not_touch_known_issues_by_default(tmp_path, monkeypatch):
+    """Реестр ведёт агент: автоматический прогон не пишет в KNOWN_ISSUES (§19.9)."""
+    monkeypatch.delenv("MSCODEBASE_AUTODOC_LEDGERS", raising=False)
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "README.md").write_text("# t\n", encoding="utf-8")
+    (root / "AGENT_DIARY.md").write_text(
+        "# diary\n\n## [2026-11-01] — fix crash\n\nFix: сделано.\n",
+        encoding="utf-8",
+    )
+    known = "# KNOWN ISSUES\n\n## [2026-10-01] — old\n- x\n"
+    (root / "KNOWN_ISSUES.md").write_text(known, encoding="utf-8")
+
+    AutoDocUpdater().update_all(str(root))
+
+    assert (root / "KNOWN_ISSUES.md").read_text(encoding="utf-8") == known
+
+
+def test_update_all_syncs_when_explicitly_enabled(tmp_path, monkeypatch):
+    """Negative control: тот же вход с явным флагом — синк происходит.
+
+    Значит первый тест молчит из-за флага, а не потому что синк сломан.
+    """
+    monkeypatch.setenv("MSCODEBASE_AUTODOC_LEDGERS", "1")
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "README.md").write_text("# t\n", encoding="utf-8")
+    (root / "AGENT_DIARY.md").write_text(
+        "# diary\n\n## [2026-11-01] — fix crash\n\nFix: сделано.\n",
+        encoding="utf-8",
+    )
+    (root / "KNOWN_ISSUES.md").write_text("# KNOWN ISSUES\n", encoding="utf-8")
+
+    AutoDocUpdater().update_all(str(root))
+
+    assert "fix crash" in (root / "KNOWN_ISSUES.md").read_text(encoding="utf-8")
