@@ -518,7 +518,14 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         ]
         try:
             import xdist  # noqa: F401
-            pytest_cmd += ["-n", "auto"]
+            # 2026-11-07: `-n auto` сделал гейт флакующим (разные прогоны дали
+            # 4 / 31 / 5 / 1 падений). Причина — тесты со спавном git
+            # (temporal_facts_generator: "десятки git-подпроцессов") под 16
+            # воркерами упираются в конкуренцию за процессы и падают на
+            # здоровом коде. Серийный прогон ~250s при бюджете 900s — дешевле,
+            # чем перезапускать хук. Параллель — только явно.
+            if os.getenv("MSCB_GATE_PARALLEL") == "1":
+                pytest_cmd += ["-n", "auto"]
         except ImportError:
             pass
         proc = subprocess.Popen(
