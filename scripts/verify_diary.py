@@ -7,10 +7,12 @@ verify_diary.py — Ledger-проверка AGENT_DIARY.md против реал
   python scripts/verify_diary.py --fix-missing        # интерактивное добавление маркеров
 """
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
@@ -649,9 +651,49 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
     print(f"\n✅ {DIARY} обновлён")
 
 
+_LEDGER_CACHE_TTL_SEC = 6 * 3600
+
+
+def _ledger_cache_path() -> Path:
+    return ROOT / ".mscodebase" / "contradiction_ledger.json"
+
+
+def _ledger_cache_key() -> dict:
+    """Ключ кэша: дневник (mtime/size) + HEAD. Меняется — перепроверяем."""
+    import hashlib
+
+    st = DIARY.stat()
+    head = ""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        head = (out.stdout or "").strip()
+    except (OSError, subprocess.SubprocessError):
+        head = ""
+    return {
+        "diary_mtime_ns": st.st_mtime_ns,
+        "diary_size": st.st_size,
+        "head": head,
+        "diary_sha": hashlib.sha256(DIARY.read_bytes()).hexdigest()[:16],
+    }
+
+
 def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
     """Runs contradiction ledger check. Returns dict, never sys.exit.
     Used by MCP startup for safe import-time validation.
+
+    Кэш (2026-11-07): полная проверка на старте занимала ~2.5 мин (34 записи,
+    rglob по tests/ на каждый символ) и насыщала диск так, что health-проба
+    `git log` таймаутила. Результат кэшируется на 6 ч и переиспользуется, пока
+    не изменились дневник (mtime/size/sha) и HEAD.
 
     Args:
         project_root: опциональный путь к проекту (если не указан — использует ROOT).
@@ -663,17 +705,42 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
         # Обновляем DIARY для нового ROOT
         global DIARY
         DIARY = ROOT / "AGENT_DIARY.md"
+
+    cache_path = _ledger_cache_path()
+    try:
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+        key = _ledger_cache_key()
+        fresh = (time.time() - float(cache.get("ts", 0))) < _LEDGER_CACHE_TTL_SEC
+        if fresh and cache.get("key") == key:
+            result = dict(cache.get("result") or {})
+            result["cached"] = True
+            return result
+    except (OSError, ValueError, KeyError):
+        pass
+
     # Gate-zero: full test suite — ТОЛЬКО для CLI, не для старта сервера.
     # На сервере pytest tests/ создаёт лишние процессы на 120 секунд.
     entries = parse_diary()
     passed, failed, issues = run_verification(entries)
-    return {
+    result = {
         "ok": failed == 0,
         "discrepancies": failed,
         "claims": passed + failed,
         "commits": sum(len(e.commits) for e in entries),
         "details": issues,
     }
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(
+            json.dumps(
+                {"ts": time.time(), "key": _ledger_cache_key(), "result": result},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+    return result
 
 
 def main():
