@@ -871,7 +871,9 @@ class Indexer(IndexerTableMixin):
                     "Phase 3: dense_off=true → text-only full index "
                     "(no embeddings; chunks + graph only)."
                 )
-                return self._index_text_only_project(project_path)
+                return self._index_text_only_project(
+                    project_path, progress_callback, phase_callback
+                )
         except Exception as _cfg_err:
             logger.debug(f"dense_off guard failed: {_cfg_err}")
 
@@ -905,54 +907,88 @@ class Indexer(IndexerTableMixin):
                 logger.warning("[index_project] build_head record skipped: %s", exc)
         return res
 
-    def _index_text_only_project(self, project_path: Path) -> int:
+    def _index_text_only_project(
+        self,
+        project_path: Path,
+        progress_callback: Optional[Callable] = None,
+        phase_callback: Optional[Callable] = None,
+    ) -> int:
         """Phase 3: полная индексация без эмбеддингов (SQLite/FTS5 + AST-граф).
 
         Вызывается из index_project(), когда dense_off=true. Возвращает число
         файлов, у которых записаны чанки. Инкрементальная индексация
         (notify_change) продолжает работать независимо.
+
+        Прогресс: отдаётся в progress_callback(current, done, total, phase) —
+        иначе UI висит на 10% весь прогон (наблюдение 2026-11-07).
         """
         from src.core.relpath import normalize_rel_path
 
         project_path = Path(project_path)
-        files_indexed = 0
-        errors = 0
-        seen: set[str] = set()
-        t0 = time.perf_counter()
 
+        # Сначала собираем список файлов: без total прогресс не посчитать.
+        files: list[Path] = []
         for root, dirs, names in os.walk(str(project_path)):
             dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
             for name in names:
                 full_path = Path(root) / name
                 if self.file_guard.should_skip_file(full_path):
                     continue
-                try:
-                    content = full_path.read_text(encoding="utf-8", errors="replace")
-                except OSError:
-                    continue
-                if not content.strip():
-                    continue
+                files.append(full_path)
+        total = len(files)
+
+        files_indexed = 0
+        errors = 0
+        seen: set[str] = set()
+        t0 = time.perf_counter()
+
+        def _report(current: str, done: int, phase: str) -> None:
+            if progress_callback is None:
+                return
+            try:
+                progress_callback(current, done, total, phase)
+            except Exception as cb_err:  # noqa: BLE001 — прогресс не роняет индексацию
+                logger.debug(f"[text-index] progress callback failed: {cb_err}")
+
+        if phase_callback is not None:
+            try:
+                phase_callback("parsing")
+            except Exception:  # noqa: BLE001
+                pass
+
+        for idx, full_path in enumerate(files, 1):
+            try:
+                content = full_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if not content.strip():
+                _report(str(full_path), idx, "parsing")
+                continue
+            try:
                 rel = normalize_rel_path(full_path.relative_to(project_path))
-                seen.add(rel)
-                current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
-                try:
-                    parsed = self._pipeline.process_file(
-                        rel_path_str=rel,
-                        full_path=full_path,
-                        content=content,
-                        current_hash=current_hash,
-                    )
-                except Exception as exc:  # noqa: BLE001 — один файл не роняет прогон
-                    errors += 1
-                    logger.debug(f"[text-index] parse error {rel}: {exc}")
-                    continue
-                if not parsed or not parsed.get("skip_vectors"):
-                    continue
+            except ValueError:
+                continue
+            seen.add(rel)
+            current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            try:
+                parsed = self._pipeline.process_file(
+                    rel_path_str=rel,
+                    full_path=full_path,
+                    content=content,
+                    current_hash=current_hash,
+                )
+            except Exception as exc:  # noqa: BLE001 — один файл не роняет прогон
+                errors += 1
+                logger.debug(f"[text-index] parse error {rel}: {exc}")
+                _report(rel, idx, "parsing")
+                continue
+            if parsed and parsed.get("skip_vectors"):
                 records = self._db_writer.write_text_records(parsed)
                 if records:
                     files_indexed += 1
-                if files_indexed and files_indexed % 100 == 0:
-                    self.watchdog_heartbeat(f"text-index:{files_indexed}")
+            if idx % 10 == 0:
+                self.watchdog_heartbeat(f"text-index:{idx}/{total}")
+            _report(rel, idx, "parsing")
 
         # Prune удалённых файлов: индекс не должен врать о несуществующем.
         if self._chunk_store is not None:
