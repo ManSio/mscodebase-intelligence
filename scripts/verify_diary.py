@@ -376,6 +376,66 @@ def _kill_git_tree(proc: subprocess.Popen) -> None:
         pass  # аварийная ветка: утечка одной цепочки лучше, чем петля kill
 
 
+def _commit_creation_flags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+        subprocess, "DETACHED_PROCESS", 0
+    )
+
+
+# Результаты батч-проверки коммитов. Заполняется ОДНИМ процессом
+# `git cat-file --batch-check` (см. resolve_commits), а не N процессами.
+_COMMIT_CACHE: dict[str, bool] = {}
+
+
+def resolve_commits(hashes: List[str]) -> None:
+    """Проверить пачку коммитов ОДНИМ процессом git.
+
+    Зачем (2026-11-07): ledger вызывал `git cat-file -t` на каждый хеш —
+    десятки процессов подряд. На Windows каждый спавн под Defender занимал
+    секунды, и они конкурировали с health-проверкой (`git log` таймаутил).
+    `cat-file --batch-check` решает ту же задачу за один старт (~50 мс).
+    """
+    pending = sorted({h for h in hashes if len(h) >= 7 and h not in _COMMIT_CACHE})
+    if not pending:
+        return
+    try:
+        proc = subprocess.Popen(
+            ["git", "cat-file", "--batch-check"],
+            cwd=str(ROOT),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_commit_creation_flags(),
+        )
+        out, _ = proc.communicate("\n".join(pending) + "\n", timeout=30)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return  # батч не удался → остаётся поштучный путь с ретраем
+
+    found: list[str] = []
+    missing: set[str] = set()
+    for line in (out or "").splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        if parts[1] == "missing":
+            missing.add(parts[0])
+        elif parts[0]:
+            found.append(parts[0])
+    for h in pending:
+        # Чисто числовые токены — run-ID/byte-count/дата (issue #24), а не
+        # коммит: их решает digit-guard в check_commit_exists. Кэшировать
+        # False здесь нельзя, иначе guard обходится и ledger ложно падает.
+        if h.isdigit():
+            continue
+        if h in missing:
+            _COMMIT_CACHE[h] = False
+        elif any(full.startswith(h) for full in found):
+            _COMMIT_CACHE[h] = True
+
+
 def check_commit_exists(commit_hash: str) -> bool:
     """Проверяет наличие коммита в истории.
 
@@ -387,6 +447,8 @@ def check_commit_exists(commit_hash: str) -> bool:
     → ложные «не найден» в Contradiction Ledger (флапало 22:02–23:47, 1→3
     расхождения при одном и том же diary).
     """
+    if commit_hash in _COMMIT_CACHE:
+        return _COMMIT_CACHE[commit_hash]
     for _attempt in range(2):
         try:
             proc = subprocess.Popen(
@@ -500,6 +562,11 @@ def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tu
     passed = 0
     failed = 0
     issues = []
+
+    # Один процесс git на весь ledger вместо N (см. resolve_commits).
+    resolve_commits(
+        [c for e in entries for c in e.commits if len(c) >= 7]
+    )
 
     for entry in entries:
         entry_issues = []

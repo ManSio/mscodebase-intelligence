@@ -72,3 +72,38 @@ def test_mixed_hex_is_not_guard_bypassed_when_absent():
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
         # Has letters -> isdigit() False -> still flagged as missing.
         assert verify.check_commit_exists("a1b2c3d") is False
+
+
+def test_batch_resolves_a_real_commit_in_one_process():
+    """resolve_commits must fill the cache for a commit that exists."""
+    sha = verify.subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=_SCRIPT.parent.parent,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    verify._COMMIT_CACHE.clear()
+    verify.resolve_commits([sha])
+    assert verify._COMMIT_CACHE.get(sha) is True
+    assert verify.check_commit_exists(sha) is True
+
+
+def test_batch_marks_absent_hex_as_missing():
+    verify._COMMIT_CACHE.clear()
+    verify.resolve_commits(["f00baa1"])
+    assert verify._COMMIT_CACHE.get("f00baa1") is False
+
+
+def test_batch_never_caches_numeric_tokens_as_missing():
+    """Regression caught in review: the batch must not bypass the digit guard.
+
+    `34737070903` is a byte-count/run-ID, not a commit. Caching False for it
+    made the ledger fail on two entries that pass with the per-hash path.
+    """
+    verify._COMMIT_CACHE.clear()
+    verify.resolve_commits(["34737070903", "20261021"])
+    assert "34737070903" not in verify._COMMIT_CACHE
+    assert "20261021" not in verify._COMMIT_CACHE
+    assert verify.check_commit_exists("34737070903") is True
+    assert verify.check_commit_exists("20261021") is True
