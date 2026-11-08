@@ -300,6 +300,7 @@ def create_service_collection(
             parser=_code_parser,
             symbol_index=p_symbol_index,
             notification_broker=_notification_broker,
+            source=_make_local_source(p),
         )
         # Searcher создаём сразу и связываем через set_searcher.
         p_searcher = Searcher(p_indexer, _embedder)
@@ -383,3 +384,15 @@ def create_service_collection(
         f"{len(services.list_registered())} services registered"
     )
     return services
+
+
+def _make_local_source(project_root: Path):
+    """Composition root: единственное место в src/, где известен конкретный источник.
+
+    Гейт слоёв (scripts/check_layer_boundaries.py) разрешает `src.core.di_container`
+    импортировать `src.sources.*` именно по этой причине: composition root по
+    определению знает реализации, иначе DI-контейнер не смог бы ничего связать.
+    """
+    from src.sources.local_fs import LocalFsSource
+
+    return LocalFsSource(project_root)

@@ -76,9 +76,12 @@ def _make_searcher():
 
     services = create_service_collection(ROOT)
     embedder = services.resolve(RemoteEmbedder)
+    from src.sources.local_fs import LocalFsSource
+
     indexer = Indexer(db_path=get_db_path(ROOT), embedder=embedder,
                       file_guard=FileGuard(ROOT), project_path=ROOT,
-                      parser=CodeParser(), symbol_index=SymbolIndex())
+                      parser=CodeParser(), symbol_index=SymbolIndex(),
+                      source=LocalFsSource(ROOT))
     return Searcher(indexer, embedder), indexer
 
 

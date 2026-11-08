@@ -9,14 +9,19 @@ platform/editor-agnostic.
    tools are transport-agnostic.
 2. `src/mcp/tools/` must NOT call `sys.platform` / `platform.system()` directly —
    use `src.core.platform_utils.is_windows()` instead.
-3. TRANSITIONAL (WARN + count, must reach 0 by end of Фаза 2): `src/core/**`
-   may still import `src.sources.local_fs.windows` (db_manager, tools_reg).
-   indexer.py уже получает path_manager от LocalFsSource (Фаза 1).
+3. `src/core/**` must NOT import `src.sources.*`, except the composition root
+   (`src/core/di_container.py`), which by definition wires concrete providers.
+   Цель «0 импортов из core» достигнута 2026-11-08: путь-примитив
+   `to_win_long_path` переехал в `src/core/platform_utils.py`, парсер
+   манифестов — в `src/core/deps/manifest/`, `Indexer` получает
+   `WorkspaceSource` только инъекцией. Правило теперь ГЕЙТ (exit 1), а не WARN:
+   регресс виден в CI и pre-commit.
 4. `adapters.*` imported from anywhere in `src/` = ERROR, except `src/main.py`
-   (adapter-dispatch entrypoint). Windows/Zed-примитивы живут в source-слое
-   (src/sources/local_fs/windows.py), НЕ в adapters.
+   (adapter-dispatch entrypoint).
 5. `src/utils/paths` and `src/utils/zed_config` are DEAD — any import of the old
    homes is an ERROR (grep-развёртка §5.14).
+6. `src.sources.manifest` — DEAD home (2026-11-08): парсер зависимостей живёт в
+   `src.core.deps.manifest`, импорт старого пути = ERROR.
 
 Usage: python scripts/check_layer_boundaries.py   (exit 0 = clean, 1 = violation)
 """
@@ -43,6 +48,12 @@ IMPORT_RE = re.compile(
 
 PLATFORM_DIRECT_RE = re.compile(r"^\s*(?:sys\.platform|platform\.system)")
 
+# Composition root: единственное место в src/, где можно знать реализации.
+# Он связывает абстракции с провайдерами — иначе DI-контейнер не работает.
+COMPOSITION_ROOT = "src/core/di_container.py"
+# Мёртвые дома (после переездов). Импорт = ошибка, а не предупреждение.
+DEAD_HOMES = ("src.utils.paths", "src.utils.zed_config", "src.sources.manifest")
+
 
 def iter_py_files(root: Path):
     for p in sorted(root.rglob("*.py")):
@@ -66,7 +77,7 @@ def main() -> int:
             target = m.group(1)
             loc = f"{rel}:{lineno}"
 
-            if target in ("src.utils.paths", "src.utils.zed_config"):
+            if target.startswith(tuple(DEAD_HOMES)):
                 violations.append(f"[DEAD-IMPORT] {loc}: {line.strip()}")
             elif target.startswith("adapters."):
                 if rel == "src/main.py":
@@ -77,11 +88,13 @@ def main() -> int:
                     violations.append(
                         f"[SOURCE-LEAK] {loc}: {line.strip()} — mcp/tools must not import source layer"
                     )
+                elif rel == COMPOSITION_ROOT:
+                    transitional.append(loc)  # allowed: composition root wires providers
                 elif rel.startswith("src/core/"):
-                    # TRANSITIONAL: дефолтная реализация (Indexer) + хелперы путей
-                    # (db_manager/tools_reg); цель — 0 к концу Фазы 2, когда DI
-                    # инжектит WorkspaceSource в Indexer/ProjectIndexerRegistry.
-                    transitional.append(loc)
+                    violations.append(
+                        f"[CORE-SOURCE-LEAK] {loc}: {line.strip()} — only the composition "
+                        f"root ({COMPOSITION_ROOT}) may import src.sources.*"
+                    )
 
             # platform-direct check
             if PLATFORM_DIRECT_RE.match(line) and rel.startswith("src/mcp/tools/"):
@@ -90,10 +103,9 @@ def main() -> int:
                 )
 
     print("🔍 Layer boundary check (Фаза 1)")
-    print(f"   transitional core→src.sources.* imports: {len(transitional)} "
-          f"(must reach 0 by end of Фаза 2)")
+    print(f"   core→src.sources.* imports: {len(transitional)} (allowed only in {COMPOSITION_ROOT})")
     for loc in transitional:
-        print(f"   ⚠️  {loc}")
+        print(f"   ℹ️  {loc} (composition root)")
 
     if violations:
         print(f"\n❌ {len(violations)} violation(s):")

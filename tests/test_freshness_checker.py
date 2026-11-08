@@ -18,6 +18,7 @@ import pytest
 
 from src.core.indexing.file_guard import FileGuard
 from src.core.indexing.indexer import Indexer
+from src.sources.local_fs import LocalFsSource
 
 pytestmark = pytest.mark.slow
 
@@ -48,6 +49,7 @@ def _make_indexer(tmp_path: Path, mock_embedder, interval_sec: float = 0.0):
         file_guard=mock_file_guard,
         project_path=tmp_path,
         enable_summaries=False,
+        source=LocalFsSource(tmp_path),
     )
     # interval=0 в конструкторе FreshnessChecker: дебаунс отключён —
     # каждое verify() реально сверяет (удобно для детерминированных тестов).

@@ -1,13 +1,20 @@
-"""
-Централизованное определение платформозависимых путей для Zed IDE.
+r"""
+Централизованные платформенные примитивы (ОС) + пути данных Zed IDE.
 
 Единая точка правды для всех macOS/Linux/Windows различных:
+  - Максимальная длина пути Windows (\\?\ префикс) — `to_win_long_path`
   - Директории данных Zed (db, extensions, logs)
   - Директории конфигурации Zed (settings.json)
   - База данных SQLite (workspaces, multi_workspace_state)
 
+Слои: `to_win_long_path` — примитив ОС, не деталь `WorkspaceSource`: он нужен и
+хранилищу БД (LanceDB), и файловому источнику. Поэтому живёт здесь, а не в
+`src/sources/local_fs/windows.py` (там остаётся `SafePathManager` — он про
+безопасную обработку путей конкретного источника).
+
 Usage:
-    # Self-import removed (this file IS platform_utils now)
+    from src.core.platform_utils import to_win_long_path
+    Path(to_win_long_path(db_path)).mkdir(parents=True, exist_ok=True)
 
     db_path = get_zed_db_path()
     if db_path.exists():
@@ -25,6 +32,7 @@ __all__ = [
     "is_macos",
     "is_linux",
     "platform_label",
+    "to_win_long_path",
     "get_zed_db_path",
     "get_zed_logs_dir",
     "get_extension_dir",
@@ -58,6 +66,25 @@ def platform_label() -> str:
     if is_linux():
         return "Linux"
     return sys.platform
+
+
+# ─── Примитивы путей ОС ───
+
+
+def to_win_long_path(path: Path) -> str:
+    """Преобразует путь в абсолютную строку, обходящую MAX_PATH на Windows.
+
+    На Windows добавляет префикс ``\\\\?\\`` (260-символьный лимит), на POSIX —
+    обычный `resolve()`. Вызов идемпотентен: уже префиксованный путь не
+    дублирует префикс.
+
+    Перенесено из `src/sources/local_fs/windows.py` (2026-11-08): это примитив
+    ОС, а не деталь конкретного источника — им пользуется и слой БД.
+    """
+    abs_path = str(path.resolve())
+    if os.name == "nt" and not abs_path.startswith("\\\\?\\"):
+        return f"\\\\?\\{abs_path}"
+    return abs_path
 
 
 # ─── Базовые директории Zed ───

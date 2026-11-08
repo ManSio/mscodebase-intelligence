@@ -101,18 +101,26 @@ def test_indexer_uses_injected_source_path_manager(tmp_path):
     assert indexer.path_manager is source.path_manager
 
 
-def test_indexer_default_source_is_local_fs(tmp_path):
+def test_indexer_requires_explicit_source(tmp_path):
+    """2026-11-08: core больше не конструктует конкретный источник.
+
+    Старый тест проверял неявный дефолт LocalFsSource внутри Indexer. Это был
+    последний импорт src.sources.* из core (гейт слоёв). Теперь контракт
+    обратный: без source — понятная ошибка, а не молчаливая привязка к
+    локальной ФС.
+    """
     from unittest.mock import MagicMock
+
+    import pytest
 
     from src.core.indexing.indexer import Indexer
 
     db_path = tmp_path / ".db" / "index.db"
     db_path.parent.mkdir(parents=True)
-    indexer = Indexer(
-        db_path,
-        MagicMock(),
-        MagicMock(),
-        project_path=tmp_path,
-    )
-    assert isinstance(indexer._source, LocalFsSource)
-    assert isinstance(indexer.path_manager, LocalFsSource(tmp_path).path_manager.__class__)
+    with pytest.raises(ValueError, match="WorkspaceSource"):
+        Indexer(
+            db_path,
+            MagicMock(),
+            MagicMock(),
+            project_path=tmp_path,
+        )

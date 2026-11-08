@@ -50,6 +50,7 @@ def isolated_indexer(tmp_path, temp_project):
     """
     from src.core.indexing.file_guard import FileGuard
     from src.core.indexing.indexer import Indexer
+    from src.sources.local_fs import LocalFsSource
 
     db_dir = tmp_path / "isolated_lancedb"
 
@@ -66,6 +67,7 @@ def isolated_indexer(tmp_path, temp_project):
     indexer = Indexer(
         db_dir, embedder_mock, file_guard,
         project_path=temp_project, enable_summaries=False,
+        source=LocalFsSource(temp_project),
     )
 
     yield indexer

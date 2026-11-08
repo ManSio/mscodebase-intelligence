@@ -43,8 +43,11 @@ def main() -> int:
 
     services = create_service_collection(ROOT)
     embedder = services.resolve(RemoteEmbedder)
+    from src.sources.local_fs import LocalFsSource
+
     indexer = Indexer(db_path=get_db_path(ROOT), embedder=embedder, file_guard=FileGuard(ROOT),
-                      project_path=ROOT, parser=CodeParser(), symbol_index=SymbolIndex())
+                      project_path=ROOT, parser=CodeParser(), symbol_index=SymbolIndex(),
+                      source=LocalFsSource(ROOT))
     table = indexer.table
     rows = table.search().limit(100000).to_list()
     files = {r["file_path"] for r in rows if "file_path" in r}

@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from src.sources.manifest import extract_manifest_entries, manifest_packages
-from src.sources.manifest.extract import (
+from src.core.deps.manifest import extract_manifest_entries, manifest_packages
+from src.core.deps.manifest.extract import (
     _extract_package_json,
     _extract_pyproject,
     _extract_requirements,
@@ -125,7 +125,7 @@ def test_go_mod_migrate_require_and_indirect():
 
 
 def test_cargo_ripgrep_skips_path_deps():
-    from src.sources.manifest.extract import _extract_cargo_toml
+    from src.core.deps.manifest.extract import _extract_cargo_toml
 
     text = (FIXT / "ripgrep" / "Cargo.toml").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_cargo_toml(text, "Cargo.toml")}
@@ -169,7 +169,7 @@ def test_gemfile_skips_gitpath():
 
 # ── синтетика batch 2 ───────────────────────────────────────────────────────
 def test_go_mod_synthetic_replace_excluded():
-    from src.sources.manifest.extract import _extract_go_mod
+    from src.core.deps.manifest.extract import _extract_go_mod
 
     txt = (
         "module example.com/x\n\n"
@@ -183,7 +183,7 @@ def test_go_mod_synthetic_replace_excluded():
 
 
 def test_pom_synthetic_scope_and_plugin_nested():
-    from src.sources.manifest.extract import _extract_pom_xml
+    from src.core.deps.manifest.extract import _extract_pom_xml
 
     txt = """<project>
       <dependencies>
@@ -201,7 +201,7 @@ def test_pom_synthetic_scope_and_plugin_nested():
 
 
 def test_cargo_synthetic_path_excluded():
-    from src.sources.manifest.extract import _extract_cargo_toml
+    from src.core.deps.manifest.extract import _extract_cargo_toml
 
     txt = """[dependencies]
 serde = "1.0"
@@ -215,7 +215,7 @@ winapi = "0.3"
 
 
 def test_gemfile_synthetic_gitpath_skipped():
-    from src.sources.manifest.extract import _extract_gemfile
+    from src.core.deps.manifest.extract import _extract_gemfile
 
     txt = (
         "source 'https://rubygems.org'\n"
@@ -232,7 +232,7 @@ def test_gemfile_synthetic_gitpath_skipped():
 # ── фаза 2: lockfile'ы (stdlib batch; yarn/pnpm follow-up) ──────────────────
 
 def test_uv_lock_entries():
-    from src.sources.manifest.extract import _extract_uv_lock
+    from src.core.deps.manifest.extract import _extract_uv_lock
 
     text = (FIXT / "uv" / "uv.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_uv_lock(text, "uv.lock")}
@@ -247,7 +247,7 @@ def test_cargo_lock_transitive():
 
 
 def test_package_lock_v3():
-    from src.sources.manifest.extract import _extract_package_lock
+    from src.core.deps.manifest.extract import _extract_package_lock
 
     text = (FIXT / "pkg-lock" / "package-lock-v3.json").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_package_lock(text, "package-lock.json")}
@@ -256,7 +256,7 @@ def test_package_lock_v3():
 
 
 def test_gemfile_lock_skips_path_project_gem():
-    from src.sources.manifest.extract import _extract_gemfile_lock
+    from src.core.deps.manifest.extract import _extract_gemfile_lock
 
     text = (FIXT / "fastlane" / "Gemfile.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_gemfile_lock(text, "Gemfile.lock")}
@@ -264,7 +264,7 @@ def test_gemfile_lock_skips_path_project_gem():
 
 
 def test_gemfile_lock_synthetic_path_excluded():
-    from src.sources.manifest.extract import _extract_gemfile_lock
+    from src.core.deps.manifest.extract import _extract_gemfile_lock
 
     txt = ("PATH\n  remote: .\n  specs:\n    myproj (0.1.0)\n"
            "GEM\n  remote: https://x\n  specs:\n    rack (2.2.0)\n")
@@ -282,7 +282,7 @@ def test_manifest_packages_wiring_pyproject_plus_lock():
 
 # ── фаза 2: синтетика lockfile ──────────────────────────────────────────────
 def test_bun_lock_synthetic():
-    from src.sources.manifest.extract import _extract_bun_lock
+    from src.core.deps.manifest.extract import _extract_bun_lock
 
     txt = '{"packages":{"esbuild":["esbuild@0.21.5","",{},"s"],"@types/bun":["@types/bun@6.0.2","",{},"s"]}}'
     names = {e.name for e in _extract_bun_lock(txt, "bun.lock")}
@@ -291,7 +291,7 @@ def test_bun_lock_synthetic():
 
 
 def test_pipfile_lock_synthetic():
-    from src.sources.manifest.extract import _extract_pipfile_lock
+    from src.core.deps.manifest.extract import _extract_pipfile_lock
 
     txt = '{"default":{"pytz":{"version":"==2024.1"}},"develop":{"pytest":{"version":"==8.0.0"}}}'
     names = {e.name for e in _extract_pipfile_lock(txt, "Pipfile.lock")}
@@ -299,7 +299,7 @@ def test_pipfile_lock_synthetic():
 
 
 def test_nuget_lock_synthetic():
-    from src.sources.manifest.extract import _extract_nuget_lock
+    from src.core.deps.manifest.extract import _extract_nuget_lock
 
     txt = '{"version":1,"dependencies":{"net8.0":{"xunit":{"type":"Direct","resolved":"2.7.0"}}}}'
     names = {e.name for e in _extract_nuget_lock(txt, "packages.lock.json")}
@@ -307,7 +307,7 @@ def test_nuget_lock_synthetic():
 
 
 def test_composer_lock_synthetic():
-    from src.sources.manifest.extract import _extract_composer_lock
+    from src.core.deps.manifest.extract import _extract_composer_lock
 
     txt = ('{"packages":[{"name":"composer/ca-bundle","version":"1.5.0"}],'
            '"packages-dev":[{"name":"phpstan/phpstan","version":"1.11"}]}')
@@ -317,7 +317,7 @@ def test_composer_lock_synthetic():
 
 # ── фаза 2: yarn-семейство (v1 / v2 / berry v10) ────────────────────────────
 def test_yarn_v1_scoped():
-    from src.sources.manifest.extract import _extract_yarn_lock
+    from src.core.deps.manifest.extract import _extract_yarn_lock
 
     text = (FIXT / "pnpm" / "yarn-v1.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
@@ -326,7 +326,7 @@ def test_yarn_v1_scoped():
 
 
 def test_yarn_v2_metadata():
-    from src.sources.manifest.extract import _extract_yarn_lock
+    from src.core.deps.manifest.extract import _extract_yarn_lock
 
     text = (FIXT / "pnpm" / "yarn-v2.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
@@ -335,7 +335,7 @@ def test_yarn_v2_metadata():
 
 
 def test_yarn_berry_v10_scoped():
-    from src.sources.manifest.extract import _extract_yarn_lock
+    from src.core.deps.manifest.extract import _extract_yarn_lock
 
     text = (FIXT / "berry" / "yarn.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
@@ -347,7 +347,7 @@ def test_bun_lock_v1_trailing_commas_real():
     """bun.lock v1: trailing commas (невалидный JSON) — tolerant-парсер.
     До фикса (2026-08-21, найдено parity-чеком vs osv-scanner) json.loads
     падал -> экстрактор молча возвращал пусто."""
-    from src.sources.manifest.extract import _extract_bun_lock
+    from src.core.deps.manifest.extract import _extract_bun_lock
 
     text = (FIXT / "bun" / "bun.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_bun_lock(text, "bun.lock")}
@@ -358,7 +358,7 @@ def test_bun_lock_v1_trailing_commas_real():
 
 
 def test_bun_synthetic_trailing_comma():
-    from src.sources.manifest.extract import _extract_bun_lock
+    from src.core.deps.manifest.extract import _extract_bun_lock
 
     txt = '{"lockfileVersion": 1, "configVersion": 1, "packages": {"lodash@4.17.21": ["lodash@4.17.21", "x@1.0.0"],},}'
     names = {e.name for e in _extract_bun_lock(txt, "bun.lock")}
@@ -368,7 +368,7 @@ def test_bun_synthetic_trailing_comma():
 def test_yarn_berry_patch_descriptors():
     """berry: patch-дескрипторы 'x@patch:x@npm:range' дают ЧИСТОЕ имя x
     (найдено parity-чеком: мусор 'resolve@patch:resolve' был в пуле)."""
-    from src.sources.manifest.extract import _extract_yarn_lock
+    from src.core.deps.manifest.extract import _extract_yarn_lock
 
     text = (FIXT / "berry" / "yarn.lock").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_yarn_lock(text, "yarn.lock")}
@@ -378,7 +378,7 @@ def test_yarn_berry_patch_descriptors():
 
 
 def test_yarn_synthetic():
-    from src.sources.manifest.extract import _extract_yarn_lock
+    from src.core.deps.manifest.extract import _extract_yarn_lock
 
     txt = (
         "__metadata:\n  version: 10\n"
@@ -389,7 +389,7 @@ def test_yarn_synthetic():
 
 
 def test_pnpm_lock_v9_real():
-    from src.sources.manifest.extract import _extract_pnpm_lock
+    from src.core.deps.manifest.extract import _extract_pnpm_lock
 
     text = (FIXT / "pnpm" / "pnpm-lock.yaml").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_pnpm_lock(text, "pnpm-lock.yaml")}
@@ -400,7 +400,7 @@ def test_pnpm_lock_v9_real():
 
 
 def test_pnpm_lock_monorepo_real():
-    from src.sources.manifest.extract import _extract_pnpm_lock
+    from src.core.deps.manifest.extract import _extract_pnpm_lock
 
     text = (FIXT / "pnpm" / "pnpm-lock-monorepo.yaml").read_text(encoding="utf-8", errors="replace")
     names = {e.name for e in _extract_pnpm_lock(text, "pnpm-lock-monorepo.yaml")}
@@ -408,7 +408,7 @@ def test_pnpm_lock_monorepo_real():
 
 
 def test_pnpm_lock_synthetic_scoped_peer_v9():
-    from src.sources.manifest.extract import _extract_pnpm_lock
+    from src.core.deps.manifest.extract import _extract_pnpm_lock
 
     txt = (
         "lockfileVersion: '9.0'\n"
@@ -425,7 +425,7 @@ def test_pnpm_lock_synthetic_scoped_peer_v9():
 
 
 def test_pnpm_lock_invalid_yaml_empty():
-    from src.sources.manifest.extract import _extract_pnpm_lock
+    from src.core.deps.manifest.extract import _extract_pnpm_lock
 
     assert _extract_pnpm_lock("lockfileVersion: [unclosed", "pnpm-lock.yaml") == []
     assert _extract_pnpm_lock("packages: 42\n", "pnpm-lock.yaml") == []

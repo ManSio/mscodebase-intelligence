@@ -332,10 +332,13 @@ trust-gate works, drift re-prompts, version mismatch refuses to load).
   (core-owned, IEmbedder pattern). ✅
 - `src/sources/local_fs/` — `LocalFsSource` (resolve/watch/fingerprint); helpers' final
   home `src/sources/local_fs/windows.py`; `adapters/local_fs/` deleted. ✅
-- Indexer accepts `source: WorkspaceSource` and takes `path_manager` from it
-  (default LocalFsSource; default construction moves to DI/registry in Фаза 2). ✅
-- Gate: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg),
-  target 0 by end of Фаза 2. ✅
+- Indexer accepts `source: WorkspaceSource` and takes `path_manager` from it. ✅
+  **2026-11-08:** the implicit `LocalFsSource` default is gone — `source` is now
+  required (`ValueError` otherwise); DI/scripts/tests pass it explicitly.
+- Gate: `transitional core→src.sources.*` = **0** outside the composition root.
+  **2026-11-08:** `to_win_long_path` → `src/core/platform_utils.py` (OS primitive),
+  `manifest` parser → `src/core/deps/manifest/`, `Indexer` injects the source.
+  The gate is now a hard check (exit 1), not a counter. ✅
 - Tests: tests/test_local_fs_source.py (8) + full pytest 1308 passed / 10 skipped. ✅
 - DoD: server behaves identically through the new interface (1308 green).
 
@@ -635,9 +638,10 @@ subprocess contract must use `Popen` + `communicate` (WISDOM §5.16), never
    → **DONE locally 2026-08-18** (moves + `scripts/check_layer_boundaries.py` +
    1300 tests green; uncommitted). **Re-checked 2026-11-08:** CI matrix ≥2 OS is in
    place (`test (ubuntu-latest)` + `test (windows-latest)`); smoke_e2e is a documented
-   command but has no CI job; `check_layer_boundaries.py` still reports **5**
-   transitional `core → src.sources.*` imports (target 0) and `get_zed_*` remains in
-   `src/core/platform_utils.py`. That tail is the real remaining Фаза 0 work.
+   command but has no CI job. The core→sources tail is **closed**: gate reports 0
+   imports outside `src/core/di_container.py` (composition root, allowed by design)
+   and the gate now fails on regression. `get_zed_*` stays in platform_utils until
+   Phase 3 (adapter extraction), as the plan already states.
 3. Meanwhile, E-03 (clone→index on 5-10 repos) and E-05 (receipt reproducibility)
    can run in `experiments/universal-engine/` without blocking Фаза 0.
 
@@ -677,6 +681,8 @@ spec as string, kind manifest/lockfile); `python -m pytest tests/` green + ruff
 clean; parity check of our extractors vs osv-scanner on same corpus — diff 0
 (Option B, CI); update ADR-0005 / KNOWN_ISSUES when expanding sources.
 **Status 2026-08-19:** foundation ✅ `bb55a053` — `src/sources/manifest/`
+(2026-11-08: the package moved to `src/core/deps/manifest/` — this status line is
+historical, the current path is recorded in ADR-0005).
 (ManifestEntry + dispatch; python: pyproject dependency-groups/Pipfile/requirements*
 + npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Tests on real
 fixtures uv/requests/pipenv/express + edge-cases (09). pytest 1396 (+9).

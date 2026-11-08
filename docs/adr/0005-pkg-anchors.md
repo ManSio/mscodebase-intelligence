@@ -28,7 +28,9 @@ Skillselion) предложило закрыть их манифест-анко�
 
 > **B-1 scaling (2026-08-19/21):** источники `_load_manifest_packages` расширены
 > с python-only до мульти-экосистемных экстракторов `src/sources/manifest/`
-> (Backlog B-1): python (pyproject/Pipfile/requirements*.txt) + npm (package.json)
+> (Backlog B-1; **с 2026-11-08 пакет живёт в `src/core/deps/manifest/`** — это
+> парсер зависимостей, а не источник кода, и core не должен импортировать
+> source-слой; см. `scripts/check_layer_boundaries.py`, правило 3): python (pyproject/Pipfile/requirements*.txt) + npm (package.json)
 > + go/cargo/maven/nuget/composer/gem + lockfile'ы (uv/Cargo/package-lock
 > v1v3/composer/Pipfile.lock/packages.lock/bun/yarn v1v2berry/pnpm v5.4-v9).
 > Контракт не менялся: `manifest_packages(root) -> Set[str]`. Проверка членства

@@ -19,6 +19,7 @@ def _vec():
 def _make_indexer(project_path):
     """Create an Indexer in a temp dir and return (indexer, db_path)."""
     from src.core.indexing.indexer import Indexer
+    from src.sources.local_fs import LocalFsSource
 
     db_path = project_path / ".codebase_indices" / "test.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -27,7 +28,8 @@ def _make_indexer(project_path):
     embedder_mock.embedding_dim = _TEST_DIM
     file_guard_mock = MagicMock()
 
-    indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path)
+    indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path,
+                      source=LocalFsSource(project_path))
     return indexer
 
 
@@ -54,6 +56,7 @@ def test_indexer_has_project_path_attribute():
 def test_indexer_project_path_fallback():
     """Проверяет, что project_path имеет fallback если не передан явно."""
     from src.core.indexing.indexer import Indexer
+    from src.sources.local_fs import LocalFsSource
 
     d = Path(tempfile.mkdtemp())
     try:
@@ -64,7 +67,8 @@ def test_indexer_project_path_fallback():
         embedder_mock.embedding_dim = _TEST_DIM
         file_guard_mock = MagicMock()
 
-        indexer = Indexer(db_path, embedder_mock, file_guard_mock)
+        indexer = Indexer(db_path, embedder_mock, file_guard_mock,
+                          source=LocalFsSource(d))
 
         assert hasattr(indexer, 'project_path')
         assert indexer.project_path is not None
@@ -75,6 +79,7 @@ def test_indexer_project_path_fallback():
 def test_indexer_switch_project_updates_path():
     """Проверяет, что switch_project обновляет project_path."""
     from src.core.indexing.indexer import Indexer
+    from src.sources.local_fs import LocalFsSource
 
     d = Path(tempfile.mkdtemp())
     try:
@@ -90,7 +95,8 @@ def test_indexer_switch_project_updates_path():
         embedder_mock.embedding_dim = _TEST_DIM
         file_guard_mock = MagicMock()
 
-        indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path_1)
+        indexer = Indexer(db_path, embedder_mock, file_guard_mock, project_path=project_path_1,
+                          source=LocalFsSource(project_path_1))
         assert indexer.project_path == project_path_1
 
         indexer.switch_project(project_path_2)

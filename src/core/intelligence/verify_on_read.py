@@ -126,7 +126,7 @@ _MANIFEST_CACHE: Dict[str, Tuple[float, Set[str]]] = {}
 def _load_manifest_packages(root: Path) -> Set[str]:
     """Множество зависимостей проекта (ADR-0005, closed world).
 
-    Делегирует мульти-экосистемному парсеру src.sources.manifest (Backlog B-1):
+    Делегирует мульти-экосистемному парсеру src.core.deps.manifest (Backlog B-1):
     python/npm/go/cargo/maven/nuget/composer/gem + lockfile'ы (uv/yarn/bun/pnpm/...).
     Lazy-import: экстракторы не грузятся при импорте VOR. TTL-кэш: write-path
     вызывает extract_anchors на узел; устаревший кэш = пропуск пакета ->
@@ -138,7 +138,7 @@ def _load_manifest_packages(root: Path) -> Set[str]:
     if hit is not None and now - hit[0] < MANIFEST_CACHE_TTL_S:
         return hit[1]
     try:
-        from src.sources.manifest import manifest_packages
+        from src.core.deps.manifest import manifest_packages
 
         pool = manifest_packages(Path(key))
     except Exception as exc:  # noqa: BLE001 - сломанный экстрактор не валит write-path

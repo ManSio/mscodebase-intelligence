@@ -48,6 +48,13 @@ from src.core.search.engine import Searcher
 from src.core.di_container import create_service_collection
 
 
+def _local_source(project_root: Path):
+    """Composition root helper: core больше не конструирует WorkspaceSource сам."""
+    from src.sources.local_fs import LocalFsSource
+
+    return LocalFsSource(project_root)
+
+
 def build_wired_stack(project_root: Path):
     services = create_service_collection(project_root)
     embedder = services.resolve(RemoteEmbedder)
@@ -60,6 +67,7 @@ def build_wired_stack(project_root: Path):
     indexer = Indexer(
         db_path=db_path, embedder=embedder, file_guard=file_guard,
         project_path=project_root, parser=parser, symbol_index=symbol_index,
+        source=_local_source(project_root),
     )
     searcher = Searcher(indexer, embedder)
     indexer.set_searcher(searcher)

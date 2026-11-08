@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from src.core.intelligence.jobs import JobManager
+from src.sources.local_fs import LocalFsSource
 
 
 class TestIndexerProgressCallback:
@@ -31,6 +32,7 @@ class TestIndexerProgressCallback:
             MagicMock(),
             MagicMock(),
             project_path=Path("/tmp"),
+            source=LocalFsSource(Path("/tmp")),
         )
 
         # Проверяем что метод принимает callback

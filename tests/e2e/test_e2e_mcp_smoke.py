@@ -60,6 +60,7 @@ def e2e_stack(tmp_path_factory):
     from src.core.indexing.indexer import Indexer
     from src.core.search.engine import Searcher
     from src.providers.embedder.remote_embedder import RemoteEmbedder
+    from src.sources.local_fs import LocalFsSource
 
     assert _llama_cpp_online(), (
         "llama-server не отвечает на 127.0.0.1:8080. "
@@ -88,6 +89,7 @@ def e2e_stack(tmp_path_factory):
     indexer = Indexer(
         db_dir, embedder, file_guard,
         project_path=project, enable_summaries=False,
+        source=LocalFsSource(project),
     )
 
     # Индексируем реальные файлы кодовой базы (реальный embed через llama.cpp).

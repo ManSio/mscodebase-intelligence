@@ -14,7 +14,6 @@ from typing import Any, Callable, Dict, List, Optional
 from src.core.indexing.chunk_summarizer import ChunkSummarizer
 from src.core.indexing.indexer_table import IndexerTableMixin
 from src.core.interfaces.workspace_source import WorkspaceSource
-from src.sources.local_fs import LocalFsSource
 
 __all__ = [
     "Indexer",
@@ -52,11 +51,16 @@ class Indexer(IndexerTableMixin):
         self.embedder = embedder
         self.file_guard = file_guard
         # Фаза 1 (ТЗ §2.1): обработка путей — деталь WorkspaceSource.
-        # LocalFsSource владеет path_manager; git/upload-источники (Фаза 2)
-        # определят его для своего resolve()-пути.
-        # TRANSITIONAL: дефолтная реализация конструируется здесь; Фаза 2
-        # перенесёт конструкцию в DI/ProjectIndexerRegistry (см. гейт слоёв).
-        self._source: WorkspaceSource = source or LocalFsSource(db_path.parent)
+        # Фаза 2 (2026-11-08): core больше не конструирует конкретный источник —
+        # его передаёт composition root (di_container) или вызывающий скрипт/тест.
+        # Это последний шаг «core не импортирует src.sources» (гейт слоёв).
+        if source is None:
+            raise ValueError(
+                "Indexer requires an explicit WorkspaceSource: pass "
+                "source=LocalFsSource(project_root) from src.sources.local_fs "
+                "(core must not construct a concrete source)."
+            )
+        self._source: WorkspaceSource = source
         self.path_manager = self._source.path_manager
         self.searcher = searcher
         self.project_path = project_path or db_path.parent.parent.parent

@@ -1,21 +1,20 @@
-"""
-MSCodebase Intelligence — Windows path primitives (source layer, final home).
+r"""
+MSCodebase Intelligence — безопасная обработка путей локального источника.
 
 История (Универсальный движок, ТЗ MSCODEBASE_UNIVERSAL_TOR):
 - Фаза 0: было src/utils/paths.py → adapters/local_fs/windows.py.
 - Фаза 1: финальный дом — src/sources/local_fs/ (LocalFsSource владеет
-  обработкой локальных путей, ТЗ §2.1: Windows-детали — деталь ЭТОГО
-  класса, не всего core).
-- core (db_manager/tools_reg) пока импортирует эти хелперы ТРАНЗИТНО
-  (см. scripts/check_layer_boundaries.py); цель — 0 импортов к концу Фазы 2,
-  когда Indexer/LanceDBManager будут получать нормализованные пути от source.
-- POSIX: to_win_long_path — no-op (os.name != "nt").
+  обработкой локальных путей, ТЗ §2.1).
+- 2026-11-08: `to_win_long_path` (префикс \\?\ для MAX_PATH) переехал в
+  `src/core/platform_utils.py` — это примитив ОС, им пользуется и слой БД
+  (LanceDBManager), а core не должен импортировать source-слой. Здесь остался
+  `SafePathManager` — он специфичен для источника (изоляция не-ASCII/длинных
+  путей при индексации).
 """
 
 import atexit
 import hashlib
 import logging
-import os
 import shutil
 import tempfile
 import threading
@@ -24,17 +23,6 @@ from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
-
-
-def to_win_long_path(path: Path) -> str:
-    """
-    Преобразует путь в абсолютную строку.
-    На Windows добавляет префикс \\\\?\\ для обхода лимита MAX_PATH (260 символов).
-    """
-    abs_path = str(path.resolve())
-    if os.name == "nt" and not abs_path.startswith("\\\\?\\"):
-        return f"\\\\?\\{abs_path}"
-    return abs_path
 
 
 class SafePathManager:

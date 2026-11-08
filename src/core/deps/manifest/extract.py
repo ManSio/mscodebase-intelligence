@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Set
 
-from src.sources.manifest.model import (
+from src.core.deps.manifest.model import (
     ManifestEntry,
     normalize_dotted,
     normalize_npm,

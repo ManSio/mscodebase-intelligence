@@ -198,7 +198,7 @@ def main() -> int:
     if not args.osv or not Path(args.osv).is_file():
         print("osv-scanner не найден (--osv PATH). Локально: SKIP exit 2; CI упадёт честно.")
         return 2
-    from src.sources.manifest import extract_manifest_entries
+    from src.core.deps.manifest import extract_manifest_entries
 
     checked, skipped, diffs = [], [], []
     osv_failures = 0

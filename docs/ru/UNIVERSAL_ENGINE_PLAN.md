@@ -334,7 +334,8 @@ MCP-server-расширений в его пользу).
 - `SafePathManager`/`to_win_long_path` → `adapters/local_fs/windows.py` (POSIX no-op). ✅
 - `zed_config.py` → `adapters/zed/zed_config.py`. ✅
 - Импортеры обновлены (9 сайтов), старый paths.py удалён. ✅
-- Гейт `scripts/check_layer_boundaries.py` (3 transitional, 0 нарушений). ✅
+- Гейт `scripts/check_layer_boundaries.py`: 0 нарушений. ✅ (историческая цифра
+  «3 transitional» закрыта 2026-11-08 — см. Фазу 1 ниже.)
 - DoD: 1300 passed / 10 skipped. ✅ (smoke_e2e и CI ≥2 OS — остаток.)
 - ОТЛОЖЕНО с дедлайнами: extension.toml → Фаза 4; install.py split → Фаза 4/5;
   platform_utils.get_zed_* → Фаза 1.
@@ -344,10 +345,13 @@ MCP-server-расширений в его пользу).
   (core-owned, паттерн IEmbedder). ✅
 - `src/sources/local_fs/` — `LocalFsSource` (resolve/watch/fingerprint); финальный дом
   хелперов `src/sources/local_fs/windows.py`; `adapters/local_fs/` удалён. ✅
-- Indexer принимает `source: WorkspaceSource` и берёт `path_manager` из него
-  (дефолт LocalFsSource; конструкция дефолта переедет в DI/registry в Фазе 2). ✅
-- Гейт: transitional core→src.sources.* = 3 (db_manager, indexer, tools_reg),
-  цель — 0 к концу Фазы 2. ✅
+- Indexer принимает `source: WorkspaceSource` и берёт `path_manager` из него. ✅
+  **2026-11-08:** неявный дефолт `LocalFsSource` удалён — `source` обязателен
+  (`ValueError` иначе); DI/скрипты/тесты передают его явно.
+- Гейт: `transitional core→src.sources.*` = **0** вне composition root.
+  **2026-11-08:** `to_win_long_path` → `src/core/platform_utils.py` (примитив ОС),
+  парсер манифестов → `src/core/deps/manifest/`, `Indexer` получает источник
+  инъекцией. Гейт стал жёсткой проверкой (exit 1), а не счётчиком. ✅
 - Тесты: tests/test_local_fs_source.py (8) + полный pytest 1308 passed / 10 skipped. ✅
 - DoD: сервер ведёт себя идентично через новый интерфейс (1308 зелёные).
 
@@ -693,6 +697,8 @@ spec строкой, kind manifest/lockfile); `python -m pytest tests/` зелё
 чист; parity-чека выхлопа vs osv-scanner расхождение 0 (Вариант В, CI); ADR-0005 /
 KNOWN_ISSUES обновлены при расширении источников.
 **Статус 2026-08-19:** foundation ✅ `bb55a053` — `src/sources/manifest/`
+(2026-11-08: пакет переехал в `src/core/deps/manifest/`; строка историческая,
+актуальный путь — в ADR-0005)
 (ManifestEntry + диспетчер; python: pyproject dependency-groups/Pipfile/requirements*
 + npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Тесты на реальных
 фикстурах uv/requests/pipenv/express + edge-кейсы (09). pytest 1396 (+9).
@@ -701,7 +707,7 @@ KNOWN_ISSUES обновлены при расширении источников
 
 **Readiness-gate (готовы СЕЙЧАС, не блокируется Фазами 3/4/5):** спек закрыт
 (07/08/09 отданы), корпус 30 фикстур доставлен. Задача имеет НЕПЕРЕСЕКАЮЩИЙСЯ
-write-scope (src:: sources/manifest-парсеры + tests + ADR-0005) с текущей линией
+write-scope (src:: deps/manifest-парсеры + tests + ADR-0005) с текущей линией
 (remote/транспорт/плагины), поэтому её можно взять ИЛИ параллельным агентом, ИЛИ
 сразу после коммита Фазы 3 шага 5 (Docker) в той же сессии — не дожидаясь Фаз 4/5.
 Единственный организационный критерий: не пересекаться по `experiments/universal-engine/e-s1-polygon/`

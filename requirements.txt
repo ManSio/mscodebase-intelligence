@@ -8,7 +8,7 @@
 
 # MCP Protocol
 mcp==1.30.0  # 1.30.0: security fix (CVE-2026-59951); 2.x меняет транспорт — не бампить без проверки
-# PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1); единственная НЕ-stdlib
+# PyYAML: pnpm-lock.yaml в src/core/deps/manifest (B-1); единственная НЕ-stdlib
 # зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3).
 PyYAML==6.0.3
 

@@ -54,6 +54,13 @@ from src.core.di_container import create_service_collection
 from src.providers.reranker.multi_provider import MultiProviderReranker
 
 
+def _local_source(project_root: Path):
+    """Composition root helper: core больше не конструирует WorkspaceSource сам."""
+    from src.sources.local_fs import LocalFsSource
+
+    return LocalFsSource(project_root)
+
+
 def build_wired_stack(project_root: Path):
     """Replicate DI wiring from create_service_collection + indexer factory."""
     services = create_service_collection(project_root)
@@ -71,6 +78,7 @@ def build_wired_stack(project_root: Path):
         project_path=project_root,
         parser=parser,
         symbol_index=symbol_index,
+        source=_local_source(project_root),
     )
     searcher = Searcher(indexer, embedder)
     indexer.set_searcher(searcher)

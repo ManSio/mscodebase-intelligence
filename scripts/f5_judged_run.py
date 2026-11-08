@@ -314,8 +314,11 @@ def main() -> int:
         from src.providers.embedder.remote_embedder import RemoteEmbedder
         services = create_service_collection(ROOT)
         embedder = services.resolve(RemoteEmbedder)
+        from src.sources.local_fs import LocalFsSource
+
         indexer = Indexer(db_path=get_db_path(ROOT), embedder=embedder, file_guard=FileGuard(ROOT),
-                          project_path=ROOT, parser=CodeParser(), symbol_index=SymbolIndex())
+                          project_path=ROOT, parser=CodeParser(), symbol_index=SymbolIndex(),
+                          source=LocalFsSource(ROOT))
         searcher = Searcher(indexer, embedder)
         results_by_q = {}
         for q in queries:
