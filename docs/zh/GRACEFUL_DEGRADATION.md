@@ -92,8 +92,11 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 `denied`、`too_large`、`not_installed`）的字典结果会转换成同一封套——它不再可能
 显示成成功的「✅ Completed」。
 
-**已知残留：** MCP 自身的 `isError` 标志仍为 `false`，因为包装器把封套当作普通工具
-输出返回。请按 payload 中的 `ok` 分支，而不要依赖协议标志。
+这类 payload 的 `isError` 为 `true`：`src/mcp/error_results.py` 在
+`create_mcp_server` 中一次性包装底层 CallTool 处理器，当结果文本正是封套时置位该
+标志，文本本身不变——`json.loads(content[0].text)` 仍然可用。若未来 `mcp` 版本
+改变这层私有接口，`tests/test_mcp_is_error.py` 会失败，标志降级为 `false` 并写日志，
+而不会破坏 payload。
 
 ## 6. 索引
 

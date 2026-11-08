@@ -249,6 +249,11 @@ def create_mcp_server():
 
     init_heartbeat()
     register_all_tools(mcp, services)
+    # Protocol-level flag: the JSON error envelope (src/core/error_envelope.py)
+    # must surface as isError=true, not as a successful text result.
+    from src.mcp.error_results import install_is_error_flag
+
+    install_is_error_flag(mcp)
     register_system_prompt(mcp)
     _register_notification_broker(mcp, services)
     _register_extension_handlers(mcp, services)

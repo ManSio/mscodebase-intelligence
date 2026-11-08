@@ -94,9 +94,12 @@ an error-like `status` (`error`, `warning`, `denied`, `too_large`,
 `not_installed`) is converted to the same envelope — it can no longer be rendered
 as a successful "✅ Completed" answer.
 
-**Known residual:** MCP's own `isError` flag stays `false`, because the wrapper
-returns the envelope as normal tool output. Branch on `ok` in the payload, not on
-the protocol flag.
+`isError` is `true` for these payloads: `src/mcp/error_results.py` wraps the
+low-level CallTool handler once (installed by `create_mcp_server`) and flips the
+flag when the result text is exactly the envelope, leaving the text
+byte-identical — `json.loads(content[0].text)` still works. If a future `mcp`
+release changes that private surface, `tests/test_mcp_is_error.py` fails and the
+flag degrades to `false` with a log line, never to a mangled payload.
 
 ## 6. Indexing
 

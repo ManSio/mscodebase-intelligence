@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-11-08
 
+### Changed
+- **Error envelopes now carry the protocol flag `isError: true`.**
+  `src/mcp/error_results.py` wraps the low-level CallTool handler once (installed
+  by `create_mcp_server`) and flips `isError` when the result text is exactly the
+  envelope, leaving the text byte-identical, so `json.loads(content[0].text)`
+  still works. Chosen over raising: FastMCP's `Tool.run` prefixes every exception
+  with `Error executing tool <name>: `, which would break machine parsing.
+  Guard: `tests/test_mcp_is_error.py` (19, incl. the private-surface check,
+  negative controls and an end-to-end call through the real `error_boundary`).
+  If a future `mcp` release changes that private surface, the flag degrades to
+  `false` with a log line — never to a mangled payload.
+
 ### Changed (BREAKING)
 - **Tool failures now return the typed JSON error envelope** instead of a Markdown
   block: `{"ok": false, "error": {"code", "message", "next_action", "details"}}`.

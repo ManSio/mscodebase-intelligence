@@ -82,7 +82,9 @@ cosine).
   (this also fixed a "green while broken" bug — those dicts were rendered as
   "✅ Completed"). Owner decision: breaking format change.
   Guard: `tests/test_error_envelope_wiring.py` (17 tests, with negative controls).
-  Residual: MCP-level `isError` is still `false` — the envelope is normal output.
+  MCP-level `isError` is also `true` now: `src/mcp/error_results.py` flips the flag
+  in the low-level CallTool handler without touching the payload text
+  (`tests/test_mcp_is_error.py`, 19 tests).
 - S3 [partial] per-phase heartbeat + stall detection + wait_reason (P-A/P-B):
   stall detection **done** (`_REINDEX_STALL_SEC` + finalize), heartbeat covers
   parse/embed/write/text-index only, `wait_reason` **absent**.
