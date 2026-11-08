@@ -33,7 +33,7 @@
   "b_ok": true,
   "b_top1": true,
   "b_invalid": false,
-  "b_elapsed_s": 2.04,
+  "b_elapsed_s": 2.05,
   "degraded": "",
   "b_text": "🧭 investigate: `Who calls `want_bytes`?`\n   identifiers: want_bytes\n   results: 8\n   exact: want_bytes=29\n\n1. src/itsdangerous/encoding.py:24  [graph+grep]\n   string = want_bytes(string)\n2. src/itsdangerous/encoding.py:32  [graph+grep]\n   string = want_bytes(string, encoding=\"ascii\", errors=\"ignore\")\n3. src/itsdangerous/serializer.py:211  [graph+grep]\n   salt = want_bytes(salt)\n4. src/itsdangerous/serializer.py:7  [grep]\n   from .encoding import want_bytes\n5. src/itsdangerous/serializer.py:276  [grep]\n   return want_bytes(self.serializer.dumps(obj, **self.serializer_kwargs))\n6. src/itsdangerous/serializer.py:314  [grep]\n   payload = want_bytes(self.dump_payload(obj))\n7. src/itsdangerous/serializer.py:334  [grep]\n   s = want_bytes(s)\n8. src/itsdangerous/signer.py:11  [grep]\n   from .encoding import want_bytes\n\nСимволы:\n• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11\n• test_want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:12\n• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11\n\nДальше: get_symbol_info(\"want_bytes\") | impact_analysis | read_live_file(\"src/itsdangerous/encoding.py\")"
  },
@@ -70,7 +70,7 @@
   "b_ok": true,
   "b_top1": true,
   "b_invalid": false,
-  "b_elapsed_s": 1.93,
+  "b_elapsed_s": 1.97,
   "degraded": "",
   "b_text": "🧭 investigate: `Who raises `BadSignature`?`\n   identifiers: BadSignature\n   results: 8\n   exact: BadSignature=27\n\n1. src/itsdangerous/signer.py:256  [graph+grep]\n   raise BadSignature(f\"Signature {sig!r} does not match\", payload=value)\n2. src/itsdangerous/serializer.py:343  [grep]\n   raise t.cast(BadSignature, last_exception)\n3. src/itsdangerous/signer.py:249  [grep]\n   raise BadSignature(f\"No {self.sep!r} found in value\")\n4. src/itsdangerous/timed.py:220  [grep]\n   raise t.cast(BadSignature, last_exception)\n5. src/itsdangerous/exc.py:36  [grep]\n   class BadTimeSignature(BadSignature):\n6. src/itsdangerous/exc.py:66  [grep]\n   class BadHeader(BadSignature):\n7. src/itsdangerous/serializer.py:9  [grep]\n   from .exc import BadSignature\n8. src/itsdangerous/serializer.py:340  [grep]\n   except BadSignature as err:\n\nСимволы:\n• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22\n• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22\n• BadSignature.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:25\n\nДальше: get_symbol_info(\"BadSignature\") | impact_analysis | read_live_file(\"src/itsdangerous/signer.py\")"
  },
@@ -103,7 +103,7 @@
   "b_ok": true,
   "b_top1": true,
   "b_invalid": false,
-  "b_elapsed_s": 1.95,
+  "b_elapsed_s": 2.45,
   "degraded": "",
   "b_text": "🧭 investigate: `Who raises `ParseError`?`\n   identifiers: ParseError\n   results: 8\n   exact: ParseError=17\n\n1. src/iniconfig/_parse.py:61  [graph+grep]\n   raise ParseError(path, lineno, f\"duplicate name {name!r}\")\n2. src/iniconfig/_parse.py:94  [graph+grep]\n   raise ParseError(path, lineno, \"unexpected value continuation\")\n3. src/iniconfig/_parse.py:135  [graph+grep]\n   raise ParseError(path, lineno, f\"unexpected line: {line!r}\") from None\n4. src/iniconfig/_parse.py:53  [grep]\n   raise ParseError(path, lineno, \"no section header defined\")\n5. src/iniconfig/_parse.py:57  [grep]\n   raise ParseError(path, lineno, f\"duplicate section {section!r}\")\n6. src/iniconfig/_parse.py:87  [grep]\n   raise ParseError(path, lineno, \"empty section name\")\n7. testing/test_iniconfig.py:78  [grep+search]\n   def parse_a_error(input: str) -> ParseError:\n8. src/iniconfig/_parse.py:5  [grep]\n   from .exceptions import ParseError\n\nСимволы:\n• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4\n• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4\n• ParseError.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:9\n• ParseError.__str__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:15\n\nДальше: get_symbol_info(\"ParseError\") | impact_analysis | read_live_file(\"src/iniconfig/_parse.py\")"
  }

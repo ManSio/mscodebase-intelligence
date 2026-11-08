@@ -1,6 +1,6 @@
 ### itsdangerous X07 Who calls `want_bytes`?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
-B(2.04s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'signer.py']
+B(2.05s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'signer.py']
 gold: ['src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
 --- B raw ---
 🧭 investigate: `Who calls `want_bytes`?`
@@ -34,7 +34,7 @@ gold: ['src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/it
 
 ### itsdangerous X08 Who raises `BadSignature`?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py']
-B(1.93s, ok=True, degraded=-): ['signer.py', 'serializer.py', 'signer.py', 'timed.py', 'exc.py', 'exc.py', 'serializer.py', 'serializer.py']
+B(1.97s, ok=True, degraded=-): ['signer.py', 'serializer.py', 'signer.py', 'timed.py', 'exc.py', 'exc.py', 'serializer.py', 'serializer.py']
 gold: ['src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
 --- B raw ---
 🧭 investigate: `Who raises `BadSignature`?`
@@ -68,7 +68,7 @@ gold: ['src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
 
 ### iniconfig Y04 Who raises `ParseError`?
 A(0.0s, ok=True): ['src/iniconfig/__init__.py', 'src/iniconfig/_parse.py', 'src/iniconfig/exceptions.py', 'testing/test_iniconfig.py']
-B(1.95s, ok=True, degraded=-): ['_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', 'testing/test_iniconfig.py', '_parse.py']
+B(2.45s, ok=True, degraded=-): ['_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', 'testing/test_iniconfig.py', '_parse.py']
 gold: ['src/iniconfig/_parse.py']
 --- B raw ---
 🧭 investigate: `Who raises `ParseError`?`

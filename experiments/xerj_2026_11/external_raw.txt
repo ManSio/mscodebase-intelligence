@@ -1,6 +1,6 @@
 ### itsdangerous X01 Where is `Signer` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py', 'tests/test_itsdangerous/test_timed.py']
-B(2.05s, ok=True, degraded=-): ['signer.py', 'test_signer.py', 'signer.py', 'signer.py', 'signer.py', 'serializer.py', 'serializer.py', 'test_signer.py']
+B(3.75s, ok=True, degraded=-): ['signer.py', 'test_signer.py', 'signer.py', 'signer.py', 'signer.py', 'signer.py', 'serializer.py', 'test_signer.py']
 gold: ['src/itsdangerous/signer.py']
 --- B raw ---
 🧭 investigate: `Where is `Signer` defined?`
@@ -18,8 +18,11 @@ gold: ['src/itsdangerous/signer.py']
    HMACAlgorithm.__init__ — function_definition
 5. src/itsdangerous/signer.py:62  [symbol]
    HMACAlgorithm.get_signature — function_definition
-6. src/itsdangerous/serializer.py:287  [grep+search]
-   def iter_unsigners(self, salt: str | bytes | None = None) -> cabc.Iterator[Signer]:
+6. src/itsdangerous/signer.py:129  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
 7. src/itsdangerous/serializer.py:278  [grep+search]
    def make_signer(self, salt: str | bytes | None = None) -> Signer:
 8. tests/test_itsdangerous/test_signer.py:99  [graph]
@@ -36,7 +39,7 @@ gold: ['src/itsdangerous/signer.py']
 
 ### itsdangerous X02 Where is `TimestampSigner` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_timed.py']
-B(1.91s, ok=True, degraded=-): ['timed.py', 'test_timed.py', 'test_timed.py', 'test_timed.py', 'timed.py', 'timed.py', 'timed.py', 'timed.py']
+B(3.8s, ok=True, degraded=-): ['timed.py', 'test_timed.py', 'test_timed.py', 'test_timed.py', 'timed.py', 'timed.py', 'timed.py', 'timed.py']
 gold: ['src/itsdangerous/timed.py']
 --- B raw ---
 🧭 investigate: `Where is `TimestampSigner` defined?`
@@ -52,25 +55,25 @@ gold: ['src/itsdangerous/timed.py']
    TestTimestampSigner.signer_factory — function_definition
 4. tests/test_itsdangerous/test_timed.py:78  [symbol]
    TestTimestampSigner.test_future_age — function_definition
-5. src/itsdangerous/timed.py:112  [search]
+5. src/itsdangerous/timed.py:177  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+6. src/itsdangerous/timed.py:29  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+7. src/itsdangerous/timed.py:112  [search]
    FILE: src/itsdangerous/timed.py
 SYMBOLS: TimestampSigner TimedSerializer
 DOC: 
 // Scope: function_part | giant_function_part | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
 // F
-6. src/itsdangerous/timed.py:177  [search]
-   FILE: src/itsdangerous/timed.py
-SYMBOLS: TimestampSigner TimedSerializer
-DOC: 
-// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
-// File: 
-7. src/itsdangerous/timed.py:29  [search]
-   FILE: src/itsdangerous/timed.py
-SYMBOLS: TimestampSigner TimedSerializer
-DOC: 
-// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
-// File: 
-8. src/itsdangerous/timed.py:35  [search]
+8. src/itsdangerous/timed.py:185  [search]
    FILE: src/itsdangerous/timed.py
 SYMBOLS: TimestampSigner TimedSerializer
 DOC: 
@@ -87,7 +90,7 @@ DOC:
 
 ### itsdangerous X03 Where is `Serializer` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/timed.py', 'src/itsdangerous/url_safe.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_timed.py', 'tests/test_itsdangerous/test_url_safe.py']
-B(1.99s, ok=True, degraded=-): ['serializer.py', 'test_serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py']
+B(2.25s, ok=True, degraded=-): ['serializer.py', 'test_serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py']
 gold: ['src/itsdangerous/serializer.py']
 --- B raw ---
 🧭 investigate: `Where is `Serializer` defined?`
@@ -135,7 +138,7 @@ DOC:
 
 ### itsdangerous X04 Where is `URLSafeSerializer` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/url_safe.py', 'tests/test_itsdangerous/test_url_safe.py']
-B(1.93s, ok=True, degraded=-): ['url_safe.py', 'test_url_safe.py', 'test_url_safe.py', 'test_url_safe.py', 'README.md', 'url_safe.py', '__init__.py', 'url_safe.py']
+B(2.03s, ok=True, degraded=-): ['url_safe.py', 'test_url_safe.py', 'test_url_safe.py', 'test_url_safe.py', 'README.md', 'url_safe.py', '__init__.py', 'url_safe.py']
 gold: ['src/itsdangerous/url_safe.py']
 --- B raw ---
 🧭 investigate: `Where is `URLSafeSerializer` defined?`
@@ -184,7 +187,7 @@ DOC:
 
 ### itsdangerous X05 Where is `BadSignature` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py']
-B(1.95s, ok=True, degraded=-): ['exc.py', 'exc.py', 'exc.py', 'exc.py', 'signer.py', 'serializer.py', '__init__.py', 'signer.py']
+B(2.05s, ok=True, degraded=-): ['exc.py', 'exc.py', 'exc.py', 'exc.py', 'signer.py', 'serializer.py', '__init__.py', 'signer.py']
 gold: ['src/itsdangerous/exc.py']
 --- B raw ---
 🧭 investigate: `Where is `BadSignature` defined?`
@@ -234,7 +237,7 @@ DOC:
 
 ### itsdangerous X06 Where is `want_bytes` defined?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
-B(1.94s, ok=True, degraded=-): ['encoding.py', 'test_encoding.py', 'encoding.py', 'encoding.py', 'serializer.py', 'encoding.py', 'encoding.py', 'test_encoding.py']
+B(1.97s, ok=True, degraded=-): ['encoding.py', 'test_encoding.py', 'encoding.py', 'encoding.py', 'serializer.py', 'encoding.py', 'encoding.py', 'test_encoding.py']
 gold: ['src/itsdangerous/encoding.py']
 --- B raw ---
 🧭 investigate: `Where is `want_bytes` defined?`
@@ -277,7 +280,7 @@ DOC:
 
 ### itsdangerous X07 Who calls `want_bytes`?
 A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
-B(1.95s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'signer.py']
+B(1.94s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'signer.py']
 gold: ['src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
 --- B raw ---
 🧭 investigate: `Who calls `want_bytes`?`
@@ -345,7 +348,7 @@ gold: ['src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
 
 ### iniconfig Y01 Where is `IniConfig` defined?
 A(0.0s, ok=True): ['src/iniconfig/__init__.py', 'testing/test_iniconfig.py']
-B(1.92s, ok=True, degraded=-): ['__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py']
+B(1.93s, ok=True, degraded=-): ['__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py']
 gold: ['src/iniconfig/__init__.py']
 --- B raw ---
 🧭 investigate: `Where is `IniConfig` defined?`
@@ -386,7 +389,7 @@ DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holge
 
 ### iniconfig Y02 Where is `ParseError` defined?
 A(0.0s, ok=True): ['src/iniconfig/__init__.py', 'src/iniconfig/_parse.py', 'src/iniconfig/exceptions.py', 'testing/test_iniconfig.py']
-B(1.91s, ok=True, degraded=-): ['exceptions.py', 'exceptions.py', 'exceptions.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py', '_parse.py', '_parse.py', '_parse.py']
+B(1.93s, ok=True, degraded=-): ['exceptions.py', 'exceptions.py', 'exceptions.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py', '_parse.py', '_parse.py', '_parse.py']
 gold: ['src/iniconfig/exceptions.py']
 --- B raw ---
 🧭 investigate: `Where is `ParseError` defined?`
@@ -423,7 +426,7 @@ SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_pa
 
 ### iniconfig Y03 Where is `SectionWrapper` defined?
 A(0.0s, ok=True): ['src/iniconfig/__init__.py']
-B(1.91s, ok=True, degraded=-): ['__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py']
+B(1.92s, ok=True, degraded=-): ['__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py']
 gold: ['src/iniconfig/__init__.py']
 --- B raw ---
 🧭 investigate: `Where is `SectionWrapper` defined?`
