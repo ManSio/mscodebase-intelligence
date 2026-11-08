@@ -55,6 +55,12 @@ def enabled(monkeypatch):
                 "language-pack parsers unavailable: "
                 f"{failed[0] if failed else 'download failed'}"
             )
+    elif ".lua" not in result.get("extensions", []):
+        # Частичный сбой сети: слой поднялся, но lua не скачался (наблюдение
+        # 2026-11-08: GitHub отдаёт манифесты не для всех языков подряд).
+        failed = [f for f in (result.get("failed") or []) if f.startswith("lua:")]
+        if any("Download error" in f for f in failed):
+            pytest.skip(f"language-pack lua parser unavailable: {failed[0]}")
     return result
 
 
