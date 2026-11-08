@@ -155,3 +155,28 @@ class TestProtocolFlag:
         payload = json.loads(_text(result))
         assert payload["error"]["code"] == "INTERNAL_ERROR"
         assert payload["error"]["details"]["tool"] == "probe"
+
+
+class TestInlineToolsUseTheEnvelope:
+    """2026-11-08: inline/dev tools returned hand-written 'Error: …' strings.
+
+    They are not wrapped by `error_boundary`, so they bypassed the envelope and
+    the protocol flag. `generate_docs` is the canary: a missing project root is
+    a deterministic failure.
+    """
+
+    def test_generate_docs_failure_is_flagged(self):
+        from src.mcp.tools.dev_tools import register_dev_tools
+
+        mcp = FastMCP("inline-test")
+        register_dev_tools(mcp)
+        assert install_is_error_flag(mcp) is True
+
+        result = _call(mcp, "generate_docs", {"project_root": "Z:/__no_such_root__"})
+
+        assert result.root.isError is True
+        payload = json.loads(_text(result))
+        assert payload["ok"] is False
+        assert payload["error"]["code"] == "INTERNAL_ERROR"
+        assert payload["error"]["next_action"]
+

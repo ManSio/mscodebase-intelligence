@@ -31,6 +31,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.core.error_envelope import ErrorCode, error_json
+
 logger = logging.getLogger("mscodebase_server.tools")
 
 # ══════════════════════════════════════════════════════════
@@ -773,10 +775,18 @@ def _register_inline_tools(mcp, services):
 
             indexer = resolve_indexer_for_request(services)
             if indexer is None:
-                return "❌ No active indexer"
+                return error_json(
+                    ErrorCode.INDEX_NOT_READY,
+                    "No active indexer",
+                    details={"tool": "refresh_db_connection"},
+                )
             db_manager = getattr(indexer, "db_manager", None)
             if db_manager is None:
-                return "❌ db_manager not found on indexer"
+                return error_json(
+                    ErrorCode.INTERNAL,
+                    "db_manager not found on indexer",
+                    details={"tool": "refresh_db_connection"},
+                )
             db_manager.reset_connection()
             count = db_manager.table.count_rows() if db_manager.table else 0
             # Consistency Engine (WS2): соединение пересоздано успешно.
@@ -790,7 +800,7 @@ def _register_inline_tools(mcp, services):
                 pass
             return f"✅ DB connection refreshed. Table: {db_manager.table_name} ({count} rows)"
         except Exception as e:
-            return f"❌ refresh_db_connection failed: {e}"
+            return error_json(ErrorCode.INTERNAL, f"refresh_db_connection failed: {e}", details={"tool": "refresh_db_connection"})
 
     # ─── 8. notify_change (standalone) ─────────────
     @mcp.tool("notify_change")

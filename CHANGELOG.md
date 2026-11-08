@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased] - 2026-11-08
 
 ### Changed
+- **Inline and dev tools now use the error envelope too.** `generate_docs`,
+  `bump_version`, `auto_update_docs`, `install_git_hooks` and
+  `refresh_db_connection` returned hand-written `Error: …` / `❌ …` strings, which
+  bypassed both the envelope and the `isError` flag; they now return
+  `{"ok": false, "error": {...}}`. Guard: `TestInlineToolsUseTheEnvelope` drives
+  the real `generate_docs` through FastMCP and asserts `isError=true`.
 - **Error envelopes now carry the protocol flag `isError: true`.**
   `src/mcp/error_results.py` wraps the low-level CallTool handler once (installed
   by `create_mcp_server`) and flips `isError` when the result text is exactly the

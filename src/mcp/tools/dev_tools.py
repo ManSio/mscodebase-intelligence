@@ -6,6 +6,9 @@ MCP tools: generate_docs, bump_version, install_git_hooks.
 
 import logging
 
+from src.core.error_envelope import ErrorCode as _ErrorCode
+from src.core.error_envelope import error_json as _error_json
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +66,7 @@ def register_dev_tools(mcp_app) -> None:
             )
         except Exception as e:
             logger.error(f"generate_docs failed: {e}")
-            return f"Error: {e}"
+            return _error_json(_ErrorCode.INTERNAL, str(e))
 
     @mcp_app.tool("bump_version")
     async def bump_version(
@@ -88,7 +91,7 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"bump_version failed: {e}")
-            return f"Error: {e}"
+            return _error_json(_ErrorCode.INTERNAL, str(e))
 
     @mcp_app.tool("auto_update_docs")
     async def auto_update_docs(project_root: str, action: str = "update") -> str:
@@ -117,7 +120,7 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"auto_update_docs failed: {e}")
-            return f"Error: {e}"
+            return _error_json(_ErrorCode.INTERNAL, str(e))
 
     @mcp_app.tool("install_git_hooks")
     async def install_git_hooks(
@@ -147,4 +150,4 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"install_git_hooks failed: {e}")
-            return f"Error: {e}"
+            return _error_json(_ErrorCode.INTERNAL, str(e))

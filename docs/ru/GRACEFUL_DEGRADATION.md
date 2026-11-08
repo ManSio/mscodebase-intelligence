@@ -106,6 +106,10 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 `tests/test_mcp_is_error.py` упадёт, а флаг деградирует в `false` с записью в
 лог, но payload не будет испорчен.
 
+Inline- и dev-инструменты (`generate_docs`, `bump_version`, `auto_update_docs`,
+`install_git_hooks`, `refresh_db_connection`) отдают тот же конверт вместо
+прежних рукописных строк `Error: …` / `❌ …`, поэтому флаг работает и у них.
+
 ## 6. Индексация
 
 - **Только текст (по умолчанию)** — `index_project()` уходит в

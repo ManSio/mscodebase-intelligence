@@ -98,6 +98,10 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 改变这层私有接口，`tests/test_mcp_is_error.py` 会失败，标志降级为 `false` 并写日志，
 而不会破坏 payload。
 
+Inline 与 dev 工具（`generate_docs`、`bump_version`、`auto_update_docs`、
+`install_git_hooks`、`refresh_db_connection`）也返回同一封套，取代手写的
+`Error: …` / `❌ …` 字符串，因此同样带该标志。
+
 ## 6. 索引
 
 - **纯文本（默认）** —— `index_project()` 路由到

@@ -101,6 +101,10 @@ byte-identical — `json.loads(content[0].text)` still works. If a future `mcp`
 release changes that private surface, `tests/test_mcp_is_error.py` fails and the
 flag degrades to `false` with a log line, never to a mangled payload.
 
+Inline and dev tools (`generate_docs`, `bump_version`, `auto_update_docs`,
+`install_git_hooks`, `refresh_db_connection`) return the same envelope instead of
+the old hand-written `Error: …` / `❌ …` strings, so they carry the flag too.
+
 ## 6. Indexing
 
 - **Text-only (default)** — `index_project()` routes to
