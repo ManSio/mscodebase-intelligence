@@ -1270,3 +1270,35 @@ class TestDryRunNoWrite:
         )
         spy.assert_not_called()
         assert "preview" in result.lower() or "🔍" in result
+
+class TestUriToPathGuard:
+    """P1-9: LSP URIs must not escape the project root; unknown root = refuse."""
+
+    def _tool(self, mock_services, project_root):
+        tool = WriteTool(mock_services)
+        idx = _make_mock_indexer()
+        if project_root is None:
+            tool.resolve_indexer = MagicMock(side_effect=RuntimeError("no indexer"))
+        else:
+            idx.project_path = str(project_root)
+            tool.resolve_indexer = MagicMock(return_value=idx)
+        return tool
+
+    def test_refuses_when_project_root_unavailable(self, mock_services):
+        tool = self._tool(mock_services, None)
+        uri = "file:///" + str(Path.cwd() / "src" / "main.py").replace("\\", "/").lstrip("/")
+        assert tool._uri_to_path(uri) is None
+
+    def test_accepts_path_inside_project(self, mock_services, tmp_path):
+        tool = self._tool(mock_services, tmp_path)
+        target = tmp_path / "pkg" / "mod.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("x = 1\n", encoding="utf-8")
+        uri = "file:///" + str(target).replace("\\", "/").lstrip("/")
+        assert tool._uri_to_path(uri) is not None
+
+    def test_rejects_path_outside_project(self, mock_services, tmp_path):
+        tool = self._tool(mock_services, tmp_path)
+        outside = Path.cwd() / "outside_project.py"
+        uri = "file:///" + str(outside).replace("\\", "/").lstrip("/")
+        assert tool._uri_to_path(uri) is None

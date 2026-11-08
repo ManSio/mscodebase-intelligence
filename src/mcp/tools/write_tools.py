@@ -1061,11 +1061,13 @@ class WriteTool(MCPTool):
         from urllib.parse import unquote
         path = unquote(uri[7:])
         result = path[1:] if path.startswith("/") and len(path) > 2 and path[2] == ":" else path
-        # Validate result is within project root
+        # Validate result is within project root. Fail-closed: if the root cannot
+        # be resolved we refuse the edit (return None) instead of passing an
+        # unvalidated path from the LSP into the write path (ISSUE P1-9).
         try:
             project_root = Path(self.resolve_indexer().project_path).resolve()
-        except Exception:
-            return result
+        except Exception:  # noqa: BLE001 — unknown root => refuse
+            return None
         try:
             Path(result).resolve().relative_to(project_root)
         except ValueError:
