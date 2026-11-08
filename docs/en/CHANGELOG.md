@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-11-08
+
+### Added
+- **`investigate`** — one query, two-pass fan-out: `search` + `symbols` + `grep`
+  in parallel, then `impact` + callers (`graph`) + `tests` + project `memory`
+  for what pass 1 found. Results merge by `(file, line)` with the channels that
+  found each item (`[search+graph]`); a slow or failing channel is reported in
+  `degraded[]` instead of failing the call.
+- **`grep_code`** — regex search with AST-aware `scope=code` that skips matches
+  inside comments and strings, judged per match (not per line). Adapted from
+  coderlm (MIT); path traversal, 1 MB file cap, binary skip, 512-char pattern.
+- **Tool profile** — the server registers 69 tools and exposes 17 by default
+  (`MSCODEBASE_MCP_PROFILE=core`); `full` exposes all, `MSCODEBASE_MCP_TOOLS`
+  still overrides. `tool_help()` lists the hidden ones.
+- **Ledger cache** — the startup contradiction check is reused for 6 hours while
+  the diary (mtime/size/sha) and HEAD are unchanged.
+- **Hot-reload for Phase 3** — `FreshnessChecker` reads the SQLite chunk store;
+  files changed while the server was down are reindexed on the next search.
+
+### Fixed
+- `stale_detector` hung the whole event loop: `subprocess.run(capture_output=True)`
+  for `git diff`/`git ls-files` deadlocks when stdout is the JSON-RPC pipe
+  (AGENTS.md §5.16). Now `Popen + communicate`, with a bounded scan.
+- Index status read only LanceDB while Phase 3 serves from SQLite, so
+  `total_chunks` was 0 and every search/write tool was blocked.
+- Health's git probe used `check_output` in a thread and timed out on every
+  report; it now uses `rev-parse` with a 5 s budget and reports a metric.
+- `AutoDocUpdater` rewrote `KNOWN_ISSUES.md` during reindex (third occurrence);
+  registries are now opt-in (`MSCODEBASE_AUTODOC_LEDGERS=1`).
+- Pre-commit gate ran `pytest -n auto`, which failed intermittently on
+  git-spawning tests; it now runs serially (and skips gate-zero for docs-only
+  commits: 229 s → 9.5 s measured).
+- `search_code` accepted a 2000-character query and spent 47.5 s returning
+  nothing; queries are capped at 512 characters.
+- `scripts/reindex_text_only.py` failed with `ModuleNotFoundError: No module
+  named 'src'` when invoked as documented.
+
+### Changed
+- Pinned `tree-sitter-language-pack==1.25.0` (was an open range; dev and
+  runtime environments had drifted) and bumped `tree-sitter-php==0.25.1`,
+  `tree-sitter-scala==0.26.9`, `tree-sitter-swift==0.7.4`.
+  `tree-sitter==0.26.0` is already the latest Python binding on PyPI.
+
 ## [Unreleased] - 2026-09-27
 
 ### Added

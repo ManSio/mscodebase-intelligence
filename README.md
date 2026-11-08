@@ -41,7 +41,9 @@ avoids making a vector database the single point of failure.
 
 | Area | What it does | Notes |
 |---|---|---|
+| **One-call investigation** | One question → search + symbols + grep in parallel, then impact + callers + tests + project memory; merged by file:line with provenance and `degraded[]` | `investigate` |
 | Code search | BM25/FTS5 over parsed chunks; exact-symbol and path signals; optional graph expansion | `search_code` |
+| Regex search | Regex with an AST-aware `scope=code` that skips comments and strings, per match | `grep_code` |
 | Documentation search | Separate `docs/**` FTS channel, automatically selected when the BM25 margin is strong | No LLM router |
 | Symbol intelligence | Definition, callers/callees, references, impact, structural search | `get_symbol_info`, `impact_analysis`, `structural_search` |
 | Graph | PropertyGraph of files/symbols with call, import, assignment, decorator and override edges | Rebuild with `scripts/rebuild_graph.py` if empty |
@@ -154,23 +156,50 @@ Then restart the MCP server/Zed so the new process opens the rebuilt stores.
 
 ## Tools
 
-The server registers **66 tools** in four groups; `execute_script` adds one
-optional tool when `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. The default
-allowlist exposes a curated subset of them; hidden tools can be enabled with
-`MSCODEBASE_MCP_TOOLS` (empty string shows all). The exact visible set is
-reported in the MCP startup log and by `intel_get_runtime_status`.
+The server registers **69 tools** in four groups; `execute_script` adds one
+optional tool when `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. That is too many
+for a model to choose from, so visibility is a **profile**, not a hand-curated
+allowlist:
 
-| Group | Examples | Purpose |
-|---|---|---|
-| Search and analysis | `search_code`, `plan_search`, `get_symbol_info`, `impact_analysis`, `structural_search`, `graph_query` | Find code, symbols, relationships, and change impact |
-| Index and system | `codebase(action="index"...)`, `notify_change`, `read_live_file`, `get_health_report`, `get_logs` | Keep the index fresh and diagnose it |
-| Intelligence | `intel_get_runtime_status`, `intel_get_project_memory`, `intel_log_incident`, `intel_analyze_incident`, `intel_predict_root_cause` | Project memory, incidents, runtime state |
-| Write and lifecycle | `codebase(action="rename"...)`, `move`, `safe_delete`, `replace`, `insert_before/after`, `ack_impact` | Preview and apply safe source changes |
-| Dev | `bump_version`, `auto_update_docs`, `install_git_hooks`, `generate_docs` | Repository maintenance |
+- `MSCODEBASE_MCP_PROFILE=core` (default) exposes **17 tools** — one entry per
+  intent plus the four maintenance tools.
+- `MSCODEBASE_MCP_PROFILE=full` exposes all 69.
+- `MSCODEBASE_MCP_TOOLS` keeps working as an explicit comma-separated allowlist
+  and overrides the profile when set.
+
+`tool_help()` reports the current profile, the visible tools with a one-line
+intent each, and the names of the hidden ones — so "what else can this server
+do" is one call instead of 69 descriptions in the prompt.
+
+Default-visible (17):
+
+| Tool | Purpose |
+|---|---|
+| `investigate` | one query → parallel channels (search, symbols, grep, impact, callers, tests, memory) merged with provenance |
+| `search_code` | ranked code/docs search (FTS5/BM25, docs routing) |
+| `grep_code` | regex search; `scope=code` skips comments/strings |
+| `get_symbol_info` | definition, callers, callees |
+| `impact_analysis` | what breaks if a symbol changes |
+| `graph_query` | related files, variable flow, cypher, impact |
+| `codebase` | hub: index status, git, write actions (rename/move/delete/replace/insert) |
+| `read_live_file` | read a line range from disk |
+| `notify_change` | mark a file changed so the index picks it up |
+| `get_health_report` | index, embedder, resources, search quality |
+| `intel_get_project_memory` | ADRs, incidents, known issues |
+| `predict_change` | changed files, affected tests, risk (pre-commit preview) |
+| `tool_help` | profile, visible tools, hidden tools, how to enable them |
+| `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` | repository maintenance |
+
+Registered but hidden by default: the six `lsp_*` tools (they report
+"basedpyright unavailable" after a cold start), `plan_search`,
+`structural_search`, the 16 `intel_*` lifecycle/mutation tools, the
+`submit_background_task`/`get_task_status`/`verify_action`/`get_action_receipt`
+lifecycle pair, `ack_impact`, and the frame/rank/scan helpers. Nothing is
+removed from the server; the profile only filters what the client sees.
 
 The `codebase` tool is a hub: its `action` selects index, git, or write
-operations. See the tool schema in the MCP client rather than relying on a
-hand-written list that can drift.
+operations. Use `tool_help()` for the authoritative list; a hand-written table
+in this README will always drift.
 
 ## Architecture
 
@@ -217,7 +246,8 @@ All settings are environment variables with defaults in
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | Auto docs routing threshold (docs score − code score) |
 | `MSCODEBASE_ONDEMAND_RERANK` | `true` | Optional live rerank; requires a provider |
 | `MSCODEBASE_P3_ANCHOR` | `false` | Module-head anchors; measured to add latency without a reranker |
-| `MSCODEBASE_MCP_TOOLS` | default set | Tool allowlist; empty means all registered tools |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: `core` = 17 visible, `full` = all 69 |
+| `MSCODEBASE_MCP_TOOLS` | — | Explicit allowlist; overrides the profile when set |
 
 `experiments/**` is intentionally excluded from indexing. It contains frozen
 panels and run artifacts; indexing them previously made BM25 return the panel
@@ -230,6 +260,14 @@ JavaScript, TypeScript/TSX, Rust, Go, Java, C#, Ruby, PHP, Kotlin, Swift, C,
 C++, Scala and Dart. SQL, YAML, TOML, HTML, CSS and HCL/Terraform are indexed
 as context, without the same call-graph coverage. Graph and data-flow depth
 depend on the grammar; not every language exposes the same edge types.
+
+<!-- stale-ignore -->
+The current build loads **31 grammars**. Versions are pinned for
+reproducibility: `tree-sitter==0.26.0` (the latest Python binding on PyPI) and
+`tree-sitter-language-pack==1.25.0`; the individual grammar packages are pinned
+per language. A grammar bump changes chunking, so it is treated as a change
+that requires a reindex and a symbol-count comparison, not a routine upgrade.
+<!-- stale-ignore -->
 
 ## Limitations and known issues
 
@@ -250,8 +288,9 @@ These are deliberate, documented boundaries rather than hidden behavior:
   experiment and is not the default path.
 - **Fast mode is not quality mode:** it is faster but materially less accurate
   on mixed natural-language questions. Use it for exact names and known paths.
-- **Visible tools are allowlisted:** seeing "66 tools" in source does not mean
-  all 64 are exposed to a given client; check `MSCODEBASE_MCP_TOOLS`.
+- **Visible tools are profile-filtered:** the server registers 69 tools, but the
+  client sees 17 by default. If a tool you expect is missing, run `tool_help()`
+  and set `MSCODEBASE_MCP_PROFILE=full` to expose everything.
 
 ## Reporting a bug
 
@@ -321,6 +360,7 @@ The repository uses Conventional Commits, keeps experiment inputs under
 
 | Document | What it covers |
 |---|---|
+| [docs/FACTS.md](docs/FACTS.md) | Every public number and the command that regenerates it |
 | [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, uninstall, platform notes |
 | [docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md) | Layers, DI, module boundaries |
 | [docs/en/ARCHITECTURE_DEEP.md](docs/en/ARCHITECTURE_DEEP.md) | Pipeline and lifecycle in depth |

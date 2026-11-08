@@ -48,6 +48,12 @@ CORE_PROFILE = {
     "intel_get_project_memory",
     "predict_change",
     "tool_help",
+    # Dev/maintenance tools stay visible: they are 4 names, not a selection
+    # problem, and hiding them made tool_help under-report the surface.
+    "auto_update_docs",
+    "bump_version",
+    "generate_docs",
+    "install_git_hooks",
 }
 
 # Полный каталог (имя → первая строка описания), заполняется до фильтрации.

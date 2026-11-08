@@ -150,16 +150,24 @@ python scripts/reindex_text_only.py --project .
 
 ## Инструменты
 
-Сервер регистрирует **66 инструментов** в четырёх группах; `execute_script`
+Сервер регистрирует **69 инструментов** в четырёх группах; `execute_script`
 добавляет один опциональный инструмент при
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает выбранное подмножество;
-скрытые инструменты включаются через `MSCODEBASE_MCP_TOOLS` (пустая строка —
-показать все). Точный набор виден в startup-логе MCP и в
-`intel_get_runtime_status`.
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Для модели это слишком много, поэтому
+видимость задаётся **профилем**, а не ручным allowlist:
+
+- `MSCODEBASE_MCP_PROFILE=core` (по умолчанию) — **17 инструментов**, по одному
+  на намерение плюс 4 обслуживающих;
+- `MSCODEBASE_MCP_PROFILE=full` — все 69;
+- `MSCODEBASE_MCP_TOOLS` по-прежнему работает как явный allowlist и перекрывает
+  профиль.
+
+`tool_help()` показывает профиль, видимые инструменты с назначением и имена
+скрытых.
 
 | Группа | Примеры | Назначение |
 |---|---|---|
-| Поиск и анализ | `search_code`, `plan_search`, `get_symbol_info`, `impact_analysis`, `structural_search`, `graph_query` | Код, символы, связи, impact |
+| Один вход | `investigate` — параллельный fan-out: search + symbols + grep, затем impact + callers + tests + memory | Ответ на вопрос с провенансом |
+| Поиск и анализ | `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query` | Код, символы, связи, impact |
 | Индекс и система | `codebase(action="index"...)`, `notify_change`, `read_live_file`, `get_health_report`, `get_logs` | Свежесть и диагностика индекса |
 | Intelligence | `intel_get_runtime_status`, `intel_get_project_memory`, `intel_log_incident`, `intel_analyze_incident`, `intel_predict_root_cause` | Память, инциденты, runtime |
 | Записи и lifecycle | `codebase(action="rename"...)`, `move`, `safe_delete`, `replace`, `insert_before/after`, `ack_impact` | Preview/apply безопасных изменений |
@@ -243,8 +251,9 @@ C++, Scala и Dart. SQL, YAML, TOML, HTML, CSS и HCL/Terraform индексир
   эксперимент и не дефолтный путь.
 - **Fast mode — не quality mode:** быстрее, но заметно менее точен на смешанных
   natural-language вопросах. Для exact names и известных путей.
-- **Видимые tools — allowlist:** «66 tools» в исходниках не значит, что все 64
-  видны конкретному клиенту; проверяйте `MSCODEBASE_MCP_TOOLS`.
+- **Видимые tools задаёт профиль:** сервер регистрирует 69, клиент видит 17 по
+  умолчанию. Если ожидаемого инструмента нет — `tool_help()` и
+  `MSCODEBASE_MCP_PROFILE=full`.
 
 ## Как сообщать о баге
 

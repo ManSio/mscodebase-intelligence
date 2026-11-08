@@ -65,12 +65,12 @@ dependencies = [
     "tree-sitter-java==0.23.5",
     "tree-sitter-c-sharp==0.23.5",
     "tree-sitter-ruby==0.23.1",
-    "tree-sitter-php==0.24.1",
+    "tree-sitter-php==0.25.1",
     "tree-sitter-kotlin==1.1.0",
-    "tree-sitter-swift==0.7.3",
+    "tree-sitter-swift==0.7.4",
     "tree-sitter-c==0.24.2",
     "tree-sitter-cpp==0.23.4",
-    "tree-sitter-scala==0.26.2",
+    "tree-sitter-scala==0.26.9",
     "tree-sitter-dart==0.1.0",
     "tree-sitter-bash==0.25.1",  # shell, без data flow
     # Context-языки (только AST-парсинг и чанкинг)
@@ -129,7 +129,7 @@ community = [
 # Парсеры скачиваются при первом использовании (нужна сеть) — см. src/core/language_pack.py.
 # Включение: MSCODEBASE_LANGUAGE_PACK=true в .env
 language-pack = [
-    "tree-sitter-language-pack>=1.14.3,<2",  # MIT
+    "tree-sitter-language-pack==1.25.0",  # MIT
 ]
 
 [project.urls]
