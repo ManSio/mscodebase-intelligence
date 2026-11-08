@@ -68,6 +68,8 @@ class IndexStatusReporter:
                     logger.debug(
                         "get_status: reindex in progress — fast-fail (cached status)"
                     )
+                    from src.core.indexing.wait_state import snapshot as _wait_snapshot
+
                     return {
                         "total_chunks": self._cached_total_chunks,
                         "unique_files": len(self._cached_unique_files),
@@ -79,6 +81,7 @@ class IndexStatusReporter:
                         if self._watchdog_callback
                         else {},
                         "reindex_in_progress": True,
+                        "wait_reason": _wait_snapshot(),
                     }
             except Exception as _reidx_err:  # noqa: BLE001 — статус не роняем
                 logger.debug(f"get_status reindex-check failed: {_reidx_err}")
@@ -150,6 +153,8 @@ class IndexStatusReporter:
 
             watchdog = self._watchdog_callback() if self._watchdog_callback else {}
 
+            from src.core.indexing.wait_state import snapshot as _wait_snapshot
+
             return {
                 "total_chunks": total_chunks,
                 "unique_files": unique_count,
@@ -159,6 +164,7 @@ class IndexStatusReporter:
                 "status": "active" if total_chunks > 0 else "empty",
                 "store": store_name,
                 "watchdog": watchdog,
+                "wait_reason": _wait_snapshot(),
             }
         except Exception as e:
             logger.error(f"get_status error: {e}")

@@ -12,7 +12,6 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 `run_bounded`/IVF-guard, `blocked`-пути индексатора.
 
 Открыто (каждое — отдельная задача, не «шум»):
-- `wait_reason` для звеньев индексатора отсутствует (heartbeat только на 4 из 13).
 - docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
   открытый пользовательский дефект поиска.
 - Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.

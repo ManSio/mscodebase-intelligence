@@ -165,10 +165,15 @@ class IndexProjectRunner:
         lock (bulk_write/prune) on its own thread without deadlocking the
         caller. Do NOT wrap this in _suspend_write_lock again.
         """
+        from src.core.indexing.wait_state import clear_wait, set_wait
         from src.core.run_bounded import run_bounded
 
         sentinel = object()
-        result = run_bounded(fn, _LINK_TIMEOUT_SEC, label=label, default=sentinel)
+        set_wait(f"native:{label}", _LINK_TIMEOUT_SEC)
+        try:
+            result = run_bounded(fn, _LINK_TIMEOUT_SEC, label=label, default=sentinel)
+        finally:
+            clear_wait()
         if result is sentinel:
             if fatal:
                 raise RuntimeError(
@@ -412,17 +417,22 @@ class IndexProjectRunner:
                 _rel_path = normalize_rel_path(_full_path.relative_to(project_path))
                 current_files_on_disk.add(_rel_path)
                 try:
+                    from src.core.indexing.wait_state import clear_wait, set_wait
                     from src.core.run_bounded import run_bounded
 
-                    parsed = run_bounded(
-                        lambda: self._parse_file_only(
-                            _full_path, _rel_path,
-                            source="filesystem", known_hashes=known_hashes,
-                        ),
-                        timeout=_PARSE_TIMEOUT_SEC,
-                        label=f"parse:{_fname}",
-                        default=None,
-                    )
+                    set_wait(f"native:parse:{_fname}", _PARSE_TIMEOUT_SEC)
+                    try:
+                        parsed = run_bounded(
+                            lambda: self._parse_file_only(
+                                _full_path, _rel_path,
+                                source="filesystem", known_hashes=known_hashes,
+                            ),
+                            timeout=_PARSE_TIMEOUT_SEC,
+                            label=f"parse:{_fname}",
+                            default=None,
+                        )
+                    finally:
+                        clear_wait()
                     if parsed is not None:
                         return {"parsed": parsed, "name": _fname, "rel": _rel_path}
                 except Exception as e:
@@ -767,10 +777,15 @@ class IndexProjectRunner:
 
         Returns True if ``fn`` finished, False if it was abandoned.
         """
+        from src.core.indexing.wait_state import clear_wait, set_wait
         from src.core.run_bounded import run_bounded
 
         sentinel = object()
-        result = run_bounded(fn, timeout, label=f"ivf-{label}", default=sentinel)
+        set_wait(f"native:ivf-{label}", timeout)
+        try:
+            result = run_bounded(fn, timeout, label=f"ivf-{label}", default=sentinel)
+        finally:
+            clear_wait()
         if result is sentinel:
             # Abandoned: считаем для авто-отключения IVF
             self._ivf_abandon_count += 1

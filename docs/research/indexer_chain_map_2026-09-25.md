@@ -47,9 +47,16 @@ Source: `index_project_runner.run()` (255-630), `layer._run_reindex_job` (730-80
   `parse:{name}` (:448), `write:{name}` (:526, :614), `embed:{done}/{total}` (:650) and
   `text-index:{n}/{total}` (indexer.py:1006). verify/prune/BM25/save are silent for up to
   300 s — bounded, but blind.
-- **No `wait_reason` — open.** Zero hits in `src/`. When the job looks idle during a bounded
-  link, nothing says *what* it waits on (write lock / IO / native). Deferred by the owner
-  (2026-11-08): diagnostics, not correctness; no observed case requires it.
+- **`wait_reason` — DONE (2026-11-08).** `src/core/indexing/wait_state.py` records
+  the current bounded link; every `_bounded_link`, the parse call and the IVF bound
+  set/clear it, and `wait_reason` is exposed by `indexer.get_status()`,
+  `codebase(action="index", path="status")` and the reindex telemetry
+  (`reindex_in_progress` block). Labels look like `native:prune`,
+  `native:embed_batch`, `native:ivf-create_index`, `native:parse:<file>`.
+  Deliberately not reported: the write lock — `run()` holds it for the whole
+  reindex, so "waiting on lock" would be true almost always; cross-process
+  contention already surfaces as the read-only mode message. Guard:
+  `tests/test_wait_reason.py` (9).
 - **Stall detection — DONE (2026-10/11).** `_REINDEX_STALL_SEC` (default 900 s) plus
   `_finalize_stalled_*` in `src/core/intelligence/layer.py:2025+` marks a silent
   reindex as failed and writes a ledger row, instead of leaving "95 % Finalizing".

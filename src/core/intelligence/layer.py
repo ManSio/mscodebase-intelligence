@@ -459,6 +459,7 @@ class ProjectIntelligenceLayer:
             )
             _reindex_progress_pct = None
             _reindex_eta_sec = None
+            from src.core.indexing.wait_state import snapshot as _wait_snapshot
             if _reindexing:
                 try:
                     _job_id = self.get_active_reindex_job_id()
@@ -589,6 +590,9 @@ class ProjectIntelligenceLayer:
                     "reindex_in_progress": _reindexing,
                     "reindex_progress_pct": _reindex_progress_pct,
                     "reindex_eta_sec": _reindex_eta_sec,
+                    # 2026-11-08: на чём именно стоит индексатор (native-звено).
+                    # Без этого «идёт» неотличимо от «завис» (P-B).
+                    "wait_reason": _wait_snapshot(),
                 },
                 # Consistency Engine (WS2): состояния артефактов — аддитивно.
                 "consistency": {

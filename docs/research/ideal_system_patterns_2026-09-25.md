@@ -85,9 +85,13 @@ cosine).
   MCP-level `isError` is also `true` now: `src/mcp/error_results.py` flips the flag
   in the low-level CallTool handler without touching the payload text
   (`tests/test_mcp_is_error.py`, 19 tests).
-- S3 [partial] per-phase heartbeat + stall detection + wait_reason (P-A/P-B):
-  stall detection **done** (`_REINDEX_STALL_SEC` + finalize), heartbeat covers
-  parse/embed/write/text-index only, `wait_reason` **absent**.
+- S3 **[done 2026-11-08]** per-phase heartbeat + stall detection + wait_reason
+  (P-A/P-B): stall detection (`_REINDEX_STALL_SEC` + finalize), heartbeat on
+  parse/embed/write/text-index, and `wait_reason` via
+  `src/core/indexing/wait_state.py` — bounded links, parse and IVF publish what they
+  wait on (`native:prune`, `native:embed_batch`, …); surfaced by `get_status()`,
+  `codebase(action="index", path="status")` and the reindex telemetry.
+  Guard: `tests/test_wait_reason.py`.
 - S4 [open] learned per-phase ETA, UNPROVABLE allowed (P-B/P-F1/P-F4). Only a single
   `reindex_eta_sec` scalar exists (layer.py:591), no per-phase learning.
 - S5 [partial] incremental correctness: hash-gate delete-then-insert **done**
