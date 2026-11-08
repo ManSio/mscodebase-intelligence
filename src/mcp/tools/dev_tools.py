@@ -66,7 +66,9 @@ def register_dev_tools(mcp_app) -> None:
             )
         except Exception as e:
             logger.error(f"generate_docs failed: {e}")
-            return _error_json(_ErrorCode.INTERNAL, str(e))
+            return _error_json(
+                _ErrorCode.INTERNAL, str(e), details={"tool": "generate_docs"}
+            )
 
     @mcp_app.tool("bump_version")
     async def bump_version(
@@ -91,7 +93,9 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"bump_version failed: {e}")
-            return _error_json(_ErrorCode.INTERNAL, str(e))
+            return _error_json(
+                _ErrorCode.INTERNAL, str(e), details={"tool": "bump_version"}
+            )
 
     @mcp_app.tool("auto_update_docs")
     async def auto_update_docs(project_root: str, action: str = "update") -> str:
@@ -120,7 +124,9 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"auto_update_docs failed: {e}")
-            return _error_json(_ErrorCode.INTERNAL, str(e))
+            return _error_json(
+                _ErrorCode.INTERNAL, str(e), details={"tool": "auto_update_docs"}
+            )
 
     @mcp_app.tool("install_git_hooks")
     async def install_git_hooks(
@@ -150,4 +156,6 @@ def register_dev_tools(mcp_app) -> None:
             return result
         except Exception as e:
             logger.error(f"install_git_hooks failed: {e}")
-            return _error_json(_ErrorCode.INTERNAL, str(e))
+            return _error_json(
+                _ErrorCode.INTERNAL, str(e), details={"tool": "install_git_hooks"}
+            )

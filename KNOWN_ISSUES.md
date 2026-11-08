@@ -18,6 +18,10 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 - Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.
 - `scripts/audit_protocol_guards.py` не в CI; `--cov-fail-under=38`; mypy/bandit нет.
 - ADR-0006: `call_hierarchy`/`semantic_tokens` без потребителей (0 вызовов в `src/`).
+- `tools/factory/` — прототип «фабрики задач» (2026-10-25): 18 тестов зелёные,
+  `tests/test_factory.py`; в продукт **не** встроен (не MCP-тул, не импортируется из
+  `src/`). Судьба — за владельцем: встроить как отдельный инструмент или перенести в
+  `experiments/`.
 
 Архивировано 2026-11-08 (не удалено): `docs/ISSUES/*`, `docs/research/2026-07-*`,
 `docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
