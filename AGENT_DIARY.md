@@ -1428,3 +1428,13 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Guard:** `tests/test_wait_reason.py` (9: idle→None, вложенные кадры, очистка на успехе и на исключении, оба ветки `get_status`).
 **Осознанно не сделано:** write-lock в `wait_reason` не попадает — `run()` держит его весь reindex, «ждём lock» было бы правдой почти всегда; межпроцессная конкуренция уже видна как read-only сообщение.
 **Verified:** полный pytest зелёный (кроме чужого `experiments/xerj_2026_11/frozen/*`), ruff clean, CI main 6/6, рантайм-проверка конверта через живой MCP (`generate_docs` на битом пути → исключение с `{"ok": false…}`).
+
+## [2026-11-08] XERJ-пакет: research → эксперимент → внедрение — Partially fixed
+**Root Cause:** протокол требовал числа, но инструменты к этому не были готовы: `grep`-канал `investigate` парсил tree-sitter'ом каждый файл (23 s, `degraded: grep:timeout` на своём же репозитории), а на несуществующем символе отдавал восемь «соседей» без предупреждения — тот же класс, что их #3021/#3015.
+**Fix 1 (`grep_tool`):** prefilter по regex до парсинга. Набор совпадений не изменился (P01: 30 до и после), 2.7 s → 1.2 s; `investigate` 23.0 s → 7.2–8.1 s, канал живой.
+**Fix 2 (`investigate`):** `exact: <ident>=N` по каждому идентификатору + «results below are neighbours, not matches», когда субъект не встречается; при упавшем grep-канале числа нет вообще (молчание ≠ ноль).
+**Guard:** `tests/test_no_silent_success.py` (8; 5 падали на коде до правки) + `test_grep_code.py::test_prefilter_does_not_change_the_match_set`.
+**Эксперимент E1 (24 frozen, N=1):** A(grep)=0.667 vs B(investigate)=0.522, negative-rate B=0.25 → фальсификатор сработал, заявления нет. 11/24 ответов B шли с `grep:timeout` — ограничение стенда, не продукта. H6: 17 530 B схем / 17 тулов (≤25 000 → CONFIRMED).
+**Дрейф:** `EVIDENCE.md` A14 (mtime-only) опровергнут — у них хеш содержимого (`source.rs:315-333`); B7/B8 в публичной ветке не воспроизводятся. P0-5 (`pyproject.toml`) проверен: уже исправлен, `check_metadata.py` 6/6.
+**T7-находка:** таймаут канала (`asyncio.wait_for(to_thread)`) не останавливает поток — зомби-парсеры копятся, процесс живёт после записи результата. Записано в KNOWN_ISSUES, guard не сделан (нужен cooperative-cancel).
+**Verified:** 23 валидных ответа из 24; `check_evidence.py --selftest` PASS (20 anchors); ruff `src/ tests/` clean.
