@@ -1,295 +1,224 @@
-# Поисковый пайплайн — Полная техническая документация
+# Поисковый пайплайн — текущий контракт
 
-> **Часть MSCodeBase Intelligence** | v3.5.0
+> **Актуально на 2026-10-25.** Дефолтный runtime — Phase 3 text-first:
+> SQLite FTS5/BM25 плюс PropertyGraph. Dense, LanceDB и reranker-стадии
+> опциональны и выключены без конфигурации. Документ описывает реальный
+> дефолтный путь, а не старый pipeline как будто он всё ещё основной.
 
-## Обзор
+---
 
-Поисковый пайплайн — ядро MSCodeBase. Он объединяет **4 этапа поиска + MultiSignalScorer** для нахождения наиболее релевантного контекста кода.
+## 1. Контракт
 
-```mermaid
-flowchart TD
-    Q[User Query] --> PRE[Preprocessing]
-    PRE --> INT{Intent Detection}
-    INT -->|code intent| CW[Code-optimized weights]
-    INT -->|docs intent| DW[Docs-optimized weights]
-    INT -->|auto| BW[Balanced weights]
-    
-    CW --> PAR[Parallel Search]
-    DW --> PAR
-    BW --> PAR
-    
-    subgraph PAR[Parallel Search — 2 channels]
-        BM25[BM25 Sparse\nkeyword match]
-        DENSE[LanceDB Dense\nsemantic search]
-    end
-    
-    BM25 --> RRF[RRF Fusion\nk=60]
-    DENSE --> RRF
-    
-    RRF --> MULTI[MultiSignalScorer v3.0]
-    MULTI --> BUCKET[Multi-Bucket RAG]
-    
-    subgraph MULTI[MultiSignalScorer — 4 signals]
-        API[api_signature\nJaccard symbol match]
-        DIFF[graph_diffusion\nPageRank centrality]
-        MOD[module_proximity\nhierarchy closeness]
-        CO2[cochange_boost\ngit coupling]
-    end
-    
-    BUCKET --> GRAPH[Graph expand\ncallees from AST]
-    GRAPH --> RERANK[Cross-encoder\nbge-reranker-v2-m3]
-    
-    RERANK --> CUT[Cut to limit]
-    CUT --> FMT[Format response]
-    FMT --> RES[Final Results]
+Вход:
+
+- natural-language или identifier query;
+- `mode`: `fast`, `quality`, `deep`, `context`, `ask`, `auto`;
+- опционально `layer`, `intent`, `limit`, `explain`.
+
+Выход:
+
+- ранжированные chunks/files с metadata (`file`, `chunk_index`, `symbol_name`,
+  `symbol_kind`, `layer`, line range, source);
+- stale-index banner, если freshness check не прошёл;
+- опциональные security metadata для недоверенного контента.
+
+Агент может передать `intent="docs"` или `intent="code"`. Если `intent` пуст,
+tool сравнивает лучший docs-only BM25 score с лучшим code score и уходит в
+docs-канал, когда разрыв больше `MSCODEBASE_DOCS_MARGIN` (default `4.0`).
+LLM в этом решении нет.
+
+## 2. Дефолтный Phase 3 путь
+
+```text
+query
+  │
+  ├─ normalize / optional RU synonyms
+  │
+  ├─ SQLiteChunkStore.search(query, limit=20..50)
+  │     └─ FTS5/BM25 по chunk text, symbol_name, docstring, file_path
+  │
+  ├─ если query похож на identifier/path:
+  │     └─ PropertyGraph stage добавляет exact symbol/file candidates
+  │
+  ├─ optional on-demand rerank (только если настроен)
+  │
+  ├─ exact-name boost
+  ├─ symbol deduplication
+  │
+  └─ return top-N
 ```
 
-## Детали этапов
+SQLite path намеренно короче исторического LanceDB pipeline. В частности, по
+умолчанию он **не** запускает RRF над BM25+dense+graph, MMR, co-change boosts
+или P3 module-head anchors. Эти стадии живут в опциональном dense/LanceDB path
+или в старых путях.
 
-### 1. Расширение запроса (Query Expansion)
+## 3. Источники candidates
 
-```python
-_EXPANSION_SYNONYMS = {
-    "auth": ["authentication", "login", "authorize"],
-    "error": ["exception", "failure", "bug"],
-    "create": ["add", "insert", "new"],
-    # ... ещё 8 групп
-}
+### 3.1 SQLite FTS5/BM25
 
-def expand_query(query: str, max_expansions: int = 3) -> list[str]:
-    """Генерирует варианты с синонимами. Каждый вариант ищется независимо."""
-    variants = [query]
-    words = query.lower().split()
-    for word in words:
-        synonyms = _EXPANSION_SYNONYMS.get(word, [])
-        for syn in synonyms[:max_expansions - 1]:
-            variant = query.replace(word, syn, 1)
-            if variant not in variants:
-                variants.append(variant)
-    return variants
+`SQLiteChunkStore.search` строит FTS5 `MATCH` из терминов запроса (OR, quoted),
+ранжирует через SQLite `bm25()` и возвращает:
+
+- chunk text и full text;
+- file path, chunk index, symbol name/kind, docstring, layer;
+- start/end line;
+- `final_score` из BM25 rank.
+
+Таблица content-linked (`content='chunks'`) с insert/update/delete triggers:
+удаление файла удаляет и его FTS rows.
+
+### 3.2 Symbol и path signals
+
+Identifier-shaped запросы (`snake_case`, `CamelCase`, paths, `::`) получают
+детерминированный graph stage. Граф возвращает exact definition/reference rows,
+которые FTS может поставить ниже generic text matches. Дубликаты убираются по
+`file + chunk_index`.
+
+### 3.3 Канал документации
+
+`Searcher.search_docs()` использует тот же FTS5 store и оставляет только
+`docs/**`. Он схлопывает языковые варианты (`docs/en/X`, `docs/ru/X`,
+`docs/zh/X`) в один ключ, предпочитая язык запроса. Это отдельный канал, а не
+изменение ranking кода.
+
+### 3.4 Опциональный dense/vector path
+
+При `MSCODEBASE_DENSE_OFF=false` и доступном provider vector search идёт через
+LanceDB или настроенный backend. Этот путь может добавлять candidates, но не
+требуется для дефолтного контракта.
+
+## 4. Ranking и fusion
+
+Дефолтный Phase 3:
+
+1. BM25 order из SQLite.
+2. Graph candidates добавляются для identifier queries.
+3. Опциональный on-demand rerank top pool.
+4. Exact-name boost для identifier queries.
+5. Deduplicate by symbol.
+
+Опциональный/исторический path:
+
+- reciprocal rank fusion BM25, dense и FTS5;
+- bucket weighting по intent и типу файла;
+- co-change и exact-symbol boosts;
+- non-code demotion (`tests/`, `docs/`, `experiments/`, `fixtures/`);
+- MMR diversification;
+- identifier anchors и P3 module-head anchors;
+- multi-provider reranking.
+
+Эти стадии конфигурируемы и применяются не к каждому запросу. Не используйте
+старое описание pipeline, чтобы предсказать дефолтный порядок результатов.
+
+## 5. Маршрутизация документации
+
+Это одно дешёвое сравнение:
+
+```text
+docs_max = лучший BM25 score среди docs/**
+code_max = лучший BM25 score среди src/**, tools/**, scripts/**, tests/**
+if docs_max - code_max > MSCODEBASE_DOCS_MARGIN:
+    use search_docs()
+else:
+    use code search
 ```
 
-### 2. BM25 поиск (разреженный)
+Свойства:
 
-- **Назначение:** Точное совпадение по ключевым словам — находит код, содержащий конкретные термины
-- **Индекс:** Инкрементальный, строится из чанков LanceDB, хранится как `Dict[doc_id, Dict[term, tf-idf]]`
-- **Обновление:** DebounceBatch (500ms) при изменениях файлов, полная перестройка при переиндексации
-- **Производительность:** O(log N) на запрос
+- один дополнительный FTS-запрос; без вызова модели;
+- explicit `intent` важнее эвристики;
+- threshold настраивается и подобран на панели 48 запросов;
+- code-запрос с сильной docs-лексикой всё ещё может уйти в docs;
+  `intent="code"` — escape hatch.
 
-```mermaid
-flowchart LR
-    subgraph BM25[BM25 Index Building]
-        A[LanceDB chunks] --> B[Tokenize + TF]
-        B --> C[Compute IDF]
-        C --> D[Score matrix\nterm → doc → tf-idf]
-    end
-    subgraph BM25Q[BM25 Query]
-        Q[Query] --> QT[Tokenize]
-        QT --> SC[Sum tf-idf per doc]
-        SC --> TOP[Top-k results]
-    end
+На панели margin `4.0` дал 0 code false positives, docs top-1 в 5/8 docs-вопросов
+и 0.792 same-basename hit@1 overall. Это результат панели, не универсальная
+константа.
+
+## 6. Режимы
+
+| Mode | Путь | Для чего |
+|---|---|---|
+| `fast` | FTS5 + optional dense; без reranker | Exact names, известные пути, latency |
+| `quality` | Дефолтный hybrid path + optional rerank | Обычные code/doc вопросы |
+| `deep` | Quality + graph context expansion | Cross-module investigation |
+| `context` | Similar-code search по фрагменту | Поиск похожих реализаций |
+| `ask` | Retrieval + optional local LLM generation | Только при настроенном LLM profile |
+| `auto` | Выбор режима по форме запроса | Дефолтный вход tool |
+
+`fast` заметно менее точен на смешанных natural-language вопросах, чем
+`quality`, на внутренней панели (0.542 vs 0.688 hit@1). Используйте осознанно.
+
+## 7. Опциональные слои
+
+| Слой | Флаг / условие | Эффект |
+|---|---|---|
+| Dense retrieval | `MSCODEBASE_DENSE_OFF=false` + provider | Добавляет vector candidates |
+| On-demand rerank | `MSCODEBASE_ONDEMAND_RERANK=true` + provider | Re-score top candidates |
+| P3 module-head anchors | `MSCODEBASE_P3_ANCHOR=true` | Добавляет module-head chunks |
+| RU synonyms | `MSCODEBASE_RU_SYNONYMS=true` | Расширяет Russian query variants |
+| Non-code demotion | `MSCODEBASE_DEMOTE_NON_CODE=true` | Понижает tests/docs/experiments |
+| Intent-aware demotion | `MSCODEBASE_DEMOTE_INTENT_AWARE=true` | Оставляет docs для docs intent |
+| Docs auto-route | `MSCODEBASE_DOCS_MARGIN` | Выбор docs/code канала |
+
+## 8. Контракт выдачи
+
+Каждый результат несёт достаточно metadata для объяснения:
+
+- `file`, `chunk_index`, `start_line`, `end_line`;
+- `symbol_name`, `symbol_kind`, `layer`;
+- `final_score` и `source` (`sqlite_fts5`, `graph`, `docs_fts`, ...);
+- опционально `docstring`, callers/callees, security flags.
+
+Ответ tool может содержать stale-index warning. Warning — не ошибка поиска; он
+означает, что агенту стоит обновить индекс до того, как доверять свежести.
+
+## 9. Измеренное поведение
+
+Внутренняя панель: 48 реальных запросов, clean index, `experiments/**`
+исключён, граф присутствует.
+
+| Путь | hit@1 | hit@5 |
+|---|---:|---:|
+| Code, quality | 0.825 | 0.900 |
+| Docs, exact path | 0.000 | 0.125 |
+| Docs, same basename | 0.750 | 0.750 |
+| Overall quality | 0.688 | 0.750 |
+| Overall auto docs route | 0.792 | 0.875 |
+| Fast | 0.542 | 0.729 |
+
+Границы:
+
+- это внутренняя, не универсальная панель;
+- docs exact-path занижает корректные переводы;
+- ни одна статическая конфигурация и ни один протестированный локальный
+  reranker не дали 95% hit@1;
+- two-channel repo map дал около 40/62/73% gold-file coverage на 1k/2k/4k
+  токенов при идеальном routing; PageRank отдельно — ниже.
+
+## 10. Отладка поиска
+
+```text
+debug_runtime_passport()
+intel_get_runtime_status()
+codebase(action="index", path="status")
+search_code(query="...", explain=true)
 ```
 
-### 3. Плотный поиск (векторный, LanceDB)
+Полезные проверки:
 
-- **Назначение:** Семантическая близость — находит концептуально связанный код
-- **Модель:** `multilingual-e5-small-int8` (384-dim)
-- **Провайдер:** ONNX INT8 in-process (primary) / LM Studio (fallback)
-- **Индекс:** LanceDB v2 с IVF-PQ квантизацией
+1. `chunks.db` не пуст? Если пуст — `scripts/reindex_text_only.py`.
+2. `graph.db` пуст? — `scripts/rebuild_graph.py`.
+3. Запрос похож на docs? Попробуйте `intent="docs"` / `intent="code"`.
+4. Сравните exact-path и same-basename, прежде чем называть docs-результат
+   промахом.
+5. Для `fast` vs `quality` прогоните один запрос в обоих режимах.
 
-```python
-async def dense_search(query_vector: list, limit: int) -> list:
-    table = await ensure_async_table()
-    builder = await table.search(query_vector, vector_column_name="vector")
-    df = await builder.limit(limit).to_pandas()
-    return [{"text": row["text"], "metadata": {...}} for _, row in df.iterrows()]
-```
+## 11. Non-goals
 
-### 4. RRF Fusion (Reciprocal Rank Fusion)
-
-> ⚠️ **Важно:** Ранги считаются **раздельно** для каждого канала, начиная с 1.
-> Объединённый `enumerate(bm25 + dense)` дал бы неверные скоры.
-
-```python
-def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
-    """Слияние результатов BM25 + dense по формуле RRF.
-    
-    Ранги считаются отдельно для каждого канала (начиная с 1),
-    как того требует математически корректная RRF.
-    """
-    scores = {}
-    results_map = {}
-    
-    # BM25 ранги (отдельный enumerate с start=1)
-    for rank, doc in enumerate(bm25, 1):
-        key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
-        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
-        if key not in results_map:
-            results_map[key] = {
-                **doc,
-                "bm25_score": 1.0 / (k + rank),
-                "dense_score": 0.0,
-            }
-        else:
-            results_map[key]["bm25_score"] = 1.0 / (k + rank)
-    
-    # Dense ранги (отдельный enumerate с start=1)
-    for rank, doc in enumerate(dense, 1):
-        key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
-        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
-        if key not in results_map:
-            results_map[key] = {
-                **doc,
-                "bm25_score": 0.0,
-                "dense_score": 1.0 / (k + rank),
-            }
-        else:
-            results_map[key]["dense_score"] = 1.0 / (k + rank)
-    
-    for key in results_map:
-        results_map[key]["final_score"] = (
-            results_map[key]["bm25_score"] + results_map[key]["dense_score"]
-        )
-    
-    return sorted(results_map.values(), key=lambda x: x["final_score"], reverse=True)
-```
-
-### 5. Multi-Bucket RAG
-
-```mermaid
-flowchart LR
-    subgraph Buckets
-        CODE[Code Bucket\nweight=1.0]
-        DOCS[Docs Bucket\nweight=1.0]
-    end
-    subgraph Intent
-        CODE_HINT[intent_hint=code\ncode*1.2, docs*0.8]
-        DOCS_HINT[intent_hint=docs\ncode*0.8, docs*1.2]
-        AUTO[intent_hint=auto\nneutral]
-    end
-    subgraph Extension Detection
-        EXT[os.path.splitext\n→ .py, .rs = code\n→ .md, .json = docs]
-    end
-    RESULTS[Scored results] --> EXT --> |code ext| CODE
-    EXT --> |docs ext| DOCS
-    CODE --> |multiply by| CODE_HINT
-    CODE_HINT --> FINAL[final_score]
-    DOCS --> |multiply by| DOCS_HINT
-    DOCS_HINT --> FINAL
-```
-
-### 6. Co-change Boost
-
-Использует git-историю для повышения файлов, которые исторически изменяются вместе:
-
-```python
-def apply_co_change_boost(chunks: list) -> list:
-    """Повышает файлы, связанные с топ-3 результатами через git-историю."""
-    top_files = {c["metadata"]["file"] for c in chunks[:3]}
-    matrix = commit_memory.compute_co_change_matrix()
-    
-    for chunk in chunks:
-        file = chunk["metadata"]["file"]
-        partners = matrix.get(file, {})
-        if partners and any(tf in partners for tf in top_files):
-            best = max(partners.get(tf, 0) for tf in top_files)
-            chunk["final_score"] *= (1.0 + best * 0.3)
-    return chunks
-```
-
-### 7. Кросс-энкодер Reranker
-
-**Модель:** `bge-reranker-v2-m3` (через LM Studio / Ollama)
-
-> **Примечание:** Визуализация реранкера предполагает LM Studio (GPU). При использовании ONNX Runtime (fallback) реранкер использует ту же модель `bge-reranker-v2-m3` через ONNX Runtime (CPU) с пониженной пропускной способностью.
-
-- Оценивает каждую пару (запрос, чанк) независимо — **точнее, чем векторный косинус**
-- Реранжит только топ-30 кандидатов (контролируется `MAX_RERANKER_INPUT`)
-- Корректно переключается на fallback, если LM Studio недоступна
-
-```python
-async def rerank(query: str, candidates: list, top_n: int = 5) -> list:
-    """Одноэтапный реранкер: запрос + чанк → оценка релевантности."""
-    if not candidates:
-        return candidates
-    scores = await multi_reranker.rerank(query, candidates)
-    for i, chunk in enumerate(candidates):
-        chunk["final_score"] = scores[i] if i < len(scores) else 0
-    return sorted(candidates, key=lambda x: x["final_score"], reverse=True)[:top_n]
-```
-
-## Полная диаграмма последовательности
-
-```mermaid
-sequenceDiagram
-    participant Agent as AI Agent
-    participant MCP as MCP Server
-    participant EB as @error_boundary
-    participant ST as SearchTool
-    participant S as Searcher
-    participant E as Embedder
-    participant I as Indexer
-    participant R as Reranker
-    
-    Agent->>MCP: search_code(query, mode="quality", intent_hint="code")
-    MCP->>EB: wrap(timeout=10000, retries=2)
-    EB->>ST: execute()
-    
-    ST->>S: hybrid_search_async(query, limit=5)
-    
-    par Разреженный поиск
-        S->>I: _bm25_search(query)
-        I-->>S: BM25 candidates
-    and Плотный поиск
-        S->>E: embed_batch_async([query])
-        E-->>S: query vector (768-dim)
-        S->>I: search_async(vector, limit=30)
-        I-->>S: dense candidates
-    end
-    
-    S->>S: RRF fusion (k=60)
-    S->>S: Bucket weighting (code intent)
-    S->>S: Co-change boost
-    
-    S->>R: rerank(query, top-15, top_n=5)
-    R-->>S: reranked scores
-    
-    S-->>ST: 5 final results
-    ST-->>EB: formatted response
-    EB-->>MCP: success + metadata
-    MCP-->>Agent: results with file paths
-```
-
-## Бенчмарки производительности
-
-| Этап | Время | Накопительно |
-|-------|:----:|:----------:|
-| Расширение запроса | <1ms | <1ms |
-| BM25 поиск | ~150ms | ~150ms |
-| Эмбеддинг запроса | ~800ms | ~950ms |
-| LanceDB ANN | ~400ms | ~1350ms |
-| RRF fusion | <1ms | ~1350ms |
-| Bucket weighting | <1ms | ~1350ms |
-| Co-change boost | ~50ms | ~1400ms |
-| Реранкер (5 кандидатов) | ~1200ms | ~2600ms |
-| **Итого (quality mode)** | **~5600ms** | |
-| **Итого (fast mode, только BM25)** | **~2300ms** | |
-| **Итого (deep mode, рекурсивный)** | **2-5s** | |
-
-> *Замеры с ONNX Runtime (CPU). LM Studio (GPU) может быть в 3-5 раз быстрее.*
-
-## Конфигурация
-
-```ini
-# .env настройки поиска
-DEFAULT_SEARCH_LIMIT=6
-MAX_SEARCH_RESULTS=20
-QUERY_SYNONYMS_ENABLED=true
-MAX_QUERY_EXPANSIONS=3
-OVERFETCH_FACTOR=3
-RERANKER_PROVIDERS=ollama,lm_studio
-
-# Веса корзин (1.0 = нейтрально)
-CODE_BUCKET_WEIGHT=1.0
-DOCS_BUCKET_WEIGHT=1.0
-```
+- LLM-router на каждый запрос. Routing лексический и дешёвый.
+- Статическая repo map вместо итеративного поиска. Это context selection, не
+  оракул.
+- Заявлять 95% retrieval accuracy по маленькой внутренней панели.
+- Прятать пустой граф или stale index за уверенным ответом.

@@ -218,25 +218,35 @@ class TestHealthReportLogs:
             # Должны быть warnings из-за пустого проекта (хотя бы один)
             assert len(result["warnings"]) > 0, "Ожидались warnings в пустом проекте"
 
-    def test_logs_with_errors(self):
-        """Логи с ошибками."""
-        with tempfile.TemporaryDirectory() as tmp:
-            log_dir = Path(tmp) / ".codebase_indices" / "logs"
-            log_dir.mkdir(parents=True)
-            log_file = log_dir / "test.log"
-            log_file.write_text(
-                "2026-06-28 ERROR Something failed\n"
-                "2026-06-28 ERROR Another error\n"
-                "2026-06-28 WARNING Warning message\n"
-            )
+    def test_logs_with_errors(self, tmp_path, monkeypatch):
+        """Логи с ошибками.
 
-            report = HealthReport(Path(tmp))
-            result = report.run_full_diagnostic()
+        Логи живут в центральном data_root (artifact_paths, Задача 4/5), а не в
+        `<project>/.codebase_indices/logs`; и `_count_log_levels` считает только
+        строки за последние 24 часа с маркером `[ERROR]`. Старый тест писал в
+        легаси-каталог с датами 2026-06-28 — метрика честно показывала 0.
+        """
+        from datetime import datetime
 
-            # Код использует имя 'latest_log_errors' (см. health_report.py L189)
-            # Тест ожидал 'recent_errors' — обновлено.
-            errors = result["metrics"].get("latest_log_errors", 0)
-            assert errors >= 2, f"Expected >=2 errors, got {errors}: {result['metrics']}"
+        import src.core.log_manager as log_manager
+
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        today = datetime.now().strftime("%Y-%m-%d")
+        (log_dir / "test.log").write_text(
+            f"{today} 10:00:00 [ERROR] Something failed\n"
+            f"{today} 10:00:01 [ERROR] Another error\n"
+            f"{today} 10:00:02 [WARNING] Warning message\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(log_manager, "get_log_dir", lambda _p: log_dir)
+
+        report = HealthReport(tmp_path)
+        result = report.run_full_diagnostic()
+
+        errors = result["metrics"].get("latest_log_errors", 0)
+        assert errors == 2, f"Expected 2 errors, got {errors}: {result['metrics']}"
+        assert result["metrics"].get("latest_log_warnings") == 1
 
 
 class TestHealthReportOrphanChunks:
@@ -402,9 +412,11 @@ class TestSearchQuality:
     def test_search_quality_passed(self):
         """Поиск работает корректно."""
         mock_searcher = MagicMock()
-        mock_searcher.search.return_value = [
-            {"text": "result1", "score": 0.9},
-            {"text": "result2", "score": 0.8},
+        # Контракт _check_search_quality: searcher.hybrid_search() → List[dict],
+        # и результат считается реальным только при наличии файла и текста.
+        mock_searcher.hybrid_search.return_value = [
+            {"file_path": "src/a.py", "line": 1, "text": "result1", "score": 0.9},
+            {"file_path": "src/b.py", "line": 2, "text": "result2", "score": 0.8},
         ]
 
         mock_indexer = MagicMock()
@@ -426,8 +438,8 @@ class TestSearchQuality:
         """Поиск деградировал."""
         mock_searcher = MagicMock()
         # Первый запрос возвращает результаты, остальные — пустые
-        mock_searcher.search.side_effect = [
-            [{"text": "result", "score": 0.9}],
+        mock_searcher.hybrid_search.side_effect = [
+            [{"file_path": "src/a.py", "line": 1, "text": "result", "score": 0.9}],
             [],
             [],
         ]

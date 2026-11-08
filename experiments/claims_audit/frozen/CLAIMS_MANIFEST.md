@@ -7,7 +7,7 @@ after the fact. Additions require a new v2 with a new sha256.
 **Question per claim:** would this number survive being recomputed today, from the artifact that
 produced it, on this machine, at this commit?
 
-**Commit at freeze:** `ea9b5911`
+**Commit at freeze:** `a8c830df`
 
 ## Tier A — deterministic re-run (script exists, no LLM, no network)
 

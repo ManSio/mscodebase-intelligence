@@ -1,295 +1,211 @@
-# 搜索流水线（pipeline）— 完整技术参考
+# 搜索流水线 — 当前契约
 
-> **MSCodeBase Intelligence 的一部分** | v3.5.0
+> **更新于 2026-10-25。** 默认运行时是 Phase 3 text-first：SQLite FTS5/BM25 +
+> PropertyGraph。Dense、LanceDB 和 reranker 阶段可选，未配置时关闭。本文描述
+> 默认路径的真实行为，而不是把旧 pipeline 当作默认。
 
-## 概述
+---
 
-搜索流水线（pipeline）是 MSCodeBase 的核心。它结合了 **4 个检索阶段 + MultiSignalScorer** 来查找最相关的代码上下文。
+## 1. 契约
 
-```mermaid
-flowchart TD
-    Q[User Query] --> PRE[Preprocessing]
-    PRE --> INT{Intent Detection}
-    INT -->|code intent| CW[Code-optimized weights]
-    INT -->|docs intent| DW[Docs-optimized weights]
-    INT -->|auto| BW[Balanced weights]
-    
-    CW --> PAR[Parallel Search]
-    DW --> PAR
-    BW --> PAR
-    
-    subgraph PAR[Parallel Search — 2 channels]
-        BM25[BM25 Sparse\nkeyword match]
-        DENSE[LanceDB Dense\nsemantic search]
-    end
-    
-    BM25 --> RRF[RRF Fusion\nk=60]
-    DENSE --> RRF
-    
-    RRF --> MULTI[MultiSignalScorer v3.0]
-    MULTI --> BUCKET[Multi-Bucket RAG]
-    
-    subgraph MULTI[MultiSignalScorer — 4 signals]
-        API[api_signature\nJaccard symbol match]
-        DIFF[graph_diffusion\nPageRank centrality]
-        MOD[module_proximity\nhierarchy closeness]
-        CO2[cochange_boost\ngit coupling]
-    end
-    
-    BUCKET --> GRAPH[Graph expand\ncallees from AST]
-    GRAPH --> RERANK[Cross-encoder\nbge-reranker-v2-m3]
-    
-    RERANK --> CUT[Cut to limit]
-    CUT --> FMT[Format response]
-    FMT --> RES[Final Results]
+输入：
+
+- natural-language 或 identifier query；
+- `mode`：`fast`、`quality`、`deep`、`context`、`ask`、`auto`；
+- 可选 `layer`、`intent`、`limit`、`explain`。
+
+输出：
+
+- 带 metadata 的 ranked chunks/files（`file`、`chunk_index`、`symbol_name`、
+  `symbol_kind`、`layer`、line range、source）；
+- freshness check 失败时的 stale-index banner；
+- 不可信索引内容的安全 metadata（可选）。
+
+Agent 可传 `intent="docs"` 或 `intent="code"`。`intent` 为空时，tool 比较最佳
+docs-only BM25 score 与最佳 code score；差值超过
+`MSCODEBASE_DOCS_MARGIN`（默认 `4.0`）时走 docs 通道。此决策没有 LLM。
+
+## 2. 默认 Phase 3 路径
+
+```text
+query
+  │
+  ├─ normalize / optional RU synonyms
+  │
+  ├─ SQLiteChunkStore.search(query, limit=20..50)
+  │     └─ FTS5/BM25 over chunk text, symbol_name, docstring, file_path
+  │
+  ├─ 如果 query 像 identifier/path：
+  │     └─ PropertyGraph stage 添加 exact symbol/file candidates
+  │
+  ├─ optional on-demand rerank（仅配置时）
+  │
+  ├─ exact-name boost
+  ├─ symbol deduplication
+  │
+  └─ return top-N
 ```
 
-## 阶段详情
+SQLite 路径刻意比历史 LanceDB pipeline 更短。默认**不会**运行 BM25+dense+graph
+的 RRF、MMR、co-change boosts 或 P3 module-head anchors。这些阶段属于可选
+dense/LanceDB 路径或旧代码路径。
 
-### 1. 查询扩展
+## 3. Candidate 来源
 
-```python
-_EXPANSION_SYNONYMS = {
-    "auth": ["authentication", "login", "authorize"],
-    "error": ["exception", "failure", "bug"],
-    "create": ["add", "insert", "new"],
-    # ... 8 more groups
-}
+### 3.1 SQLite FTS5/BM25
 
-def expand_query(query: str, max_expansions: int = 3) -> list[str]:
-    """Generate synonym variants. Each variant is searched independently."""
-    variants = [query]
-    words = query.lower().split()
-    for word in words:
-        synonyms = _EXPANSION_SYNONYMS.get(word, [])
-        for syn in synonyms[:max_expansions - 1]:
-            variant = query.replace(word, syn, 1)
-            if variant not in variants:
-                variants.append(variant)
-    return variants
+`SQLiteChunkStore.search` 从查询词构造 FTS5 `MATCH`（OR、quoted），用 SQLite
+`bm25()` 排序，返回：
+
+- chunk text 和 full text；
+- file path、chunk index、symbol name/kind、docstring、layer；
+- start/end line；
+- 由 BM25 rank 得到的 `final_score`。
+
+表是 content-linked（`content='chunks'`），带 insert/update/delete triggers；
+删除文件会自动删除对应 FTS rows。
+
+### 3.2 符号与路径信号
+
+Identifier-shaped 查询（`snake_case`、`CamelCase`、paths、`::`）会走确定性的
+graph stage。图返回 exact definition/reference rows，避免 FTS 把它们排在通用
+文本匹配之后。按 `file + chunk_index` 去重。
+
+### 3.3 文档通道
+
+`Searcher.search_docs()` 使用同一 FTS5 store，只保留 `docs/**`。它把语言变体
+（`docs/en/X`、`docs/ru/X`、`docs/zh/X`）折叠为一个 key，并优先查询语言。
+这是独立通道，不改变代码 ranking。
+
+### 3.4 可选 dense/vector path
+
+当 `MSCODEBASE_DENSE_OFF=false` 且 provider 可用时，vector search 走 LanceDB
+或配置的 backend。该路径可增加 candidates，但不是默认契约的必需项。
+
+## 4. Ranking 与 fusion
+
+默认 Phase 3：
+
+1. SQLite 的 BM25 顺序；
+2. identifier 查询追加 graph candidates；
+3. 可选 on-demand rerank top pool；
+4. identifier 查询的 exact-name boost；
+5. 按 symbol 去重。
+
+可选/历史路径：
+
+- BM25、dense、FTS5 的 reciprocal rank fusion；
+- 按 intent 和文件类型做 bucket weighting；
+- co-change 和 exact-symbol boosts；
+- non-code demotion（`tests/`、`docs/`、`experiments/`、`fixtures/`）；
+- MMR diversification；
+- identifier anchors 和 P3 module-head anchors；
+- multi-provider reranking。
+
+这些阶段可配置，不会应用到每个查询。不要用旧 pipeline 描述预测默认结果顺序。
+
+## 5. 文档路由
+
+路由是一次廉价比较：
+
+```text
+docs_max = docs/** 中最佳 BM25 score
+code_max = src/**、tools/**、scripts/**、tests/** 中最佳 BM25 score
+if docs_max - code_max > MSCODEBASE_DOCS_MARGIN:
+    use search_docs()
+else:
+    use code search
 ```
 
-### 2. BM25 搜索（稀疏）
+特性：
 
-- **目的：** 精确关键词匹配 — 查找包含特定术语的代码
-- **索引：** 增量构建，基于 LanceDB 块（chunk），存储为 `Dict[doc_id, Dict[term, tf-idf]]`
-- **更新：** DebounceBatch（500ms）在文件更改时，完全重建则在重新索引时
-- **性能：** O(log N) 每查询
+- 一次额外 FTS 查询，无模型调用；
+- 显式 `intent` 覆盖启发式；
+- threshold 可配置，并在 48 查询面板上调过；
+- 带强文档词汇的代码查询仍可能误判；`intent="code"` 是退路。
 
-```mermaid
-flowchart LR
-    subgraph BM25[BM25 Index Building]
-        A[LanceDB chunks] --> B[Tokenize + TF]
-        B --> C[Compute IDF]
-        C --> D[Score matrix\nterm → doc → tf-idf]
-    end
-    subgraph BM25Q[BM25 Query]
-        Q[Query] --> QT[Tokenize]
-        QT --> SC[Sum tf-idf per doc]
-        SC --> TOP[Top-k results]
-    end
+面板上 margin `4.0` 得到 0 个 code false positive、8 个 docs 问题中 5 个
+top-1，以及总体 0.792 same-basename hit@1。这是面板结果，不是通用常数。
+
+## 6. 模式
+
+| Mode | 路径 | 用途 |
+|---|---|---|
+| `fast` | FTS5 + 可选 dense；无 reranker | 精确名称、已知路径、低延迟 |
+| `quality` | 默认 hybrid + 可选 rerank | 常规代码/文档问题 |
+| `deep` | Quality + graph context expansion | 跨模块调查 |
+| `context` | 按片段做相似代码搜索 | 查找相似实现 |
+| `ask` | Retrieval + 可选本地 LLM 生成 | 仅在配置 LLM profile 时 |
+| `auto` | 按查询形态选择模式 | 默认 tool 入口 |
+
+在内部面板上，`fast` 在混合自然语言问题上明显不如 `quality`（0.542 vs
+0.688 hit@1）。请有意识地使用。
+
+## 7. 可选层
+
+| 层 | 开关 / 条件 | 效果 |
+|---|---|---|
+| Dense retrieval | `MSCODEBASE_DENSE_OFF=false` + provider | 增加 vector candidates |
+| On-demand rerank | `MSCODEBASE_ONDEMAND_RERANK=true` + provider | 重排 top candidates |
+| P3 module-head anchors | `MSCODEBASE_P3_ANCHOR=true` | 增加 module-head chunks |
+| RU synonyms | `MSCODEBASE_RU_SYNONYMS=true` | 扩展俄语查询变体 |
+| Non-code demotion | `MSCODEBASE_DEMOTE_NON_CODE=true` | 降低 tests/docs/experiments |
+| Intent-aware demotion | `MSCODEBASE_DEMOTE_INTENT_AWARE=true` | docs intent 时保留 docs |
+| Docs auto-route | `MSCODEBASE_DOCS_MARGIN` | 选择 docs/code 通道 |
+
+## 8. 输出契约
+
+每个结果携带足够 metadata：
+
+- `file`、`chunk_index`、`start_line`、`end_line`；
+- `symbol_name`、`symbol_kind`、`layer`；
+- `final_score` 和 `source`（`sqlite_fts5`、`graph`、`docs_fts` 等）；
+- 可选 `docstring`、callers/callees、security flags。
+
+Tool 响应可能包含 stale-index warning。Warning 不是搜索失败，而是提醒 agent
+在信任 freshness 前刷新索引。
+
+## 9. 测量行为
+
+内部面板：48 个真实查询，clean index，排除 `experiments/**`，图存在。
+
+| 路径 | hit@1 | hit@5 |
+|---|---:|---:|
+| Code, quality | 0.825 | 0.900 |
+| Docs, exact path | 0.000 | 0.125 |
+| Docs, same basename | 0.750 | 0.750 |
+| Overall quality | 0.688 | 0.750 |
+| Overall auto docs route | 0.792 | 0.875 |
+| Fast | 0.542 | 0.729 |
+
+边界：
+
+- 这是内部面板，不是通用 benchmark；
+- docs exact-path 会低估正确翻译；
+- 没有静态配置或已测试的本地 reranker 达到 95% hit@1；
+- two-channel repo map 在 1k/2k/4k token、理想 routing 下约 40/62/73%
+  gold-file coverage；单独 PageRank 更低。
+
+## 10. 调试搜索
+
+```text
+debug_runtime_passport()
+intel_get_runtime_status()
+codebase(action="index", path="status")
+search_code(query="...", explain=true)
 ```
 
-### 3. 稠密搜索（向量，LanceDB）
+有用的检查：
 
-- **目的：** 语义相似度 — 查找概念相关的代码
-- **模型：** `multilingual-e5-small-int8`（384 维）
-- **提供者（provider）：** ONNX INT8 进程内（主要）/ LM Studio（回退 fallback）
-- **索引：** 带 IVF-PQ 量化的 LanceDB v2
+1. `chunks.db` 是否非空？否则运行 `scripts/reindex_text_only.py`。
+2. `graph.db` 是否为空？运行 `scripts/rebuild_graph.py`。
+3. 查询像 docs？尝试 `intent="docs"` / `intent="code"`。
+4. 在判定 docs miss 前，比较 exact-path 与 same-basename。
+5. 对 `fast` vs `quality`，同一查询分别运行并比较。
 
-```python
-async def dense_search(query_vector: list, limit: int) -> list:
-    table = await ensure_async_table()
-    builder = await table.search(query_vector, vector_column_name="vector")
-    df = await builder.limit(limit).to_pandas()
-    return [{"text": row["text"], "metadata": {...}} for _, row in df.iterrows()]
-```
+## 11. 非目标
 
-### 4. RRF 融合（倒数排序融合 Reciprocal Rank Fusion）
-
-> ⚠️ **重要：** 排名**分别**为每个通道计算，从 1 开始。
-> 使用合并的 `enumerate(bm25 + dense)` 会得出不正确的分数。
-
-```python
-def rrf_fusion(bm25: list, dense: list, k: int = 60) -> list:
-    """Merge BM25 + dense results using RRF formula.
-    
-    Ранги считаются отдельно для каждого канала (начиная с 1),
-    как того требует математически корректная RRF.
-    """
-    scores = {}
-    results_map = {}
-    
-    # BM25 ранги (отдельный enumerate с start=1)
-    for rank, doc in enumerate(bm25, 1):
-        key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
-        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
-        if key not in results_map:
-            results_map[key] = {
-                **doc,
-                "bm25_score": 1.0 / (k + rank),
-                "dense_score": 0.0,
-            }
-        else:
-            results_map[key]["bm25_score"] = 1.0 / (k + rank)
-    
-    # Dense ранги (отдельный enumerate с start=1)
-    for rank, doc in enumerate(dense, 1):
-        key = f"{doc['metadata']['file']}:{doc['metadata']['chunk_index']}"
-        scores[key] = scores.get(key, 0.0) + 1.0 / (k + rank)
-        if key not in results_map:
-            results_map[key] = {
-                **doc,
-                "bm25_score": 0.0,
-                "dense_score": 1.0 / (k + rank),
-            }
-        else:
-            results_map[key]["dense_score"] = 1.0 / (k + rank)
-    
-    for key in results_map:
-        results_map[key]["final_score"] = (
-            results_map[key]["bm25_score"] + results_map[key]["dense_score"]
-        )
-    
-    return sorted(results_map.values(), key=lambda x: x["final_score"], reverse=True)
-```
-
-### 5. 多桶 RAG（Multi-Bucket RAG）
-
-```mermaid
-flowchart LR
-    subgraph Buckets
-        CODE[Code Bucket\nweight=1.0]
-        DOCS[Docs Bucket\nweight=1.0]
-    end
-    subgraph Intent
-        CODE_HINT[intent_hint=code\ncode*1.2, docs*0.8]
-        DOCS_HINT[intent_hint=docs\ncode*0.8, docs*1.2]
-        AUTO[intent_hint=auto\nneutral]
-    end
-    subgraph Extension Detection
-        EXT[os.path.splitext\n→ .py, .rs = code\n→ .md, .json = docs]
-    end
-    RESULTS[Scored results] --> EXT --> |code ext| CODE
-    EXT --> |docs ext| DOCS
-    CODE --> |multiply by| CODE_HINT
-    CODE_HINT --> FINAL[final_score]
-    DOCS --> |multiply by| DOCS_HINT
-    DOCS_HINT --> FINAL
-```
-
-### 6. 协同变更提升（Co-change Boost）
-
-使用 git 历史提升历史上一起变更的文件：
-
-```python
-def apply_co_change_boost(chunks: list) -> list:
-    """Boost files coupled with top-3 results via git history."""
-    top_files = {c["metadata"]["file"] for c in chunks[:3]}
-    matrix = commit_memory.compute_co_change_matrix()
-    
-    for chunk in chunks:
-        file = chunk["metadata"]["file"]
-        partners = matrix.get(file, {})
-        if partners and any(tf in partners for tf in top_files):
-            best = max(partners.get(tf, 0) for tf in top_files)
-            chunk["final_score"] *= (1.0 + best * 0.3)
-    return chunks
-```
-
-### 7. 交叉编码器重排序（Cross-encoder Reranker）
-
-**模型：** `bge-reranker-v2-m3`（通过 LM Studio / Ollama）
-
-> **注意：** 重排序器（reranker）的可视化假设使用 LM Studio（GPU）。使用 ONNX Runtime 回退（fallback）时，重排序器通过 ONNX Runtime（CPU）使用相同的 `bge-reranker-v2-m3` 模型，吞吐量降低。
-
-- 独立评估每个（查询，块（chunk））对 — **比向量余弦更准确**
-- 仅对前 30 个候选进行重排序（由 `MAX_RERANKER_INPUT` 控制）
-- 如果 LM Studio 不可用，优雅降级
-
-```python
-async def rerank(query: str, candidates: list, top_n: int = 5) -> list:
-    """Single-stage reranker: query + chunk → relevance score."""
-    if not candidates:
-        return candidates
-    scores = await multi_reranker.rerank(query, candidates)
-    for i, chunk in enumerate(candidates):
-        chunk["final_score"] = scores[i] if i < len(scores) else 0
-    return sorted(candidates, key=lambda x: x["final_score"], reverse=True)[:top_n]
-```
-
-## 完整序列图
-
-```mermaid
-sequenceDiagram
-    participant Agent as AI Agent
-    participant MCP as MCP Server
-    participant EB as @error_boundary
-    participant ST as SearchTool
-    participant S as Searcher
-    participant E as Embedder
-    participant I as Indexer
-    participant R as Reranker
-    
-    Agent->>MCP: search_code(query, mode="quality", intent_hint="code")
-    MCP->>EB: wrap(timeout=10000, retries=2)
-    EB->>ST: execute()
-    
-    ST->>S: hybrid_search_async(query, limit=5)
-    
-    par Sparse search
-        S->>I: _bm25_search(query)
-        I-->>S: BM25 candidates
-    and Dense search
-        S->>E: embed_batch_async([query])
-        E-->>S: query vector (768-dim)
-        S->>I: search_async(vector, limit=30)
-        I-->>S: dense candidates
-    end
-    
-    S->>S: RRF fusion (k=60)
-    S->>S: Bucket weighting (code intent)
-    S->>S: Co-change boost
-    
-    S->>R: rerank(query, top-15, top_n=5)
-    R-->>S: reranked scores
-    
-    S-->>ST: 5 final results
-    ST-->>EB: formatted response
-    EB-->>MCP: success + metadata
-    MCP-->>Agent: results with file paths
-```
-
-## 性能基准测试
-
-| 阶段 | 时间 | 累积 |
-|-------|:----:|:----------:|
-| 查询扩展 | <1ms | <1ms |
-| BM25 搜索 | ~150ms | ~150ms |
-| 嵌入查询 | ~800ms | ~950ms |
-| LanceDB ANN | ~400ms | ~1350ms |
-| RRF 融合 | <1ms | ~1350ms |
-| 桶加权 | <1ms | ~1350ms |
-| 协同变更提升 | ~50ms | ~1400ms |
-| 重排序器（reranker）（5 个候选） | ~1200ms | ~2600ms |
-| **总计（质量模式）** | **~5600ms** | |
-| **总计（快速模式，仅 BM25）** | **~2300ms** | |
-| **总计（深度模式，递归）** | **2-5s** | |
-
-> *时间基于 ONNX Runtime（CPU）。LM Studio（GPU）可快 3-5 倍。*
-
-## 配置
-
-```ini
-# .env 搜索设置
-DEFAULT_SEARCH_LIMIT=6
-MAX_SEARCH_RESULTS=20
-QUERY_SYNONYMS_ENABLED=true
-MAX_QUERY_EXPANSIONS=3
-OVERFETCH_FACTOR=3
-RERANKER_PROVIDERS=ollama,lm_studio
-
-# 桶权重（1.0 = 中性）
-CODE_BUCKET_WEIGHT=1.0
-DOCS_BUCKET_WEIGHT=1.0
-```
+- 为每个查询使用 LLM router。路由是词法、廉价的。
+- 用静态 repo map 替代迭代搜索。它是上下文选择，不是 oracle。
+- 根据小型内部面板宣称 95% retrieval accuracy。
+- 用自信回答掩盖空图或 stale index。

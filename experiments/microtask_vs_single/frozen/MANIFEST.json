@@ -1,0 +1,274 @@
+{
+  "experiment": "microtask_vs_single",
+  "date": "2026-10-20",
+  "status": "pre_registered_blocked",
+  "question": "planner + isolated microtask workers vs one OpenCode session",
+  "pilot": {
+    "corpus": "frozen/repo (tinycalc)",
+    "tasks": [
+      "P1_mean",
+      "P2_money"
+    ],
+    "arms": [
+      "A",
+      "D-open"
+    ],
+    "runs_per_cell": 1,
+    "claim_limit": "harness validation only; not evidence for H1-H6"
+  },
+  "models": {
+    "planner": "opencode/deepseek-v4.1-flash-free",
+    "baseline": "opencode/deepseek-v4.1-flash-free",
+    "worker_open_fallback": "opencode-go/deepseek-v4.1-flash",
+    "worker_tirtha": "tirtha/auto",
+    "worker_tirtha_status": "BLOCKED: gateway exposes only auto; model ignored; OpenCode tool-call issue 2026-10-18",
+    "worker_local": "not installed"
+  },
+  "isolation": {
+    "config_root": "empty HOME/XDG for worker process",
+    "project_config": "OPENCODE_DISABLE_PROJECT_CONFIG=1",
+    "mcp": "mcpServers=[]; no global MCP in worker config",
+    "canary": "CANARY_AGENTS"
+  },
+  "excludes": [
+    "MANIFEST.json"
+  ],
+  "n_files": 47,
+  "files": [
+    {
+      "path": "corpus/001f7d3a41_write_tools.json",
+      "bytes": 857,
+      "sha256": "82f1d1d40ed1452f50e49a9932b7860378dad35f8e0451baaad79078c9eb3d17"
+    },
+    {
+      "path": "corpus/01d1cce11d_codebase_tool.json",
+      "bytes": 1183,
+      "sha256": "34905204713a8ea5d27b8666cb235c061900e6a9db8af5cb24118e9110c23a0b"
+    },
+    {
+      "path": "corpus/11c88afca6_bootstrap_entities.json",
+      "bytes": 1238,
+      "sha256": "7c4d68cc9b8131e3a178178df78f74ab6cb8eb096465e20f0702169b5cde5888"
+    },
+    {
+      "path": "corpus/17e65663b7_health.json",
+      "bytes": 930,
+      "sha256": "c3a97b33d2febc3a3c7eb627a437b0c35d66d0ae2846d283374632cb1ce6d17b"
+    },
+    {
+      "path": "corpus/32f1166290_index_project_runner.json",
+      "bytes": 1015,
+      "sha256": "b428fa6a3ce5b0293159221385d399b7dce716eff400ae7036a80325e7c3b21b"
+    },
+    {
+      "path": "corpus/6e63f85ac3_cypher_executor.json",
+      "bytes": 1656,
+      "sha256": "84b6827e922b57063ffc53018fde985d3e2bf6b436153d0198901d4dfc0d7d65"
+    },
+    {
+      "path": "corpus/8a05b599f6_verify_on_read.json",
+      "bytes": 981,
+      "sha256": "584df783f3452e0d5043f82fcb114410e96020935a633355f924032717cf6d1e"
+    },
+    {
+      "path": "corpus/9b66fbed2a_parser.json",
+      "bytes": 1891,
+      "sha256": "88cf885b033fdf85f61761c6a0ebe04e5ff24c065cd29cab94625e232fea3e19"
+    },
+    {
+      "path": "corpus/a7c221f88d_parser.json",
+      "bytes": 1482,
+      "sha256": "ad444eba7da142ecc67d7960148a0cbb0746f28b8fc11fd2f6ea87ae1cd13ff5"
+    },
+    {
+      "path": "corpus/c4c9296fdc_file_guard.json",
+      "bytes": 1059,
+      "sha256": "5ad066b716a6c5123792dc19dc6e715e8e98683137e84cfdb3572a3133e3c545"
+    },
+    {
+      "path": "corpus/e7dc645652_project_resolution.json",
+      "bytes": 931,
+      "sha256": "73d593cf50356e9246c7d7290c195b851eeef8fbeba0f85eda46f67dd428f024"
+    },
+    {
+      "path": "corpus/ed0f88004b_context_tool.json",
+      "bytes": 1376,
+      "sha256": "5c2d7277a2d783b49a69bf61f5b267b806c88d73ea152882612890d747b8c75f"
+    },
+    {
+      "path": "corpus/index.json",
+      "bytes": 431,
+      "sha256": "cea64e2d3b24244f11d4150da8058806b1115d27881d9dbca9a6b6b892a5e0f2"
+    },
+    {
+      "path": "corpus/specs/001f7d3a41_write_tools_noop.json",
+      "bytes": 678,
+      "sha256": "2554343064c8e2d2d4dd8a7058f56e6eb90145444ddaca21c111dce575ac3b6b"
+    },
+    {
+      "path": "corpus/specs/01d1cce11d_codebase_tool_block.json",
+      "bytes": 539,
+      "sha256": "3f4301fcefa6f459c2741633b0b89c0409fb7c08bc217b50df252067cede8684"
+    },
+    {
+      "path": "corpus/specs/11c88afca6_bootstrap_entities_noop.json",
+      "bytes": 712,
+      "sha256": "4ffcfc7e6febe896a55248e82ffa29560da6260a9b51a056c5ba88d33b395c7d"
+    },
+    {
+      "path": "corpus/specs/17e65663b7_health_block.json",
+      "bytes": 549,
+      "sha256": "23b843021b4906bd2efc0b956c102dcaa480e626ea78908f3c099280648380bd"
+    },
+    {
+      "path": "corpus/specs/32f1166290_index_project_runner_noop.json",
+      "bytes": 726,
+      "sha256": "2fa80a031fb4e4f94db211933df37ecee30930a25ffd8b00a8dd16c983051377"
+    },
+    {
+      "path": "corpus/specs/6e63f85ac3_cypher_executor_block.json",
+      "bytes": 546,
+      "sha256": "63ad3346aff13e9b71ff9a3196d2d92c4c5124a8da720ba46ceacc66818d3e27"
+    },
+    {
+      "path": "corpus/specs/8a05b599f6_verify_on_read_noop.json",
+      "bytes": 723,
+      "sha256": "5779b6f58faf277b8985cc1ee4c97d4a1c6af34f6233a2609f7d918a0ee79168"
+    },
+    {
+      "path": "corpus/specs/9b66fbed2a_parser_block.json",
+      "bytes": 528,
+      "sha256": "d6a5f140b1d4ddd207b56ba31a96a93733f95a31d8a65fab68b685d8401bf1da"
+    },
+    {
+      "path": "corpus/specs/a7c221f88d_parser_noop.json",
+      "bytes": 685,
+      "sha256": "4a30210dbd80713c2add14bf851a177ead45ce8c9d4ce3342b22ff35adf308ad"
+    },
+    {
+      "path": "corpus/specs/c4c9296fdc_file_guard_block.json",
+      "bytes": 548,
+      "sha256": "473af8884ff0a5d94a24db93e936ac2b23eadea297dd58a30f81722e2e58e8ef"
+    },
+    {
+      "path": "corpus/specs/e7dc645652_project_resolution_noop.json",
+      "bytes": 748,
+      "sha256": "da6e077b6746e9e6b439777c677890f1856763199781770ade9d54b62247ebe6"
+    },
+    {
+      "path": "corpus/specs/ed0f88004b_context_tool_block.json",
+      "bytes": 541,
+      "sha256": "6d9f3894f798564f9ba7f8006976304f6112a0f55373a71e7cde8af8e6718ea9"
+    },
+    {
+      "path": "hidden/conftest.py",
+      "bytes": 265,
+      "sha256": "16db623f4bd44635d03b0d7297037eb1017c5d2d3c681a0a83517ba760a38012"
+    },
+    {
+      "path": "hidden/test_p1_hidden.py",
+      "bytes": 232,
+      "sha256": "215c33f464285aa9fd184824fc7c90ad9cb8d186f2a8695f127fad3402eb6a78"
+    },
+    {
+      "path": "hidden/test_p2_hidden.py",
+      "bytes": 436,
+      "sha256": "ed8366106659783eb5339a0b88a1e17d8c66cafd0571587bc68f64a5f28d0760"
+    },
+    {
+      "path": "hidden/test_regression.py",
+      "bytes": 232,
+      "sha256": "d26ad050f3071723224ea5e0722fe9de6e147b3952937f79ad950cc88ee6e93a"
+    },
+    {
+      "path": "HYPOTHESES.md",
+      "bytes": 13651,
+      "sha256": "2cd11ec15435c74eea824d04164b83f22a455665ef60e04d437806072b0f9652"
+    },
+    {
+      "path": "plans/P1_mean.json",
+      "bytes": 538,
+      "sha256": "bfc9ef69f00f65ce343a4c6757eea8a19337d9957584ff004b9c6232acb8dfe4"
+    },
+    {
+      "path": "plans/P2_money.json",
+      "bytes": 882,
+      "sha256": "71901003012ff719202ade7eaa7f9c70113563e3ba61cd75926b4f08ccfa9a34"
+    },
+    {
+      "path": "prompts/baseline.md",
+      "bytes": 989,
+      "sha256": "0ad9b7def458e17b4ec118ddfc6886b1a11defea567074ac642582156f9ad6a8"
+    },
+    {
+      "path": "prompts/planner.md",
+      "bytes": 926,
+      "sha256": "4f11205a12cd0f7339e8ab2e680f01d25555226e366069c639c5ecc27ee841db"
+    },
+    {
+      "path": "prompts/reviewer.md",
+      "bytes": 477,
+      "sha256": "836e27c800ec36a92bfca8f581f66398e2d1b796dffc35d944a05445d765499e"
+    },
+    {
+      "path": "prompts/worker.md",
+      "bytes": 980,
+      "sha256": "70d3b74102c1395a22a06264ad178a44d20fed450d0ee117b2eb821fdcab2059"
+    },
+    {
+      "path": "repo/.gitignore",
+      "bytes": 34,
+      "sha256": "c30f9bc45238a2e6624722bb4ef666e23f8823fcc9f3bc4fc5277723185fa701"
+    },
+    {
+      "path": "repo/pytest.ini",
+      "bytes": 42,
+      "sha256": "b160d82f7811555051f8966d8e02750a985227c1d022208c784e606946f2eada"
+    },
+    {
+      "path": "repo/README.md",
+      "bytes": 526,
+      "sha256": "490710e829464ea0e0f51edc51754d2d0bde47a7c56a3b947595ef1f81a3f318"
+    },
+    {
+      "path": "repo/tests/test_public.py",
+      "bytes": 337,
+      "sha256": "4ff42ca92af38c20177c100c21caf2fcd16c6ed22150487a3ab590b4ebf89f14"
+    },
+    {
+      "path": "repo/tests/test_smoke.py",
+      "bytes": 40,
+      "sha256": "ed31a7f68b6f407eb5da3e1c36e0f46ba0a3a85f9fa1ea914b4cd92f17fa7513"
+    },
+    {
+      "path": "repo/tinycalc/__init__.py",
+      "bytes": 124,
+      "sha256": "35f9ba6ad2f4185467ca754e696bb1017e5a856b41d7252afb300c4f85a893ee"
+    },
+    {
+      "path": "repo/tinycalc/cli.py",
+      "bytes": 316,
+      "sha256": "3deee9e7760577e7654907742d4c603412cb412114f9543f4147f950b113ec19"
+    },
+    {
+      "path": "repo/tinycalc/core.py",
+      "bytes": 154,
+      "sha256": "9ecdda3bf56cca3c1d2632ddd9e4303131ca9327b325b02361bf51ed44d2595f"
+    },
+    {
+      "path": "repo/tinycalc/formatting.py",
+      "bytes": 144,
+      "sha256": "4203e63385c63ecd589bee3fb60d5761d21447728769fa4e56bc9bef52919a99"
+    },
+    {
+      "path": "tasks/P1_mean.md",
+      "bytes": 500,
+      "sha256": "3c203e10d135e318c7f9208eff2a76e673e346dc0ab7b3ba17674688a13ac434"
+    },
+    {
+      "path": "tasks/P2_money.md",
+      "bytes": 831,
+      "sha256": "2fef65f7330a798c94a8859b76b1763b1999f318f8df037ca9bbf5d461bb2657"
+    }
+  ]
+}

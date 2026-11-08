@@ -25,7 +25,7 @@ from pathlib import Path
 logger = logging.getLogger("mscodebase_server.llama_install")
 
 # ─── Конфигурация ──────────────────────────────────────────────
-LLAMA_VERSION = "b9940"  # ⚠️ перед бампом проверь https://github.com/ggml-org/llama.cpp/security (GHSA-advisories)
+LLAMA_VERSION = "b11476"  # first release supporting gemma-embedding2 arch (PR #30054)
 LLAMA_BASE_URL = (
     f"https://github.com/ggml-org/llama.cpp/releases/download/{LLAMA_VERSION}"
 )
@@ -256,6 +256,14 @@ GGUF_MODELS = {
         "ctx_recommended": 512,
         "pooling": "mean",
     },
+    "embeddinggemma-2": {
+        "repo": "unsloth/embeddinggemma-2-GGUF",
+        "file": "embeddinggemma-2-Q8_0.gguf",
+        "size_mb": 296,
+        "dim": 768,
+        "ctx_recommended": 8192,
+        "pooling": "mean",
+    },
     "bge-m3": {
         "repo": "lm-kit/bge-m3-gguf",
         "file": "bge-m3-Q4_K_M.gguf",
@@ -274,7 +282,7 @@ GGUF_MODELS = {
 # Модель по умолчанию (можно переопределить через EMEDDING_MODEL)
 # qwen3-embedding — лучшее качество (722 MB RAM, 2.4 чанка/с)
 # bge-m3 — в 5x быстрее индексация (692 MB RAM, 12 чанков/с)
-DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "multilingual-e5-small")
+DEFAULT_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "embeddinggemma-2")
 DEFAULT_RERANKER_MODEL = "bge-reranker-v2-m3"
 
 # На Insider (build >= 26000): MSVC сборка не может загрузить api-ms-win-crt-* DLL

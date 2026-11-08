@@ -1,0 +1,16 @@
+{"id": "E30-E28-01", "query": "Почему в ограничителе скорости используется threading.Lock, а не asyncio.Lock, и с каким инцидентом это связано?", "gold_file": "src/core/rate_limiter.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-04", "query": "Как решается проблема, что idle-watchdog убивает общий embedder во время полной переиндексации?", "gold_file": "src/core/embedder_lease.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-07", "query": "Что делает validate_scores с неоценёнными чанками, у которых score равен NaN или Inf?", "gold_file": "src/providers/reranker/reranker_scoring.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-10", "query": "Почему в RRF-слиянии ранги считаются отдельно для каждого канала, а не общим enumerate?", "gold_file": "docs/en/SEARCH_PIPELINE.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-13", "query": "Какой вердикт получает ACTIVE-узел памяти, если резолвер недоступен и проверка не дала результата?", "gold_file": "docs/adr/0003-verify-on-read.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-16", "query": "Насколько переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом?", "gold_file": "docs/en/SYSTEM_REQUIREMENTS.md", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-19", "query": "ubatch embed 512 rerank 1024 resolve_ubatch", "gold_file": "src/providers/reranker/llama_install.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-22", "query": "PropertyGraph add_node add_edge SQLite transaction per node edge", "gold_file": "src/core/graph.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-25", "query": "FreshnessChecker to_pandas columns lancedb broken dead code", "gold_file": "src/core/indexing/freshness.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-28", "query": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB", "gold_file": "src/core/indexing/db_manager.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-E28-31", "query": "переиндексация одного изменённого файла notify change rate limit", "gold_file": "src/mcp/tools/indexing_tools.py", "source": "e28_denseoff/frozen"}
+{"id": "E30-D01", "query": "MSCodebase Intelligence Семантический поиск по кодовой базе для Zed IDE.", "gold_file": "src/__init__.py", "source": "docstring"}
+{"id": "E30-D04", "query": "Автоматический парсер .gitignore для исключения файлов из индексации.", "gold_file": "src/core/gitignore_parser.py", "source": "docstring"}
+{"id": "E30-D07", "query": "MCP Tool Registration for Intelligence Layer.", "gold_file": "src/core/intelligence/tools_reg.py", "source": "docstring"}
+{"id": "E30-D10", "query": "Cypher query engine — компонент для подмножества openCypher.", "gold_file": "src/core/search/cypher_parser.py", "source": "docstring"}
+{"id": "E30-D13", "query": "find_duplicates — детектор дупликации кода (AST-отпечатки + minhash-LSH).", "gold_file": "src/mcp/tools/duplication_tool.py", "source": "docstring"}

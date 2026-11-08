@@ -1,0 +1,32 @@
+{
+  "task_id": "17e65663b7_health",
+  "source": "own-repo-history",
+  "parent_sha": "bb05d9af1fbf40cb071861108e62eae345ffd4b1",
+  "fix_sha": "17e65663b774d8646d7270d183007ac58af13d09",
+  "subject": "fix(graph): include bare-callee nodes in qualified-symbol lookup",
+  "src_file": "src/core/intelligence/health.py",
+  "src_files": [
+    "src/core/intelligence/health.py",
+    "src/core/search/graph_adapter_pure.py"
+  ],
+  "test_file": "tests/test_graph_adapter_node_selection.py",
+  "test_files": [
+    "tests/test_graph_adapter_node_selection.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_graph_adapter_node_selection.py::test_qualified_symbol_includes_bare_node_callers"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

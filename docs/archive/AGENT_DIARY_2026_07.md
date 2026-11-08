@@ -7,7 +7,7 @@
 ## [2026-07-31] — P0 deadlock реиндекса + z.ai review обработка (16 пунктов)
 
 **Status:** ✅ Fixed (P0 deadlock; z.ai: 3 CONFIRMED/1 partial/12 REFUTED)
-**Root Cause:** регрессия ac6e5ba0e P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 воркеры вызывали её БЕЗ `known_hashes` из ThreadPool, пока главный поток держал тот же RLock через `begin_write()` на весь run() → RLock не реентерабелен между потоками → вечный deadlock: индексация зависала (progress:0, current_file:""), все MCP-инструменты, читающие БД, таймаутили (get_status/count_rows под тем же lock).
+**Root Cause:** регрессия b194a7b96 P1-3 (19:33) — `_parse_file_only` read-секция под `_table_write_lock` (RLock), а Phase 1 воркеры вызывали её БЕЗ `known_hashes` из ThreadPool, пока главный поток держал тот же RLock через `begin_write()` на весь run() → RLock не реентерабелен между потоками → вечный deadlock: индексация зависала (progress:0, current_file:""), все MCP-инструменты, читающие БД, таймаутили (get_status/count_rows под тем же lock).
 **Fix:** `index_project_runner.py` — bulk-загрузка known_hashes в главном потоке (RLock reentrant) + передача воркерам → они не ходят в БД под lock; + `invalidate_cache()` после reindex (LOGIC-5) и в `_index_single_file`; `scoring.py` MMR remaining по relevance (LOGIC-8); `file_move_manager.py` переписан (искал по file_hash вместо file_path + нетранзакционный delete→add, LOGIC-1/2/3 — орфанный, но опасен); `lsp_client.py` UNC (WIN-3/4); `server_factory.py` json.dumps (WIN-8); `graph.py` mutex warning (WIN-2); `error_handler.py` sanitize str(e) (SEC-4); `codebase_tool.py` env-валидация (SEC-5); тесты: test_index_runner_deadlock (3, валидирован — падает без фикса), test_lsp_uri_conversion (5+2 skip).
 **Guard:** 666 passed, 0 failed; ruff clean; py_compile 9 файлов; ISSUE.md «Что осталось» + секция z.ai review; KNOWN_ISSUES.md зеркально. REFUTED: LOGIC-4 (flush уже вне lock), WIN-1 (blake2b уже), SEC-1/2 (allowlist уже чистый), ARCH-1 (resolve уже под lock), LOGIC-7 (assign-as-method есть).
 **verified_from_clean_state:** ⚠️ не проверено — verify_clean_state.sh требует ubuntu-раннер; эквивалент: полный pytest tests/ (666 passed) с рабочего дерева.
@@ -80,7 +80,7 @@
 ## [2026-07-31] — Остаток ISSUE.md закрыт: graph/db_manager/cypher/indexer/error_handler/layer + P0 git_hooks_installer
 
 **Status:** ✅ Fixed (ISSUE.md P1-1..P1-14, P2-14..P2-17, P3-1..P3-14 — все закрыты)
-**Root Cause:** остаточный долг аудита: BFS хранил полные пути (O(V×depth) память), batch_add_edges — N+1 запросов; switch_db/_warmup_cache/read-секции indexer без `_write_lock` (race с reset_connection); PID-lock после 30с таймаута МОЛЧА возвращался без лока; CypherExecutor.execute без `_graph._lock`; `_e` в raise вне except (NameError в remote_embedder); `git_hooks_installer.py` — сломанный тройной-квоте-шаблон (SyntaxError с 8f799dec).
+**Root Cause:** остаточный долг аудита: BFS хранил полные пути (O(V×depth) память), batch_add_edges — N+1 запросов; switch_db/_warmup_cache/read-секции indexer без `_write_lock` (race с reset_connection); PID-lock после 30с таймаута МОЛЧА возвращался без лока; CypherExecutor.execute без `_graph._lock`; `_e` в raise вне except (NameError в remote_embedder); `git_hooks_installer.py` — сломанный тройной-квоте-шаблон (SyntaxError с 4f3a3788).
 **Fix:** graph.py — parent-pointer BFS + пакетная реконструкция пути, батч-lookup в batch_add_edges, try/finally для temp-db, параметр limit в detect_dead_code; db_manager — RLock (P1-13), switch_db/_warmup_cache под локом, PID-lock: raise при таймауте + retry-loop; indexer — read-секции и move_chunks_metadata под `_table_write_lock`; cypher — execute под `_graph._lock`, SQL убран из stats, `[*1..N]` → явный NotImplementedError; error_handler — deque для _TIMELINE/latencies, traceback убран из MCP-ответа; layer.py — детерминированный blake2b ID, cross-platform _find_pid (psutil/ss), единый threading.Lock (async-адаптер), packfile-fallback через git log; server_tools — экземпляры кэшируются (P3-13); engine — TTL 30с в кэш; ruff: BLE001 включён + legacy per-file-ignores (664); ci.yml — Python 3.10 + checkout@v5.
 **Guard:** `python -m ruff check src/ tests/` → 0; grep `_sync_write_lock` → 0; `hash(line)` → 0; `netstat` в layer.py → только win32-fallback.
 **Verification:** 610 passed, 0 failed; ruff 0.15.16 clean; verify_diary 20 ✅ / 0 ❌; шаблон git-хука валидируется `ast.parse` после `.format()`.
@@ -162,24 +162,24 @@
 
 ---
 
-## [2026-07-22 21:10] — Audit fixes P2-P3: tool count reconciliation (commit 5a522ead)
+## [2026-07-22 21:10] — Audit fixes P2-P3: tool count reconciliation (commit a338a02f)
 
 ### What was done
 Second batch of audit fixes from the 20-item comprehensive audit:
 
 | ID | Fix | File | Commit |
 |----|-----|------|--------|
-| P2-14 | LSP _handle_crash: terminate() before null (zombie prevention) | lsp_client.py | 5a522ead |
-| P2-13 | find_first_non_self_indexing() public API | project_indexer_registry.py | 5a522ead |
-| P2-15 | Hardcoded ports 8080/8081 -> EmbeddingConfig | settings.py + layer.py | 5a522ead |
-| P2-10 | ARCHITECTURE.md cypher_engine facade | docs/en/ARCHITECTURE.md | 5a522ead |
-| P3-17 | Remove dead param 'name' from _find_pid | layer.py | 5a522ead |
-| P3-18 | __import__("re") -> top-level import re | graph_adapter.py | 5a522ead |
-| Docs | Tool count 48=19+13+12+4 consistent across README, ARCHITECTURE, server_tools | 3 files | 5a522ead |
+| P2-14 | LSP _handle_crash: terminate() before null (zombie prevention) | lsp_client.py | a338a02f |
+| P2-13 | find_first_non_self_indexing() public API | project_indexer_registry.py | a338a02f |
+| P2-15 | Hardcoded ports 8080/8081 -> EmbeddingConfig | settings.py + layer.py | a338a02f |
+| P2-10 | ARCHITECTURE.md cypher_engine facade | docs/en/ARCHITECTURE.md | a338a02f |
+| P3-17 | Remove dead param 'name' from _find_pid | layer.py | a338a02f |
+| P3-18 | __import__("re") -> top-level import re | graph_adapter.py | a338a02f |
+| Docs | Tool count 48=19+13+12+4 consistent across README, ARCHITECTURE, server_tools | 3 files | a338a02f |
 
 ### Verification
 - 519 passed, 0 regressions (36 pre-existing failures in test_project_header + test_relation_extractor)
-- Git: both commits on origin/main (b39ef455 P0-P1 + CodeQL, 5a522ead P2-P3 + docs)
+- Git: both commits on origin/main (d5800297 P0-P1 + CodeQL, a338a02f P2-P3 + docs)
 
 ### Remaining deferred items
 - P2-12: MODE_HYBRID dead code removal (composition_adapter.py default, risky)
@@ -212,7 +212,7 @@ verified_from_clean_state: ✅ yes
 - ✅ KNOWN_ISSUES.md синхронизирован
 - ⚠️ verified_from_clean_state: ✅ yes (только docs, без runtime-изменений)
 
-**Коммит:** 95a322d6 (51 files, +3405/−1672)
+**Коммит:** 4f690bea (51 files, +3405/−1672)
 
 ---
 

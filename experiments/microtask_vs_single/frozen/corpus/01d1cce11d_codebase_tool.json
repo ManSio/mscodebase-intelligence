@@ -1,0 +1,36 @@
+{
+  "task_id": "01d1cce11d_codebase_tool",
+  "source": "own-repo-history",
+  "parent_sha": "910473aa25509e5e3f68e115649f1a11973ddb78",
+  "fix_sha": "01d1cce11df9641923ffd4900653df4e8c93a18a",
+  "subject": "fix(codebase): hub git routing + write refactors",
+  "src_file": "src/mcp/tools/codebase_tool.py",
+  "src_files": [
+    "src/mcp/tools/codebase_tool.py",
+    "src/mcp/tools/write_tools.py"
+  ],
+  "test_file": "tests/test_codebase_hub.py",
+  "test_files": [
+    "tests/test_codebase_hub.py",
+    "tests/test_write_tools.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_codebase_hub.py::TestHubGitRouting::test_git_branch_routes_to_branch_tool",
+    "tests/test_codebase_hub.py::TestHubGitRouting::test_git_log_passes_real_project_root",
+    "tests/test_codebase_hub.py::TestHubGitRouting::test_git_unknown_subaction_errors",
+    "tests/test_write_tools.py::TestInferPackage::test_returns_dotted_module_relative_to_root"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "task_id": "6e63f85ac3_cypher_executor_block",
+  "class": "block",
+  "snapshot_sha": "e51764a084215eff10791ab9380f4274ba86334d",
+  "src_file": "src/core/search/cypher_executor.py",
+  "test_file": "tests/test_cypher_engine.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "",
+  "hidden_test_ids": [],
+  "missing_test": "tests/test_missing_spec.py",
+  "text": "Make `tests/test_missing_spec.py` pass. That file is the only specification of the expected behaviour, and it is the only place the expected behaviour is written down."
+}

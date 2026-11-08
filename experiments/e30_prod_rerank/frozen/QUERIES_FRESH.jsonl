@@ -1,0 +1,15 @@
+{"id": "E30-D01", "query": "MSCodebase Intelligence Семантический поиск по кодовой базе для Zed IDE.", "gold_file": "src/__init__.py", "source": "docstring"}
+{"id": "E30-D02", "query": "Запускает pytest-трассу; возвращает (exit_code, seconds).", "gold_file": "src/core/bootstrap_pipeline.py", "source": "docstring"}
+{"id": "E30-D03", "query": "Полная проверка: все .md против всех символов из src/.", "gold_file": "src/core/doc_sync_engine.py", "source": "docstring"}
+{"id": "E30-D04", "query": "Автоматический парсер .gitignore для исключения файлов из индексации.", "gold_file": "src/core/gitignore_parser.py", "source": "docstring"}
+{"id": "E30-D05", "query": "Инкрементальная сверка: stat-first → hash-confirm → hot-reload.", "gold_file": "src/core/indexing/freshness.py", "source": "docstring"}
+{"id": "E30-D06", "query": "Symbol Index — отслеживание определений и использований символов между файлами.", "gold_file": "src/core/indexing/symbol_index.py", "source": "docstring"}
+{"id": "E30-D07", "query": "MCP Tool Registration for Intelligence Layer.", "gold_file": "src/core/intelligence/tools_reg.py", "source": "docstring"}
+{"id": "E30-D08", "query": "Публичный геттер для директории bridge-файлов.", "gold_file": "src/core/lsp_project_bridge.py", "source": "docstring"}
+{"id": "E30-D09", "query": "Return the canonical POSIX relative path (backslashes -> slashes).", "gold_file": "src/core/relpath.py", "source": "docstring"}
+{"id": "E30-D10", "query": "Cypher query engine — компонент для подмножества openCypher.", "gold_file": "src/core/search/cypher_parser.py", "source": "docstring"}
+{"id": "E30-D11", "query": "Сериализует в dict (без None значений для краткости).", "gold_file": "src/core/search/trace.py", "source": "docstring"}
+{"id": "E30-D12", "query": "MCP (Model Context Protocol) сервер для интеграции с Zed IDE.", "gold_file": "src/mcp/__init__.py", "source": "docstring"}
+{"id": "E30-D13", "query": "find_duplicates — детектор дупликации кода (AST-отпечатки + minhash-LSH).", "gold_file": "src/mcp/tools/duplication_tool.py", "source": "docstring"}
+{"id": "E30-D14", "query": "Импортирует entrypoint плагина (разрешённый путь, отдельный от execute_script).", "gold_file": "src/plugins/loader.py", "source": "docstring"}
+{"id": "E30-D15", "query": "Заглушка, если LiveSyncServer не поднялся.", "gold_file": "src/remote_main.py", "source": "docstring"}

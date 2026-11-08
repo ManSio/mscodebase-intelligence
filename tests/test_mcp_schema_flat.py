@@ -23,18 +23,17 @@ from mcp.server.fastmcp import FastMCP  # noqa: E402
 from src.mcp.server_tools import register_all_tools  # noqa: E402
 
 
-def _registered_tools():
-    """Все тулы: core (register_all_tools) + intel (tools_reg)."""
+def _registered_tools(monkeypatch):
+    """Все тулы: полный профиль, чтобы фильтр поверхности не сужал проверку."""
+    monkeypatch.setenv("MSCODEBASE_MCP_PROFILE", "full")
     app = FastMCP("schema_guard")
     register_all_tools(app, MagicMock())
-    from src.core.intelligence.tools_reg import register_intelligence_tools
-    register_intelligence_tools(app, MagicMock())
     return app._tool_manager.list_tools()
 
 
-def test_no_dollardefs_or_ref_in_tool_schemas():
+def test_no_dollardefs_or_ref_in_tool_schemas(monkeypatch):
     """Ни один тул не должен генерировать $defs/$ref в inputSchema."""
-    tools = _registered_tools()
+    tools = _registered_tools(monkeypatch)
     assert len(tools) >= 40, f"подозрительно мало тулов: {len(tools)}"
     offenders = [
         t.name for t in tools
@@ -47,9 +46,9 @@ def test_no_dollardefs_or_ref_in_tool_schemas():
     )
 
 
-def test_tool_schemas_are_objects_with_properties():
+def test_tool_schemas_are_objects_with_properties(monkeypatch):
     """Санити: схемы — валидные object-схемы (не пустые, не сломанные)."""
-    tools = _registered_tools()
+    tools = _registered_tools(monkeypatch)
     for t in tools:
         s = t.parameters
         assert isinstance(s, dict), f"{t.name}: schema не dict"

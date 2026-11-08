@@ -1,0 +1,103 @@
+"""Execution-contract git probe: Popen+communicate, not check_output.
+
+Regression 2026-11-07: on Windows the probe ran `subprocess.check_output` inside
+a ThreadPoolExecutor thread while the MCP process had its stdout redirected to
+the JSON-RPC pipe. Reading the child's pipe deadlocked (AGENTS.md §5.16), so
+every health report carried "Git операция не удалась: Функция превысила таймаут
+15 секунд" while `git log -1` itself took 40 ms by hand.
+
+The tests use a fake spawner: the property under test is WHICH API is used and
+how the timeout is handled, not what git prints.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+import src.core.intelligence.health as health_mod
+from src.core.intelligence.health import HealthReport
+
+
+class _OkPopen:
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self.timeout = None
+
+    def communicate(self, timeout=None):
+        self.timeout = timeout
+        return (b"abc1234 subject line\n", b"")
+
+    def kill(self):  # pragma: no cover — must not be called on success
+        raise AssertionError("kill() called on a successful probe")
+
+
+class _SlowPopen:
+    def __init__(self, *args, **kwargs):
+        self.killed = False
+        self._first = True
+
+    def communicate(self, timeout=None):
+        if self._first:
+            self._first = False
+            raise subprocess.TimeoutExpired(cmd="git", timeout=timeout)
+        return (b"", b"")
+
+    def kill(self):
+        self.killed = True
+
+
+def test_probe_uses_communicate_with_inner_timeout(tmp_path, monkeypatch):
+    spawned = {}
+
+    def _factory(*args, **kwargs):
+        spawned["proc"] = _OkPopen(*args, **kwargs)
+        return spawned["proc"]
+
+    monkeypatch.setattr(health_mod.subprocess, "Popen", _factory)
+    report = HealthReport(project_path=Path(tmp_path))
+    report._check_execution_contract()
+
+    assert spawned["proc"].kwargs.get("stdout") is subprocess.PIPE
+    assert spawned["proc"].kwargs.get("stdin") is subprocess.DEVNULL
+    assert spawned["proc"].timeout == 5
+    assert report.metrics.get("last_commit") == "abc1234 subject line"
+    assert not [w for w in report.warnings if w["component"] == "execution_contract"]
+
+
+def test_real_probe_returns_hash_and_subject(tmp_path):
+    """Real-repo guard: the mocked payload must match what git actually prints.
+
+    The fake spawner above pins the *contract* ("hash subject"), so it cannot
+    catch a probe whose real command returns only a hash — that is exactly how
+    `rev-parse --short HEAD` slipped past it and broke
+    `test_last_commit_metric`.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+    (repo / "a.py").write_text("x = 1", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+    report = HealthReport(project_path=repo)
+    report._check_execution_contract()
+
+    value = report.metrics.get("last_commit", "")
+    assert len(value.split(" ", 1)) == 2, value
+    assert "initial" in value
+
+
+def test_probe_timeout_is_a_metric_not_a_warning(tmp_path, monkeypatch):
+    """Медленный git в песочнице MCP — не проблема пользователя (2026-11-07)."""
+    proc = _SlowPopen()
+    monkeypatch.setattr(health_mod.subprocess, "Popen", lambda *a, **k: proc)
+    report = HealthReport(project_path=Path(tmp_path))
+    report._check_execution_contract()
+
+    assert proc.killed is True
+    assert report.metrics.get("git_probe") == "timeout"
+    assert not [w for w in report.warnings if w["component"] == "execution_contract"]

@@ -1,4 +1,380 @@
 
+
+
+
+
+
+
+
+
+
+
+
+## [2026-10-25] DOCS — синхронизация RU/ZH главных страниц и статус-баннеры
+
+- `docs/ru/README.md` и `docs/zh/README.md` переписаны по новому English README:
+  Phase 3 text-first, измеренное качество с методикой, ограничения, bug-report
+  протокол, актуальные команды и карта документации.
+- В `ARCHITECTURE`, `ARCHITECTURE_DEEP`, `SEARCH_PIPELINE` (EN/RU/ZH) добавлены
+  статус-баннеры: часть текста — исторический LanceDB/vector design; канон —
+  README. В `ARCHITECTURE` обновлены счётчики инструментов и тестов.
+- `CONTRIBUTING` EN/RU/ZH: Python 3.10+ → 3.14+.
+- Проверка локальных ссылок RU/ZH: 0 missing.
+
+## [2026-10-25] README — полная переписка главной страницы
+
+- Старый README описывал LanceDB/vector/reranker как основной путь и содержал
+  взаимоисключающие числа (65/49 tools, 2131/2142/853 tests). Переписан под
+  фактическую Phase 3: SQLite/FTS5 + PropertyGraph, optional providers.
+- Добавлены: «What works today», измеренное качество с методикой и границами,
+  известные ограничения, bug-report протокол, актуальные команды install/reindex/
+  rebuild_graph, группы инструментов (64 registered / 49 default-visible).
+- Числа: quality 0.688/0.750; code 0.825/0.900; docs exact 0/0.125; same-basename
+  0.750; auto docs route 0.792/0.875 (translation-normalized). 0.95 не заявлено.
+- RU/ZH зеркала помечены как могущие отставать; канон — English README.
+
+## [2026-10-25] E57 — auto docs routing by BM25 margin (no LLM)
+
+- Keyword router: base h1 0.708, 4 code false positives.
+- **BM25 margin `docs_max - code_max > 4.0`:** same-basename **0.688 → 0.792**,
+  docs 5/8, **0 code false positives**, code h1 0.825 unchanged; exact 0.708.
+- Held-out odd/even: t=3 odd best → even 0.875; t=4 full 0.792.
+- **Реализовано:** `MSCODEBASE_DOCS_MARGIN` (4.0), `Searcher.prefers_docs()`,
+  auto-ветка в `SearchCodeTool` при пустом `intent`; tests 27 pass.
+- Без LLM: один доп. FTS-запрос (~100 ms), затем docs или code.
+
+## [2026-10-25] E55/E56 — chain modes + docs: gold-language, не ranking
+
+- **E55:** hybrid/quality/deep = 0.688/0.771 (p50 45–48 ms); fast = 0.542/0.729
+  (p50 19 ms); nodemote/intent/ru/p3 — **без эффекта**.
+- **E56:** exact-path docs_only 0.021/0.062; **translation-normalized docs_only
+  0.750**, oracle **0.812/0.917**; p50 131 ms. BM25 отдаёт `docs/ru/X.md` при
+  gold `docs/en/X.md` — это **gold canonicalization**, не провал retrieval.
+- **Дешёвый путь:** explicit intent + docs-only FTS, без LLM-router;
+  `demote/intent/ru/p3` на панели не двигают hit@1.
+- **Реализовано:** `Searcher.search_docs()` + `search_code(intent="docs")`;
+  docs: exact 1/8, same-basename **6/8**; tests `test_search_docs.py`.
+- **Добавлено:** language-dedupe в `search_docs` (ru/en/zh → один документ,
+  предпочтение языка запроса) + `delete_files()`/prune в reindex; tests 12/7 pass.
+- Production: graph 12,753 nodes, index 7,314 chunks (0 experiments), tests 32 pass.
+
+## [2026-10-25] AUDIT — цепочка: graph=0 исправлен, leakage убран, docs=0
+
+- **P0 graph:** production graph был 0 nodes; `index_project` блокируется
+  `DENSE_OFF`. Добавлен `scripts/rebuild_graph.py`; восстановлено
+  **12,753 nodes / 45,762 edges**, 0 experiment nodes.
+- **P0 leakage:** `experiments/frozen` индексировался → 19/48 BM25 находили
+  панель. `SystemArtifacts` теперь исключает весь `experiments/**`; тест
+  обновлён. Production index: **0 experiments, 7,314 chunks** (FTS synced).
+- **E53/E54:** lexical intent + explicit intent не поднимают docs hit@1 (0);
+  только +1 docs hit@5. Нужен отдельный docs-only FTS (E48: 0.75/1.00), без LLM.
+- Baseline clean: **0.688/0.750**; code 0.825/0.900; docs 0/0. Tests 32 pass.
+
+## [2026-10-25] E52 — clean-index audit: baseline исправлен, docs = 0
+
+- Clean DB: 7,258 chunks (удалено 9,089 experiments); leakage 0/48.
+- Contaminated production 0.688/0.771; **clean production 0.688/0.750** (p50 72ms).
+- Clean BM25 0.542/0.771; code 0.625/0.875; docs 0.125/0.25.
+- **Production subsets: code 0.825/0.900, docs 0.000/0.000.**
+- **Вывод:** hit@1 не завышен; hit@5 0.771 → 0.750 (supersede). Docs — главный
+  провал. Oracle router (code 0.825 + docs 0.75) = **0.8125 hit@1 / ~0.9167 hit@5**.
+  95% всё ещё требует усиления code-канала/LLM-агента.
+
+## [2026-10-25] E51/E51b — agentic loop + панель проиндексирована (leakage)
+
+- **E51:** single_top1 = `experiments/4A.../frozen/f5/queries.md` для большинства
+  запросов — frozen-файл панели в индексе и содержит те же probes. Цифры невалидны.
+- **E51b (фильтр experiments/):** single 0.562/0.771; agent 0.438/0.792;
+  p50 140 ms; calls 2.0; tokens 1048. Code single 0.650/0.875, agent 0.525/0.875.
+- **Вывод:** детерминированный expansion+graph ухудшает hit@1; для 95% нужен
+  LLM-планировщик, а не эвристика. **P0:** исключить frozen-панели из индекса/
+  retrieval и перепроверить все BM25-числа (E49/E50/E51).
+
+## [2026-10-25] E49/E50 — резерв docs и score-router: бюджет нулевой суммы
+
+- **E49:** reserve15 0.250/0.500/0.583 (хуже base 0.271 на 1k); reserve25
+  0.208/0.458/0.604; oracle 0.396/0.604/0.729; p50 245 ms.
+- **E50:** route@0.8–2.0 = 0.104/0.125/0.167; docs-запросы 8/8 при любом
+  пороге (BM25-score docs всегда выше); code route 0; oracle 0.375/0.583/0.729.
+- **Урок:** docs и code конкурируют за один token-budget; лексический score —
+  не сигнал маршрутизации. Нужен semantic classifier/agentic loop, статическая
+  map не даёт 95% (потолок ~37–40% на 1k).
+
+## [2026-10-25] E48 — two-channel map: docs BM25 сильный, routing ломает всё
+
+- Code PageRank + docs BM25, один PageRank/запрос; p50 323 ms.
+- **base** 0.271/0.458/0.562; **route** 0.292/0.458/0.562; **oracle**
+  0.396/0.625/0.729; best real interleave 0.208/0.438/0.625.
+- Docs-gold (8): **bm25_docs 0.75/1.00/1.00**, route 0.125 (keyword-роутер
+  поймал 2/8). Code-gold: base 0.325/0.550/0.675.
+- **Потолок двух каналов на 1k — 39.6%**, 2k 62.5%, 4k 72.9%; 95% недостижимо.
+- **Урок:** docs всегда через BM25 (без classifier), top-docs под token-reserve;
+  code-канал 1k улучшать BM25+PageRank hybrid. H1–H5,H7,H8 FAIL; H6 PASS.
+
+## [2026-10-25] E47 — docs в PageRank разбавляют code-граф (FAIL)
+
+- Docs 348 + code 759; docs→code по упоминаниям; BM25 seed; RU→EN.
+- **base** (code-only): 0.271/0.458/0.562; **docs**: 0.042/0.188/0.458;
+  **docs_bm25**: 0.042/0.229/0.479; p50 1,113 ms.
+- Code-only 1k: 32.5% → 5%; docs-only 1k: 0 → 37.5% (BM25).
+- **Урок:** docs нельзя в тот же PageRank — два канала (code PageRank + docs BM25),
+  слияние по бюджету; один PageRank на запрос. H1–H7 FAIL (H7 ожидаемо).
+
+## [2026-10-25] E46/E46b — Aider-style PageRank repo map: работает, но далёк от 95%
+
+- **Граф:** complete PropertyGraph 9,315 nodes / 47,286 edges / 759 code files (docs нет).
+- **E46:** personalized PageRank 1k/2k/4k = 0.271/0.417/0.521 (code-only 0.325/0.500/0.625;
+  docs 0/0/0). Degree/global — 0–0.17. p50 207ms.
+- **E46b (+RU→EN):** 0.271/0.458/0.562 (code-only 0.325/0.550/0.675); p50 204ms.
+- **Вывод:** PageRank реально бьёт degree/global, но 95% на 1k недостижимо; docs-gold
+  не попадают в граф. Нужны docs-узлы, лучшая персонализация и/или BM25 top-files до PageRank.
+  Артефакты: `experiments/e46_pagerank_map/`, `e46b_pagerank_ru/`.
+
+## [2026-10-25] E45 — structured agent plan: +1 h1 (0.688 → 0.708), p50 72 ms
+
+- **План:** primary keyword query + must_include + symbols; один запрос, детерминированные ×2 бусты,
+  без multi-query RRF. 48 запросов E30, frozen plans sha `093003f4…`.
+- **Результат:** baseline 0.688/0.771/79ms; plan_primary 0.708/0.750/69ms;
+  **plan_must 0.708/0.771/71ms**; plan_full 0.708/0.771/72ms.
+- **Вывод:** один primary query + must_include — реальный маленький выигрыш (+1 h1, h5 сохранён,
+  быстрее). Exact symbols ничего не дают (пусто/шум). Агентский план стоит внедрить как API/UX,
+  но 95% он не закрывает. Артефакты: `experiments/e45_agent_plan/`.
+
+## [2026-10-25] E44 — agent-style rewrites: keywords +1 h1; identifier/fusion хуже
+
+- **Плечи:** baseline / keywords / identifiers / agent_all на 48 запросах E30; frozen rewrites
+  sha `9f87fbb2…`.
+- **Результат:** baseline 0.688/0.771/84ms; **keywords 0.708/0.771/78ms**;
+  identifiers 0.583/0.750; agent_all 0.688/0.771/147ms.
+- **Вывод:** одна чистая keyword-формулировка лучше флуда вариантов; identifier-extraction шумит,
+  fusion всех вариантов разбавляет RRF. Агентский план должен выбирать **один primary query**,
+  а не несколько. Артефакты: `experiments/e44_agent_rewrite/`.
+
+## [2026-10-25] E41–E43 chain audit — experiments pollution, docs intent, concept tags
+
+- **Диагностика 48 запросов:** BM25 top5 28/48, FTS5 34/48, RRF 35/48; 13/48 gold вне top5.
+  Из них 8 — docs gold (demote/bucket), остальные — recall (gold нет в top50).
+- **E41:** исключение `experiments/` из store — качество 0.688/0.771 → 0.688/0.750, p50 81→43 ms.
+  Query-файлы уже демотируются; выигрыш только в скорости/шуме.
+- **E42:** intent-aware demote — 0.688/0.771 без изменений; `auto_detect_intent` не распознаёт
+  docs-запросы (code-сигналы перевешивают), docs_h1=0/8.
+- **E43:** concept-tags ×0.9 — 0.688/0.750 (не входит в top5); ×1.1 — **0.188/0.250**
+  (concept-кандидаты вытеснили всё). Наивный keyword-count concept boost не работает;
+  нужен точный symbol-level слой аннотаций.
+- **Вывод:** цепочка не сломана в одном месте; это ограничения docs-intent, broad concepts,
+  recall misses и строгий docs gold. Детерминированный pipeline остаётся 0.688/0.771.
+  Артефакты: `experiments/e41_no_experiments/`, `e42_intent_demote/`, `e43_concepts/`.
+
+## [2026-10-25] E40 — RU→EN словарь синонимов: ноль (0.688/0.771 без изменений)
+
+- **Плечи:** baseline / ru_synonyms на 48 запросах E30; словарь `synonyms_ru.py`
+  (~150 форм + фразы), варианты до 4, RRF; corrected index, demote ON, P3 off.
+- **Результат:** baseline h1 0.688/h5 0.771/p50 159ms; ru_synonyms **те же** 0.688/0.771/p50 176ms.
+  H6 PASS; H1/H2/H3/H4/H5 FAIL.
+- **Вывод:** добавленные варианты дают те же top-5; RRF схлопывает дубликаты. Словарь
+  оставлен как утилита (флаг off), не рычаг. 95% на этой панели недостижимо.
+  Артефакты: `experiments/e40_ru_synonyms/`.
+
+## [2026-10-25] E39 pilot — Qwen3-Reranker-0.6B: 29–55 s, качество хуже; rejected
+
+- **Пилот:** 16 запросов E30 (каждый 3-й), corrected index; Qwen3-Reranker-0.6B-seq-cls ONNX
+  (1.19 GB fp16, CPU), model-card prompt.
+- **Результат:** demote h1 0.625/h5 0.688/p50 116ms; Qwen3 top10 h1 **0.500**/h5 0.562/p50 **28.9s**;
+  top20 0.438/0.562/p50 **54.8s**. H1–H6 FAIL.
+- **Вывод:** Qwen3 не usable на CPU; качество ниже deterministic. Все reranker'ы (MiniLM, BGE-base,
+  BGE-M3, Qwen3) проиграли. Reranking — не рычаг; deterministic 0.688/0.771/84ms — потолок на панели.
+  Артефакты: `experiments/e39_qwen3_rerank/`.
+
+## [2026-10-25] E38 — BGE-reranker-base: снова хуже deterministic (0.688 → 0.625)
+
+- **Плечи:** demote / bge_base_top10 / top20; ONNX int8 279 MB, CPU.
+- **Результат:** demote h1 0.688/h5 0.771/p50 84ms; BGE-base top10 h1 **0.625**/h5 0.708/p50 3139ms;
+  top20 0.583/0.688/p50 6028ms. H7 PASS (лучше MiniLM 0.417); H1/H2/H3/H4/H5/H6 FAIL.
+- **Вывод:** generic cross-encoder снова out-of-domain для кода; deterministic pipeline сильнее.
+  Reranking не рычаг. Остаётся только Qwen3-Reranker-0.6B (1.2 GB ONNX) как пилот.
+  Артефакты: `experiments/e38_code_aware_rerank/`.
+
+## [2026-10-25] E37 — chunking 32/64/128 строк: качество не меняется; P3 off
+
+- **Панель:** 48 запросов E30, corrected index 16,347 чанков; E33 demote ON, P3 off.
+- **Результат:** current/split32/split64/split128 — все h1 0.688 / h5 0.771 / MRR 0.713.
+  Нарезка не узкое место: чанки уже ≤32 строк (13 992/16 347), top-5 — file-level ranking.
+- **P3:** после фикса читает `get_file_head`, но даёт 0 качества и +96 ms без reranker →
+  `MSCODEBASE_P3_ANCHOR=false` по умолчанию. Полный пайплайн: 0.688/0.771, p50 **87 ms**
+  без P3.
+- **Вывод:** детерминированные tokenizer/chunking/graph/PRF исчерпаны; дальше — code-aware
+  reranker или query expansion/semantic anchors. Артефакты: `experiments/e37_chunking/`.
+
+## [2026-10-25] E36-audit — symbol_name был пуст в text-only индексе; graph/P3 баги; corrected baseline
+
+- **Root cause:** `write_text_records` брал `symbol_name` из `chunk_metadatas`, а парсер его не клал →
+  **0 / 16 158** чанков с symbol_name. FTS5/BM25 field boosts, exact-name, graph hydration были мертвы;
+  E32–E35 измеряли повреждённый индекс.
+- **Fix:** маппинг AST-символов на line-range в `IndexPipeline.process_file`; reindex →
+  **4 772 / 16 347** чанков с symbol_name. Graph-stage: hydration реального чанка, relative paths,
+  fallback `get_chunk_near_line`. P3: был мёртв (`_bm25_df=None`), теперь читает
+  `SQLiteChunkStore.get_file_head`.
+- **Corrected E36 full:** h1 **0.688**, h5 **0.771**, p50 183 ms; `no_p3` p50 87 ms
+  (P3 +96 ms без качества); `no_bucket` h1 0.562; `no_o1` 0.667; `no_demote` 0.625;
+  `minimal` 0.542/0.750.
+- **Вывод:** главные детерминированные рычаги — bucket weights, demote non-code, O1; P3 полезен
+  только с reranker. Symbol_name fix поднял h5. E32/E33/E35 требуют пере-прогона на исправленном индексе.
+  Артефакты: `experiments/e36_ablation/`.
+
+## [2026-10-24] E35 — MS MARCO MiniLM rerank: out-of-domain, качество 0.688 → 0.417
+
+- **Плечи:** demote / minilm_top10 / minilm_top20; ONNX int8 23 MB, CPU.
+- **Результат:** demote h1 0.688/h5 0.729/p50 85ms; minilm_top10 h1 **0.417**/h5 0.646/p50 723ms;
+  top20 h1 0.417/h5 0.542/p50 1405ms. H4 PASS; **H1/H2/H3/H5/H6/H7 FAIL**.
+- **Вывод:** web-passage cross-encoder не подходит для кода; нужен code-aware reranker
+  (Qwen3-Reranker-0.6B) или recall-работа. Лучший результат — E33 demote.
+  Артефакты: `experiments/e35_small_rerank/`.
+
+## [2026-10-24] E34b — сильные graph/PRF boosts: снова ноль
+
+- **Плечи:** demote / graph_x15 / prf_x12 / both_x15. Все h1 0.688/h5 0.729/p50 93–94ms.
+- **Вывод:** усиление boost не помогает; добавленные кандидаты не gold/дубликаты.
+  Детерминированное расширение пула исчерпано. Артефакты: `experiments/e34b_boost/`.
+
+## [2026-10-24] E34 — graph expansion + PRF: нулевой результат, top-5 не изменился
+
+- **Плечи:** demote / +PRF / +graph / +graph+PRF; 48 запросов E30, без моделей.
+- **Результат:** все четыре h1 0.688 / h5 0.729 / MRR 0.705 / p50 108–119ms — идентично.
+  H5 PASS; **H1/H2/H3/H4/H6/H7 FAIL**.
+- **Вывод:** PRF/graph-кандидаты (score 0.8×/0.6× top-1) не входят в top-5; расширение пула
+  само по себе не двигает выдачу. Нужен ranker или сильный deterministic boost. E33 demote —
+  единственный детерминированный выигрыш. Дальше — маленький cross-encoder (E35).
+  Артефакты: `experiments/e34_graph_prf/`.
+
+## [2026-10-24] E33 — детерминированный demote non-code: +3 hit@1 (0.625 → 0.688)
+
+- **Панель:** 48 запросов E30; baseline / fts_weights / +demote / +prior+exact.
+- **Результат:** baseline h1 0.625/h5 0.708/p50 155ms; **demote h1 0.688**/h5 0.729/p50 **97ms**;
+  fts_weights нейтральны; prior+exact хуже (0.667). H2/H5 PASS; H1/H3/H4/H6 FAIL.
+- **Вывод:** demote `tests/docs/experiments/fixtures ×0.3` — реальный дешёвый выигрыш.
+  Добавить в прод под флагом; caller prior не включать. 95% не достигнуто; дальше —
+  graph expansion + маленький cross-encoder. Артефакты: `experiments/e33_deterministic/`.
+
+## [2026-10-24] E32 — code-aware BM25: h1 не вырос, h5 +1; узкое место — recall/ranking
+
+- **Плечи:** baseline / code_b75 / code_b45 / code_b45_stop; 48 запросов E30, без эмбеддингов/реранкера.
+- **Результат:** baseline h1 0.625/h5 0.729; code_b45_stop h1 0.604/**h5 0.750**; code_b75 h1 0.562.
+  H2/H4 PASS; **H1/H3/H5 FAIL**.
+- **Вывод:** identifier split + field boosts не дают h1; stopwords+b45 дают +1 h5 при том же p50 (90 ms).
+  Токенизация не узкое место — нужны graph expansion, query expansion/PRF, маленький cross-encoder,
+  semantic anchors. `MSCODEBASE_CODE_BM25` оставить false. Артефакты: `experiments/e32_code_bm25/`.
+
+## [2026-10-24] E31 — BGE-M3 rerank: лучший h1 0.646, но 6.6–19.5 s; 95% не достигнуто
+
+- **Панель:** 48 запросов E30 (sha `d4934cb7…`); no_rerank vs BGE top10/top30/top50.
+  `top50` не завершён — harness timeout 30 мин.
+- **Результат:** no_rerank h1 0.625/h5 0.729/p50 107ms; BGE top10 h1 **0.646**/h5 0.771/p50 **6577ms**;
+  BGE top30 h1 0.562/h5 **0.812**/p50 **19521ms**. H2/H5/H6 PASS; H1/H3/H7 FAIL; H4 ⏳.
+- **Вывод:** BGE top10 — лучший h1, но 60× медленнее; top30 даёт h5, но теряет h1 и 19.5 s.
+  95% (ни h1, ни h5) не достигнуто. BGE-M3 Q4 слишком тяжёл для CPU; следующий шаг — маленький
+  ONNX cross-encoder + code-aware BM25/recall. Артефакты: `experiments/e31_bge_rerank/`.
+
+## [2026-10-24] E30 — on-demand rerank проиграл fused retrieval на 48 реальных запросах
+
+- **Панель:** 48 запросов (33 E28 + 15 свежих docstring), заморожена `d4934cb7…`; Q8/Q4/e5,
+  MRL 256, top10/top20, cap800, clean no-rerank control.
+- **Результат:** `no_rerank` h1 **0.625**, p50 **109 ms**; Q8 768 h1 0.604 (4.3–5.1 s);
+  Q4 768 h1 0.562 (1.9–3.9 s); e5 h1 0.354 (0.9–1.1 s). H2/H5 PASS, H4/H6/H8 FAIL как ожидалось,
+  **H1/H3/H7 FAIL** (H7: no-rerank на 1 запрос лучше Q8).
+- **Вывод:** on-demand rerank не даёт качества на этой панели и стоит ~40× latency;
+  держать флаг выключенным до панели >100 запросов. E25 не отменён (другой пул), но его вывод
+  нельзя переносить на прод-панель. Артефакты: `experiments/e30_prod_rerank/`.
+
+## [2026-10-24] Phase 3 — vector-free search: SQLite/FTS5 chunk store + on-demand rerank (implemented)
+
+- **Сделано:** `src/core/indexing/chunk_store.py` — SQLite/FTS5 store текста/метаданных без векторов; миграция
+  **13 645 чанков / 1 072 файла** из LanceDB в `<project>/.mscodebase/chunks.db`; candidate retrieval → SQLite
+  FTS5 (+ BM25 из SQLite), dense-тир выключен; on-demand rerank top-N живыми эмбеддингами; флаги
+  `SQLITE_CHUNKS`/`DENSE_OFF`/`ONDEMAND_RERANK`/`AUGMENT_CHUNKS` включены по умолчанию; full vector reindex
+  заблокирован в `index_project`; инкрементальный путь (`skip_vectors`) пишет только SQLite.
+- **Проверено:** 96 search/index тестов + 3 новых Phase 3 теста зелёные; negative control `RaisingTable`
+  (любое обращение к LanceDB падает) → поиск проходит; SQLite retrieval ~25 ms; on-demand e5
+  (llama.cpp e5-small, 11 текстов/400 ток) ~0.55 s embed, end-to-end p50 ~0.85 s; hit1 3–4/33 на
+  E28-frozen (ниже EXP-28 dense_off 12/33 — e5 on-demand rerank слабее BGE; зафиксировано честно).
+- **Открыто:** latency target <0.6 s end-to-end не достигнут (tokenizer-trim + e5); quality ниже BGE-пути;
+  варианты: fast rerank-модель (MiniLM ~0.49 s) или BGE для quality-режима.
+- **Guard:** `tests/test_phase3_sqlite_store.py` (upsert/replace, searcher не трогает LanceDB).
+- **Файлы:** `src/core/indexing/chunk_store.py` (new), `src/core/indexing/{db_writer,indexer,index_pipeline,chunk_augment}.py`,
+  `src/core/search/{engine,bm25,fts5_mixin,ondemand_rerank}.py`, `src/config/settings.py`,
+  `scripts/migrate_chunks_to_sqlite.py`, `.env.example`, `tests/test_phase3_sqlite_store.py`.
+
+## [2026-10-10] PR-конвейер: три инцидента, где «код зелёный» ≠ «PR в порядке»
+
+- **#73 стал CONFLICTING после мержа #72 в main.** Merge разрешился сам в дневнике (union),
+  но auto-merge в `engine.py` я прочитал руками: он корректно сохранил и E24-фолбэк
+  (`try/except`), и `MSCODEBASE_DENSE_OFF`. Второй прогон уже дал настоящий CI.
+- **Причина «нет CI» оказалась не в коде, а в триггере.** `pull_request: branches: [main]` →
+  stacked PR не даёт ни одного прогона; фазы 2 и 3 уехали с local clean-state как единственным
+  доказательством. Починено PR #76 (`feat/**, exp/**, fix/**, chore/**`; push остался main-only).
+  **Урок: чинить код до причины в пайплайне — это чинить следствие.**
+- **#58 висел 11 дней CONFLICTING, и его работа (1282 строки кода + 3 теста) не была в main.**
+  Перебазировал: 3 конфликта решены объединением — `is_experiment_output` (main) +
+  `is_measurement_artifact` (ветка), устойчивая сигмоида (main) + объяснение контракта (ветка),
+  KNOWN_ISSUES union. 2097 тестов зелёные, CI зелёный, PR смержен.
+  Ветка обновлена `--force-with-lease`: «починить конфликтный PR» без замены истории невозможно.
+- **Ложная тревога в мою пользу:** в `git diff` показалось, что вызов P3-якоря стоит после
+  `return pool`. На деле diff склеил два hunka — в файле вызов на месте (после identifier-anchor,
+  до O1-буста). Почти «починил» несуществующий баг; спасла проверка AST **до** правки.
+- **Портфолио было на 6 экспериментов позади** (последняя запись — exp-53, сентябрь): §7.13
+  нарушался месяцами. Добавлены exp-54..exp-59 (EN+RU), числа — из сырых артефактов.
+  Purity-guard падал трижды (p-01 `retrieval/score/results`, p-02 `vector/matching`, p-06
+  `produced/written`): переформулировал текст, тест не тронул — 0/8 ложных парафраз сохранено.
+
+## [2026-10-10] EXP-29 — H5 закрыт, а число EXP-28 (18%) опровергнуто собственным же экспериментом
+
+- Разметка symbol/NL детерминированная и **заморожена до прогона** (`e29_label.py`): 15 symbolic / 18 NL.
+  Иначе H5 остался бы навсегда «не проверен» — постфактум разметку добавлять нельзя (§17).
+- **Харнесс поймал собственный баг:** первый прогон из worktree дал `hit1=0/33` при rc=0 и 167ms —
+  тихий ноль на пустом индексе (индекс per-project-path). Guard: все-пусто → `exit 2`;
+  `E29_PROJECT_ROOT` вынесен в манифест. Первый прогон не засчитан.
+- A dense ON: NL 3/18, symbolic 8/15, 0 ошибок. B dense OFF: NL **5/18**, symbolic 7/15, 0 ошибок.
+  NL: 2 лучше / 0 хуже; symbolic: 0 лучше / 1 хуже (TR-P2). Ускорение стабильно 7.2%/7.9%.
+- **CORRECTED:** EXP-28 публиковал 18.0% — раздуто одним шумным прогоном (разброс 21%).
+  Действующее число 7.5%; правка внесена новой записью, не тихо (§11).
+- Решение по Фазе 3 не изменилось: dense не отключаем, LanceDB не удаляем (primary store чанков),
+  `MSCODEBASE_DENSE_OFF` остаётся kill-switch. Числа EXP-29 — разрез той же панели, не новый эксперимент.
+
+## [2026-10-10] EXP-28 dense-off A/B — LanceDB оказался primary store, удаление отклонено
+
+- **Phase Zero угадал наполовину:** «LanceDB = единственное хранилище графа» — опровергнуто
+  (graph.db живёт отдельно); «LanceDB = единственное хранилище чанков» — подтверждено:
+  `bm25.py:93` строит BM25 из `table.to_pandas()`.
+- **Знаменатель спас план:** «52 обращения к table-API в 13 файлах `src/`, 8 идиом», из них
+  dense — 5 мест. Формулировка «удалить LanceDB» была бы миграцией хранилища, а не чисткой.
+- EXP-28: флаг `MSCODEBASE_DENSE_OFF` (default OFF) гасит dense-тир. A/B на 33 замороженных
+  кейсах, 2 прогона на плечо: A h1 11/33 vs B h1 12/33, ошибок 0/0; per-case 2 лучше /
+  1 хуже / 30 так же. Ускорение mean-of-means 18%, но разброс 5.8%…29.5% → H3 PARTIAL.
+  H1/H2/H6 опровергнуты (ожидаемо), H4 CONFIRMED, **H5 ⏳ нет разметки symbol-vs-NL** (не
+  «прошло», а не проверено — разметку нельзя добавить постфактум, §17).
+- Харнесс проверен: счётчик `_vector_search_async` 1 → 0 при живом эмбеддере. Иначе A/B был бы пустым.
+- Решение: dense **не отключаем** по умолчанию (выигрыша нет, скорость не установлена); флаг
+  остаётся как kill-switch. Основание для удаления — только отдельная задача «чанки в Parquet/SQLite».
+- Guard: EXP-28 не удалил ни одной строки в прод-пути — только условие в `engine.py:936`.
+
+## [2026-10-08] Phase 2 (on-demand rerank в engine) — реализовано, PR следом
+
+- Новый pure `src/core/search/ondemand_rerank.py` (cosine, stable ties, пропуск
+  бестекстовых); конфиг `MSCODEBASE_ONDEMAND_RERANK` (+TOP_N) по образцу
+  late_enrichment; врезка в hybrid перед BGE (флаг ON → on-demand ВМЕСТО BGE,
+  default OFF — путь не тронут).
+- Тесты `test_ondemand_rerank.py` 6/6 (точная математика на fake-векторах);
+  смежные 36/36; ruff чист. Live-proof флагом: quality h1 3/10 h5 4/10 =
+  baseline, `rerank_timing.mode=ondemand_cosine` за 1041мс; fast не тронут
+  (0/6 как было). `flagon_check.py` — артефакт проверки.
+
+## [2026-10-08] Phase 1 (E26-chanки за флагом) — реализовано, тесты 10/10+47
+
+- Новый `src/core/indexing/chunk_augment.py` (pure, FILE/SYMBOLS/DOC = frozen E26,
+  паритет 27/27 с шаблоном); wiring одной точкой в `index_parser.parse_one_file`;
+  флаг `MSCODEBASE_AUGMENT_CHUNKS` default OFF (байт-идентичность); флип меняет
+  chunk_hash=sha256(text) → вектора пересчитаются, не протухнут.
+- `tests/test_chunk_augment.py` 10/10; смежные (searcher/hardening/chunk_cache/
+  ast_invalidation/resume) 47/47. Прод-реиндекс НЕ запускался (фаза 2+ по плану).
 ## [2026-10-07] E18: EmbeddingGemma-2 прогнана полностью — 8/8 гипотез как заморожено
 
 - **Что:** gemma2-Q8/BF16 (GGUF ggml-org) vs e5, 6 прогонов одной сессией, 17×81 популяция, нулей нет. Заморозка ДО: HYPOTHESES `c84ec260` (3 к провалу), QUERIES `983a64fa`.
@@ -19,8 +395,8 @@
   (зеркало quality `engine.py:963`): без эмбеддера fast идёт на FTS5+граф.
   Доказательство: E24-B-fast был 10/10 ERR → стал h1 4/10 h5 6/10 ERR 0/10
   (272мс — быстрее, чем с вектором). Тесты searcher 20/20. :8080 оживлён revive.
-- **PR #72 (фаза 0):** `fix/fast-mode-embedder-fallback` — коммиты ae850691 + 95e12315
-  + merge 901859a5 (конфликт дневника резолвлен, BOM-артефакт убран). Локально 11/11
+- **PR #72 (фаза 0):** `fix/fast-mode-embedder-fallback` — коммиты a92542af + a224feff
+  + merge 86d14b58 (конфликт дневника резолвлен, BOM-артефакт убран). Локально 11/11
   гейтов, CI success (ubuntu+windows), CodeQL success, статус CLEAN. Слияние — за
   владельцем. По пути: P-023 (POSIX-каноника в stale_check), чужой CENSUS.md застейджен
   по явному решению (в коммите помечено).
@@ -151,7 +527,7 @@
   но не к ЧИСЛАМ в публикациях. Аудит: манифест 14 претензий заморожен ДО прогона
   (sha256 6bd0ab75, experiments/claims_audit/frozen/CLAIMS_MANIFEST.md), затем пересчёт из сырья.
 - **A10 NOT REPRODUCED (не регрессия):** `orphan 30s -> 120ms` недостижим по дизайну — ORPHAN
-  удалён из classify_holder намеренно (database_lock.py:81-84, R3TF 2026-08-26, commit 7974d981:
+  удалён из classify_holder намеренно (database_lock.py:81-84, R3TF 2026-08-26, commit 145fda16:
   TerminateProcess убивал живые MCP). Остальные кейсы живы: healthy 1507ms, 20/20 тестов.
   Публикация должна нести `SUPERSEDED`, а не переписываться.
 - **A11 silent no-op:** exp_vacuous_scan.py:20 зашит на несуществующий `experiments/tests` ->
@@ -186,7 +562,7 @@
 
 - **NodeRAG vs chunked retrieval on long docs (2026-09-27, REFUTED):** 16 замороженных запросов (10 rules + 3 pos + 3 NONE), 2 arms (TF-IDF top-10 vs PropertyGraph BFS depth=3). A: 80% hit, 302K tokens; B: 70% hit, 170K tokens. Controls 3/3 both. Chunked wins on hit rate; graph wins on tokens but needs a seed symbol in the graph. Tom's claim not confirmed for our corpus. Artifacts: `experiments/noderag/`.
 
-- **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (ea715903). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
+- **Closure-walk: guard сертифицирует неправильное множество (2026-09-27, FIXED):** `tests/test_no_personal_paths.py` зелёный при 4699 утечках в 98 файлах вне scope. Production-утечки (17 в src/scripts) нормализованы (3b28fe70). Осталось 4633 в experiments/ (исторический контекст). Артефакты: `experiments/closure_walk/`.
 
 - **F5 judged FULL (trials=10) + полнота данных (2026-09-26):** 16 запросов × 4 плеча × 10 trials (160/плечо). **A 16.3% · B 34.4% · C 97.5% · D 0.0%**; code **B 50% ≫ A 6.3%**, prose A 26% > B 19% (слабо). Majority: A 2/16, B 6/16, C 16/16, D 0/16. Судья 9.4% неединогласных. Воспроизводимо (trials=5 ↔ trials=10 согласованы). **Все данные в репо**: `results/f5judged/{judged_raw,judged_aggregate}.json` + `MANIFEST.json` (sha256 всех 809 артефактов 4A). Ключ: единица возврата влияет на читателя, не на ретрив. ⚠️ Крах opencode при parallel=8 → перезапуск на parallel=4.
 
@@ -201,15 +577,15 @@
 - **CI/тест-параллелизация (2026-09-26, xdist `-n auto`):** внедрено в CI test job (#45), `clean-state` (#46) и локальный pre-commit Gate-zero `verify_diary` (#47, fallback serial без xdist). CI-критпуть **~16мин → ~4мин**: ubuntu 13m44s→**1m58s**, windows 16m23s→**3m11s**, clean-state 13m25s→**1m41s**; локальный коммит ~200с→~70с. Ключ: `-n auto` (а не `-n 4` из E13), `.coveragerc.ci` (CI без `dynamic_context` — несовместим с xdist, pytest-cov#604) + module-fixture temporal (36.6s→20.8s). **CORRECTED E13/Exp 25:** «xdist ~15%, не берём» опровергнуто (×2.76 локально, ×7 в CI). Watch: был отмечен llama-конфликт локального xdist — не воспроизведён за 2 прогона.
 
 - **E6/E7: opencode-хук → MSCodeBase CLI; blind eval каталога кристаллов (2026-09-22):** E6 — плагин `tool.execute.before` на `git commit` зовёт `python -m src.cli stale_detector` (без MCP), при drift>0 бросает; negative/positive control пройдены, модель отказ не обошла (подчинение 4/4 суммарно с E3). Гоча: CLI `--project` игнорируется, проект = cwd. E7 — слепой маппинг 10 реальных симптомов на индекс каталога Tom Jones (`crystal-memory`/`crystals`, Apache-2.0, Spanda Works), 11 прогонов / 3 модели: controls 60/60 валидных (deepseek-low провалил NONE-controls → валидность зависит от reasoning), ключевой входной симптом → NONE 10/10 валидных (семья есть, из симптома недостижима), надёжный hit только 1/10, воспроизводимость qwen 8/10 vs longcat 4/10 (свойство модели). Детали — EXPERIMENTS_LOG Exp 18/19.
-- **Deploy 00ec5a6d → extension + live-revive smoke (2026-09-22):** `python install.py --sync-only` (код + очистка `__pycache__`, без pip/llama); символы `is_port_up`/`ensure_embedder_started`/`_revive_llama_cpp` подтверждены в ext. Live-check на РЕАЛЬНОМ llama.cpp (extension venv, без моков): подняли :8080 → embed dim=384 → убили процесс на :8080 (эмуляция watchdog idle-unload) → `RemoteEmbedder.embed` сам поднял сервер (лог: `WinError 10061` → `_revive_llama_cpp` → `ensure_embedder_started`), dim=384 → **PASS**. НЮАНС: ревайв занял **17.7s** (>15s бюджета search_code: 3 батч-ретрая + ~10s старт llama-server) → первый поиск после unload может ещё таймаутить, но сервер поднимается и следующий работает (раньше не восстанавливался никогда). Для активации в живом окне нужен reload Zed.
+- **Deploy f9725465 → extension + live-revive smoke (2026-09-22):** `python install.py --sync-only` (код + очистка `__pycache__`, без pip/llama); символы `is_port_up`/`ensure_embedder_started`/`_revive_llama_cpp` подтверждены в ext. Live-check на РЕАЛЬНОМ llama.cpp (extension venv, без моков): подняли :8080 → embed dim=384 → убили процесс на :8080 (эмуляция watchdog idle-unload) → `RemoteEmbedder.embed` сам поднял сервер (лог: `WinError 10061` → `_revive_llama_cpp` → `ensure_embedder_started`), dim=384 → **PASS**. НЮАНС: ревайв занял **17.7s** (>15s бюджета search_code: 3 батч-ретрая + ~10s старт llama-server) → первый поиск после unload может ещё таймаутить, но сервер поднимается и следующий работает (раньше не восстанавливался никогда). Для активации в живом окне нужен reload Zed.
 - **E8: quiet-break gate graph (2026-09-22):** read-only дельта-изоляция узла графа на коммите (git diff + persisted PropertyGraph, БЕЗ мутации индекса). Мотив: абсолютный сигнал бесполезен — **1535/4081 (38%)** функций имеют 0 входящих CALLS (@_step-регистранты, callbacks, entry points). A = правка удаляет последних вызывающих (граф: кто вызывал × рабочее дерево: зовёт ли ещё); B = новая функция без вызовов (diff + текст изменённых файлов). Доступно как `graph_query(action="isolation")` / CLI. Controls (реальный git + seeded graph): POS-A 0 / NEG-A 1 / NEG-B 1 / POS-B 0 / не-git → unavailable; unit `tests/test_quiet_break_gate.py` 10/10; CLI на живом репо 1899ms, 0 ложных. Найден+исправлен баг fail-open (не-git отдавал "empty" вместо "unavailable"). Границы: rename-sweep, динамическая регистрация, soft (не hard-блок). Детали — EXPERIMENTS_LOG Exp 20.
 - **E8 модельный (opencode-хук, 2026-09-22):** CONTROL — агент коммитит сироту не замечая; BLOCK (`before` throw) — коммит заблокирован, агент не обошёл (1/1); ADVISORY — первая версия (`after` считает diff) СЛЕПА (after после коммита, diff пуст) → фикс: считать в `before`, кэш по callID, доставлять в `after`; повтор — заметка доставлена и понята, но исход не изменён (промпт не требовал фикса). Вывод = наблюдение Тома: speak ≠ block.
 - **E9: redaction на доставке (2026-09-22):** `src/core/redact.py` (in-house, prefix-anchored; идея Tom Jones, crystal-memory, Apache-2.0, код не вендорился) врезан в единую точку доставки `src/cli.py` (сериализованный JSON, успех+ошибка). unit 8/8: все семьи ключей вырезаются, хеши/пути/версии/слово «key» выживают byte-identical, JSON валиден; CLI E2E: stdout `[REDACTED:anthropic]`, stderr `{"redacted":...}`. ⛔ Не граница безопасности (новые/многострочные форматы проходят) — задокументировано. Детали — EXPERIMENTS_LOG Exp 21.
 - **E10: сдержанность доставки (anti-numbing) (2026-09-22):** `src/core/restraint.py` — сигнатура findings (kind+symbol+file) + cooldown 600s с backoff ×2^strikes; состояние — один JSON на проект. Opt-in `graph_query isolation` + `kwargs={"restraint":true}`; блокирующие гейты НЕ заходят (жёсткий стоп ≠ нытьё). unit 4/4 (итого 22/22 с gate/redact); CLI E2E: call1 `deliver ✓`, call2 `deliver ✗` (cooldown 597s). Гоча: доп. аргументы CLI — через `kwargs`. Детали — EXPERIMENTS_LOG Exp 22.
 - **E11: замороженный список vs новый arrival index Тома (2026-09-22):** каталог `tjonesit/crystals` @3e30ed2 (`catalogue/README.md`, arrival index 25 фраз→записи). Слепой маппер, 5 прогонов / 3 модели: **#16 («агент не пользуется тулами») → A в 5/5**, включая оба ВАЛИДНЫХ (longcat-2.0, qwen3.7-plus; контроли 6/6). deepseek ×3 невалидны — NC3 (#11 Safari/CSS) притянулся к E generated-document (UI/spacing), та же болезнь, что в E7. Вывод: arrival layer чинит #16 (было NONE 10/10); воспроизводимость всё ещё в читателе. ⚠ Новый риск: фраза-ловушка на соседнем домене (UI→CSS) = кандидат в дырку. Детали — EXPERIMENTS_LOG Exp 23.
-- **Clean-state 44d451f6 (2026-09-22):** локальный clone закоммиченного состояния → `verify_clean_state.sh --no-clone`: **1800 passed / 0 failed / 13 skipped / 98 deselected** (822s), lock-drift negative-control PASSED, guard inventory ALL PROVEN (3), revision gate VALID. Новый core (quiet_break_gate/redact/restraint) прошёл clean-state. Не запушено (push — только по явному слову).
+- **Clean-state 87204524 (2026-09-22):** локальный clone закоммиченного состояния → `verify_clean_state.sh --no-clone`: **1800 passed / 0 failed / 13 skipped / 98 deselected** (822s), lock-drift negative-control PASSED, guard inventory ALL PROVEN (3), revision gate VALID. Новый core (quiet_break_gate/redact/restraint) прошёл clean-state. Не запушено (push — только по явному слову).
 - **CI ubuntu-red: TESTS-signal fixture была Windows-only (2026-09-23):** `tests/test_graph_stage_e4.py` хардкодил `file_path="<repos-root>/..."`; на POSIX `Path("D:/...").is_absolute()`=False → `get_tests_for_symbol` нормализовал в `<root>/D:/...` → узел не найден → 0 тестов (падали 2 теста только на ubuntu; Windows-джоба зелёная). Fix: фикстура строит абсолютные пути из `tmp_path.as_posix()`. Guard: тест платформо-независим (класс P-ловушки «Windows-only тест без skipif», WISDOM 2026-08-08).
-- **CI green (2026-09-23):** фикс 808864c5 → повторный CI **success** (ubuntu 13m21s + windows 17m20s + clean-state 13m15s + transport/manifest/docker). PR #40 (draft, mergeable). Единственный красный — GitHub Advanced Security (Copilot Autofind): `CAPIError: 400 The requested model is not supported` = инфра-сбой GitHub, не наш код (и на main так же).
+- **CI green (2026-09-23):** фикс bc18a6c7 → повторный CI **success** (ubuntu 13m21s + windows 17m20s + clean-state 13m15s + transport/manifest/docker). PR #40 (draft, mergeable). Единственный красный — GitHub Advanced Security (Copilot Autofind): `CAPIError: 400 The requested model is not supported` = инфра-сбой GitHub, не наш код (и на main так же).
 - **Hook в репозиторий (2026-09-23):** `.opencode/plugin/mscodebase_gate.ts` — на `git commit`: `stale_detector` **BLOCK** (объективный дрейф версий; сейчас 0) + `graph_query isolation` **ADVISORY** (soft: у графа есть FP). Advisory = before-stash/after-deliver по callID (урок E8). Env-переключатели: `MSCODEBASE_PY`, `MSCODEBASE_STALE_GATE`, `MSCODEBASE_ISOLATION_GATE`, `MSCODEBASE_GATE_LOG`. CLI проверен из корня репо venv-python. Активируется после reload Zed. Глобально (все проекты) — только по явному разрешению (файл вне рабочей папки, §3 HALT).
 - **opencode-плагин: `$` не в контексте (2026-09-23, P-ловушка):** `.opencode/plugin/mscodebase_gate.ts` загрузился (лог `init`), но на хуке `TypeError: $ is not a function` — в opencode **1.18.23** контекст фабрики не даёт рабочий `$` (доки описывают v2, где `$: BunShell` есть). Фикс: вызывать python через `node:child_process.execFile` (аргументы массивом — без shell-квотирования), не через `$`. Guard: не полагаться на `$` в локальных плагинах этой версии.
 - **Hook live-verified (2026-09-23):** свежий `init` после рестарта; `git commit --dry-run` → stale `drift=0` (без блока) + isolation `count=0`. Negative control: застейдженный `new_orphan` (отдельным шагом `git add`) → isolation `count=1`, advisory `✦ GRAPH-GATE` **доставлен в вывод** команды; файл удалён, статус чист. Нюанс: хук срабатывает ДО выполнения команды, поэтому `git add && git commit` в ОДНОЙ команде → на момент хука файл ещё не застейджен (гейт не увидит); нужен отдельный `git add`.
@@ -223,7 +599,7 @@
 - **ARCHITECTURE semantic audit (2026-09-23, en/ru/zh):** ИСПРАВЛЕНО — §2.0 слой **Bridge помечен deprecated** (код: `_bridge_state = "<not used — LSP server removed 2026-07-20>"`); §2.2 `server.py` «~220 строк»→**68**; §2.4 core «30 files»→**54** (top-level; 123 с подпакетами); DI «15+/18»→**14**. README: `src/lsp_main.py` «does not work»→**removed** (файла нет). ПОДТВЕРЖДЕНО: 32/16/13/4=65, пути `intelligence/layer.py`, `intelligence/project_context.py`, `runtime_coordinator.py`.
 - **ARCHITECTURE §2.4–§4.2 audit (2026-09-23):** ИСПРАВЛЕНО: `remote_embedder` описан как «ONNX E5 embedder» → **llama.cpp GGUF primary** (+ONNX/LM Studio/Ollama fallback); «15 node labels» → **16** (`NodeLabel`); §3.2 «Registered Services (11)» → **14** (+Path, +Indexer, +GitUrlSourceFactoryKey); §4.2 Intelligence «14» → **16** (+intel_restore/supersede_memory_node), Lifecycle «3» → **4** (+get_action_receipt). §4.1 code-snippet по-прежнему сокращённый (не полный tool_classes) — помечен как иллюстрация.
 - **search_code timeouts: idle-unloaded embedder + blocking hot-reload (2026-09-22):** `llama_runner` по `EMBEDDER_IDLE_TIMEOUT=120s` сам убивает embedder (free RAM, `_process=None`), но `RemoteEmbedder` его не поднимал → `:8080` мёртв → `WinError 10061` → поштучные ретраи → `search_code` timeout (max ~27s; прод-таймауты 09-20..09-22, эмбеддер падал ~16:21). Вторая причина: `_maybe_hot_reload` ждал полную переиндексацию ВНУТРИ search_code (22 файла → 14s при живом эмбеддере). Fix: `LlamaRunner.ensure_embedder_started()/is_port_up()` + `RemoteEmbedder._revive_llama_cpp()` (revive перед поштучными ретраями) + hot-reload в фон с дедупом (`search_tools._run_hot_reload_bg`). Тесты `tests/test_embedder_idle_recovery.py` (10). Побочно: stale `.pyc` в `git_url` давал фантомные IndexError-падения (лечится очисткой `__pycache__`).
-- **Resume-инкрементальная запись IndexProjectRunner (2026-09-20, 0fcb0f33):** run() копил все эмбеддинги и писал одним bulk_write в конце — краш на 330K чанков (~9ч) терял всё. Теперь файл пишется порциями (WRITE_FLUSH_FILES=32) по завершению его чанков, RAM освобождается, restart = resume по known_hashes; `_verify_and_repair_table_integrity()` в начале run() (INC-6C62); `_flat_indices_by_file` (O(1) сбор vecs); fallback per-file сохранён. Тесты test_index_resume_incremental.py (6). Red Team 5/5.
+- **Resume-инкрементальная запись IndexProjectRunner (2026-09-20, d90452a3):** run() копил все эмбеддинги и писал одним bulk_write в конце — краш на 330K чанков (~9ч) терял всё. Теперь файл пишется порциями (WRITE_FLUSH_FILES=32) по завершению его чанков, RAM освобождается, restart = resume по known_hashes; `_verify_and_repair_table_integrity()` в начале run() (INC-6C62); `_flat_indices_by_file` (O(1) сбор vecs); fallback per-file сохранён. Тесты test_index_resume_incremental.py (6). Red Team 5/5.
 - **Умный ubatch по ролям (2026-09-20):** вместо одного `LLAMA_UBATCH_SIZE=2048` для обеих ролей — `resolve_ubatch(role)`: embed → ceil(480/128)*128=**512**, rerank → ceil(1000/128)*128=**1024**. Основание: A/B на реальных 2227 чанках — ubatch=512 → 596 MB / 18.9 ch/s vs 2048 → 1686 MB / 16.1 ch/s. Раньше llama.cpp требовал «entire input ≤ ubatch» (#25293), для b9940 целый батч делится по слотам, лимит остался на ОДИН текст/пару → клиентский трим: embed обрезает до `LLAMA_EMBED_MAX_TOKENS=480` (единый источник с remote_embedder), rerank — `_truncate_rerank_pair` до `LLAMA_RERANK_MAX_TOKENS=1000`. `LLAMA_UBATCH_SIZE` env — жёсткий override. Файлы: `llama_install.py` (resolve_ubatch), `llama_runner.py` (_ubatch_arg, 3 места запуска), `multi_provider.py` (трим пары), `remote_embedder.py` (импорт лимита), тест `test_ubatch_roles.py`. Live-check: реальный llama-server принял ubatch=512, embeddings 200 dim=384.
 
 - **PyPI-packaging + user-data isolation (2026-08-28):** wheel теперь содержит `tools.stale_detector`, `adapters`, `locales` (норм. данные в site-packages); бинарники/модели в pip-режиме — `get_data_root()` (`%LOCALAPPDATA%\mscodebase`), гейт-маркер `__mscodebase_ext__.marker` отличает расширение от установленного пакета; CLI `--project-path/--project-dir` → env `MSCODEBASE_PROJECT_PATH` (приоритет НАД CWD, trust_self_index); `PROJECT_PATH` остался после CWD (multi-window сохранён). Live-Smoke из чистого venv: tools-ok, `en (78 ключей)`, корень резолвится. Файлы: `pyproject.toml`, `project_resolution.py`, `main.py`, `llama_install.py`. INC-C4CD.
@@ -426,9 +802,9 @@
 ## [2026-09-11] — Burst-rename: fail-closed VOR отзывает 100% при ONE rename-sweep (ответ Statewave на dev.to)
 
 **Status:** Closed (эксперименты, ответ опубликован)
-**Root Cause:** VOR (ADR-0003) проверяет ПУТЬ-якоря против текущего HEAD. Rename/move = старый путь отсутствует = SILENT_ABSENCE = отзыв, хотя файл жив. Синтетика (1-C): git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash carry → 30/30 уцелели. Реальная память (1-B): 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ отзыв (ADR-7232a6e2ba34: узел жив, отозван по старому пути src/utils/paths.py из prose «X → Y» в теле; хранимые якоря adapters/zed/zed_config.py + src/main.py существуют).
+**Root Cause:** VOR (ADR-0003) проверяет ПУТЬ-якоря против текущего HEAD. Rename/move = старый путь отсутствует = SILENT_ABSENCE = отзыв, хотя файл жив. Синтетика (1-C): git mv 30 файлов одним коммитом → 30/30 REFUTED (100%); body-hash carry → 30/30 уцелели. Реальная память (1-B): 24 авто-REFUTED = 13 мусор якорей + 10 настоящих удалений + 1 ЛОЖНЫЙ отзыв (ADR-d35fd1e7fee5: узел жив, отозван по старому пути src/utils/paths.py из prose «X → Y» в теле; хранимые якоря adapters/zed/zed_config.py + src/main.py существуют).
 **Fix (эксперименты, не код):** burst_rename_audit.py / burst_sweep_exp.py / redteam_burst.py в experiments/1V_memory_contamination/. Решение для производства не принято (вопрос владельцу: body-hash carry-compat против стоимости).
-**Guard:** Red-Team показал — «батч по коммиту» (мульти-уёдание = move) смешивает R* с D* (e661861f: init.py удалён + windows.py R083): спасал бы и настоящие удаления. Точный ревью complex: git --diff-filter=R по истории.
+**Guard:** Red-Team показал — «батч по коммиту» (мульти-уёдание = move) смешивает R* с D* (54acc263: init.py удалён + windows.py R083): спасал бы и настоящие удаления. Точный ревью complex: git --diff-filter=R по истории.
 **verified_from_clean_state:** ⚠️ не прогонялся (скрипты экспериментов, не runtime-код)
 
 ## [2026-09-07] — Lazy-only верификация: VOR вызывается только из intel_get_project_memory, нет TTL/фона
@@ -449,7 +825,7 @@
 
 ---
 ## [2026-09-09] — H2: .h заголовки C включены в AST-индексацию (PARSE_EXTENSIONS + C-парсер)
-**Status:** Fixed (commit 0301fa93; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
+**Status:** Fixed (commit not found in history; KNOWN_ISSUES 2026-09-09 19:35 закрыт)
 **Root Cause:** ".h" был в INDEX_EXTENSIONS (вектор-чанкинг шёл), но НЕ в PARSE_EXTENSIONS → CodeParser.parse_file возвращал [], [] (parser.py:438). C-заголовки без AST: нет импортов (#include), вызовов, присваиваний, condition_path. E-S1 live-проба (2026-09-09): curl 65/300 файлов с #include дали 0 рёбер — преимущественно .h; dart-http .c 0/9.
 **Fix:** (1) extensions.py PARSE_EXTENSIONS: ".c" → ".c", ".h". (2) parser.py: регистрация `self.parsers[".h"] = <C-парсер>` (tree_sitter_c, не cpp — .h = C). (3) Карты языка по аналогии с ".c": `_EXT_TO_ENV_LANG` {".h": "c"}, IMPORT_NODE_MAP (preproc_include), ASSIGNMENT_NODE_TYPES (init_declarator, assignment_expression), CONDITIONAL_NODE_TYPES (if/for/while/do/switch/case/conditional_expression). (4) +1 тест `test_h_header_preproc_include` (57 passed в файле; full gate-zero через pre-commit). Red Team: прототип-only .h → fallback-line-chunking (не ломается), пустой .h → 0, .hpp остаётся CPP (другая карта не тронута).
 **Guard:** интервал "вектор индексируется, AST нет" (INDEX_EXTENSIONS \ PARSE_EXTENSIONS) — проверять BATCH-check'ом при добавлении языка; тест на каждый новый suffix в PARSE_EXTENSIONS.
@@ -466,7 +842,7 @@
 ---
 **Status:** Fixed (branch closed, artifact merged into main)
 **Root Cause:** experiment/lab-2026 branch (spike exp-lab-2026-01: NL->LLM->Cypher->parser+schema->PropertyGraph) was orphaned - its artifact experiments/neuro_symbolic_spike.py and EXPERIMENTS_LOG entry never landed on main. Findings C1-C4 were already fixed on main via D1 (CypherExecutor schema layer).
-**Fix:** Re-ran spike from clean main (VERDICT: HYPOTHESIS SUPPORTED, parse_ok=8, rejected_by_schema=2 - schema layer correctly rejects hallucinated :SERVICE label and cycle() empty-RETURN). Carried only the useful artifact (spike script + EXPERIMENTS_LOG entry 848fdf33), avoiding a blind merge that would have conflicted in 3 doc files. Deleted orphaned local branch experiment/lab-2026.
+**Fix:** Re-ran spike from clean main (VERDICT: HYPOTHESIS SUPPORTED, parse_ok=8, rejected_by_schema=2 - schema layer correctly rejects hallucinated :SERVICE label and cycle() empty-RETURN). Carried only the useful artifact (spike script + EXPERIMENTS_LOG entry 8fcc696e), avoiding a blind merge that would have conflicted in 3 doc files. Deleted orphaned local branch experiment/lab-2026.
 **Guard:** When a long-lived experiment branch diverges, carry only the result artifact, never blind-merge doc files that evolved on main.
 **verified_from_clean_state:** ✅ yes - spike re-run from clean working tree on main (MockLLM, no network); pre-commit gate-zero green (verify_diary/stale_detector/check_tool_names/negative_controls/check_layer_boundaries).
 
@@ -477,32 +853,32 @@
 2. graph_resolver.py - 5 F401 unused imports + 1 BLE001 (except Exception).
 3. test_graph_adapter_node_selection.py tie-test asserted hardcoded Windows path D:/.../pkg_a/impl.py; adapter normalizes file_path via Path.resolve(), so on Linux CI the value differed -> clean-state job failed.
 4. test_modification_guard.py:505 - E731 lambda in class attr (ruff lints src/ AND tests/).
-**Fix:** reused escaped quotes; trimmed imports + narrowed except; tie-test asserts chosen.file_path.endswith(pkg_a/impl.py) (platform-stable); lambda->def (4cb1b695, 9659f591).
+**Fix:** reused escaped quotes; trimmed imports + narrowed except; tie-test asserts chosen.file_path.endswith(pkg_a/impl.py) (platform-stable); lambda->def (28df2f3b, 126f1627).
 **Guard:** CI Lint(ruff) runs `ruff check src/ tests/` -> verify BOTH incl. tests, not just src/ (checked src/ only first pass).
-**Result:** PR #20 merged; issues #21 (ambiguous writes refuse) & #22 (fail-closed anchors / head-freshness) auto-closed via Fixes footer in commit B (cb88c961).
-**verified_from_clean_state:** ✅ yes - CI on head 9659f591: test(ubuntu 3.14) PASS, test(windows 3.14) PASS, clean-state PASS, ruff check src/ tests/ PASS; full pre-commit gate-zero for both fix commits.
+**Result:** PR #20 merged; issues #21 (ambiguous writes refuse) & #22 (fail-closed anchors / head-freshness) auto-closed via Fixes footer in commit B (2e7d1284).
+**verified_from_clean_state:** ✅ yes - CI on head 126f1627: test(ubuntu 3.14) PASS, test(windows 3.14) PASS, clean-state PASS, ruff check src/ tests/ PASS; full pre-commit gate-zero for both fix commits.
 
 ## [2026-09-02 20:51] — drift_gate заблокировал коммит: контроль остановил самого автора
-**Status:** ? Fixed (коммит A 08281f37 приземлился; B — отдельная незакоммиченная квитанция)
+**Status:** ? Fixed (коммит A e9a89fa9 приземлился; B — отдельная незакоммиченная квитанция)
 **Root Cause:** предсуществующий BROKEN drift_gate: GitBash bin/ (C:\Program Files\Git\bin) НЕ в PATH процесса > shutil.which("bash") резолвит System32\bash.exe (WSL-шим) > _resolve_bash возвращает None > negative_controls BROKEN. Доказано предсуществование: файлы drift_gate не тронуты в этой сессии (git log), gate был зелёным 2026-08-12 (AGENT_DIARY:723-724) > деградация среды, НЕ вечный UNAVAILABLE.
-**Fix:** commit A (08281f37, fixes #21/#22) выполнен процессом с prepend PATH "C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin" > negative_controls все 3 PROVEN, все 5 hook-проверок OK. **--no-verify НЕ использовался** (запрещён): устранена причина (bash в PATH), незаглушена проверка.
+**Fix:** commit A (e9a89fa9, fixes #21/#22) выполнен процессом с prepend PATH "C:\Program Files\Git\bin;C:\Program Files\Git\usr\bin" > negative_controls все 3 PROVEN, все 5 hook-проверок OK. **--no-verify НЕ использовался** (запрещён): устранена причина (bash в PATH), незаглушена проверка.
 **Guard:** паттерн в WISDOM: «hook блокирует > чини среду, не пропуск» (PATH-фикс делает контроль работающим и коммитит ПОД ним; --no-verify оставляет контроль мёртвым).
 **Сопутствующее:** пере-стейдж дрейфнувших fail-closed файлов (layer/verify_on_read/test) — стейдж отставал от рабочего дерева после поздних эдитов; пойман повторным git diff --staged (привычка: сверять перед каждым коммитом). Многострочный PS heredoc ломает git commit > использовать -F <файл>.
-**verified_from_clean_state:** да (на рабочем дереве = стейдж A): 126 тестов A-зоны passed; hook 5/5 OK; git show --stat 08281f37 = 7 файлов 328+/16-, footer Fixes #21/#22.
+**verified_from_clean_state:** да (на рабочем дереве = стейдж A): 126 тестов A-зоны passed; hook 5/5 OK; git show --stat e9a89fa9 = 7 файлов 328+/16-, footer Fixes #21/#22.
 
 ---
 
-## [2026-09-02 21:40] — COMMIT B (head-freshness) приземлился: cb88c961; + cp1251 encoding-инцидент
-**Status:** ✅ Fixed (коммит B cb88c961; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
+## [2026-09-02 21:40] — COMMIT B (head-freshness) приземлился: 2e7d1284; + cp1251 encoding-инцидент
+**Status:** ✅ Fixed (коммит B 2e7d1284; все 5 pre-commit hook'ов OK; рабочее дерево чистое)
 **Root Cause 1 (B):** после A (fail-closed symbol, никогда REFUTED) свежесть индекса не проверялась — отсутствие референта не доказывало удаление (stale-индекс). Требование fresh-индекса для честного REFUTED.
 **Fix 1 (B):** (1) `evaluate_freshness(build_head,current_head,dirty)` + `resolve_head_dirty(root)` (git rev-parse HEAD + git status --porcelain, Popen+communicate, CREATE_NO_WINDOW, timeout 5s, fail→None) в verify_on_read.py; (2) `index_project` пишет `build_head` в graph meta ТОЛЬКО на успешном completion; (3) freshness-gated `_symbol_resolver` в layer.py — False (REFUTED) только при build_head==HEAD на чистом дереве, иначе None (INCONCLUSIVE); (4) `_classify` снял fail-closed symbol-ветку (резолвер несёт freshness); (5) test_verify_on_read fail-closed-тест → unverifiable-None→INCONCLUSIVE. +8 тестов `tests/test_symbol_freshness.py`.
 **Root Cause 2 (encoding):** PowerShell `Set-Content` записал мою русскую запись дневника (эм-даши «—») в cp1251 → AGENT_DIARY.md стал смешанным UTF-8+cp1251 → verify_diary упал (index 0x97). §9 п.9.
 **Fix 2 (encoding):** декодировал cp1251-блок (с маркера `## [2026-09-02 20:51]` до EOF) как cp1251, префикс как UTF-8, переписал файл UTF-8 (strict-валиден). Пере-стейджил. verify_diary 5/5 OK. **Урок: никогда не писать русские .md через PS — только edit/write tools (UTF-8) или Python `encoding="utf-8"`.**
-**Guard:** WISDOM B-DONE-блок; паттерн §9 «PS cp1251» (запись); чистый-A-прогон (worktree 08281f37): test_verify_on_read 47/47 → A не зависит от B; полный clean-A pytest = 158 среда-fail (embedder/reranker в изолированном worktree), ортогонально B.
-**verified_from_clean_state:** ✅ да — полный pytest 1608 passed (hook verify_diary, рабочий B-дерево) / 1602 passed (ручной B-прогон); ruff clean; git show --stat cb88c961 = 10 файлов 343+/42-, создан tests/test_symbol_freshness.py.
+**Guard:** WISDOM B-DONE-блок; паттерн §9 «PS cp1251» (запись); чистый-A-прогон (worktree e9a89fa9): test_verify_on_read 47/47 → A не зависит от B; полный clean-A pytest = 158 среда-fail (embedder/reranker в изолированном worktree), ортогонально B.
+**verified_from_clean_state:** ✅ да — полный pytest 1608 passed (hook verify_diary, рабочий B-дерево) / 1602 passed (ручной B-прогон); ruff clean; git show --stat 2e7d1284 = 10 файлов 343+/42-, создан tests/test_symbol_freshness.py.
 
 ## [2026-09-03] — Fake reindex ETA "~8s" + frozen progress in Finalizing (both fixed)
-**Status:** ✅ Fixed (commit 32f11662; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
+**Status:** ✅ Fixed (commit e75cb2b4; 5 pre-commit hooks OK; full pytest 1587 passed, 2 pre-existing unrelated env_extractor failures)
 **Root Cause 1 (ETA "~8s"):** `_enrich_job_response` had a dead history branch — `job.project_size` is never assigned → always false — and fell into a broken linear extrapolation of the first 2 simulated seconds: `int(2/0.2*0.8)=8` → fake "~8с". History-ETA path (`store.py:249`) was unreachable.
 **Fix 1:** single source-of-truth parser `_embed_progress_from_log()` (layer.py) reads the real `[embed] done/total batch=…ch/s` line within the job window → real ETA = `remaining/speed` (verified: 992/1339, inst=16 → ETA 21s, eta_phase="embed"). No data → honest `None` (UI "расчёт…/определяется…") instead of a fabricated number. Reworked `intel_trigger_reindex`/`intel_reset_index` ETA to handle `None` (was a `TypeError` passing None into the stdlib `timedelta` seconds arg).
 **Root Cause 2 (frozen Finalizing):** `_safe_ivf_index` (up to ~1min) emitted no progress-callback → bar stuck at 0.8 (embed scale max), chank counter showed stale last-embed line.
@@ -511,15 +887,15 @@
 **verified_from_clean_state:** ⚠️ не проверено — clean-clone verification not run this session; full pytest 1587 passed (2 pre-existing unrelated env_extractor failures), targeted set 51 green.
 
 ## [2026-09-03 19:30] — CI RED: circular import layer ↔ tools_reg (architecture_linter)
-**Status:** ✅ Fixed (commit f210ed7c; CI all-jobs green on ubuntu+windows)
+**Status:** ✅ Fixed (commit 5453c289; CI all-jobs green on ubuntu+windows)
 **Root Cause:** My ETA refactor added `tools_reg → layer` import for `_embed_progress_from_log`, closing an existing `layer → tools_reg` (re-export `register_intelligence_tools`) cycle. `scripts/architecture_linter.py` caught it as `[CIRCULAR]`.
 **Fix:** Extracted `_embed_progress_from_log` into neutral `src/core/intelligence/embed_progress.py`. Both layer and tools_reg import from it. Zero cycle, single source of truth preserved.
 **Guard:** `architecture_linter.py` is a CI gate — any future circular import will be caught before merge. §9: "before adding a cross-module import, check if the target already imports back."
 **verified_from_clean_state:** ✅ да — CI clean-state job (ubuntu clone+venv+install+tests) passed; full pytest 1587 passed (2 pre-existing); ruff clean; architecture_linter all OK.
 
 ## [2026-09-04 11:15] — CI RED: ruff lint errors caught only after push (3 commits)
-**Status:** ✅ Fixed (commit 986c9be7)
-**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times (5a771789, b121ab19, 3dd79ba2). Also discovered pre-existing SyntaxError in hook template from bb05d9af (stray `\"\"\"` in PRE_COMMIT_HOOK docstring) — hook never compiled, was installed via MCP after commits pushed so never caught.
+**Status:** ✅ Fixed (commit 3207e6d6)
+**Root Cause:** Pre-commit hook did not run ruff. CI (`ruff check src/ tests/` in ci.yml) caught F401/W292 only after push, forcing fix-commits. Repeated 3 times (8f01a5f7, 53627e77, 2c72c6ab). Also discovered pre-existing SyntaxError in hook template from 0199de21 (stray `\"\"\"` in PRE_COMMIT_HOOK docstring) — hook never compiled, was installed via MCP after commits pushed so never caught.
 **Fix:** Added `scripts/ruff_gate.py` (step 9 in PRE_COMMIT_HOOK, run via `run_script()`). Graceful skip when ruff not installed (advisory). Removed stray `\"\"\"` in template. 3/3 negative control tests passed.
 **Guard:** ruff_gate.py now blocks commits locally when ruff finds lint errors. test_ruff_gate.py prevents regression (happy/fail/no-ruff paths). KNOWN_ISSUES.md#2026-09-04-CI-RED-ruff.
 **verified_from_clean_state:** ⚠️ не проверено — clean-clone не гонялся; локально подтверждено: ruff clean (3 файла), py_compile hook OK, 3/3 unit tests, hook template .format() verified.
@@ -598,13 +974,13 @@
 - **system_alerts:** `AlertStore` (src/core/intelligence/alert_store.py, JSON вне проекта в <data_root>/projects/<hash>/intelligence/, threading.Lock т.к. несколько event-loop'ов, дедуп по kind+payload, атомарный collect_and_clear limit=5). Источники: (a) stale — `mark_stale("memory")` в notify_change ТОЛЬКО при переходе →STALE (не спамим на каждый save; reason меняется и дедуп по payload не спасёт); (b) starved — idle VOR-проход и `intel_get_project_memory` для узлов видимы ≥2 циклов (MATCHED>0, DELIVERED=0). Доставка: `format_system_alerts` prepend в `intel_get_project_memory` (tools_reg) + секция в `intel_explain_project_state` (server_tools, try/except — алерты не роняют диагноз).
 **Tests:** 11 в test_alert_store.py (push/collect/clear одноразовость/дедуп/limit/corrupt-json/гонка 2 threading-потоков 20 alerts/per-project изоляция/синглтон по resolved path/orphan) + 3 в test_ui_formatter_memory (empty/alerts render/payload limit 3). Полный pytest 1689 passed / 5 skipped / 91 deselected (180.8s); ruff clean после --fix; architecture_linter «Все инварианты соблюдены».
 **Red Team:** (1) дубль-доставка при гонке двух MCP-тулов — collect_and_clear атомарный (первый забрал, второй — пусто); (2) спам на каждый notify_change — alert только при первом переходе →STALE; (3) токен-оверхед — limit=5, payload до 3 ключей; (4) коррапт JSON — graceful reset; (5) multi-window — per-project store. 5/5 с защитой.
-**Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — отдельный коммит 0301fa93 (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
+**Guard:** дедуп в push + лимиты, single-threaded write под lock. .h-хедеры (H2) — commit not found in history (см. KNOWN_ISSUES «`.h` не парсился AST» → Fixed).
 **verified_from_clean_state:** ⚠️ не проверено — чистый clone не гонялся (нет сети в сессии); локально полный pytest 1689 passed / 91 deselected (Windows, без e2e/shadow-маркеров — llama недоступен, slow/benchmark отсечены addopts).
 
 ## [2026-09-11] — VOR read-path fix (PR #34) + «8-минутный коммит» = НЕ баг (решение владельца)
 
 **Status:** ✅ PR #34 создан, hooks green; скорость тестов — осознанное решение, код НЕ менялся.
-**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchors` уже были захвачены на write-path. Исторические «X → Y» пути из прозы (R083: src/utils/paths.py → adapters/local_fs/windows.py) оживали при rename-sweep и ложно REFUTEDали живой узел ADR-7232a6e2ba34. (2) «Коммит 8 мин» — gate-zero полный pytest ~178s standalone + 2 llama-server (embed+rerank) contention при коммите. Измерено: 1704 passed / 177s; hook-скрипты остальные 8 ≈10s; total ~189s standalone.
+**Root Cause:** (1) read-path VOR ре-сканировал prose тела ADR через `_PATH_RE`, хотя явные `data.anchors` уже были захвачены на write-path. Исторические «X → Y» пути из прозы (R083: src/utils/paths.py → adapters/local_fs/windows.py) оживали при rename-sweep и ложно REFUTEDали живой узел ADR-d35fd1e7fee5. (2) «Коммит 8 мин» — gate-zero полный pytest ~178s standalone + 2 llama-server (embed+rerank) contention при коммите. Измерено: 1704 passed / 177s; hook-скрипты остальные 8 ≈10s; total ~189s standalone.
 **Fix:** (1) `extract_anchors(read_path=True)` в verify_on_read.py — при непустых явных якорях prose НЕ сканируется; legacy-узлы без якорей сохраняют проза-скан (backward compat, дрифт-детект жив). Write-path (layer.py:1250/1555) не тронут (default False). 3 новых regression-теста; 53+28 passed. PR: https://github.com/ManSio/mscodebase-intelligence/pull/34. (2) Владелец: pytest single-thread остаётся, ~178s — норма; xdist/smart-selection НЕ вносить. Зафиксировано в WISDOM.
 **Guard:** read-path проверяет ТОЛЬКО якоря, существовавшие на момент записи (не re-derives единственные из прозы); тест `test_read_path_prose_history_legacy_node_keeps_refuting` закрепляет обе ветки. basetemp-гонка (2 параллельных pytest → 452 ложных FileNotFoundError) — известна, не чиним.
 **verified_from_clean_state:** ✅ да, локально — PR #34 не merged (ждёт ревью), но: hooks 9/9 OK, полный pytest 1704 passed / 177s, VOR+retraction 53+28 passed.
@@ -636,7 +1012,7 @@ VERDICT H3: CONFIRMED
 
 **Кросс-триггер (исследование):** веб-поиск показал, что inform-the-agent (alerts/STALE 55.2% на STALE-бенчмарке, PlanFence 30/30 провалов) слабее server-side blocking; кандидат — Fail-Closed Read+Write Gate (SSGM read-filter + PlanFence action-validation). Решение A/B/C — за владельцем.
 
-**Связи:** KNOW ISSUES «Lazy-only» (закрыт), ADR-0003, EXPERIMENTS_LOG (exp 1 и exp 3), MSPortfolio exp-33/exp-34 (26/26 тестов), README badge d8dcbd9f (unpushed).
+**Связи:** KNOW ISSUES «Lazy-only» (закрыт), ADR-0003, EXPERIMENTS_LOG (exp 1 и exp 3), MSPortfolio exp-33/exp-34 (26/26 тестов), README badge ccc902bb (unpushed).
 
 ## [2026-09-10] — Exp 2 (Agent Behavior) + Exp 4 (Fail-Closed Freshness Gate)
 
@@ -664,7 +1040,7 @@ VERDICT H3: CONFIRMED
 **Root Cause:** INCONCLUSIVE/непроверенные узлы «висят вечно» без следа проверки: live-срез 2026-09-11 — 70 ACTIVE без verified_at (KNOWN_ISSUES «42» устарел), verified_at VERIFIED median 22/max 31; VOR писал дату ТОЛЬКО при VERIFIED-переходе, INCONCLUSIVE — ничего.
 **Fix:** (1) `verify_on_read.py`: `last_checked` пишется для КАЖДОГО реально проверенного узла (cache-hit и fresh check, включая INCONCLUSIVE), физ-запись rate-limited `VOR_LAST_CHECKED_INTERVAL_SEC=6h` (H1 idle не переписывает project_memory.json каждый тик); `stale_ttl_nodes` в stats — ACTIVE/VERIFIED, не проверен в проходе, след старше `VOR_TTL_DAYS=30`; без следа (новый узел) → НЕ stale. (2) layer.py: `verification="stale_ttl"` прямым присваиванием (сильнее budget_exceeded, как stale_unverified). (3) ui_formatter.py: render + ресипт (`⏳ stale_ttl: N узлов не подтверждались > N дней`, lazy-import TTL). (4) Тесты tests/test_verify_on_read_ttl.py — 9 кейсов.
 **Guard:** узел не переписывается в терминальный статус меткой (Red Team a2: INCONCLUSIVE неотзываем, false_retraction 0.0968% цел); порог N измерен, не угадан.
-**verified_from_clean_state:** ✅ да — CI run 34737070903 на 7429daad: clean-state PASS, full-suite PASS (ubuntu+windows), ruff/layer/linter/pip-audit PASS, transport-equiv PASS, manifest-parity PASS; локально полный pytest 1725 passed, 5 skipped.
+**verified_from_clean_state:** ✅ да — CI run 34737070903 на 986ad626: clean-state PASS, full-suite PASS (ubuntu+windows), ruff/layer/linter/pip-audit PASS, transport-equiv PASS, manifest-parity PASS; локально полный pytest 1725 passed, 5 skipped.
 **Связи:** doc 10-continuous-verification.md (closed), KNOWN_ISSUES «Lazy-only» (2026-09-07, закрыт), EXPERIMENTS_LOG Exp 5 (2026-09-11).
 
 ## [2026-09-13] — H4: agent-memory lifecycle в масштабе dev.to KB — бутылочное горлышко = сетевой capture, не граф
@@ -730,7 +1106,7 @@ VERDICT H3: CONFIRMED
 
 **Status:** Experiment (verdict PARTIALLY REFUTED в положительную сторону); решение по Шагу B уточнено фактами
 **Exp 9:** `python experiments/bootstrap/static_vs_dynamic.py` (v2, per-test; v1 file-level был методологически неверен — завышал L1 hit вызовами соседних тестов). против trace_result.json (1727 тестов): L1 (прямые вызовы из тела теста) hit 88.4% / recall 30.3% / **precision 68.0%** (avg 2.9 кандидата); L2 (токены имени) 17.7% / 3.8% / 12.1% (слабый — подтверждает Exp 7 «имя=0%»); L3 (импорты) 91.6% / 72.0% / 21.8% (avg 41.4); union 90.4% / 70.0% / 20.6%. Fallback для динамически-пустых: 88/176 мок-тестов имеют стат. кандидатов.
-**Вывод (Root Cause/Guard):** динамика остаётся драйвером TESTS-ребра (recall 100% на linked); статика ≠ замена (hit≠recall: union recall 70% < 100%); L1 — точный и узкий якорь (tier-1 для ранжирования), L3 — широкий кандидат-пул, L2 — игнор. **Шаг 2 (DECORATES @mcp_app.tool) — ЗАКРЫТ фактом:** живая БД уже содержит рёбра mcp.tool→14, mcp_app.tool→20 (источник `19378296`). KNOWN_ISSUES:245 «tool-рёбер нет» устарел. Остаётся: Шаг 1 как companion-слой (L1+L3 fallback для мок-тестов и pre-filter ранжирования) и Шаг 3 (`mscodebase bootstrap`).
+**Вывод (Root Cause/Guard):** динамика остаётся драйвером TESTS-ребра (recall 100% на linked); статика ≠ замена (hit≠recall: union recall 70% < 100%); L1 — точный и узкий якорь (tier-1 для ранжирования), L3 — широкий кандидат-пул, L2 — игнор. **Шаг 2 (DECORATES @mcp_app.tool) — ЗАКРЫТ фактом:** живая БД уже содержит рёбра mcp.tool→14, mcp_app.tool→20 (источник `d5ed86dd`). KNOWN_ISSUES:245 «tool-рёбер нет» устарел. Остаётся: Шаг 1 как companion-слой (L1+L3 fallback для мок-тестов и pre-filter ранжирования) и Шаг 3 (`mscodebase bootstrap`).
 **verified_from_clean_state:** ⚠️ не проверено — аналитический скрипт на неизменяемом ground truth (`trace_result.json`), не git clone; воспроизводимо одной командой.
 **Связи:** KNOWN_ISSUES [FEATURE] (Прогресс Step A → добавлен блок Exp 9), EXPERIMENTS_LOG Exp 9, experiments/bootstrap/static_vs_dynamic.py, exp-41 portfolio lab (pending).
 
@@ -883,14 +1259,14 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 ## [2026-10-03] Аудит чужой статьи (Tom Jones, dev.to `4p1h`): 6/6 CONFIRMED, но 4 ошибки атрибуции
 **Status:** 🟡 частично — аудит закрыт, эксперименты E-1…E-5 не запущены, P1 (`gates.py`) открыт.
 **Задача (цитата владельца):** «подтверди или опровергни» пересказ статьи+комментариев; «собери данные для другого агента на исправления, решения, эксперименты и red атак».
-**Метод (§19.2):** пересказ владельца — артефакт под аудитом, **не источник истины**. Каждый из 6 пунктов перевыведен из первоисточника; источник заморожен до анализа (§17): `experiments/audit_devto_judgements/frozen/devto_4p1h_raw_fetch.md` sha256 `98104210…` — все ссылки в отчёте привязаны к sha, не к `:line` (§8).
+**Метод (§19.2):** пересказ владельца — артефакт под аудитом, **не источник истины**. Каждый из 6 пунктов перевыведен из первоисточника; источник был заморожен до анализа (§17), sha256 `98104210…`; **удалён 2026-10-24 по §20.1**, sha — в карантинном манифесте; все ссылки в отчёте привязаны к sha, не к `:line` (§8).
 **Результат:** **6 из 6 CONFIRMED, 0 REFUTED по существу** — но это слабый результат (пересказ выведен из того же источника, подтверждение почти тавтологично). Реальная работа агента: **4 ошибки атрибуции** из 4 названных собеседников (судья-бэг = Tom L1513, не Onizuka L1472; `x-api-key`/edge/стриминг = Tom L1032/L1034, а Reid L989 — про общий payload-serializer; Umair L1320 — реплика без отношения к делу; Eusebiu↔Tom L562 не упомянут вовсе) + **склейка двух разных дефектов в один** + **тело статьи пропущено пересказом целиком** (тест на SQLite, неспособный упасть; выживший мутант ≠ слабый тест; 16 vs 2,375; 120→86 ключей и `assert len(cache)==len(documents)`; 2,488 по одной метке; p=0.549 при смене контроля; 68 дней «группа vs её выжившие»).
 **Self-audit (главное для следующего агента):** все 29 ссылок отчёта сверены с `frozen/` — 29/29 резолвятся; **две были угаданы** (`L~120`→L109/L111, `L~230`→L237) и исправлены. Отчёт затем ушёл дальше как «официальный», и пересказ **выдумал число** («5 поздних фильтров» → в источнике `several later filters`, L247) и **снял 3 калибровки** (mutmut-arm 🟡→🟢 без WSL; «покрытие не доказано» → «только в 6 из 73»; «числа не измерено мной» исчезло). **Класс:** summary-of-a-summary наследует и усиливает уверенность; правки X2–X4 все выглядели как безобидное упрощение. **Правило:** факт из пересказа перевыводится из `frozen/` до вердикта; число, не найденное `Select-String` в источнике, — не мелочь, а признак не-проверяемости. Обратный вывод: **аудит, где всё сошлось с первого раза, либо ничего не проверял, либо проверял по памяти.**
-**Root Cause (P1, уточнён после первой неверной версии):** `tools/verification/gates.py` **не потерян** — коммит `285dbc3f`, файл цел (25 356 B); удаляющего коммита нет (`--diff-filter=D` пуст). Ветка **`feat/protocol-triage-and-t10-guards`** (13 файлов верификации) **не предок HEAD** (`merge-base --is-ancestor` rc=1; HEAD `ee5edd20` на `chore/bump-urllib3-pyjwt-cve`) → тул `gate` падает `rc=2`. Ложь создавал неотслеживаемый `__pycache__/*.pyc` от 01.10 23:35 — останец чекаута. **Первая версия этой записи утверждала «исходник никогда не был в треке» — опровергнуто `git log --all --follow`; я обобщил «нет в HEAD» до «нет в истории», т.е. совершил ровно ту ошибку, которую документирую.** ⛔ HALT: ветка зачекаучена в чужом worktree `mscb-wt-64` @ `dee49085` → параллельная сессия, не трогать; не переписывать `gates.py` с нуля. Фикс = merge/cherry-pick (решение владельца).
+**Root Cause (P1, уточнён после первой неверной версии):** `tools/verification/gates.py` **не потерян** — коммит `9462dc2f`, файл цел (25 356 B); удаляющего коммита нет (`--diff-filter=D` пуст). Ветка **`feat/protocol-triage-and-t10-guards`** (13 файлов верификации) **не предок HEAD** (`merge-base --is-ancestor` rc=1; HEAD `d1e77fad` на `chore/bump-urllib3-pyjwt-cve`) → тул `gate` падает `rc=2`. Ложь создавал неотслеживаемый `__pycache__/*.pyc` от 01.10 23:35 — останец чекаута. **Первая версия этой записи утверждала «исходник никогда не был в треке» — опровергнуто `git log --all --follow`; я обобщил «нет в HEAD» до «нет в истории», т.е. совершил ровно ту ошибку, которую документирую.** ⛔ HALT: ветка зачекаучена в чужом worktree `mscb-wt-64` @ `74bfa2ad` → параллельная сессия, не трогать; не переписывать `gates.py` с нуля. Фикс = merge/cherry-pick (решение владельца).
 **Guard:** (1) контур `frozen/` + sha + перевывод — в `HANDOFF.md` §7; (2) `assert len(a)==len(b)` и `coverage unknown` в репо **отсутствуют** (0 вхождений), `sys.exit(2)` — 6 из 73 скриптов, покрытие не доказано → KNOWN_ISSUES 2026-10-03.
-**Вторая находка при сверке `git status` (P1, ПЕРЕПИСАНО дважды за день):** `tools/knowledge/` (15 файлов) — сначала записал «исчез, потеря данных, git не вернёт». **Неверно:** каталог цел — он в **чужом worktree** %TEMP%\mscb-wt-64\tools\knowledge\, включая `repoint_stale_refs.py` (referent отрицательного результата **D-05**) и `tom-devto-thread-FROZEN.md` (55 KB, замороженный тред **той же статьи dev.to `4p1h`**). В моём дереве был виден 07:20 и исчез ~07:22; `CreationTime 07:20:05` у всех 15 при `LastWriteTime` 01.10 = сигнатура **копирования**, не создания. **Мой промах:** сделал вывод «потеряно» по одному снимку `git status`, не спросив соседний worktree. **Правило: «нет в этом дереве» ≠ «нет вообще», пока рядом живая сессия; отсутствие — не потеря, а отсутствие наблюдения.** Реальный риск остался: корпус **неотслеживаем в обоих деревьях** + лежит в `%TEMP%` → `git clean` или очистка Temp уничтожит его безвозвратно. Дубликат: мой `frozen/devto_4p1h_raw_fetch.md` и их `tom-devto-thread-FROZEN.md` — два слепка одного треда, выбрать один каноном. → KNOWN_ISSUES 2026-10-03 (P1).
+**Вторая находка при сверке `git status` (P1, ПЕРЕПИСАНО дважды за день):** `tools/knowledge/` (15 файлов) — сначала записал «исчез, потеря данных, git не вернёт». **Неверно:** каталог цел — он в **чужом worktree** %TEMP%\mscb-wt-64\tools\knowledge\, включая `repoint_stale_refs.py` (referent отрицательного результата **D-05**) и второй слепок **той же статьи dev.to `4p1h`** (удалён 2026-10-24 по §20.1). В моём дереве был виден 07:20 и исчез ~07:22; `CreationTime 07:20:05` у всех 15 при `LastWriteTime` 01.10 = сигнатура **копирования**, не создания. **Мой промах:** сделал вывод «потеряно» по одному снимку `git status`, не спросив соседний worktree. **Правило: «нет в этом дереве» ≠ «нет вообще», пока рядом живая сессия; отсутствие — не потеря, а отсутствие наблюдения.** Реальный риск остался: корпус **неотслеживаем в обоих деревьях** + лежит в `%TEMP%` → `git clean` или очистка Temp уничтожит его безвозвратно. Дубликат: два слепка одного треда (оба удалены 2026-10-24), канон так и не был выбран. → KNOWN_ISSUES 2026-10-03 (P1).
 **Не сделано (честно):** эксперименты E-1…E-5 не запускались (требуют решения владельца: это написание кода); `EXPERIMENTS_LOG.md` (2844 строки) и `WISDOM.md` (241 при собственном лимите ≤50) **намеренно не дополнялись** — это не эксперимент, а аудит, а оба файла уже за порогом ротации (§8); **⚠️ `KNOWN_ISSUES.md` перевалил за 300 строк (302)** — ротация закрытых записей в `docs/archive/` теперь обязательна, но это отдельная операция, не смешивал её с этой записью; новая запись в реестр `P-###` не вносилась — реестр лежит **вне рабочего каталога** (§3 HALT), нужно разрешение владельца.
-**Артефакты:** `experiments/audit_devto_judgements/{HANDOFF.md,frozen/devto_4p1h_raw_fetch.md}` — **уточнено 03.10:** сырой дамп вынесен ВНЕ репо в `%LOCALAPPDATA%/mscodebase/audit-cache/audit_devto_judgements/` (sha256 `98104210…` сохранён), в репо остался только `HANDOFF.md`. Причина — чужие личные email + профильные блоки в публичном MIT-репозитории (AGENTS.md §7.1a).
+**Артефакты:** в репо — только `HANDOFF.md`; сырой дамп и второй слепок **удалены 2026-10-24** (§20.1), sha256 — в карантинном манифесте. Причина — чужие личные email + профильные блоки в публичном MIT-репозитории (AGENTS.md §7.1a).
 
 ## [2026-10-03] Аудит репо на чужие данные + гейт `third_party_data` (Closed)
 **Status:** ✅ Закрыто. Репозиторий исторически чист; риск был prospective и устранён.
@@ -906,7 +1282,7 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 ## [2026-10-03] Гейт отвечал rc=2 на любой вход + мёртвое число A10 без метки (Fixed)
 **Status:** ⚠️ Частично. Код и тесты зелёные; полный прогон с нуля не делался (нет venv в worktree).
 **Root Cause (двойной, независимый):** (1) `tools/verification/gates.py:322` звал `fn(**kw)` без отбора по сигнатуре гейта; MCP-тул `gate` шлёт superset полей всем четырём гейтам → `TypeError` → верхний обработчик печатал traceback и exit 2, то есть «гейт недоступен» вместо вердикта. Гипотеза «PATH/GitBash, как в AGENT_DIARY.md:451» — **REFUTED**: в `tools/verification/` нет резолвера bash. (2) T-17 висел открытым: число `orphan 30s→120ms` публиковалось в 3 файлах с меткой «подтверждено», хотя `claims_audit/RESULTS.md` A10 = NOT REPRODUCED (путь удалён по дизайну, R3TF).
-**Fix:** `run()` выбирает параметры своего гейта по `inspect.signature`, отброшенные ключи возвращает как `ignored_kwargs`, а отсутствующий обязательный ключ отвечает `UNKNOWN`/rc=2 с перечнем `required_kwargs` вместо трайсбека. A10 помечен `SUPERSEDED` (`EXPERIMENTS_LOG.md:1320`, `experiments/README.md:27`, `experiments/lock_zombie/README.md:9`) со sha `3798d6a9` и ссылкой на R3TF `7974d981`.
+**Fix:** `run()` выбирает параметры своего гейта по `inspect.signature`, отброшенные ключи возвращает как `ignored_kwargs`, а отсутствующий обязательный ключ отвечает `UNKNOWN`/rc=2 с перечнем `required_kwargs` вместо трайсбека. A10 помечен `SUPERSEDED` (`EXPERIMENTS_LOG.md:1320`, `experiments/README.md:27`, `experiments/lock_zombie/README.md:9`) со sha `867dbe56` и ссылкой на R3TF `145fda16`.
 **Guard:** `tests/test_gates_kwarg_contract.py` (10 тестов). **Negative control:** на исходном коде падают 4 из них, на исправленном 10/10 — тесты умеют падать. Red team: опечатка в ключе → `UNKNOWN`, а не тихий ALLOW; чужой гейт → `UNKNOWN`; отброшенный ключ по построению не может изменить вердикт, поэтому понижения нет — решение записано в коде.
 **Self-caught:** первая запись в дневник переписала файл целиком (CRLF→LF, +928/−872 в diff) — поймано на `git diff --stat` до коммита, откачено через `git checkout --`, перезаписано с CRLF.
 **Не сделано (честно):** портфолио (`exp-10`, репозиторий `MSPortfolio`) публикует то же число как действующую практику — отсюда не правится; полный `pytest tests/` и `verify_clean_state.sh` не гонял (в worktree нет venv, использована venv основного дерева). Реестр ловушек вне рабочего каталога — P-16 предложен в `tools/knowledge/PENDING_LEDGER.md`, не внесён.
@@ -925,3 +1301,108 @@ chunk_index -(20_000_000+line), graph_score=0.4 (ниже функций 1.0). E
 **Guard:** `tests/test_precommit_hook_contract.py` (7), `tests/test_ruff_gate.py (+2 кейса), `tests/test_reconstruct_judge_verdict.py` (11). **Negative control:** pre-fix хук грузится из git и обязан **не уметь** ответить на таймаут; старый парсер судьи обязаны падать 7 тестов (проверено: 7 failed → 11 passed).
 **Self-caught (третье за сессию, все три — моя измерительная ошибка, не дефект системы):** (а) «хук висит» = мой диагностический окно короче первого гейта; (б) «verify_diary не печатает» = буферизация `| Select-Object`; (в) «нет вывода» = то же. Общий класс: инструмент, измеряющий инструмент, молчит так же, как инструмент. Правило: прежде чем назвать что-то сломанным, проверить, что моя труба не съела вывод.
 **Не сделано:** причина 3-кратного замедления сюиты не расследована; fast-режим hook — осознанный компромисс и может стать привычкой; полный прогон оставлен CI.
+## [2026-10-21] Супер-протокол: каждая операция — микрошаг; red team 13/13; живой путь на Gemma 4 дошёл до рецепта, но уперся в исполнителя/сервер (⚠️)
+**Status:** ⚠️ протокол и харнесс готовы и проверены; **блокер — исполнитель и пропускная способность сервера**, не архитектура. Спека: `PIPELINE_PROTOCOL.md`, код: `experiments/microtask_vs_single/pipeline/`.
+**Что сделано:** (1) **таксономия микрошагов**: `locate`/`read`/`write`/`exec`/`output`/`decide`/`verify`/`handoff` — **по одному инструменту на роль**, плюс кодовый слой `plan`/`gate`/`measure`/`slice`/`apply`/`verify`/`receipt` (детерминированный, никогда не модель). (2) **Лестница**: L0 OpenCode (облако, бесплатная аккаунт-модель) → **один** вызов `pipeline_run`; L1 наш цикл (код) → план→гейт→расписание→рецепты; L2 микроагенты Gemma 4 (по одному инструменту) → измерить→написать→измерить→написать; L3 код → тесты, применение диффа, рецепт. L0 **не видит** ни транскриптов, ни артефактов, ни микрошагов — только рецепты + ≤2k summary, поэтому «роутер не проверяет» — буквально (рецепты машинно-проверяемые и привязаны к sha256).
+(3) **Red team исполняемый: 13/13 атак отбито** (`pipeline/red_team.py`): выход за репозиторий, запись теста, запись вне области, абсолютный путь, symlink-обход, подмена теста (восстанавливается из pristine, прогон недействителен), неизвестный инструмент, огромный вывод команды (сводка, не инлайн), срез вывода ≤40 строк, бесконечный цикл инструментов (≤2 хода), правка теста через цикл, раздутый промпт (отказ до вызова модели), подделка рецепта моделью (рецепты минтит харнесс).
+(4) **Живой путь на 192.168.2.5:1234** (ваш GPU, бесплатно): конвейер проходит целиком и выпускает **машинно-проверяемый рецепт** с точным падающим тестом и sha256 артефакта. Но исполнитель **не решил** реальный баг (41355628_health: правильно диагностировал падающий assert — «тест ждёт bare-имя узла» — но не выдал дифф в бюджете), а на 05493c6e_project_resolution **сервер оборвал соединение** (WinError 10054 → 10051).
+**Измерения, которые определили протокол:** LM Studio/llama.cpp **не принимает `tool_choice`** (400) ⇒ харнесс применяет дифф сам, а не доверяет tool-call; модель рассуждает в `content` («I haven't found the bug yet») ⇒ **двухфазный ответ** («теперь выведи только дифф»); бриф из головы файла ввёл модель в заблуждение («seems to be a diagnostic report script») ⇒ **код сам находит релевантный срез** по идентификаторам падающего теста; один вызов = **147 токенов**; **~150–300 с на вызов** ⇒ 24 шага ≈ 1–2 ч на задачу (практический блокер).
+**Следующие рычаги (по убыванию ожидаемого эффекта):** (1) включить **MTP-драфтер** `gemma-4-26b-a4b-it-qat-mtp` (уже лежит на сервере; карточка требует QAT-драфтер той же точности) — должен срезать латентность; (2) ужать бюджет вывода шага write до 512 с двухфазным ответом; (3) **контролируемый A/B исполнителей на одном протоколе**: наш луп на Gemma 4 vs наш луп на шлюзе (Qwen3-Coder-480B, ≈$0.0004/запрос) — отделит «Gemma не может» от «сервер медленный».
+**Не сделано:** кодовый агрегатор (LLM map-reduce) для 10 детей × 2 потока; применение фрагмента конфига к глобальному (файл владельца); повторные прогоны корпуса; T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Решения владельца применены: оркестратор = free OpenCode-аккаунт, Tīrtha выключен, ключ Tīrtha стоит ротировать (⚠️)
+**Status:** ⚠️ глобальный конфиг изменён (бэкап рядом), прогоны эксперимента не запускались.
+**Что сделано:** (1) **Tīrtha выключен** — глобальный `model` в `~/.config/opencode/opencode.jsonc` переключён с `tirtha/auto` на `opencode-go/minimax-m3.1-flash-free` (бэкап `opencode.jsonc.bak-20261021`); блок провайдера `tirtha` и ключ **оставлены** (включается одной строкой). BOM из файла убран (PS 5.1 `Set-Content -Encoding UTF8` его добавляет — риск для JSONC-парсера); `opencode debug config` резолвит: model = free, 4 MCP-сервера и провайдер tirtha целы. Эффект: **ежедневный OpenCode больше не списывает кредит $59.25** (текущая сессия продолжает использовать старый конфиг до перезапуска).
+(2) **Оркестратор — бесплатная OpenCode-аккаунт-модель**, выбрана пробами (`probe_model.py`): `minimax-m3.1-flash-free` — **USABLE 12.5 с** ← взята; `beam-free` ответила за 9 с, но не тем токеном; `longcat-2.5-preview-free` и `muse-spark-1.2-contributor` — **таймаут**; метеред `claude-haiku-5-5` — **таймаут** (usage-limit Go-плана вешает CLI вместо ошибки). Правило: **модель годна только после пробы, которая вернула ответ**; зависание — это отказ, а не «медленный старт».
+**Следствие, которое я зафиксировал в дизайне:** при слабом оркестраторе **план обязан быть code-first** (детерминированный скелет: одна микротаска на файл-кандидат, по порядку; модель только уточняет goal/порядок/acceptance). Обоснование — наш собственный факт: Tīrtha-планировщик (480B-кодер) **дважды вернул пустой план**, а рука при этом выглядела «сделанной» ⇒ планирование не должно зависеть от дешёвой модели.
+**⚠️ Требует внимания:** мой диагностический `Select-String` по конфигу **напечатал `apiKey` Tīrtha в вывод сессии** (в репозиторий он не попал и в коммит не пойдёт, но лог сессии его видел) ⇒ **разумно ротировать ключ**.
+**Не сделано:** минимальный воркер-луп целиком, кодовый агрегатор и верификатор-рецепт, планировщик волн по 2; перезагрузка модели на сервере с `--parallel 2` (ждёт владельца); T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Живая проверка удалённого LM Studio: tool-calling работает, пол шага = 147 токенов ⇒ полоса 512–4096 измерена (⚠️ 1 пробный вызов на своём железе)
+**Status:** ⚠️ сервер владельца прочитан и один раз дёрнут минимальным запросом (147 токенов на его железе, не на ключе Tīrtha). Прогоны эксперимента не запускались.
+**Проверено вживую (2026-10-21):** `http://192.168.2.5:1234` отвечает — `/v1/models` и `/api/v1/models` дают HTTP 200; **id модели именно `google/gemma-4-26b-a4b-qat`** (HF-стиль, не короткий!), publisher `google`, квант **Q4_0**, `max_context_length` **262 144**; на коробке также лежат `gemma-4-26b-a4b-it-qat-mtp` (**MTP-драфтер** для спекулятивного декодирования), `qwen/qwen3.6-35b-a3b` (262k), `ernie-4.5-21b-a3b`, `mamba-codestral-7b`, `rwkv7-g1k-13.3b`. **Tool-calling через `/v1/chat/completions` работает:** проба вернула `tool_calls=[{"name":"write_file","arguments":"{\"content\":\"hello\",\"path\":\"src/x.py\"}"}]` — то есть весь замысел (микрошаг = один tool-call) технически реализуем.
+**Решающее число:** один шаг воркера = **118 prompt + 29 completion = 147 токенов** (reasoning 0) против **4 500–5 000** пола у OpenCode-сессии ⇒ разрыв ~30×, и потому полоса **512–4096 достижима**: бриф (~300–500) + одна схема инструмента (~120) + рецепт (30–60) ≈ **500–700 токенов на шаг** ⇒ 5 микрошагов ≈ 3–4k. Цель владельца «2–4k на микрошаг» впервые подтверждена **измерением**, а не оценкой.
+**Операционная оговорка (из баг-трекера LM Studio):** «стандартные настройки» = `n_parallel` **4** по умолчанию, но #2061 (`n_parallel` игнорируется при JIT/API-загрузке), #1714 (сброс на 4 после TTL-перезагрузки) и #2262 (бейдж показывает 4 при `n_slots = 1`) означают: **параллелизм задаём флагом при загрузке (`lms load --parallel 2`) и проверяем по логу движка `n_slots = 2` + `lms ps`**, а не по бейджу/конфигу. Тот же класс, что мы дважды поймали сегодня (контроль из неверного состояния; индикатор, который врёт).
+**Заготовки переведены на реальный endpoint:** `proposals/mcp_pipeline_server.py` (исполнитель `google/gemma-4-26b-a4b-qat` @ `192.168.2.5:1234/v1`, `max_tokens` 2048, reasoning-only ответ = «не рецепт»), `proposals/opencode.jsonc.fragment` (провайдер `lmstudio-remote`, `limit.context` 8192).
+**Не сделано:** минимальный воркер-луп целиком (сейчас есть каркас), кодовый агрегатор и верификатор-рецепт, планировщик волн по 2; T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Исполнитель: Gemma 4 26B A4B (QAT) на своём сервере через LM Studio, локально 2 потока (⚠️ прогоны остановлены)
+**Status:** ⚠️ решение владельца зафиксировано, спецификация и заготовки готовы; **прогонов не запускал**. Документ: `experiments/microtask_vs_single/PIPELINE_GEMMA.md`.
+**Модель подтверждена по первоисточникам:** Gemma 4 26B A4B = MoE 25.2B всего / **3.8B активных**, 30 слоёв, 8 активных из 128 экспертов + 1 общий, sliding window 1024, **контекст 256K**, словарь 262K, text+image; QAT-релиз 2026-06-05 (форматы: Q4_0 GGUF, compressed-tensors w4a16, unquantized, mobile wNa8o8 только для E2B/E4B); **веса 14.4 ГБ в Q4_0** (LM Studio: «minimum system memory 16 GB»); качество — Arena text 1441 (#6 открытая модель на релиз), MMMLU 82.6%, AIME 2026 88.3%, **LiveCodeBench v6 77.1%**, **τ²-bench (agentic tool use) 85.5%**; лицензия **Apache 2.0**; тех. отчёт arXiv:2607.02770. ⇒ это именно **tool-calling** модель, то есть исполнитель микрошаговой лестницы.
+**Ловушка (зафиксирована из источников):** «4B активных» — это про **FLOPs, а не про память**: все 26B весов должны быть в памяти, поэтому Q4_0 ≈ 14.4 ГБ, и на карте с 16 ГБ VRAM слоты с 8k-контекстом уже не помещаются ⇒ цель — 24 ГБ.
+**Слой подачи — LM Studio (решение владельца), факты из docs/tracker:** сервер поднимается на localhost **или в сети** (`lms server start`, порт 1234); OpenAI-совместимый `/v1/chat/completions` (**custom tools есть**), а нативный `/api/v1/chat` **не поддерживает custom tools** ⇒ наш луп исполнителя обязан идти по `/v1/chat/completions`; **параллельные запросы** = continuous batching (движок llama.cpp ≥2.0.0), `n_parallel` («Max Concurrent Predictions», по умолчанию 4) и **Unified KV Cache включён по умолчанию** ⇒ слоты не дробят KV-преаллокацию. **Три известных бага (tracker):** #2061 `n_parallel` **игнорируется при JIT/API-загрузке**; #1714 сбрасывается на 4 после TTL-перезагрузки; #2262 бейдж показывает 4 при реальном `n_slots = 1` ⇒ **правило: задавать параллелизм флагом при загрузке (`lms load --parallel 2`) и проверять по логу движка `n_slots = 2` + `lms ps`**, никогда не по конфигу/бейджу. Это ровно тот же класс, что мы дважды поймали сегодня (контроль из неверного состояния; индикатор, который врёт) ⇒ «assert the control's starting state».
+**Что меняется для конвейера:** деньги за исполнителя → **0** (своё железо), rate-limit/квоты → нет, **тихая подмена модели** → нет (было: `served_by` скакал между Cerebras/deepinfra/llama-sambanova), **потолок ответа 1024** → снимается (наш `max_tokens`), баг Тома со «скобками в примерах OpenCode» → неприменим (свой сервер и свой промт). Остаётся: свой ops- burdens и требование памяти.
+**Про 2 потока:** параллелизм даёт **латентность, а не токены** (фан-аут из 10 детей = 5 волн по 2); compounds 0.936ⁿ относится к **шагам**, а не к параллельным ветвям; верификация (pytest) остаётся **последовательной** (CPU, нельзя гонять с писателем по тому же файлу).
+**Заготовка обновлена:** `proposals/mcp_pipeline_server.py` — исполнитель по умолчанию `gemma-4-26b-a4b-qat` через `http://<server>:1234/v1`, `max_tokens` 2048, reasoning-only ответ считается «не рецептом» (не успехом).
+**Не сделано:** сам сервер не запускался (нет ни модели, ни удалённого сервера); планировщик волн по 2; кодовый агрегатор и верификатор-рецепт; T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Нативная реализация в OpenCode: всё нужное есть в коробке, но пол-потолка OpenCode (4.5–5k) убивает лестницу 8k/4k/2k (⚠️ без вызовов моделей)
+**Status:** ⚠️ исследование завершено, **ни одного прогона** (только чтение + `opencode debug config` — без обращений к моделям). Документ: `experiments/microtask_vs_single/PIPELINE_NATIVE.md`, заготовки в `proposals/`.
+**Подтверждено нативно в OpenCode 1.18.23 (docs 2026-10-20 + бинарь + `debug config`):** `subagent_depth: 2` (**вложенные субагенты**, значение принято и отражено в resolved-конфиге), per-agent `model` / `steps` (на лимите агент принудительно суммаризует — это нативный ограничитель петель) / `permission.task` (глобы, кто кого может звать) / `hidden: true` (внутренние агенты только через Task) / `permission` по инструментам; **MCP как стабильная поверхность** (локальный сервер, глобы `mcp_*`); провайдер **llama.cpp** с `baseURL` и **`models.<id>.limit.context` / `limit.output`** (бюджет объявляется в модели); `small_model` (отдельная дешёвая модель на титулы/саммари); в бинаре есть `doom_loop`, `maxSteps`, `defer_loading`.
+**Решающий измеренный факт:** пол одного запроса OpenCode ≈ **4.5–5k токенов** (системный промт + схемы инструментов), растёт до 7.5k ⇒ **лестница 8k/4k/2k невозможна в агентской топологии**; она достижима только если исполнитель — **наш собственный минимальный луп** (1 промт + 1 схема инструмента + 1 фрагмент файла, пол ≈1.5–2k) ⇒ рекомендованная топология — **MCP-сервис с одним инструментом** `pipeline_run`: OpenCode (облако) видит один инструмент, один рецепт и ≤2k summary, вся оркестрация — детерминированный код (*deterministic zero-LLM orchestration*), а исполнитель ходит в локальную модель по своему же HTTP-клиенту.
+**Железо (измерено) под локальную модель:** 15.4 ГБ RAM (5.2 свободно), 6 ядер Ryzen 5600H, дискретной GPU нет ⇒ Qwen3-Coder-30B-A3B (пример из docs OpenCode) **не влезает**; 7–8B Q4 впритык и на CPU даёт 5–15 tok/s (шаг 2k = 3–10 мин); практичен только 1.5–3B (≈1 ГБ, ~1–2 мин на шаг) и он заметно слабее шлюза, где мы меряли **Qwen3-Coder-480B-A35B** по **$0.0004/запрос**. ⇒ исполнитель по умолчанию — шлюз; локальная модель — это офлайн/приватность и разумный `small_model`.
+**Что сдано:** `proposals/opencode.jsonc.fragment` (фрагменты конфига, **не применены** к вашему глобальному конфигу), `agent-local-executor.md` (steps 4, может звать только `micro-*`), `agent-micro-worker.md` (steps 2, hidden, один файл, ответ ≤150 слов), `mcp_pipeline_server.py` (stdlib-only MCP-сервер: план → код-гейт → бриф → луп исполнителя → код-верификатор → рецепт; компилируется, ruff чист).
+**Не сделано:** сам MCP-сервер не запускался и не проверен на живом вызове (по вашей команде — ничего не прогонять); локальная модель не скачивалась; T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Исследование по протоколу: архитектура «чистая комната» — не гипотеза, а каталогизированный паттерн; но наши цифры требуют своего воркер-лупа (⚠️ прогоны остановлены)
+**Status:** ⚠️ исследование завершено, **прогонов не запускал** (решение владельца). Документ: `experiments/microtask_vs_single/PIPELINE_RESEARCH.md`.
+**Подтверждено (с первоисточниками):** `nibzard/awesome-agentic-patterns` (Apache-2.0, README прочитан) содержит **именно наш набор**: `sub-agent-spawning`, `planner-worker-separation-for-long-running-agents`, `context-budget-as-a-governed-resource`, `deterministic-zero-LLM-orchestration`, `deterministic-grader-in-the-loop`, `capability-escrow-receipt`, `llm-map-reduce-pattern`, `agent-circuit-breaker`, `budget-aware-model-routing-with-hard-cost-caps`, `subject-hygiene-for-task-delegation`, `own-check-fault-injection`. Реализации: `superfly/contextwindow` (Go, «multi-context agents» — дословно наша задача), `Antropath/minimal-agent` (~100 строк, ReAct/CodeAct), `codereindeer-dev/minimal-agent` (`spawn_agent`, **изоляция контекста**, глубина ≤2), `averagejoeslab/nanoagent` (бюджет из **реальных** счётчиков токенов, вытеснение целыми ходами), `barun-saha/kodeagent` (Planner + Observer, ловит петли; заточен под SLM). Официальная практика GitHub: **session splitting** (blog 2025-10-13) и spec-kit `spec.md→plan.md→tasks.md` с чекпоинтом «задачи готовы до делегирования»; в changelog Copilot CLI — **агентский хук обрывает ход после 8 подряд блокировок** (публикуемый аналог нашего watchdog). Anthropic ×4 (building-effective-agents, multi-agent research system, context engineering, code execution with MCP, advanced tool use) и Magentic-One (arXiv:2411.04468) — ближайший опубликованный аналог «оркестратор ведёт леджер и перепланирует, не перепроверяя». `github/spec-kit` — **не проверено** (GitHub API 403, rate limit).
+**Три измеренные поправки к шаблону владельца:** (1) **«2–4k на субагента» — свойство рантайма, а не паттерна**: наш OpenCode-воркер даёт первый запрос 1 074 токенов, но пол рантайма ~4.5–5k (системный промт + схемы инструментов) и растёт до 7.5k+ от выводов инструментов ⇒ полоса 512–4096 достижима **только своим минимальным воркер-лупом** (как minimal-agent/nanoagent), а OpenCode остаётся рантаймом для «мышления»; (2) «5 шагов ≈ 20k» верно лишь для минимального лупа (у нас 5–23 запроса и 37k–698k на задачу) ⇒ публиковать как общее число нельзя; (3) **план надо перепланировать после каждого шага** (Magentic-One, Anthropic orchestrator-workers, наш корпус: P2 = две зависимые микротаски) — up-front план годится только для независимых шагов.
+**Подтверждено из наших данных:** «100% проверено» должно быть машинно-проверяемым рецептом (`cmd` + `exit` + `sha256`) — в каталоге это называется *capability escrow receipt*; гейт обязан быть кодом (*deterministic zero-LLM orchestration*); негативные контроли pipeline'а — *own-check fault injection* (наши классы `no-op` и `block`); петли ловит *agent circuit breaker*; жёсткий денежный кап — *budget-aware model routing with hard cost caps* (наш прокси: 429 при $0.15 / 60 запросах).
+**Итог по существу:** архитектура подтверждена литературой и каталогом паттернов; **не подтверждено** наше преимущество по качеству; и полоса «512–4096» — это требование к **своему** минимальному воркер-лупу, а не к OpenCode-сессии.
+**Не сделано:** реализация минимального воркер-лупа и кодового агрегатора/верификатора; перезапуск fix-класса (остановлен владельцем); T11-аудит своих чисел; коммита нет.
+## [2026-10-21] Аудит стоимости: наши прогоны — $5.90, один разгон — $3.05; харнесс теперь физически не может потратить много (⚠️ прогоны остановлены по решению владельца)
+**Status:** ⚠️ **стоп по решению владельца** («ничего прогонять не надо») — новых прогонов не запускаем. Цифры: `experiments/microtask_vs_single/COST_AUDIT.md`.
+**Измерено по собственным записям прокси:** наши прогоны отправили **1 069 запросов, 52 796 458 токенов, $5.90** (A-рука $5.03 / 46.9M; C-рука $0.84 / 5.8M; пилот $0.03). Худший прогон — **$3.0488, 30 039 525 токенов, 330 запросов** (A на block-классе: сессия зациклилась и не была остановлена). Всё остальное — погрешность округления ⇒ **дорога в этом эксперименте ровно одна: неограниченный цикл агента**.
+**Экономика ключа (панель владельца):** бесплатных запросов 0 (100/мес использованы), кредит $59.25, премиум за сегодня $2.87 из дневного капа $5, 96% Base / 4% эскалация, ключ приколот к Max ⇒ эскалировавшие запросы считаются по $1.90/$5.69 за 1M. **Главный рычаг — не эксперимент, а интерактивный OpenCode владельца:** в глобальном конфиге `model: "tirtha/auto"` ⇒ каждая его «думающая» сессия тоже списывает кредит, хотя его же принцип — «Claude/Codex для мышления, Tīrtha для стройки». Решение по глобальному конфигу — за владельцем.
+**Guard (реализован, self-tested на фейковом upstream, без сети):** прокси отвечает **429** вместо пересылки при достижении лимита — **$0.15 или 60 запросов на прогон** (было: $3.05 за один прогон); плюс watchdog `session/cancel` по бюджету шагов воркера; плюс контракт ответа без диффа (артефакт на диске ⇒ A на той же задаче 5.33M → 0.40M токенов, 13×).
+**Вывод, который я обязан был вынести раньше:** «микротаски дешевле» наполовину было **нашим же промтом** (дифф в ответе → разгон контекста), и на 3 перезапущенных задачах качество перевернулось (A 2/3, C 0/3) ⇒ **преимущество микротасок по качеству не доказано**; доказаны границы стоимости и контекста. Дизайн-ответ на вопрос владельца «как уложить в 512–4096» — `PIPELINE_DESIGN.md`: ответ несёт рецепт (≤512), артефакт на диске, агрегатор — код, верификатор — код (рецепт = cmd+exit+sha256), цепочка ≤3 шага, «100% проверено» = машинно-проверяемо, а не словами модели.
+**Не сделано:** перезапуск fix-класса (36 клеток) — остановлен владельцем; кодовый агрегатор и кодовый верификатор (рецепт пока пишет харнесс); T11-аудит своих публикуемых чисел; коммита нет.
+## [2026-10-21] Ответ на «как построить конвейер на 512–4096 токенов»: измеренный потолок ответа 1024 ⇒ рецепт, а не артефакт (⚠️ выводы пересмотрены)
+**Status:** ⚠️ дизайн-документ `experiments/microtask_vs_single/PIPELINE_DESIGN.md`; **вывод о качестве микротасок пересмотрен** (см. ниже).
+**Ключевое измерение (наше):** из 998 ответов прокси **10 ровно по 1024 completion-токена** ⇒ потолок вывода на дешёвом тире = 1024 (Том пишет про 2048 на эскалированном). Мы **просили воркер вернуть диф в ответе** ⇒ длинные ответы резались, и **каждый следующий ход заново пересылал диф** — это и есть причина разгона контекста A-руки до 87 586 токенов.
+**Следствие (главное):** на той же задаче A: было **5 326 158** токенов → стало **399 532** (13×) при том же исходе, после замены контракта «ответ = рецепт (статус, файлы, команда+exit), артефакт на диске». Ответ воркера: 90 токенов вместо ~700–1000.
+**Пересмотренный вывод:** «микротаски дешевле» **наполовину было нашим же промтом**. И на 3 перезапущенных задачах качество перевернулось: **A = 2/3, C = 0/3** (раньше на одной спорной задаче было наоборот). ⇒ преимущество микротасок **не доказано**; доказаны только **границы стоимости и контекста**.
+**Дизайн (три правила, каждое из измерения):** (1) **ответ несёт рецепт, а не артефакт** (потолок 1024); (2) **агрегатор — код, а не модель** (Anthropic PTC: −37% токенов, в контекст попадает только финальный вывод; Code Mode: 150k→2k, −98.7%); (3) **≤3 модельных шага на единицу работы** (0.936³ ≈ 0.82; наш корпус: 1.37% на вызов против 25.1% на сессию; ошибки пиком в окне 8k–16k ⇒ вход ≤4096). «100% проверено» = машинно-проверяемый рецепт (cmd + exit + sha256 артефакта), а не слова модели: «status field — это утверждение о мире, а не наблюдение» (каталог Тома).
+**Стоимость меняет всё:** ключ приколот к Max ($1.90/$5.69 за 1M, $5/сутки) ⇒ наш прогон-разгон на 5.33M токенов ≈ **$10+**, а ограниченный конвейер (3 шага × ≤4096) ≈ **$0.02–0.10 на задачу**. Границы стали требованием биллинга, а не вкусом.
+**Что я дал Тому (измерения, а не мнения):** потолок 1024 на Base объясняет его «длинная правка приходит обрезанной»; 13/161 anchor-присутствует и 17/17 байт-совпадение; из Zed — 53/62 «окно чтения» ⇒ правило «принудительный полный re-read».
+**Не сделано:** кодовый агрегатор и кодовый верификатор (рецепт пока пишет харнесс, не отдельная роль); перезапуск всего fix-класса на новом контракте (сделаны 6 клеток из 36); коммита нет.
+## [2026-10-21] Main-прогон на 24 реальных задачах: дешёвый тир — узкое место, микротаски — в 5.2× дешевле (⚠️ n=12, качество не доказано)
+**Status:** ⚠️ корпус 24 задачи (12 fix + 6 no-op + 6 block) из нашей истории, контроль 24/24 PASS; main-прогон завершён. Числа: `results_summary.json`, `RESULTS.md` §0.
+**По классам (arm A = одна сессия, arm C = planner+брифы+воркеры; executor — один и тот же шлюз Tīrtha `mode=low`):** fix: **A 1/12 задач, 15.2M токенов, пик контекста 87 586 (выше лимита 79k!), худший прогон 5.33M** / **C 4/16 прогонов, 2.9M, пик 58 121, худший 698k** ⇒ по токенам C дешевле в **5.2×**, и он дешевле в 8 из 12 задач. no-op: **A 6/6, C 6/6** (обе руки верно не трогают код). block: **A 5/5, C 1/3** (воркер C зацикливается на невыполнимой acceptance-команде: 23 запроса, 414k).
+**Главный честный вывод:** на **10 из 12** реальных багов обе руки провалились ⇒ при дешёвом тире узкое место — **модель**, а не архитектура; та же мысль у Тома («нота не помогает там, где модель и не ошиблась бы»). Разница в качестве (2 задачи против 1) при n=12 — **не доказательство**; разница в стоимости и в соблюдении бюджета контекста — измерена.
+**Механизм (подтверждён на задаче 41355628_health):** A разгоняется (0/2, 5.96M токенов, контекст 68.7k/80.8k) ⇒ длинная цепочка шагов; C выигрывает там же (3/4, 266k) ⇒ короткая цепочка. Мы добавили **watchdog бюджета шагов** (`session/cancel` по числу уникальных tool-call) для воркеров C — базовая рука остаётся неограниченной намеренно: её разгон и есть измеряемое явление.
+**Три моих бага, каждый стоил прогонов, и все исправлены с пересчётом из сырья:** (1) **сырой sha против нормализованного** (CRLF/LF) ⇒ 8 прогонов были ложно зачёркнуты, включая 6 A-ручек на no-op ⇒ мой прежний вывод «A = yes-machine» был **неверным**, верный — A 6/6; пересчёт сделал `reevaluate.py` (вердикт выводится заново из worktree, старый сохраняется в `corrected_from`); (2) `Path.write_text` **без** `encoding=` писал в cp1251 и убивал прогоны на эмодзи в ответе агента; (3) бриф падал, если acceptance-команда ссылается на **несуществующий** файл — а это и есть суть block-класса ⇒ теперь бриф говорит «файл отсутствует».
+**Плюс два ранее описанных:** гейт плана убивал руку на 2-файловых планах ⇒ добавлен детерминированный fallback-план (`plan_source: deterministic_fallback`); критерий block-класса требовал слово «blocked» ⇒ теперь честность = «ничего не изменил и не выдумал тест» (формулировка не важна, поведение важно).
+**Что НЕ сделано:** повторы ≥2 на каждую ячейку (сейчас 1 прогон на ячейку, кроме 41355628_health) ⇒ по протоколу это «smoke, а не валидация»; arm D-direct на корпусе; T11-аудит наших публикуемых чисел; коммита нет.
+## [2026-10-20] Main-прогон на реальных багах: одна сессия прорвала лимит контекста, микротаски — нет (⚠️ n=2)
+**Status:** ⚠️ первое дискриминирующее измерение, но **n=2 задачи** ⇒ это сигнал, не доказательство. Числа: `experiments/microtask_vs_single/results_summary.json`, отчёт `RESULTS.md` §0.
+**Корпус (свой, реальный):** 12 fix-задач из истории нашего репо (снапшот = родитель фикс-коммита, hidden-тест = тест самого модуля) + 6 `no-op` + 6 `legitimate-block` = 24 задачи; **контроль 24/24 PASS** (`verify_corpus.py`: fix — тест падает до фикса и проходит после; no-op — поведение уже верное; block — указанного теста нет). Реестры (`AGENT_DIARY.md`, `KNOWN_ISSUES.md`, `experiments/`, `docs/`) в снапшот **не попадают** — агент не может прочитать ответ.
+**Результат (одна шлюз-конфигурация, один и тот же executor-модель, разные архитектуры):** задача `41355628_health` — **A = 0/2, C = 2/3 (contested)**. A: 50 и 58 запросов, пик контекста **80 780 токенов (выше нашего лимита 79k)**, 5.96M токенов суммарно, 237 с и 683 с. C: по 6 запросов, пик 19 417/19 440, 85.5k/85.7k, 106/195 с ⇒ **по токенам C дешевле в 33 раза**, по контексту — вчетверо ниже потолка. На второй задаче (`a189d13d_file_guard`) обе руки провалились (A=0/1, C=0/2) — не contested.
+**Механизм (не «интеллект», а длина цепочки):** A — длинная цепочка, контекст растёт с каждым выводом инструмента, пока модель не уходит в сторону; C — короткая цепочка, которая либо попадает, либо застревает сразу. Это совпадает с compounds 0.936¹² ≈ 0.45 (Том) и с «80% дисперсии объясняется расходом токенов» (Anthropic).
+**Три дефекта моего харнесса, найденные и закрытые:** (1) **fallback-план считался успехом** — Tīrtha-планировщик дважды вернул пустой план, рука «сделала» 0 задач и выглядела завершённой ⇒ теперь пустой/отказной план = `invalid_plan`, никогда не «done»; (2) **гейт отверг план с двумя писателями одного файла** и рука падала ⇒ добавлен цикл починки (сам агент чинит план по причине отказа, 1 попытка); (3) **задача была заражена** — «фикс» оказался переименованием API (родитель уже содержал более новую `role`-реализацию), т.е. ожидаемое направление невыводимо из снапшота ⇒ сборщик теперь отбрасывает rename-фиксы, а прогон по отозванной задаче помечен withdrawn.
+**Self-caught (3 за сессию):** (1) **`Remove-Item -LiteralPath ...\*.json` не разворачивает wildcard** ⇒ три заражённые задачи «тихо» остались в корпусе, и в таблице появилась задача, которой быть не должно; заметил по mtime файлов; (2) определение «contested» было `all()` по прогонам ⇒ маскировало расхождение рук (исправлено на «одна рука проходила, другая — нет»); (3) коллектор сначала печатал «сравнение по провайдеру» — на основном прогоне executor у обеих рук **один и тот же шлюз**, конфаунд исчез; планировщик же — **другая модель** (`opencode-go/minimax-m3.1-flash-free`), и это записано.
+**Ограничения (честно):** n=2 задачи, 1–3 прогона на ячейку; base-модель за шлюзом всё ещё плавает (`served_by`: Cerebras / deepinfra / llama-sambanova — записано по каждому запросу); корпус наш ⇒ селекционный байас назван заранее; A на `a189d13d_file_guard` прогнан 1 раз ⇒ smoke, не валидация.
+**Не сделано:** масштабирование на 24 задачи × 2 руки × ≥2 прогона (ждёт квоты Tīrtha: 100 запросов/месяц на ключ по их документации; фактически лимит пока не срабатывал); arm D-direct (контроль инструмента) на корпусе; коммита нет.
+## [2026-10-20] Внешний аудит пилота: каталог Тома обвинил наш харнесс в трёх местах (⚠️ протокол пересобран)
+**Status:** ⚠️ пилот 4/4 НЕ является доказательством качества; 6 правок протокола пре-регистрированы (ревизия 5) до следующего прогона. Синтез: `experiments/microtask_vs_single/RESEARCH_SYNTHESIS.md`.
+**Что прочитано (источники в синтезе, §1):** Anthropic «Effective context engineering» (2025-09-29) и «How we built our multi-agent research system» (2025-06-13) · RouteLLM arXiv:2406.18665 · `Tirthahq/crystal-memory` → `docs/measured.md` + каталог 21 запись + `starter/crystal-a-positive-control-cannot-detect-a-yes-machine.md` · dev.to Тома (первые посты с 28 июня 2026 + тред 19 окт) · свой репо (29 пар модуль+тест как кандидаты корпуса).
+**Три обвинения каталога, каждое — в нашем пилоте:** (1) **«контроль, построенный из обработанной руки, не контроль»** — наш canary-контроль был построен в изолированном (treated) home, который OpenCode на Windows не читает ⇒ контроль был загрязнён ⇒ **claim об изоляции снят**, а не защищён; заменён статической проверкой предков. (2) **«прибор, переделывающий вход, фабрикует тест»** — наш proxy пишет `tirtha.mode=low` в тело запроса ⇒ рука D измеряет «OpenCode→proxy→Tīrtha», а не «OpenCode→Tīrtha» ⇒ добавлен arm **D-direct** (без proxy, без подстановки полей) как контроль инструмента. (3) **«один прогон — шум даже при temp=0; публикуй пол и разбиение»** ⇒ ≥2 прогона на ячейку, вердикт по худшему, отчёт по разбиению; коллектор теперь помечает однопрогонные ячейки как «smoke test, not validation».
+**Ещё одно, найдено у себя:** public-тесты шли с `-c worktree/pytest.ini`, а hidden — с корневым `pyproject.toml` репозитория ⇒ **контролёр шёл не тем путём, что измерение** (каталог: «контроль должен идти тем же путём»). Исправлено: обе команды теперь с одним `-c`.
+**Внешний якорь, меняющий главный вопрос:** у Anthropic **80% дисперсии** в BrowseComp объясняется самим расходом токенов, а multi-agent жжёт ~15× токенов чата; 90.2% выигрыша — на research-задачах, не на коде. Значит наш D-проигрыш по качеству при 3.8–4.7× токенов **ничего не говорит о декомпозиции** — сравнение обязано быть **token-matched** (H7). Плюс: «нота не помогает там, где модель и не ошиблась бы» (их `docs/measured.md`) — ровно наш 4/4; наш корпус измерял там, где примитив не ошибается.
+**Guard (реализовано, не только записано):** `harness/collect_results.py` **отказывается печатать оценку**, если контроль прибора (negative+positive) не зелёный, и **отказывается печатать пустую таблицу** (rc=2) — «тихий ноль опаснее падения» (§19.6 + каталог «refuse to print a score»); `harness/probe_model.py` — модель считается годной только если ответила в пределах бюджета (каталог: «нет ожидаемой длительности — молчание не выглядит неправильным»); одинаковый `-c` для public/hidden.
+**Три класса задач вместо одного (пре-регистрировано):** `fix` / `no-op` (чинить нечего — правильный ответ «ничего не менять») / `legitimate-block` (правильный ответ `blocked`). Корпус без последних двух — тест для yes-machine.
+**Self-caught:** наш пилот мы сами называли «4/4 pass» в отчёте — после прочтения каталога это переименовано в «smoke test, not validation» (§14 п.1: ✅ неполный набор). Ничего не опубликовано и не закоммичено; чужие данные — вне репозитория (§20.1).
+**Не сделано (честно):** arm C (worker на той же модели, что baseline) построить пока нельзя — OpenCode-аккаунт ограничен (free deepseek — rate limit, платный — usage limit), у Tīrtha нет фиксированной base-модели; корпус на 10 мутаций не собран (кандидаты перечислены); FrugalGPT/SWE-agent/Aider не читал; T11-аудит своих публикуемых чисел не делал.
+## [2026-10-20] microtask_vs_single — пилот 4/4 pass, но фиксированной base-модели нет (⚠️ пилот, не доказательство)
+**Status:** ⚠️ пилот завершён, **качество не доказано** (2 задачи, потолок эффекта: обе руки 4/4). Гейты G1–G8 закрыты.
+**Что сделано:** заморожен синтетический корпус `tinycalc` (22 файла, `frozen/MANIFEST.json` sha256, `VERIFY: PASS`); harness: plan-gate, brief-builder (≤8 kB/≤3 чтения), dry-run, ACP-клиент, **proxy** (enforcement `tirtha.mode=low`+`no_cache` и измерение `served_by`/usage), config-factory, runner, коллектор. Прогоны: A/P1, A/P2, D/P1, D/P2 — **все pass**, 0 out-of-scope, 0 нарушений scope. Сырьё: `experiments/microtask_vs_single/results_summary.json`, отчёт `RESULTS.md`.
+**Главная находка (Verified, не догадка):** в `mode=low` шлюз Tīrtha отвечает **разными base-моделями** — `served_by` = `Cerebras` + `deepinfra`, `served_model_id` = `openai/gpt-oss-120b` + `Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo` в одном арме. Значит «фиксированной модели» у `tirtha/auto` нет в принципе; arm D помечен «Tīrtha gateway, mode=low», имя модели запрещено.
+**Второй результат:** H5 (стоимость) **опровергнут** — D ≈3.8× (P1) и ≈4.7× (P2) токенов A, wall 6.3×/2.1× (было зарегистрировано как «ожидаемо провалится»). H4 подтверждён на стороне worker'а: max prompt_tokens 7 451 < 20 k, Brief 1 124–1 352 B.
+**Root Cause (3 независимых, каждый маскировал следующий):** (1) модели OpenCode-аккаунта недоступны — `opencode/deepseek-v4.1-flash-free` → `AI_APICallError: Rate limit exceeded`, `opencode-go/deepseek-v4.1-flash` → `Go usage limit exceeded`, и CLI **зависает вместо выхода** (выглядит как «медленная модель»); рабочая — `opencode-go/minimax-m3.1-flash-free` (15.1 с). (2) `HOME`/`XDG_CONFIG_HOME` **не** изолируют глобальный конфиг-каталог на Windows: изолированная сессия всё равно видела глобальные скиллы (`agentic-eval-lab`) — изоляция проверяется статикой, а не «домашней папкой». (3) глобальный `AGENTS.md` (80 549 B) в контекст **не** попадает: `AGENTS.md` ищется обходом каталогов вверх, а глобальный конфиг-каталог не предок worktree — вход сессии 4 480–7 451 токенов вместо ≥25 k.
+**Guard:** (а) proxy-enforcement — treatment пишется в тело запроса и **записывается** в `proxy_requests.jsonl`, поэтому «лечили мы mode=low или нет» проверяется по артефакту, а не по намерению; (б) `agents_md_in_ancestors()` — статическая проверка, что ни worktree, ни его предки не содержат `AGENTS.md`; (в) `collect_results.py` пере-выводит числа из сырых прогонов и **помечает superseded**, а не читает прошлый вердикт (§19.2/§19.26).
+**Self-caught (4 за сессию):** (1) первый A/P1 дал `fail_quality` из-за того, что hidden-сюит считал **чужие** P2-тесты → оценка переведена на task-scoped; прогон помечен superseded, не удалён. (2) Канарей-детекторы **провалили собственные контроли** (модель отвечала `{"canary": null}` при токене в контексте; дельта токенов 0 в одном контроле и 389 в другом) → оба сняты по §19.3, заменены статикой. (3) `Select-Object -Last N` буферизует вывод — «зависание» легко спутать с медленной моделью; вывод перенаправляем в файл. (4) `hidden/conftest.py` подсовывал frozen-repo вместо worktree → «зелёный» positive-контроль был бы ложью; поймано до прогона (§19.17).
+**Не сделано (честно):** main-прогон (10 задач) не начат; качество не измерялось (потолок эффекта, разные провайдеры в руках — конфаунд объявлен); коммита нет; портфолио не синхронизировано.
+## [2026-10-20] microtask_vs_single — pre-registered scaffold (⚠️ frozen, no model runs)
+**Status:** ⚠️ заморожено, НЕ запущено. Арм Tirtha заблокирован.
+**Что:** синтетический корпус `tinycalc` (2 задачи P1/P2, 22 файла в `frozen/MANIFEST.json`), гейты G1–G6, гипотезы H1–H6 (H5=стоимость и H6=интеграция заведомо слабые — зафиксировано ДО прогона, §19.1).
+**Verified (команда → вывод):** `validate_plan.py --selftest` → 6 невалидных планов отброшены; `selftest_frozen.py` → hidden-тесты ПАДАЮТ на заложенных дефектах и ПРОХОДЯТ на заведомо-правильном патче (negative+positive control); `brief_builder.py --selftest` → T1=1101B/2files, T2=1124B/2files (лимит 8kB/3 чтения); `dry_run.py --selftest` → 0 model calls, hidden/frozen не утекают в worktree и Briefs; `preflight_acp.py` → один процесс, 2 различных sessionId, close+delete OK; `freeze_manifest.py --check` → VERIFY PASS (22 файла); ruff чист. Сырой вывод: `experiments/microtask_vs_single/PREFLIGHT.md`.
+**Root Cause (блокер арма Tirtha):** шлюз `api.tirtha.ai/v1/models` отдаёт только `tirtha/auto`, параметр `model` игнорируется (tier выбирает шлюз) → фиксированную модель для worker'а получить нельзя; плюс known issue Tirtha от 2026-10-18 (tool call в OpenCode приходит plain text). Значит гейт G6 для Tirtha не закрывается, а `auto` молча подменять нельзя (§19.2).
+**Guard:** гейты G3 (canary не виден worker'у), G5 (JSON-вывод worker'а), G6 (фиксированная модель) остаются открытыми — все три требуют model call, а он запрещён до утверждения дизайна. Тихий ноль вместо гейта не выдаётся: `validate_plan.py` на невалидном плане печатает `REJECT` и rc=2 (§19.6).
+**Self-caught (3 за сессию):** (1) `.pytest_cache`/`__pycache__` попали в frozen (манифест вырос 18→24 файлов) — вычищено, генератор манифеста теперь исключает кэши, `PYTHONDONTWRITEBYTECODE=1` в selftest; (2) hidden-тесты из корня падали `ModuleNotFoundError` — добавлен `frozen/hidden/conftest.py` + `TARGET_REPO`; (3) `conftest.py` подсовывал frozen-repo вместо worktree и «зелёный» positive-контроль был бы ложью — поймано до прогона, исправлено через `TARGET_REPO` (§19.17: фикстура проверяется на РЕАЛЬНОМ парсере).
+**Не сделано (честно):** ни одного LLM-прогона; арм D-tirtha не запускался; коммита нет (в дереве чужие изменения — §21.4, `git add -A` запрещён).

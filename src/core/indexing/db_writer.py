@@ -20,7 +20,7 @@ logger = logging.getLogger("mscodebase_server.db_writer")
 class LanceDBWriter:
     """Управляет записью чанков в LanceDB с атомарностью и кэш-синхронизацией."""
 
-    def __init__(self, table, table_write_lock, index_lock, embedder, db_manager=None):
+    def __init__(self, table, table_write_lock, index_lock, embedder, db_manager=None, chunk_store=None):
         self.table = table
         self._table_write_lock = table_write_lock
         self._index_lock = index_lock
@@ -28,6 +28,8 @@ class LanceDBWriter:
         # LanceDBManager (владелец db_path/db) — для физического пересоздания
         # таблицы (INC-6C62). None → fallback на drop+create (старое поведение).
         self.db_manager = db_manager
+        # Phase 3: SQLite/FTS5 text store (dual-write while LanceDB is alive).
+        self.chunk_store = chunk_store
 
     def write_records(
         self,
@@ -171,7 +173,49 @@ class LanceDBWriter:
                             logger.warning(f"Restore to version {prev_version} failed: {restore_err}")
                     raise
 
+        if self.chunk_store is not None:
+            try:
+                self.chunk_store.upsert_records(data_records)
+            except Exception as cs_err:
+                logger.warning(f"SQLite chunk store write failed for {rel_path_str}: {cs_err}")
+
         return data_records
+
+    def write_text_records(self, parsed: Dict[str, Any]) -> list:
+        """Phase 3: write text chunks to the SQLite store only (no vectors)."""
+        if self.chunk_store is None:
+            return []
+        from src.core.relpath import normalize_rel_path
+
+        rel_path_str = normalize_rel_path(parsed["rel_path"])
+        texts = parsed.get("chunk_texts", []) or []
+        fulls = parsed.get("chunk_texts_full", []) or []
+        metas = parsed.get("chunk_metadatas", []) or []
+        hashes = parsed.get("chunk_hashes", []) or []
+        records = []
+        for i, text in enumerate(texts):
+            meta = metas[i] if i < len(metas) else {}
+            records.append({
+                "chunk_id": f"{rel_path_str}:{i}",
+                "file_path": rel_path_str,
+                "chunk_index": i,
+                "text": text,
+                "text_full": fulls[i] if i < len(fulls) and fulls[i] else text,
+                "symbol_name": meta.get("symbol_name", ""),
+                "symbol_kind": meta.get("symbol_type", ""),
+                "docstring": meta.get("docstring", ""),
+                "layer": meta.get("layer", ""),
+                "start_line": meta.get("start_line", 0),
+                "end_line": meta.get("end_line", 0),
+                "indexed_at": datetime.now().isoformat(),
+                "chunk_hash": hashes[i] if i < len(hashes) else "",
+                "file_hash": parsed.get("current_hash", ""),
+                "file_mtime_ns": parsed.get("file_mtime_ns", 0),
+                "file_size": parsed.get("file_size", 0),
+            })
+        if records:
+            self.chunk_store.upsert_records(records)
+        return records
 
     def _safe_recreate_table(self):
         """Fallback: пересоздать таблицу при потере.
@@ -369,5 +413,13 @@ class LanceDBWriter:
                         except Exception as restore_err:
                             logger.warning(f"Restore to version {prev_version} failed: {restore_err}")
                     raise
+
+        if self.chunk_store is not None:
+            try:
+                for ep in paths_to_delete:
+                    self.chunk_store.delete_file(ep)
+                self.chunk_store.upsert_records(all_records)
+            except Exception as cs_err:
+                logger.warning(f"SQLite chunk store bulk write failed: {cs_err}")
 
         return len(all_records)

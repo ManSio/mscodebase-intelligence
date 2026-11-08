@@ -4,9 +4,13 @@
 
 > **版本：** v3.5.0 | **最后更新：** 2026-08-12
 
+> **Phase 3 状态（2026-10-25）：** 默认是文本优先（SQLite FTS5/BM25 +
+> PropertyGraph）；vector/LanceDB 和 phi-4 `ask` 模式可选。这是历史深入文档；
+> 当前契约和边界见 [README.md](../../README.md)。
+
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n61 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n64 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -204,7 +208,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 61 tools
+    MCP->>MCP: Register 64 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: 总启动时间：~2-5秒（异步嵌入器初始化）

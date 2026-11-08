@@ -1,0 +1,13 @@
+{
+  "task_id": "001f7d3a41_write_tools_noop",
+  "class": "no-op",
+  "snapshot_sha": "001f7d3a41c87abe3be6f49f32bf50272e0bc258",
+  "src_file": "src/mcp/tools/write_tools.py",
+  "test_file": "tests/test_write_tools.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_write_tools.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/mcp/tools/write_tools.py",
+  "unchanged_sha": "9f711f63a5cb1e8a334250795041a6a75e2b6e02b521b0ea6b09df8719da621a",
+  "text": "Check that `src/mcp/tools/write_tools.py` already behaves the way its own test file `tests/test_write_tools.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}

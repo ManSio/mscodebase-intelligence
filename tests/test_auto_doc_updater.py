@@ -12,9 +12,21 @@
 """
 
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from src.core.auto_doc_updater import AutoDocUpdater
+
+
+def _month_dates() -> tuple[str, str]:
+    """Даты «прошлый месяц» и «текущий месяц» относительно СЕГОДНЯ.
+
+    Хардкод (2026-09/2026-10) превращал тест в бомбу замедленного действия:
+    в ноябре обе записи становились «старыми» и тест падал без изменения кода.
+    """
+    now = datetime.now()
+    prev = now.replace(day=1) - timedelta(days=1)
+    return prev.strftime("%Y-%m-%d"), now.strftime("%Y-%m-%d")
 
 FIXTURE_README = """\
 # MSCodebase Intelligence
@@ -156,7 +168,7 @@ def test_count_tools_real_project_guard():
     tools = AutoDocUpdater()._count_tools(root)
     assert tools >= 44, f"_count_tools вернул {tools} — снова баг подсчёта?"
     if os.environ.get("MSCODEBASE_EXECUTE_SCRIPT_ENABLED", "false").lower() != "true":
-        assert tools == 65, f"ожидалось 65 (README-контракт), получено {tools}"
+        assert tools == 69, f"ожидалось 69 (README-контракт), получено {tools}"
 
 
 def test_update_readme_tools_count_is_env_independent(tmp_path, monkeypatch):
@@ -181,3 +193,131 @@ def test_update_readme_tools_count_is_env_independent(tmp_path, monkeypatch):
     text = (tmp_path / "README.md").read_text(encoding="utf-8")
     assert "## 🔧 MCP Tools (4 total)" in text  # базовое число (не 5)
     assert "#mcp-tools-4-total" in text
+
+
+def test_archive_old_entries_moves_stale_sections(tmp_path):
+    """_archive_old_entries: раздел старше 1 месяца уходит в архив."""
+    old_date, new_date = _month_dates()
+    old_prefix = old_date[:7]
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        f"## [{old_date}] — старая запись\n- текст старой записи\n"
+        f"## [{new_date}] — новая запись\n- текст новой записи\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+    result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+
+    assert old_date not in result
+    assert new_date in result
+
+    archive_dir = root / "docs" / "archive"
+    arch = archive_dir / f"KNOWN_ISSUES_{old_prefix.replace('-', '_')}.md"
+    assert arch.exists()
+    assert old_date in arch.read_text(encoding="utf-8")
+
+
+def test_archive_old_entries_keeps_current_month(tmp_path):
+    """_archive_old_entries: записи текущего месяца остаются в живом файле."""
+    now = datetime.now()
+    first = now.strftime("%Y-%m-01")
+    today = now.strftime("%Y-%m-%d")
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        f"## [{first}] — начало месяца\n- запись\n"
+        f"## [{today}] — сегодня\n- запись сегодня\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+    result = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+
+    assert first in result
+    assert today in result
+    assert not (root / "docs" / "archive").exists()
+
+
+def test_archive_old_entries_idempotent(tmp_path):
+    """_archive_old_entries: повторный прогон не дублирует архив."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    known = root / "KNOWN_ISSUES.md"
+    known.write_text(
+        "# KNOWN ISSUES\n\n"
+        "## [2026-09-15] — старая запись\n- текст\n",
+        encoding="utf-8",
+    )
+    updater = AutoDocUpdater()
+
+    result1 = updater._archive_old_entries(known, known.read_text(encoding="utf-8"))
+    result2 = updater._archive_old_entries(known, result1)
+
+    assert "2026-09-15" not in result2
+    arch = root / "docs" / "archive" / "KNOWN_ISSUES_2026_09.md"
+    content = arch.read_text(encoding="utf-8")
+    assert content.count("2026-09-15") == 1
+
+
+def test_sync_known_issues_archives_when_over_limit(tmp_path):
+    """_sync_known_issues: архивирует когда файл > 300 строк перед добавлением."""
+    root = tmp_path / "proj"
+    root.mkdir(parents=True)
+    (root / "AGENT_DIARY.md").write_text(
+        "## [2026-10-25] — новый баг\n- описание бага с fix внутри\n",
+        encoding="utf-8",
+    )
+    lines = ["# KNOWN ISSUES", ""]
+    for i in range(348):
+        lines.append("## [2026-09-10] — старая запись\n- текст строки %d\n" % i)
+    known_path = root / "KNOWN_ISSUES.md"
+    known_path.write_text("\n".join(lines), encoding="utf-8")
+
+    updater = AutoDocUpdater()
+    updater._sync_known_issues(root)
+
+    live_lines = known_path.read_text(encoding="utf-8").splitlines()
+    assert len(live_lines) <= 300, f"живой файл {len(live_lines)} строк > 300"
+    assert "2026-10-25" in "\n".join(live_lines)
+
+
+def test_update_all_does_not_touch_known_issues_by_default(tmp_path, monkeypatch):
+    """Реестр ведёт агент: автоматический прогон не пишет в KNOWN_ISSUES (§19.9)."""
+    monkeypatch.delenv("MSCODEBASE_AUTODOC_LEDGERS", raising=False)
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "README.md").write_text("# t\n", encoding="utf-8")
+    (root / "AGENT_DIARY.md").write_text(
+        "# diary\n\n## [2026-11-01] — fix crash\n\nFix: сделано.\n",
+        encoding="utf-8",
+    )
+    known = "# KNOWN ISSUES\n\n## [2026-10-01] — old\n- x\n"
+    (root / "KNOWN_ISSUES.md").write_text(known, encoding="utf-8")
+
+    AutoDocUpdater().update_all(str(root))
+
+    assert (root / "KNOWN_ISSUES.md").read_text(encoding="utf-8") == known
+
+
+def test_update_all_syncs_when_explicitly_enabled(tmp_path, monkeypatch):
+    """Negative control: тот же вход с явным флагом — синк происходит.
+
+    Значит первый тест молчит из-за флага, а не потому что синк сломан.
+    """
+    monkeypatch.setenv("MSCODEBASE_AUTODOC_LEDGERS", "1")
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "README.md").write_text("# t\n", encoding="utf-8")
+    (root / "AGENT_DIARY.md").write_text(
+        "# diary\n\n## [2026-11-01] — fix crash\n\nFix: сделано.\n",
+        encoding="utf-8",
+    )
+    (root / "KNOWN_ISSUES.md").write_text("# KNOWN ISSUES\n", encoding="utf-8")
+
+    AutoDocUpdater().update_all(str(root))
+
+    assert "fix crash" in (root / "KNOWN_ISSUES.md").read_text(encoding="utf-8")

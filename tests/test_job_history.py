@@ -113,12 +113,15 @@ def _make_layer():
     from types import SimpleNamespace
 
     layer = SimpleNamespace()
-    layer.job_history = SimpleNamespace(get_estimated_duration=lambda *a, **k: None)
+    layer.job_history = SimpleNamespace(
+        get_estimated_duration=lambda *a, **k: None,
+        get_estimated_phase_duration=lambda *a, **k: None,
+    )
     return layer
 
 
-def test_enrich_eta_none_when_no_embed_progress(monkeypatch, temp_project):
-    """Честный ETA: нет реального embed-прогресса → estimated_seconds=None (2026-09-03).
+def test_enrich_eta_none_when_no_history(monkeypatch, temp_project):
+    """Честный ETA: нет истории фаз → estimated_seconds=None (2026-09-03).
 
     Раньше здесь была линейная экстраполяция первых 2с (давала ложное «~8с»).
     Теперь без данных — честный None.
@@ -128,41 +131,43 @@ def test_enrich_eta_none_when_no_embed_progress(monkeypatch, temp_project):
     from src.core.intelligence.jobs import BackgroundJob
     from src.core.intelligence.layer import ProjectIntelligenceLayer
 
-    monkeypatch.setattr(
-        "src.core.intelligence.layer._embed_progress_from_log", lambda *a, **k: None
-    )
     layer = _make_layer()
     job = BackgroundJob(
         job_id="no_data", type="full_reindex", status="running",
-        progress=0.1, started_at=time.time(),
+        progress=0.05, started_at=time.time(),
     )
     res = ProjectIntelligenceLayer._enrich_job_response(layer, job)
     assert res["estimated_seconds"] is None
-    assert res["eta_phase"] is None
+    assert res["eta_phase"] == "parsing"
 
 
-def test_enrich_eta_uses_real_embed_speed(monkeypatch, temp_project):
-    """Честный ETA из реальной скорости embed (инцидент 2026-09-03: «~8с» было
-    артефактом линейной экстраполяции, а не реальной скорости)."""
+def test_enrich_eta_uses_phase_history(temp_project):
+    """Честный ETA из истории фаз (инцидент 2026-09-03: «~8с» было
+    артефактом линейной экстраполяции, а не реальной скорости).
+
+    Записываем историю фазы "embedding" с duration=100с для similar-sized проекта,
+    ожидаем ETA ≈ 100с.
+    """
     import time
 
     from src.core.intelligence.jobs import BackgroundJob
     from src.core.intelligence.layer import ProjectIntelligenceLayer
 
-    # 1339 total, 992 done, inst=16 ch/s → remaining=347 → ETA ≈ 21.7 → 21с
-    monkeypatch.setattr(
-        "src.core.intelligence.layer._embed_progress_from_log",
-        lambda *a, **k: {
-            "done": 992, "total": 1339, "inst": 16,
-            "avg": 20, "elapsed": 49, "remaining": 347,
-        },
-    )
-    layer = _make_layer()
+    # Записываем историю фазы embedding
+    store = JobHistoryStore(temp_project)
+    store.append_record(project_size=1000, duration_sec=100.0, phase="embedding")
+    store.append_record(project_size=1000, duration_sec=120.0, phase="embedding")
+    store.append_record(project_size=1000, duration_sec=110.0, phase="embedding")
+
+    from types import SimpleNamespace
+
+    layer = SimpleNamespace()
+    layer.job_history = store
     job = BackgroundJob(
-        job_id="real_speed", type="full_reindex", status="running",
-        progress=0.7, started_at=time.time(),
+        job_id="phase_eta", type="full_reindex", status="running",
+        progress=0.6, started_at=time.time(), project_size=1000,
     )
     res = ProjectIntelligenceLayer._enrich_job_response(layer, job)
-    assert res["eta_phase"] == "embed"
-    # 347 / 16 = 21.7 → 21
-    assert res["estimated_seconds"] == 21
+    assert res["eta_phase"] == "embedding"
+    # Среднее из (100, 120, 110) = 110
+    assert res["estimated_seconds"] == 110

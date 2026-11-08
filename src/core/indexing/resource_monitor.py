@@ -276,11 +276,17 @@ class ResourceMonitor:
             return {"rate_mb_per_min": 0, "peak_mb": peak, "is_growing": False, "samples": n}
         slope = (n * sum_xy - sum_x * sum_y) / denom  # MB/sec
         rate_per_min = slope * 60  # MB/min
-        is_growing = rate_per_min > 10  # >10 MB/мин = растёт
+        # 2026-11-07: на старте процесс греется (загрузка моделей/индекса) —
+        # 3 сэмпла давали ложное «утечка». Требуем окно ≥5 сэмплов и реальный
+        # прирост внутри окна (иначе микрошум даёт большой slope).
+        window = hist[-10:]
+        growth_mb = window[-1][1] - window[0][1]
+        is_growing = rate_per_min > 10 and len(window) >= 5 and growth_mb > 50
         return {
             "rate_mb_per_min": round(rate_per_min, 1),
             "peak_mb": round(peak, 0),
             "is_growing": is_growing,
+            "growth_mb": round(growth_mb, 1),
             "samples": n,
         }
 

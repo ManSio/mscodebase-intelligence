@@ -32,7 +32,7 @@ SMOKE E-05: PASSED
 
 ## Находка (первый прогон: 2/4 — git_commit/git_push REFUTED)
 `verify_git_commit`/`verify_git_push` хардкодили **cwd процесса** — `git log` шёл в
-MSCodeBase (находил коммит 381e41bd), а не в тестовом `<repo>`. `reproducible_by`
+MSCodeBase (находил коммит 42202fdf), а не в тестовом `<repo>`. `reproducible_by`
 выполнялся в другом cwd → предсказуемый mismatch вердиктов. **Root cause:** verify и
 reproducible_by были рассинхронизированы по рабочей директории.
 

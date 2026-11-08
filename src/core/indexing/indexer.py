@@ -5,6 +5,7 @@ MSCodebase Intelligence — Продакшен инкрементальный и
 import contextlib
 import hashlib
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
@@ -131,6 +132,30 @@ class Indexer(IndexerTableMixin):
             table=self.table,  # для chunk-level кэша
         )
 
+        # ─── Phase 3: SQLite/FTS5 text store (dual-write while LanceDB is alive)
+        # Создаётся ДО status reporter: статус обязан считать активный store.
+        self._chunk_store = None
+        try:
+            from src.config.settings import get_config as _get_cfg
+
+            _search_cfg = _get_cfg().search
+            if getattr(_search_cfg, "sqlite_chunks", False) or getattr(
+                _search_cfg, "dense_off", False
+            ):
+                from src.core.indexing.chunk_store import (
+                    SQLiteChunkStore,
+                    get_chunks_db_path,
+                )
+
+                self._chunk_store = SQLiteChunkStore(
+                    get_chunks_db_path(self.project_path)
+                )
+                logger.info(
+                    f"Phase 3 SQLite chunk store: {get_chunks_db_path(self.project_path)}"
+                )
+        except Exception as _cs_err:
+            logger.warning(f"SQLite chunk store init failed: {_cs_err}")
+
         # ─── IndexStatusReporter
         from src.core.indexing.index_status import IndexStatusReporter
         self._status_reporter = IndexStatusReporter(
@@ -147,18 +172,21 @@ class Indexer(IndexerTableMixin):
                 and callable(getattr(self.db_manager, "is_reindexing", None))
                 and self.db_manager.is_reindexing() is True
             ),
+            chunk_store=self._chunk_store,
         )
         self._cached_total_chunks = self._status_reporter._cached_total_chunks
         self._cached_unique_files = self._status_reporter._cached_unique_files
 
         # ─── LanceDBWriter
         from src.core.indexing.db_writer import LanceDBWriter
+
         self._db_writer = LanceDBWriter(
             table=self.table,
             table_write_lock=self._table_write_lock,
             index_lock=self._index_lock,
             embedder=self.embedder,
             db_manager=self.db_manager,  # INC-6C62: физическое пересоздание таблицы
+            chunk_store=self._chunk_store,
         )
         # Регистрируем callback для синхронизации таблицы при пересоздании
         self._db_writer.set_on_recreate_callback(self._sync_table_ref)
@@ -180,6 +208,7 @@ class Indexer(IndexerTableMixin):
             calculate_file_hash=self._calculate_file_hash,
             interval_sec=get_config().performance.freshness_interval_sec,
             is_reindexing=self.db_manager.is_reindexing,
+            chunk_store=self._chunk_store,
         )
 
         # ─── Chunk Summarizer ───────────────────────────────
@@ -336,6 +365,22 @@ class Indexer(IndexerTableMixin):
         logger.info(f"Записано в БД: {rel_path_str} ({len(records)} чанков)")
         return True
 
+    def _write_text_file_records(self, parsed: Dict) -> bool:
+        """Phase 3: write text-only chunks to the SQLite store (no LanceDB)."""
+        rel_path_str = parsed["rel_path"]
+        records = self._db_writer.write_text_records(parsed)
+        if not records:
+            return False
+        with self._index_lock:
+            self._cached_total_chunks += len(records)
+            self._cached_unique_files.add(rel_path_str)
+        try:
+            self._index_guard.save_symbol_index(self._symbol_index)
+        except Exception:
+            pass
+        logger.info(f"Записано в SQLite: {rel_path_str} ({len(records)} чанков)")
+        return True
+
     def _parse_file_only(
         self,
         full_path: Path,
@@ -362,6 +407,13 @@ class Indexer(IndexerTableMixin):
             existing_hash = None
             if known_hashes is not None:
                 existing_hash = known_hashes.get(rel_path_str)
+            elif self._chunk_store is not None:
+                try:
+                    existing_hash = self._chunk_store.file_hash(rel_path_str)
+                except Exception as _cs_err:
+                    logger.debug(
+                        f"_parse_file_only: SQLite hash check failed: {_cs_err}"
+                    )
             else:
                 try:
                     if self.table is not None:
@@ -500,18 +552,24 @@ class Indexer(IndexerTableMixin):
             # P1-3 audit: чтение self.table под _table_write_lock, чтобы не
             # поймать stale reference при параллельном reset_connection().
             existing_hash = None
-            try:
-                with self._table_write_lock:
-                    existing_df = (
-                        self.table.search()
-                        .where(f"file_path = '{escaped_path}'", prefilter=True)
-                        .limit(1)
-                        .to_pandas()
-                    )
-                    if not existing_df.empty:
-                        existing_hash = str(existing_df["file_hash"].iloc[0])
-            except Exception as _cache_err:
-                logger.debug(f"Chunk cache check failed for {rel_path_str}: {_cache_err}")
+            if self._chunk_store is not None:
+                try:
+                    existing_hash = self._chunk_store.file_hash(rel_path_str)
+                except Exception as _cs_err:
+                    logger.debug(f"SQLite hash check failed for {rel_path_str}: {_cs_err}")
+            else:
+                try:
+                    with self._table_write_lock:
+                        existing_df = (
+                            self.table.search()
+                            .where(f"file_path = '{escaped_path}'", prefilter=True)
+                            .limit(1)
+                            .to_pandas()
+                        )
+                        if not existing_df.empty:
+                            existing_hash = str(existing_df["file_hash"].iloc[0])
+                except Exception as _cache_err:
+                    logger.debug(f"Chunk cache check failed for {rel_path_str}: {_cache_err}")
 
             if existing_hash == current_hash:
                 return False  # Файл не изменился, пропускаем
@@ -535,6 +593,14 @@ class Indexer(IndexerTableMixin):
             )
             if parsed is None:
                 return False
+
+            # Phase 3: vector-free path — write text chunks to SQLite only.
+            if parsed.get("skip_vectors"):
+                if not self._write_text_file_records(parsed):
+                    return False
+                if self.searcher is not None and hasattr(self.searcher, "invalidate_cache"):
+                    self.searcher.invalidate_cache()
+                return True
 
             # ─── Delete old + Write new ──────────────────────
             # Сначала удаляем старые записи, потом добавляем новые.
@@ -793,6 +859,25 @@ class Indexer(IndexerTableMixin):
         phase_callback: Optional[Callable] = None,
     ) -> int:
         """Полная индексация проекта (делегировано IndexProjectRunner)."""
+        # Phase 3: vector reindex запрещён (dense_off=true), но ПУСТОЙ индекс
+        # обязан наполняться текстом — иначе гейт готовности вечно «empty» и
+        # все инструменты блокируются (инцидент 2026-11-07: 7 314 чанков в
+        # chunks.db при total_chunks=0). Текстовая индексация: чанки -> SQLite/
+        # FTS5 + AST-граф, без эмбеддингов.
+        try:
+            from src.config.settings import get_config as _get_cfg
+
+            if getattr(_get_cfg().search, "dense_off", False):
+                logger.info(
+                    "Phase 3: dense_off=true → text-only full index "
+                    "(no embeddings; chunks + graph only)."
+                )
+                return self._index_text_only_project(
+                    project_path, progress_callback, phase_callback
+                )
+        except Exception as _cfg_err:
+            logger.debug(f"dense_off guard failed: {_cfg_err}")
+
         res = self._project_runner.run(
             project_path=project_path,
             progress_callback=progress_callback,
@@ -822,6 +907,124 @@ class Indexer(IndexerTableMixin):
             except Exception as exc:
                 logger.warning("[index_project] build_head record skipped: %s", exc)
         return res
+
+    def _index_text_only_project(
+        self,
+        project_path: Path,
+        progress_callback: Optional[Callable] = None,
+        phase_callback: Optional[Callable] = None,
+    ) -> int:
+        """Phase 3: полная индексация без эмбеддингов (SQLite/FTS5 + AST-граф).
+
+        Вызывается из index_project(), когда dense_off=true. Возвращает число
+        файлов, у которых записаны чанки. Инкрементальная индексация
+        (notify_change) продолжает работать независимо.
+
+        Прогресс: отдаётся в progress_callback(current, done, total, phase) —
+        иначе UI висит на 10% весь прогон (наблюдение 2026-11-07).
+        """
+        from src.core.relpath import normalize_rel_path
+
+        project_path = Path(project_path)
+
+        # Сначала собираем список файлов: без total прогресс не посчитать.
+        files: list[Path] = []
+        for root, dirs, names in os.walk(str(project_path)):
+            dirs[:] = [d for d in dirs if not self.file_guard.should_skip_dir(d)]
+            for name in names:
+                full_path = Path(root) / name
+                if self.file_guard.should_skip_file(full_path):
+                    continue
+                files.append(full_path)
+        total = len(files)
+
+        files_indexed = 0
+        errors = 0
+        seen: set[str] = set()
+        t0 = time.perf_counter()
+
+        def _report(current: str, done: int, phase: str) -> None:
+            if progress_callback is None:
+                return
+            try:
+                progress_callback(current, done, total, phase)
+            except Exception as cb_err:  # noqa: BLE001 — прогресс не роняет индексацию
+                logger.debug(f"[text-index] progress callback failed: {cb_err}")
+
+        if phase_callback is not None:
+            try:
+                phase_callback("parsing")
+            except Exception:  # noqa: BLE001
+                pass
+
+        for idx, full_path in enumerate(files, 1):
+            try:
+                from src.core.indexing.index_parser import decode_source_bytes
+
+                content = decode_source_bytes(full_path.read_bytes())
+            except OSError:
+                continue
+            if not content.strip():
+                _report(str(full_path), idx, "parsing")
+                continue
+            try:
+                rel = normalize_rel_path(full_path.relative_to(project_path))
+            except ValueError:
+                continue
+            seen.add(rel)
+            current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+            # Инкрементальность Phase 3: файл с тем же содержимым не переписываем.
+            # Без этой проверки полная индексация заново писала ВСЕ чанки на
+            # каждом вызове (index_project дважды подряд → count=4, а не 0;
+            # тест tests/test_integration.py::test_incremental_indexing).
+            if self._chunk_store is not None:
+                try:
+                    if self._chunk_store.file_hash(rel) == current_hash:
+                        _report(rel, idx, "skipped")
+                        continue
+                except Exception as _hash_err:  # noqa: BLE001 — hash-чек не роняет прогон
+                    logger.debug(f"[text-index] hash check failed for {rel}: {_hash_err}")
+
+            try:
+                parsed = self._pipeline.process_file(
+                    rel_path_str=rel,
+                    full_path=full_path,
+                    content=content,
+                    current_hash=current_hash,
+                )
+            except Exception as exc:  # noqa: BLE001 — один файл не роняет прогон
+                errors += 1
+                logger.debug(f"[text-index] parse error {rel}: {exc}")
+                _report(rel, idx, "parsing")
+                continue
+            if parsed and parsed.get("skip_vectors"):
+                records = self._db_writer.write_text_records(parsed)
+                if records:
+                    files_indexed += 1
+            if idx % 10 == 0:
+                self.watchdog_heartbeat(f"text-index:{idx}/{total}")
+            _report(rel, idx, "parsing")
+
+        # Prune удалённых файлов: индекс не должен врать о несуществующем.
+        if self._chunk_store is not None:
+            try:
+                existing = {
+                    str(r.get("file_path") or "").replace("\\", "/")
+                    for r in self._chunk_store.all_records()
+                }
+                stale = sorted(existing - seen)
+                if stale:
+                    self._chunk_store.delete_files(stale)
+                    logger.info(f"[text-index] pruned {len(stale)} stale files")
+            except Exception as exc:  # noqa: BLE001 — prune не роняет индексацию
+                logger.warning(f"[text-index] prune failed: {exc}")
+
+        logger.info(
+            f"[text-index] done: {files_indexed} files, {errors} errors, "
+            f"{time.perf_counter() - t0:.1f}s"
+        )
+        return files_indexed
 
     def index_file(
         self, full_path: Path, project_path: Path, content: Optional[str] = None

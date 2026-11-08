@@ -16,7 +16,7 @@
 | A-01 | «xdist даёт лишь ~15% — не берём» | **×2.76** локально (197.1с→71.4с), **×7** в CI (13m44s→1m58s) | `EXPERIMENTS_LOG.md:2738` |
 | A-02 | «sysmon ≈3–7% median loss» | **+19.96%** против sys.settrace +13.6% | `EXPERIMENTS_LOG.md:2276` |
 | A-03 | Exp v3 на `search_lancedb` (2/13 hit) как находка | отозван: чистый dense в обход ретривера + тавтология `compressed_found` + no-op компрессор = `invalid-duplicate-E10` | `EXPERIMENTS_LOG.md:2762,2765` |
-| A-04 | Exp v1 (`5e7fd2da`) как измерение сжатия | invalid by design: TF-IDF по заранее известным target files | `EXPERIMENTS_LOG.md:2762` |
+| A-04 | Exp v1 (`43f180e2`) как измерение сжатия | invalid by design: TF-IDF по заранее известным target files | `EXPERIMENTS_LOG.md:2762` |
 | A-05 | «граф закрывает present-trap», «glm fail-open не лечится» | оба — артефакт mislabeled датасета: 4 из 6 trap-фактов **истинны**; реальный trap-FA = 0 | `EXPERIMENTS_LOG.md:1615` |
 | A-06 | «git-провенанс = temporal-сигнал, qwen путает было/сейчас» | blind 48/48 у всех моделей; у qwen sighted **хуже** (43/48) — строки «existed until C» активно вредили | `EXPERIMENTS_LOG.md:1665,1646` |
 | A-07 | «фильтр режет 0 выдачи» | замер на пуле, уже отфильтрованном `hybrid_search_async` (survivorship bias) | `EXPERIMENTS_LOG.md:2817` |

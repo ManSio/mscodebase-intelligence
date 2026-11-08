@@ -1,0 +1,842 @@
+{
+  "arm": "code_b45_stop",
+  "code_bm25": true,
+  "b": 0.45,
+  "stopwords": true,
+  "n": 48,
+  "hit1": 0.6041666666666666,
+  "hit5": 0.75,
+  "mrr": 0.6565972222222222,
+  "p50_ms": 171.18159999972704,
+  "p95_ms": 239.41839999952208,
+  "mean_ms": 169.6434958333081,
+  "rows": [
+    {
+      "id": "E30-E28-01",
+      "query": "Почему в ограничителе скорости используется threading.Lock, а не asyncio.Lock, и с каким инцидентом это связано?",
+      "gold": "src/core/rate_limiter.py",
+      "files": [
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/misc_probes/exp2_lock_attacker.py",
+        "experiments/misc_probes/exp2_lock_attacker.py",
+        "src/core/rate_limiter.py",
+        "src/core/indexing/index_project_runner.py",
+        "src/core/rate_limiter.py",
+        "src/core/indexing/index_project_runner.py"
+      ],
+      "ms": 197.89829999990616,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.25
+    },
+    {
+      "id": "E30-E28-02",
+      "query": "Насколько надёжно модуль redact вырезает секреты и по какому принципу он ловит credential-строки?",
+      "gold": "src/core/redact.py",
+      "files": [
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py"
+      ],
+      "ms": 85.66410000003088,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-03",
+      "query": "Почему парсер .gitignore использует формат 'gitignore', а не 'gitwildmatch'?",
+      "gold": "src/core/gitignore_parser.py",
+      "files": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/indexing/file_guard.py"
+      ],
+      "ms": 132.30599999951664,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-04",
+      "query": "Как решается проблема, что idle-watchdog убивает общий embedder во время полной переиндексации?",
+      "gold": "src/core/embedder_lease.py",
+      "files": [
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder_lease.py",
+        "src/core/intelligence/health.py",
+        "src/core/embedder_lease.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/intelligence/health.py"
+      ],
+      "ms": 181.169299999965,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-05",
+      "query": "Какое главное ограничение наложено на модуль durable reindex ledger, чтобы он не мог сломать индексацию?",
+      "gold": "src/core/reindex_ledger.py",
+      "files": [
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md"
+      ],
+      "ms": 93.93420000014885,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-06",
+      "query": "Как quiet-break gate ведёт себя при инфраструктурном сбое git или графа?",
+      "gold": "src/core/quiet_break_gate.py",
+      "files": [
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py"
+      ],
+      "ms": 91.33490000021993,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-07",
+      "query": "Что делает validate_scores с неоценёнными чанками, у которых score равен NaN или Inf?",
+      "gold": "src/providers/reranker/reranker_scoring.py",
+      "files": [
+        "src/providers/reranker/reranker_scoring.py",
+        "experiments/evalmut/probe_evalmut_transfer.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "src/providers/reranker/reranker_scoring.py"
+      ],
+      "ms": 210.0615999997899,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-08",
+      "query": "Зачем в конверте ошибок MCP-инструментов есть поле next_action?",
+      "gold": "src/core/error_envelope.py",
+      "files": [
+        "src/core/error_envelope.py",
+        "src/core/error_envelope.py",
+        "scripts/check_lsp_health.py",
+        "src/core/error_envelope.py",
+        "src/core/error_envelope.py"
+      ],
+      "ms": 220.64560000035272,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-09",
+      "query": "На сколько уровней деградации рассчитана система и что происходит, когда внешние провайдеры недоступны?",
+      "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+      "files": [
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/search/agentic_search.py",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/search/agentic_search.py"
+      ],
+      "ms": 115.56190000010247,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-10",
+      "query": "Почему в RRF-слиянии ранги считаются отдельно для каждого канала, а не общим enumerate?",
+      "gold": "docs/en/SEARCH_PIPELINE.md",
+      "files": [
+        "experiments/search_quality/E11_graph_hybrid_arms.py",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/zh/SEARCH_PIPELINE.md",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py",
+        "experiments/search_quality/E11_graph_hybrid_arms.py",
+        "src/core/search/scoring.py",
+        "src/core/search/trace.py"
+      ],
+      "ms": 239.41839999952208,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-11",
+      "query": "Как система относится к инструкциям из проиндексированного чужого репозитория — как к командам или как к данным?",
+      "gold": "docs/TRUST_BOUNDARY.md",
+      "files": [
+        "src/core/bootstrap_trace_plugin.py",
+        "src/core/trust_boundary.py",
+        "experiments/embed_real_path_vs_raw/exp_feed_queue.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "experiments/claims_audit/RESULTS.md",
+        "src/core/trust_boundary.py"
+      ],
+      "ms": 173.9661999999953,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-12",
+      "query": "Сохраняются ли метрики по инструментам между перезапусками MCP-сервера?",
+      "gold": "docs/en/TELEMETRY.md",
+      "files": [
+        "src/config/settings.py",
+        "src/mcp/server_factory.py",
+        "src/mcp/server_factory.py",
+        "src/mcp/server_factory.py",
+        "scripts/e2e_quality_search.py",
+        "src/config/settings.py",
+        "src/mcp/server_factory.py"
+      ],
+      "ms": 264.60299999962444,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-13",
+      "query": "Какой вердикт получает ACTIVE-узел памяти, если резолвер недоступен и проверка не дала результата?",
+      "gold": "docs/adr/0003-verify-on-read.md",
+      "files": [
+        "src/core/intelligence/layer.py",
+        "src/core/intelligence/layer.py",
+        "src/core/intelligence/layer.py",
+        "src/mcp/tools/indexing_tools.py",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "src/core/intelligence/layer.py",
+        "src/mcp/tools/indexing_tools.py"
+      ],
+      "ms": 201.59939999939525,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-14",
+      "query": "Каким способом MCP-сервер определяет открытый в Zed проект на Windows, если переменные окружения не передаются?",
+      "gold": "docs/en/HANDFOFF.md",
+      "files": [
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/zh/ZED_WINDOWS_QUIRKS.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md",
+        "docs/ru/HANDFOFF.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "ms": 130.93370000024152,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-15",
+      "query": "Что известно о переменной ZED_WORKTREE_ROOT на Windows?",
+      "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "files": [
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/zh/ZED_WINDOWS_QUIRKS.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/en/ZED_WINDOWS_QUIRKS.md"
+      ],
+      "ms": 106.82670000005601,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.2
+    },
+    {
+      "id": "E30-E28-16",
+      "query": "Насколько переход с ONNX на llama.cpp GGUF снизил потребление памяти MCP-процессом?",
+      "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "files": [
+        "src/providers/reranker/llama_runner.py",
+        "docs/ru/ARCHITECTURE.md",
+        "docs/zh/ARCHITECTURE.md",
+        "README.md",
+        "experiments/4A_unit_of_return/frozen/f5/queries.md"
+      ],
+      "ms": 205.394200000228,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-17",
+      "query": "begin_write _write_lock RLock reindex freeze",
+      "gold": "src/core/indexing/db_writer.py",
+      "files": [
+        "docs/archive/AGENT_DIARY_2026_08.md",
+        "docs/archive/KNOWN_ISSUES_2026_08.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "experiments/misc_probes/exp_in_situ_parse_timeout.py",
+        "src/core/indexing/db_manager.py",
+        "experiments/misc_probes/exp_in_situ_parse_timeout.py",
+        "src/core/indexing/db_manager.py"
+      ],
+      "ms": 179.55799999981537,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-18",
+      "query": "ArtifactGC 30d projects 90d telemetry 7d logs retention",
+      "gold": "src/core/artifact_gc.py",
+      "files": [
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py"
+      ],
+      "ms": 171.94109999945795,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-19",
+      "query": "ubatch embed 512 rerank 1024 resolve_ubatch",
+      "gold": "src/providers/reranker/llama_install.py",
+      "files": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_install.py",
+        "experiments/embed_real_path_vs_raw/exp_feed_queue.py",
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_runner.py"
+      ],
+      "ms": 205.53479999944102,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-20",
+      "query": "_InterProcessLock _is_pid_alive OpenProcess SYNCHRONIZE stale PID",
+      "gold": "src/providers/reranker/llama_runner.py",
+      "files": [
+        "src/providers/reranker/llama_runner.py",
+        "src/core/indexing/database_lock.py",
+        "src/providers/reranker/llama_runner.py",
+        "experiments/lock_zombie/check_signals.py",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/indexing/database_lock.py",
+        "experiments/lock_zombie/check_signals.py"
+      ],
+      "ms": 227.38810000009835,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-21",
+      "query": "search_code timeout idle embedder _revive_llama_cpp hot-reload",
+      "gold": "src/providers/embedder/remote_embedder.py",
+      "files": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/mcp/tools/search_tools.py",
+        "src/mcp/tools/search_tools.py",
+        "src/providers/embedder/remote_embedder.py",
+        "scripts/benchmark_search_stages.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/mcp/tools/search_tools.py"
+      ],
+      "ms": 219.72370000003139,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-22",
+      "query": "PropertyGraph add_node add_edge SQLite transaction per node edge",
+      "gold": "src/core/graph.py",
+      "files": [
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "experiments/misc_probes/exp_graph_write_throughput.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py"
+      ],
+      "ms": 211.70939999956317,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.16666666666666666
+    },
+    {
+      "id": "E30-E28-23",
+      "query": "collect Cypher json_group_array cypher_sql",
+      "gold": "src/core/search/cypher_sql.py",
+      "files": [
+        "experiments/microtask_vs_single/runs/A-6e63f85ac3_cypher_executor-20261021T012114Z/agent_output.json",
+        "experiments/microtask_vs_single/frozen/corpus/6e63f85ac3_cypher_executor.json",
+        "experiments/microtask_vs_single/runs/C-6e63f85ac3_cypher_executor-20261021T003045Z/worker_outputs/T1.json",
+        "experiments/microtask_vs_single/runs/C-6e63f85ac3_cypher_executor-20261021T003045Z/worker_outputs/T1.json",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py"
+      ],
+      "ms": 129.17680000009568,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.2
+    },
+    {
+      "id": "E30-E28-24",
+      "query": "TESTS edges verifying tests decoys bootstrap_tests",
+      "gold": "src/core/bootstrap_tests.py",
+      "files": [
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py"
+      ],
+      "ms": 145.37540000037552,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-25",
+      "query": "FreshnessChecker to_pandas columns lancedb broken dead code",
+      "gold": "src/core/indexing/freshness.py",
+      "files": [
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "experiments/root_cause_eval/incident_dataset.json",
+        "AGENT_DIARY.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "ms": 153.1992000000173,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-26",
+      "query": "CodeParser _parse_with_tree_sitter _walk_node AST chunks",
+      "gold": "src/core/indexing/parser.py",
+      "files": [
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py"
+      ],
+      "ms": 146.44029999999475,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-27",
+      "query": "hybrid_search_async reciprocal_rank_fusion FTS5 BM25",
+      "gold": "src/core/search/engine.py",
+      "files": [
+        "src/core/search/scoring.py",
+        "src/core/search/scoring.py",
+        "src/core/search/scoring.py",
+        "experiments/misc_probes/run_experiment_fts5.py",
+        "src/core/search/scoring.py",
+        "src/core/search/scoring.py",
+        "experiments/misc_probes/run_experiment_fts5.py"
+      ],
+      "ms": 175.78660000071977,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-28",
+      "query": "миграция схемы добавление колонок file_mtime_ns в таблицу LanceDB",
+      "gold": "src/core/indexing/db_manager.py",
+      "files": [
+        "src/core/indexing/db_writer.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/indexer.py",
+        "src/core/indexing/index_pipeline.py",
+        "src/core/indexing/chunk_store.py",
+        "src/core/indexing/db_writer.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/indexer.py"
+      ],
+      "ms": 225.4086000002644,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-29",
+      "query": "ленивая проверка факта памяти verify on read статус ADR",
+      "gold": "src/core/intelligence/verify_on_read.py",
+      "files": [
+        "src/core/intelligence/verify_on_read.py",
+        "src/core/intelligence/tools_reg.py",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/adr/0003-verify-on-read.md",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "ms": 166.75519999989774,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-30",
+      "query": "per project indexer registry multi window пулы по путям проектов",
+      "gold": "src/core/indexing/project_indexer_registry.py",
+      "files": [
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py"
+      ],
+      "ms": 137.5432999993791,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-E28-31",
+      "query": "переиндексация одного изменённого файла notify change rate limit",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "files": [
+        "src/core/rate_limiter.py",
+        "src/mcp/tools/indexing_tools.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/mcp/tools/indexing_tools.py"
+      ],
+      "ms": 122.00659999962227,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.5
+    },
+    {
+      "id": "E30-E28-32",
+      "query": "ранжирование результатов реранкером BGE M3 перестановка топ",
+      "gold": "src/providers/reranker/search_result_reranker.py",
+      "files": [
+        "src/providers/reranker/multi_provider.py",
+        "experiments/e31_bge_rerank/run_bge.py",
+        "src/providers/reranker/multi_provider.py",
+        "experiments/e31_bge_rerank/run_bge.py",
+        "src/providers/reranker/multi_provider.py"
+      ],
+      "ms": 143.4835000000021,
+      "h1": 0,
+      "h5": 0,
+      "rr": 0.0
+    },
+    {
+      "id": "E30-E28-33",
+      "query": "bm25 ключевые слова медленный но точный полнотекстовый",
+      "gold": "src/core/search/bm25.py",
+      "files": [
+        "src/core/search/bm25.py",
+        "src/core/search/bm25.py",
+        "src/core/commit_memory.py",
+        "src/core/search/bm25.py",
+        "src/core/search/bm25.py",
+        "src/core/search/bm25.py",
+        "src/core/commit_memory.py"
+      ],
+      "ms": 114.38610000004701,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D01",
+      "query": "MSCodebase Intelligence Семантический поиск по кодовой базе для Zed IDE.",
+      "gold": "src/__init__.py",
+      "files": [
+        "src/__init__.py",
+        "docs/ru/README.md",
+        "README.md",
+        "docs/ru/README.md",
+        "docs/ru/INSTALL.md"
+      ],
+      "ms": 205.3593999999066,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D02",
+      "query": "Запускает pytest-трассу; возвращает (exit_code, seconds).",
+      "gold": "src/core/bootstrap_pipeline.py",
+      "files": [
+        "src/core/bootstrap_pipeline.py",
+        "src/core/bootstrap_pipeline.py",
+        "experiments/microtask_vs_single/harness/collect_results.py",
+        "scripts/verify_clean_state.sh",
+        "src/core/bootstrap_pipeline.py",
+        "src/core/bootstrap_pipeline.py",
+        "experiments/microtask_vs_single/harness/collect_results.py",
+        "scripts/verify_clean_state.sh"
+      ],
+      "ms": 208.61930000046414,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D03",
+      "query": "Полная проверка: все .md против всех символов из src/.",
+      "gold": "src/core/doc_sync_engine.py",
+      "files": [
+        "src/core/doc_generator.py",
+        "src/core/doc_sync_engine.py",
+        "src/core/search/trace.py",
+        "src/main.py",
+        "src/core/doc_sync_engine.py",
+        "src/core/doc_generator.py",
+        "src/core/doc_sync_engine.py"
+      ],
+      "ms": 195.72750000043015,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.5
+    },
+    {
+      "id": "E30-D04",
+      "query": "Автоматический парсер .gitignore для исключения файлов из индексации.",
+      "gold": "src/core/gitignore_parser.py",
+      "files": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py"
+      ],
+      "ms": 79.1138000004139,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D05",
+      "query": "Инкрементальная сверка: stat-first → hash-confirm → hot-reload.",
+      "gold": "src/core/indexing/freshness.py",
+      "files": [
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py"
+      ],
+      "ms": 89.86899999945308,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D06",
+      "query": "Symbol Index — отслеживание определений и использований символов между файлами.",
+      "gold": "src/core/indexing/symbol_index.py",
+      "files": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/index_guard.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/index_guard.py"
+      ],
+      "ms": 171.9850999998016,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D07",
+      "query": "MCP Tool Registration for Intelligence Layer.",
+      "gold": "src/core/intelligence/tools_reg.py",
+      "files": [
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "ms": 136.9844999999259,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D08",
+      "query": "Публичный геттер для директории bridge-файлов.",
+      "gold": "src/core/lsp_project_bridge.py",
+      "files": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/lsp_project_bridge.py",
+        "src/core/lsp_project_bridge.py",
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "src/core/lsp_project_bridge.py"
+      ],
+      "ms": 113.43829999987065,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D09",
+      "query": "Return the canonical POSIX relative path (backslashes -> slashes).",
+      "gold": "src/core/relpath.py",
+      "files": [
+        "src/core/relpath.py",
+        "src/core/relpath.py",
+        "experiments/foreign_repo_audit/audit_vs_our_guards.py",
+        "tools/stale_detector/stale_check.py",
+        "src/core/indexing/db_writer.py",
+        "experiments/foreign_repo_audit/audit_vs_our_guards.py",
+        "tools/stale_detector/stale_check.py",
+        "src/core/indexing/db_writer.py"
+      ],
+      "ms": 268.19570000043313,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D10",
+      "query": "Cypher query engine — компонент для подмножества openCypher.",
+      "gold": "src/core/search/cypher_parser.py",
+      "files": [
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_engine.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_engine.py"
+      ],
+      "ms": 306.74069999986386,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.5
+    },
+    {
+      "id": "E30-D11",
+      "query": "Сериализует в dict (без None значений для краткости).",
+      "gold": "src/core/search/trace.py",
+      "files": [
+        "src/core/search/trace.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/notification_broker.py",
+        "src/core/passport.py",
+        "src/core/bootstrap_pipeline.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/notification_broker.py"
+      ],
+      "ms": 169.92639999989478,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D12",
+      "query": "MCP (Model Context Protocol) сервер для интеграции с Zed IDE.",
+      "gold": "src/mcp/__init__.py",
+      "files": [
+        "src/mcp/__init__.py",
+        "docs/ru/README.md",
+        "README.md",
+        "docs/zh/README.md",
+        "docs/archive/ARCHITECTURE_2026-07-20.md"
+      ],
+      "ms": 185.45830000039132,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D13",
+      "query": "find_duplicates — детектор дупликации кода (AST-отпечатки + minhash-LSH).",
+      "gold": "src/mcp/tools/duplication_tool.py",
+      "files": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py"
+      ],
+      "ms": 170.42209999999614,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D14",
+      "query": "Импортирует entrypoint плагина (разрешённый путь, отдельный от execute_script).",
+      "gold": "src/plugins/loader.py",
+      "files": [
+        "src/plugins/loader.py",
+        "src/plugins/loader.py",
+        "src/mcp/tools/codebase_tool.py",
+        "src/plugins/loader.py",
+        "src/mcp/tools/codebase_tool.py",
+        "src/mcp/tools/codebase_tool.py"
+      ],
+      "ms": 160.0484000000506,
+      "h1": 1,
+      "h5": 1,
+      "rr": 1.0
+    },
+    {
+      "id": "E30-D15",
+      "query": "Заглушка, если LiveSyncServer не поднялся.",
+      "gold": "src/remote_main.py",
+      "files": [
+        "src/sync/server.py",
+        "src/sync/server.py",
+        "src/sync/server.py",
+        "src/sync/server.py",
+        "src/remote_main.py",
+        "src/sync/server.py",
+        "src/remote_main.py"
+      ],
+      "ms": 154.26509999997506,
+      "h1": 0,
+      "h5": 1,
+      "rr": 0.2
+    }
+  ]
+}

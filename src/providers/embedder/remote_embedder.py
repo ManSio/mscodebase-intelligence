@@ -24,6 +24,14 @@ logger = logging.getLogger("mscodebase_server.embedder")
 
 # Интервал проверки доступности внешних API (секунды)
 _PROVIDER_SCAN_INTERVAL = int(os.getenv("PROVIDER_SCAN_INTERVAL", "30"))
+# Потолок backoff между опросами провайдеров (2026-11-07: было 20×13 с
+# одинаковых предупреждений при живом llama.cpp).
+_PROVIDER_SCAN_BACKOFF_MAX = int(os.getenv("PROVIDER_SCAN_BACKOFF_MAX", "300"))
+
+
+def _next_scan_interval(current: float) -> float:
+    """Следующий интервал опроса провайдеров: экспоненциальный backoff."""
+    return min(current * 2, _PROVIDER_SCAN_BACKOFF_MAX)
 
 # llama.cpp жёстко ограничивает вход контекстом обучения модели (n_ctx_train=512
 # для multilingual-e5-small). Усечение через HF-токенизатор НЕ гарантирует лимит
@@ -793,15 +801,21 @@ class RemoteEmbedder(IEmbedder):
         Если LM Studio / Ollama запустились после старта Zed — автоматически
         переключается с ONNX на внешний API и завершает цикл (break).
         Повторный опрос после успешного подключения не производится.
-        Ограничение: максимум 20 итераций (≈20 мин), потом fallback.
+
+        Backoff (2026-11-07): первый опрос через 13 с, дальше интервал
+        удваивается до 5 минут. Раньше фиксированные 13 с × 20 итераций
+        давали ~20 одинаковых предупреждений «empty response» и постоянный
+        спавн health-проб. Бюджет поиска тот же (~22 мин), шума меньше.
         """
-        _max_iterations = 20
+        _max_iterations = 8
         _iteration = 0
-        while not self._scanner_stop.wait(_PROVIDER_SCAN_INTERVAL):
+        _interval = _PROVIDER_SCAN_INTERVAL
+        while not self._scanner_stop.wait(_interval):
             _iteration += 1
             if _iteration > _max_iterations:
                 logger.info(f"Provider scanner reached {_max_iterations} iterations, stopping.")
                 break
+            _interval = _next_scan_interval(_interval)
             try:
                 # Если уже на LM Studio — проверяем что он ещё жив
                 with self._mode_lock:

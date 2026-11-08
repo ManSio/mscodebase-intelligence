@@ -19,7 +19,7 @@ pip install -r requirements.txt
 pip install -e "."
 ```
 
-Требования: Python 3.10+, Windows (основная) или Linux (экспериментально).
+Требования: Python 3.14+, Windows (основная) или Linux (экспериментально).
 
 ---
 

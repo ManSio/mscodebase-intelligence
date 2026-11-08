@@ -4,9 +4,13 @@
 
 > **Версия:** v3.5.0 | **Последнее обновление:** 2026-08-12
 
+> **Статус Phase 3 (2026-10-25):** дефолт — text-first (SQLite FTS5/BM25 +
+> PropertyGraph); vector/LanceDB и `ask` на phi-4 опциональны. Это исторический
+> deep-dive; актуальный контракт и границы — в [README.md](../../README.md).
+
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n61 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n64 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -205,7 +209,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Контейнер готов
-    MCP->>MCP: Регистрация 61 инструментов
+    MCP->>MCP: Регистрация 64 инструментов
     MCP-->>Zed: Сервер готов (PID объявлен)
     
     Note over Zed,DB: Общий запуск: ~2-5s (асинхронная инициализация embedder)

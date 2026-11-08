@@ -1,8 +1,11 @@
-"""Опциональный слой tree-sitter-language-pack: +56 языков с tags.scm.
+"""Опциональный слой tree-sitter-language-pack: до 53 языков, 49 с tags.scm.
 
-⚠️ Особенности (проверено 2026-08-06, language-pack 1.14.3):
+⚠️ Особенности (проверено 2026-11-08, language-pack 1.25.0):
+- 53 языка из LANG_EXT_MAP получают парсер; tags.scm есть для 49 из них.
+  В 1.25.0 queries отсутствуют для cuda, sflog, soql, sosl (в 1.14.3 они
+  были) — эти языки разбираются, но символы из них не извлекаются.
 - Парсеры СКАЧИВАЮТСЯ при первом использовании (нужна сеть; кэш в
-  %LOCALAPPDATA%/tree-sitter-language-pack). На Windows 1.14.3 загрузка
+  %LOCALAPPDATA%/tree-sitter-language-pack). На Windows загрузка
   работает (per-language), хотя download_all() может падать (issue #174).
 - Queries (tags.scm) встроены в пакет и доступны без скачивания.
 - Включение: MSCODEBASE_LANGUAGE_PACK=true в .env (по умолчанию ВЫКЛЮЧЕН —

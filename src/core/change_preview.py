@@ -36,13 +36,25 @@ def _run(cmd: List[str], cwd: Path, timeout: int = DEFAULT_TIMEOUT) -> subproces
     dev-экстр) → CompletedProcess(returncode=127) — вызывающий решает: skip.
     """
     try:
+        import os as _os
+
+        _env = dict(_os.environ)
+        if cmd and cmd[0] == "git":
+            # Read-only git из MCP может ждать index.lock (наблюдение 2026-11-07:
+            # `git diff` в predict_change висел до таймаута инструмента).
+            # Не обновляем индекс и не спрашиваем креды.
+            _env["GIT_OPTIONAL_LOCKS"] = "0"
+            _env["GIT_TERMINAL_PROMPT"] = "0"
+            _env["GIT_PAGER"] = "cat"
         proc = subprocess.Popen(
             cmd,
             cwd=str(cwd),
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
+            env=_env,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except FileNotFoundError:
@@ -61,8 +73,11 @@ def _run(cmd: List[str], cwd: Path, timeout: int = DEFAULT_TIMEOUT) -> subproces
     return subprocess.CompletedProcess(cmd, proc.returncode, out)
 
 
-def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    return _run(["git", "--no-pager", *args], cwd)
+def _git(cwd: Path, *args: str, timeout: int = 20) -> subprocess.CompletedProcess:
+    """Read-only git: короткий бюджет. `DEFAULT_TIMEOUT=300` для diff превращал
+    зависший index-лок в 120-секундный таймаут инструмента predict_change
+    (наблюдение 2026-11-07)."""
+    return _run(["git", "--no-pager", *args], cwd, timeout=timeout)
 
 
 def changed_files(repo: Path, base: str = "HEAD") -> List[str]:
@@ -124,7 +139,7 @@ class ChangePreview:
     # ─── Steps ─────────────────────────────────────────────
     def _make_worktree(self) -> bool:
         tmp = Path(tempfile.mkdtemp(prefix="mscodebase_preview_")).resolve()
-        res = _git(self.repo, "worktree", "add", "--detach", str(tmp), self.base)
+        res = _git(self.repo, "worktree", "add", "--detach", str(tmp), self.base, timeout=120)
         if res.returncode != 0:
             shutil.rmtree(tmp, ignore_errors=True)
             print(f"  ⚠️ worktree add failed: {res.stdout.strip()[:300]}")
@@ -217,7 +232,7 @@ class ChangePreview:
 
     def _cleanup(self) -> None:
         if self._worktree is not None:
-            _git(self.repo, "worktree", "remove", "--force", str(self._worktree))
+            _git(self.repo, "worktree", "remove", "--force", str(self._worktree), timeout=120)
             shutil.rmtree(self._worktree, ignore_errors=True)
         try:
             for p in self.repo.glob("*.preview.patch"):

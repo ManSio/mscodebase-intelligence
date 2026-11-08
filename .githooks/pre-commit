@@ -19,6 +19,7 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 # Per-gate budget. 900s is the historical value (documented flakiness at 300s);
@@ -67,6 +68,7 @@ def run_script(script_path: str, label: str, extra_args: list[str] | None = None
     # Печатаем ДО запуска: гейт с большим бюджетом (verify_diary тянет полный
     # pytest) иначе выглядит как зависание — и его обходят через --no-verify.
     print(f"  ⏳ {label}: выполняется (бюджет {GATE_TIMEOUT}s)…", flush=True)
+    _started = time.monotonic()
     # §5.16: Popen + communicate (не capture_output) — защита от pipe-deadlock
     # в фоновых потоках; encoding="utf-8" — декодирование stdout в utf-8.
     proc = Popen(
@@ -99,8 +101,30 @@ def run_script(script_path: str, label: str, extra_args: list[str] | None = None
             for line in stdout.splitlines()[-10:]:
                 print(f"    {line}")
         return False
-    print(f"  ✅ {label}: OK", flush=True)
+    print(f"  ✅ {label}: OK ({time.monotonic() - _started:.1f}s)", flush=True)
     return True
+
+
+def _staged_files() -> list[str]:
+    """Файлы, попавшие в этот коммит (staged, без удалённых).
+
+    §5.16: Popen + communicate, а не capture_output — единый паттерн с гейтами.
+    """
+    try:
+        proc = Popen(
+            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        out, _ = proc.communicate(timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if proc.returncode != 0:
+        return []
+    return [line.strip() for line in (out or "").splitlines() if line.strip()]
 
 
 def main():
@@ -112,14 +136,30 @@ def main():
     # коммита. Раньше это выглядело как «хук висит», и коммиты уходили в
     # --no-verify. Поэтому fast-режим: полный прогон остаётся за CI, а локальный
     # коммит говорит ВСЛУХ, что именно пропущено.
+    #
+    # 2026-11-07: полный прогон ~208 s (серийно). Доки не могут его сломать,
+    # поэтому коммит БЕЗ единого .py/.pyi пропускает gate-zero автоматически —
+    # именно так 5 документационных коммитов подряд стоили ~17 минут.
+    staged = _staged_files()
+    only_docs = bool(staged) and all(
+        p.endswith((".md", ".txt", ".rst")) for p in staged
+    )
     fast = os.environ.get("MSCB_PRECOMMIT_FAST") == "1"
-    diary_args = ["--skip-gate-zero"] if fast else None
+    if only_docs and not fast:
+        print(
+            f"  ⚡ docs-only ({len(staged)} файлов: .md/.txt/.rst): "
+            "gate-zero (полный pytest) пропущен — доки тесты не ломают.",
+            flush=True,
+        )
+    diary_args = ["--skip-gate-zero"] if (fast or only_docs) else None
     if fast:
         print("  ⚠️  FAST: полный `pytest tests/` (gate-zero) ПРОПУЩЕН — "
               "покрытие этого коммита обязана взять CI.", flush=True)
 
     all_ok &= run_script("scripts/verify_diary.py", "verify_diary", diary_args)
-    all_ok &= run_script("scripts/stale_detector.py", "stale_detector")
+    # --staged: гейт судит КОММИТ, а не всё рабочее дерево — иначе чужие
+    # незастейдженные драфты параллельной сессии блокируют чужой коммит (§21).
+    all_ok &= run_script("scripts/stale_detector.py", "stale_detector", ["--staged"])
     all_ok &= run_script("scripts/check_tool_names.py", "check_tool_names")
     all_ok &= run_script("scripts/negative_controls_runner.py", "negative_controls")
     all_ok &= run_script("scripts/check_layer_boundaries.py", "check_layer_boundaries")
@@ -129,6 +169,57 @@ def main():
     all_ok &= run_script("scripts/check_third_party_data.py", "third_party_data")
     all_ok &= run_script("scripts/check_parallel_sessions.py", "parallel_sessions")
     all_ok &= run_script("scripts/ruff_gate.py", "ruff_gate")
+
+    # 11. verification_gates — G1 population / G2 referent / G3 generalization /
+    #     G4 control (tools/verification/gates.py). rc=1 blocks the commit,
+    #     rc=2 is advisory (not enough input to judge — never read as ALLOW,
+    #     but also never blocks a commit on its own per §19.6).
+    project_root = find_project_root()
+    if project_root is None:
+        print("  ❌ verification_gates: project root not found",
+              flush=True)
+        all_ok = False
+    else:
+        gate_args = ["scripts/gate_cli.py"]
+        gate_env = dict(os.environ)
+        gate_env["PYTHONUNBUFFERED"] = "1"
+    print("  ⏳ verification_gates: выполняется (бюджет 120s)…", flush=True)
+    gate_proc = Popen(
+        [sys.executable, "-B", str(project_root / "scripts" / "gate_cli.py"), "--selftest"],
+        cwd=str(project_root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        env=gate_env,
+    )
+    try:
+        _gate_stdout, _ = gate_proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        gate_proc.kill()
+        gate_proc.communicate()
+        print("  ❌ verification_gates: TIMEOUT >120s — гейт не ответил",
+              flush=True)
+        all_ok = False
+    else:
+        gate_rc = gate_proc.returncode
+        if gate_rc == 1:
+            print("  ❌ verification_gates: BLOCK — проверка не прошла",
+                  flush=True)
+            if _gate_stdout:
+                for line in _gate_stdout.splitlines()[-8:]:
+                    print(f"    {line}", flush=True)
+            all_ok = False
+        elif gate_rc == 2:
+            # UNKNOWN — advisory only, never blocks (§19.6 / P-01).
+            print("  ⚠️  verification_gates: UNKNOWN — недостаточно входа для суждения",
+                  flush=True)
+            if _gate_stdout:
+                for line in _gate_stdout.splitlines()[-8:]:
+                    print(f"    {line}", flush=True)
+        else:
+            print("  ✅ verification_gates: OK", flush=True)
 
     if not all_ok:
         print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.", flush=True)

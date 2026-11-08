@@ -27,6 +27,71 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger("mscodebase_server.tools")
 
 # ══════════════════════════════════════════════════════════
+# Профиль поверхности инструментов (2026-11-08)
+# ══════════════════════════════════════════════════════════
+# 68 зарегистрированных инструментов — это проблема выбора для модели, а не
+# фича: у многих пересекаются описания (6 LSP-тулов, 3 поиска, 16 intel_*).
+# Профиль `core` оставляет ОДИН вход на намерение; всё остальное остаётся
+# зарегистрированным, но не отдаётся клиенту, пока не задан
+# MSCODEBASE_MCP_PROFILE=full. `tool_help` показывает спрятанное.
+CORE_PROFILE = {
+    "investigate",           # ОДИН вход: параллельный fan-out всех каналов
+    "codebase",              # хаб: индекс/git/write
+    "search_code",           # точный ранжированный поиск (уточнение)
+    "grep_code",             # regex с AST-скоупом (уточнение)
+    "get_symbol_info",       # defs / callers / callees
+    "impact_analysis",       # blast radius
+    "graph_query",           # граф: related/flow/cypher
+    "read_live_file",
+    "notify_change",
+    "get_health_report",
+    "intel_get_project_memory",
+    "predict_change",
+    "tool_help",
+    # Dev/maintenance tools stay visible: they are 4 names, not a selection
+    # problem, and hiding them made tool_help under-report the surface.
+    "auto_update_docs",
+    "bump_version",
+    "generate_docs",
+    "install_git_hooks",
+}
+
+# Полный каталог (имя → первая строка описания), заполняется до фильтрации.
+_FULL_CATALOG: Dict[str, str] = {}
+
+
+def _apply_tool_profile(mcp) -> None:
+    """Оставить в клиентской поверхности только CORE_PROFILE (или всё)."""
+    profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
+    manager = getattr(mcp, "_tool_manager", None)
+    tools = getattr(manager, "_tools", None)
+    if not isinstance(tools, dict):
+        logger.warning("🧰 Tool profile: не удалось перечислить инструменты — поверхность полная")
+        return
+
+    _FULL_CATALOG.clear()
+    for name, tool in tools.items():
+        desc = (getattr(tool, "description", "") or "").strip().split("\n")[0]
+        _FULL_CATALOG[name] = desc[:120]
+
+    if profile == "full":
+        logger.info(f"🧰 Tool profile=full: {len(tools)} видимых инструментов")
+        return
+
+    hidden = [name for name in tools if name not in CORE_PROFILE]
+    for name in hidden:
+        try:
+            mcp.remove_tool(name)
+        except Exception as exc:  # noqa: BLE001 — один тул не роняет старт
+            logger.debug("remove_tool(%s) failed: %s", name, exc)
+    logger.info(
+        f"🧰 Tool profile=core: {len(tools) - len(hidden)} видимых, "
+        f"{len(hidden)} скрыто (MSCODEBASE_MCP_PROFILE=full — показать все; "
+        f"tool_help — что есть)"
+    )
+
+
+# ══════════════════════════════════════════════════════════
 # Регистрация core-инструментов (18 шт + execute_script optional)
 # ══════════════════════════════════════════════════════════
 
@@ -66,7 +131,10 @@ def register_all_tools(mcp, services):
         DetectCommunitiesTool,
         GraphQueryTool,
     )
+    from src.mcp.tools.grep_tool import GrepCodeTool
+    from src.mcp.tools.help_tool import ToolHelpTool
     from src.mcp.tools.indexing_tools import SetProjectTool
+    from src.mcp.tools.investigate_tool import InvestigateTool
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
         GetBugCorrelationTool,
@@ -90,6 +158,7 @@ def register_all_tools(mcp, services):
     from src.mcp.tools.search_tools import (
         GetSymbolInfoTool,
         ImpactAnalysisTool,
+        PlanSearchTool,
         SearchCodeTool,
     )
 
@@ -99,8 +168,15 @@ def register_all_tools(mcp, services):
         SetProjectTool,
         # Search (3)
         SearchCodeTool,
+        PlanSearchTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
+        # AST-aware regex grep (adapted from coderlm, MIT)
+        GrepCodeTool,
+        # Discoverability for the hidden part of the surface
+        ToolHelpTool,
+        # One query → parallel fan-out (search + symbols + grep merged)
+        InvestigateTool,
         # LSP (6) — точный AST через basedpyright (вариант C+D+E, 2026-08-06/07)
         LspFindReferencesTool,
         LspFindDefinitionTool,
@@ -157,7 +233,12 @@ def register_all_tools(mcp, services):
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
     _raw_allowlist_env = os.environ.get("MSCODEBASE_MCP_TOOLS")
     _raw_allowlist = (_raw_allowlist_env or "").strip()
-    if _raw_allowlist_env is not None and not _raw_allowlist:
+    _profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
+    if _profile == "full":
+        # Полный профиль: регистрируем всё, пост-фильтр не режет.
+        _show_all = True
+        _allowed_names = set()
+    elif _raw_allowlist_env is not None and not _raw_allowlist:
         _show_all = True
         _allowed_names = set()
     elif _raw_allowlist:
@@ -174,6 +255,10 @@ def register_all_tools(mcp, services):
             # (см. server_tools.py:140); без этого класс не существует и allowlist пуст.
             # ML-native (не заменяются E2B)
             "search_code",
+            "plan_search",
+            "grep_code",
+            "investigate",
+            "tool_help",
             "get_symbol_info",
             "impact_analysis",
             "lsp_find_references",
@@ -654,15 +739,20 @@ def _register_inline_tools(mcp, services):
             name = m["tool"]
             calls = m["calls"]
             errors = m["errors"]
-            ok_rate = ((calls - errors) / max(calls, 1)) * 100
-            bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
+            if calls == 0:
+                ok_rate = "нет данных"
+                bars = "░" * 10
+            else:
+                ok_rate = ((calls - errors) / calls) * 100
+                bars = "█" * int(ok_rate / 10) + "░" * (10 - int(ok_rate / 10))
             p50 = f"{m['p50_ms']:.0f}ms" if m.get("p50_ms") else "—"
             p95 = f"{m['p95_ms']:.0f}ms" if m.get("p95_ms") else "—"
             repeat = m.get("repeat_pct", 0)
             routes = m.get("route", {})
             route_str = ", ".join(f"{k}={v}" for k, v in sorted(routes.items())) if routes else "—"
+            ok_display = f"{ok_rate:.0f}%" if isinstance(ok_rate, (int, float)) else ok_rate
             lines.append(
-                f"| {name} | {bars} {ok_rate:.0f}% | {calls} | {p50} | {p95} | {repeat:.0f}% | {route_str} |"
+                f"| {name} | {bars} {ok_display} | {calls} | {p50} | {p95} | {repeat:.0f}% | {route_str} |"
             )
 
         return "\n".join(lines)
@@ -856,6 +946,9 @@ def _register_inline_tools(mcp, services):
         return _ack_impact(file_path, impact_token)
 
     logger.info("  🔧 Inline diagnostic tools registered (12 tools)")
+
+    # ─── Профиль поверхности: один вход на намерение ───
+    _apply_tool_profile(mcp)
 
 
 # ══════════════════════════════════════════════════════════

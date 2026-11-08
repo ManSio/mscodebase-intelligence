@@ -1,674 +1,147 @@
-<img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
+# Architecture
 
-[🇬🇧 English](ARCHITECTURE.md) • [🇷🇺 Русский](../ru/ARCHITECTURE.md) • [🇨🇳 中文](../zh/ARCHITECTURE.md)
+> Rewritten 2026-11-08. Describes the default Phase 3 runtime (text-first:
+> SQLite FTS5/BM25 + PropertyGraph). Vector/LanceDB, embeddings, reranker and
+> LSP rename are optional layers and are marked as such.
+> Numbers live in [FACTS.md](FACTS.md); this page explains the shape, not the counts.
 
-# MSCodeBase Intelligence — Architecture Guide
+## 1. Layers
 
-> **Version:** 3.5.0
-> **Last updated:** 2026-08-12  
-> **Architecture:** 4-Layer Architecture + Graph-Native PropertyGraph Layer + Data Flow Layer (Entry Points → MCP Server/DI → Tool Classes → Core Business Logic → PropertyGraph → Data Flow) with Multi-Window Registry + DocSync
-
----
-
-## Table of Contents
-
-1. [Core Principles](#1-core-principles)
-2. [Layer Architecture](#2-layer-architecture)
-3. [DI Container (ServiceCollection)](#3-di-container)
-4. [Tool Layer (32 core + 16 intel + 13 inline + 4 dev = 65 total)](#4-tool-layer)
-5. [PropertyGraph Layer (v3.0)](#5-propertygraph-layer-v30)
-6. [Cypher Query Engine (v3.0)](#6-cypher-query-engine-v30)
-7. [Error Handling](#7-error-handling)
-8. [Rate Limiting & Resilience](#8-rate-limiting--resilience)
-9. [Data Flow: Request → Response](#9-data-flow)
-10. [Windows Specifics](#10-windows-specifics)
-11. [Multi-Window Registry (v2.3+)](#11-multi-window-registry-v23)
-12. [Testing Strategy](#12-testing-strategy)
-
----
-
-## 1. Core Principles
-
-```
-┌──────────────────────────────────────────────────────────────────┐
-│              Four Layers of Architecture                          │
-│                                                                  │
-│  Layer 1: main.py               (Entry points, minimal)          │
-│  Layer 2: mcp/server.py          (DI routing, tool registration)  │
-│  Layer 3: mcp/tools/*.py         (32 core + 13 inline + 4 dev)│
-│  Layer 4: core/*.py              (Pure business logic)            │
-└──────────────────────────────────────────────────────────────────┘
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ Client: Zed MCP client (stdio, JSON-RPC)                     │
+├──────────────────────────────────────────────────────────────┤
+│ Tool layer        src/mcp/tools/*                             │
+│   investigate · search_code · grep_code · get_symbol_info     │
+│   impact_analysis · graph_query · codebase hub · lifecycle    │
+│   every tool is wrapped by @error_boundary (timeout + envelope)│
+├──────────────────────────────────────────────────────────────┤
+│ Intelligence      src/core/intelligence/*                     │
+│   project memory · incidents · health · jobs · telemetry      │
+├──────────────────────────────────────────────────────────────┤
+│ Core services     src/core/search, src/core/indexing, graph   │
+│   Searcher · SQLiteChunkStore · Indexer · PropertyGraph       │
+├──────────────────────────────────────────────────────────────┤
+│ Providers         src/providers/*   (optional)                │
+│   llama.cpp/ONNX/LM Studio/Ollama embedders · BGE-M3 reranker │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Key rules:**
-- **Core layer has NO MCP imports.** It's pure Python with business logic.
-- **Tool layer NEVER creates dependencies.** Everything comes from DI.
-- **server.py ONLY registers** — no logic, no formatting, no try/except.
-- **Dependencies flow downward:** Main ← Server ← Tools ← Core.
-
----
-
-## 2. Layer Architecture
-
-### 2.0 Ten-Layer Runtime Architecture (v2.4)
-
-```
- Layer 0: Filesystem                  — what files exist on disk?
- Layer 1: SystemArtifacts             — is this a system path?
- Layer 2: Bridge (LSP→MCP)           — [deprecated: LSP server removed 2026-07-20]
- Layer 3: Registry (IndexerRegistry)  — which Indexer owns this project?
- Layer 4: StateMachine (ProjectState) — what state is the project in?
- Layer 5: RuntimeCoordinator          — can we execute this request?
- Layer 6: ProjectContext              — what does the project look like now?
- Layer 7: Passport                    — which process is running?
- Layer 8: Intel Layer                 — what to do with this information?
- Layer 9: MCP Tools / AI Agent        — answer to the user
-```
-
-**Data flow:**
-```
-Filesystem → SystemArtifacts → Bridge → Registry → StateMachine
-                                                          ↓
-MCP Tools ← Intel Layer ← ProjectContext ← RuntimeCoordinator
-```
-
-**Key rule:** Tool does NOT access Registry, Bridge or Passport directly.
-Everything goes through `RuntimeCoordinator.can_execute()` + `ProjectContext.capture()`.
-
-### 2.1 Entry Points
-
-| File | Protocol | Purpose |
-|------|----------|---------|
-| `src/main.py` | MCP STDIO | AI assistant in Zed Chat |
-| `src/lsp_main.py` *(deleted)* | LSP STDIO | Replaced by LSP client `src/core/lsp_client.py` |
-
-Both use the same `create_service_collection()` factory.
-
-### 2.2 MCP Server
-
-| `src/mcp/server.py` | **~68 lines** (was 3,100 before refactoring).
-
-Responsibilities:
-1. Resolve project root (`resolve_project_root()`)
-2. Create DI container (`create_service_collection()`)
-3. Register 32 core + 16 intel + 13 inline + 4 dev = 65 total
-4. Register system prompt (mscodebase-rules)
-
-**No business logic lives here.** Every tool is an import from `mcp/tools/`.
-
-### 2.3 Tool Layer
-
-`src/mcp/tools/*.py` — **32 core (25 + codebase hub + 6 LSP) + 13 inline + 4 dev.**
-
-Every tool:
-- Inherits from `MCPTool` (ABC)
-- Receives dependencies via constructor (Constructor Injection)
-- Has exactly one entry point: `async def execute(**kwargs) -> dict`
-- Is decorated with `@error_boundary(tool_name, timeout_ms)`
-
-```python
-class SearchCodeTool(MCPTool):
-    """search_code — semantic code search."""
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="search_code")
-        self.searcher = services.resolve(Searcher)
-        self.symbol_index = services.resolve(SymbolIndex)
-
-    @error_boundary("search_code", timeout_ms=15000)
-    async def execute(
-        self,
-        query: str,
-        mode: str = "auto",
-        limit: int = 6,
-        kwargs: Optional[Dict[str, Any]] = None,
-    ) -> dict:
-        self.require_index()  # check index readiness
-        # ... search logic
-```
-
-### 2.4 Core Layer
-
-`src/core/*.py` — **54 top-level files** (123 incl. subpackages) of pure business logic.
-
-Key modules:
-
-| Module | Path | Purpose |
-|--------|------|---------|
-| `di_container.py` | `src/core/di_container.py` | DI Container (14 services) |
-| `error_handler.py` | `src/core/error_handler.py` | ToolError + error_boundary |
-| `rate_limiter.py` | `src/core/rate_limiter.py` | DebounceBatch + CircuitBreaker |
-| `engine.py` | `src/core/search/engine.py` | Hybrid search (BM25 + Dense + FTS5 + RRF) |
-| `graph.py` | `src/core/graph.py` | PropertyGraph — SQLite property graph |
-| `graph_adapter.py` | `src/core/search/graph_adapter.py` | SymbolIndexAdapter wrapping PropertyGraph |
-| `cypher_engine.py` | `src/core/search/cypher_engine.py` | Cypher→SQL facade (facade over cypher_ast/lexer/parser/sql/executor) |
-| `indexer.py` | `src/core/indexing/indexer.py` | LanceDB vector storage + indexing pipeline |
-| `symbol_index.py` | `src/core/indexing/symbol_index.py` | Call Graph (BFS, PageRank) |
-| `parser.py` | `src/core/indexing/parser.py` | Tree-sitter AST parser (32 extensions: core + shell + context + markdown) |
-| `file_guard.py` | `src/core/indexing/file_guard.py` | .gitignore + extension filter |
-| `db_manager.py` | `src/core/indexing/db_manager.py` | LanceDB table lifecycle (PID-lock, reindex guard) |
-| `fts5_mixin.py` | `src/core/search/fts5_mixin.py` | FTS5 full-text search mixin |
-| `scoring.py` | `src/core/search/scoring.py` | RRF + MMR diversity scoring |
-| `layer.py` | `src/core/intelligence/layer.py` | Intel Layer (16 intel_* tools) |
-| `runtime_coordinator.py` | `src/core/runtime_coordinator.py` | ExecutionVerdict + can_execute() |
-| `project_context.py` | `src/core/intelligence/project_context.py` | Project state snapshot |
-| `llama_runner.py` | `src/providers/reranker/llama_runner.py` | Lifecycle for llama-server.exe (reranker) |
-| `remote_embedder.py` | `src/providers/embedder/remote_embedder.py` | Embedder client: llama.cpp GGUF (primary) + ONNX INT8 / LM Studio / Ollama fallback |
-| `doc_sync_engine.py` | `src/core/doc_sync_engine.py` | Auto-sync docs with code (rename hook) |
-
-### 2.5 Search Engine (v3.3)
-
-```
-┌─────────────────────────────────────────────────────────┐
-│   Search Pipeline (engine.py)                            │
-│                                                          │
-│   query_str → embed() → BM25 → FTS5 → 3-way RRF → MMR  │
-│                        ↕                                │
-│   MultiSignalScorer: api_signature, graph_diffusion,     │
-│   module_proximity, cochange_boost                       │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│   PropertyGraph (graph.py)                               │
-│   SQLite (WAL + mmap), nodes/edges, JSON properties      │
-│   — 16 node labels (File, Function, Class, Variable...)  │
-│   — 29 edge types (CALLS, DEFINES, ASSIGNED_FROM, ...)  │
-│   — Cypher query engine (MATCH→SQL)                     │
-└─────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────┐
-│   Data Flow Layer (v3.2.0)                               │
-│                                                          │
-│   1. Unified Walker — one Tree-sitter parse → calls +    │
-│      assignments. Parse cache with content hash.         │
-│   2. Conditional Flow — ASSIGNED_FROM edges have         │
-│      condition_path (if/for/while/try/except)            │
-│   3. Intra-procedural only — within function bodies      │
-│   4. 16 languages: Python, Rust, TS, TSX, Go, JS,       │
-│      Java, C#, Ruby, PHP, Kotlin, Swift, C, C++,        │
-│      Scala, Dart                                        │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 2.6 Embedder: llama.cpp GGUF (native, preferred), ONNX INT8 as fallback
-
-The MCP server now uses multilingual-e5-small via **llama.cpp GGUF** (`llama-server.exe`) as its primary embedder; **ONNX Runtime (CPU, in-process)** is the fallback when llama.cpp is unavailable (auto-detected at startup — ONNX preload is canceled once llama.cpp is up):
-
-- **Model**: `intfloat/multilingual-e5-small` (384-dim), GGUF; fallback INT8 ONNX
-- **Runtime**: llama.cpp (`:8080`, llama-server), fallback ONNX in-process
-- **Architecture**: llama.cpp as a separate process; ONNX in-process only as fallback
-- **Performance**: ~16-50 ch/s (llama.cpp CPU, depends on load)
-- **RAM**: ~1.7 GB (2× llama-server: embed + reranker); ONNX fallback ~265 MB
-- **Config**: model auto-detected (GGUF from `models/`); legacy `EMBEDDING_DIMENSION`/`EMBEDDING_PROVIDER` not used
-
-The reranker still runs via llama-server (1 process, not 2).
-
-Legacy fallback providers (LM Studio, Ollama, remote ONNX) remain available via `remote_embedder.py` for custom setups.
-
----
-
-## 3. DI Container
-
-### 3.1 ServiceCollection
-
-```python
-# src/core/di_container.py
-
-services = ServiceCollection()
-
-# Registering a singleton:
-services.add_singleton(Indexer, indexer_instance)
-
-# Registering a lazy factory:
-services.add_factory(Searcher, lambda s: Searcher(s.resolve(Indexer), ...))
-
-# Resolving:
-indexer = services.resolve(Indexer)  # same instance every time
-```
-
-### 3.2 Registered Services (14)
-
-| # | Service | Type | Created By |
-|---|---------|------|------------|
-| 1 | ProjectRootKey | singleton | `project_root` (sentinel key) |
-| 2 | CodeParser | singleton | `CodeParser()` |
-| 3 | RemoteEmbedder | singleton | `RemoteEmbedder()` |
-| 4 | ProjectRegistry | singleton | `ProjectRegistry()` |
-| 5 | MultiProjectSearcher | singleton | `MultiProjectSearcher(embedder, registry)` |
-| 6 | PropertyGraph | singleton | `PropertyGraph(<data_root>/projects/<hash>/graph.db)` |
-| 7 | ProjectIndexerRegistry | singleton | `ProjectIndexerRegistry(max_cached=5)` |
-| 8 | NotificationBroker | singleton | `NotificationBroker(project_path=project_root)` |
-| 9 | IndexerFactoryKey | factory | `_create_indexer_for_path` |
-| 10 | SlidingWindowRateLimiter | singleton | `SlidingWindowRateLimiter()` |
-| 11 | CircuitBreaker | singleton | `CircuitBreaker(name="lm_studio")` |
-| 12 | Path | singleton | `project_root` (resolved path) |
-| 13 | Indexer | singleton | `indexer_instance` |
-| 14 | GitUrlSourceFactoryKey | factory | `_create_git_url_source` |
-
-> Cleanup (Task 2/5): dead registrations removed — DbPathKey, FileGuard,
-> SymbolIndex, ResourceMonitor, ResourceMonitorKey (never resolved).
-
----
-
-## 4. Tool Layer
-
-### 4.1 Tool Registration
-
-In `src/mcp/server_tools.py`:
-
-```python
-def register_all_tools(mcp, services):
-    tool_classes = [
-        # Search (3)
-        SearchCodeTool, GetSymbolInfoTool, ImpactAnalysisTool,
-        # Hub: codebase (write/index/git/notify — multiplexed by action)
-        CodebaseTool,
-        # Spoke: AST Sandbox (3-layer: AST validation + runtime __import__ wrapper + subprocess isolation)
-        ExecuteScriptTool,
-        # Analysis (5)
-        StructuralSearchTool, GetRepoMapTool, GetRepoRankTool,
-        ScanChangesTool, GenerateChunkSummariesTool,
-        # Graph (3 — Phase 2: graph_query multiplexes cypher + related + flow)
-        CrossRepoSearchTool, CrossProjectDepsTool, GraphQueryTool,
-        # Investigation (3)
-        GetBugCorrelationTool, GetHotspotsTool, FindSimilarBugsTool,
-        # Lifecycle (4)
-        SubmitBackgroundTaskTool, GetTaskStatusTool, VerifyActionTool, GetActionReceiptTool,
-    ]
-    # +16 intel_* tools + 13 inline diagnostic + 4 dev
-    # Total: 65 registered (32 core + 16 intel + 13 inline + 4 dev)
-```
-
-**Tool visibility filter:** the default visible set is the `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Set `MSCODEBASE_MCP_TOOLS=""` to show all 65 (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`).
-
-### 4.2 All Tools by Group
-
-| Group | File | Tools |
-|-------|------|-------|
-| **Search** (3) | `search_tools.py` | search_code, get_symbol_info, impact_analysis |
-| **LSP** (6) | `lsp_tools.py` | lsp_find_references, lsp_find_definition, lsp_document_symbols, lsp_get_type_info, lsp_get_diagnostics, lsp_get_code_actions |
-| **Hub: codebase** (1) | `codebase_tool.py` | codebase(action=index/git/rename/move/delete/replace/insert/notify) |
-| **Spoke: Sandbox** (1) | `codebase_tool.py` | execute_script(code) — AST + runtime import wrapper + subprocess isolation (опционально, env-флаг) |
-| **Analysis** (5) | `analysis_tools.py` | structural_search, get_repo_map, get_repo_rank, scan_changes, generate_chunk_summaries |
-| **Graph** (4) | `graph_tools.py` | cross_repo_search, cross_project_deps, graph_query, detect_communities |
-| **Investigation** (3) | `investigation_tools.py` | get_bug_correlation, get_hotspots, find_similar_bugs |
-| **Duplication** (1) | `duplication_tool.py` | find_duplicates |
-| **Context** (1) | `context_tool.py` | get_context |
-| **Lifecycle** (4) | `lifecycle_tools.py` | submit_background_task, get_task_status, verify_action, get_action_receipt |
-| **Docs** (1) | `doc_tools.py` | stale_detector |
-| **Dev** (4) | `dev_tools.py` | generate_docs, bump_version, auto_update_docs, install_git_hooks |
-| **Intelligence** (16) | `intelligence/tools_reg.py` | intel_get_runtime_status, intel_trigger_reindex, intel_reset_index, intel_get_job_status, intel_code_topology, intel_log_incident, intel_get_project_memory, intel_add_memory_node, intel_auto_collect_adrs, intel_get_hotspots, intel_analyze_incident, intel_predict_root_cause, intel_get_telemetry, intel_retract_memory_node, intel_restore_memory_node, intel_supersede_memory_node |
-| **Diagnostic inline** (13) | `server_tools.py` | debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact |
-
-> **Total:** 65 registered (32 core + 16 intel + 13 inline + 4 dev). Default visible: `MSCODEBASE_MCP_TOOLS` allowlist (see `src/mcp/server_tools.py`). Show all: `MSCODEBASE_MCP_TOOLS=""`.
-
-## 5. Error Handling
-
-### 5.1 error_boundary Decorator
-
-Every tool is wrapped with `@error_boundary`:
-
-```python
-@error_boundary("tool_name", timeout_ms=15000, max_retries=1)
-async def execute(self, **kwargs) -> dict:
-    ...
-```
-
-It guarantees:
-1. **Real timeout** via `asyncio.wait_for(timeout_ms / 1000.0)`
-2. **Unified JSON** always: `{"status": "ok"|"error"|"timeout"|"warning", "message": "...", "detail": "...", "latency_ms": 123}`
-3. **Controlled errors** (`ToolError`) → return as-is without retry
-4. **Unexpected errors** → logged with full traceback, returned as `"status": "error"`
-5. **Timeout retry** — configurable via `max_retries`
-
-### 5.2 ToolError Hierarchy
-
-```python
-ToolError          # Base: status, message, detail, recoverable
-├── IndexNotReadyError  # Index empty (warning, recoverable)
-└── RateLimitError      # Rate limit exceeded (warning, recoverable)
-```
-
----
-
-## 6. Rate Limiting & Resilience
-
-### 6.1 SlidingWindowRateLimiter
-
-```python
-limiter = SlidingWindowRateLimiter()  # asyncio.Lock for thread safety
-
-ok = await limiter.acquire("notify_change", max_per_sec=10.0)
-if not ok:
-    raise RateLimitError(detail="Too many notify_change calls")
-```
-
-### 6.2 DebounceBatch
-
-Replaces immediate `searcher.reindex()` on every file change:
-
-```python
-batch = DebounceBatch(callback=searcher.reindex, config=DebounceConfig(
-    debounce_ms=500,    # 500ms after last event
-    max_batch_size=100, # or flush immediately at 100 files
-    max_wait_ms=5000,   # prevent infinite debounce
-))
-await batch.add("file.py")  # BM25 rebuilds after 500ms (or at 100 files)
-```
-
-### 6.3 CircuitBreaker
-
-```python
-cb = CircuitBreaker(failure_threshold=5, recovery_timeout=30.0, name="lm_studio")
-
-result = await cb.call(
-    lambda: embedder.embed_batch(texts),
-    fallback={"status": "fallback", "message": "LM Studio unavailable"}
-)
-# States: CLOSED → OPEN (5 failures) → HALF_OPEN (30s later) → CLOSED (success)
-```
-
----
-
-## 7. Data Flow
-
-```
-Zed AI Agent
-    │
-    ▼
-MCP Tool Call (e.g., search_code("find indexer"))
-    │
-    ▼
-error_boundary decorator
-    ├── timeout check (asyncio.wait_for)
-    ├── rate limit check (SlidingWindowRateLimiter)
-    └── tool execution
-            │
-            ▼
-    MCPTool.execute(**kwargs)
-        │
-        ├── self.require_index()  → IndexNotReadyError if empty
-        ├── services.resolve(Searcher)
-        ├── engine.hybrid_search(query)
-        │       │
-        │       ▼
-        │   core/search/engine.py
-        │       ├── BM25 search (in-memory TF-IDF)
-        │       ├── Vector search (LanceDB + llama.cpp GGUF, ONNX fallback)
-        │       ├── FTS5 search (SQLite FTS5, trigram+porter)
-        │       └── 3-way RRF fusion + MMR diversity
-        │
-        └── return {"status": "ok", "results": [...]}
-                │
-                ▼
-        error_boundary → {"status": "ok", ...latency_ms}
-                │
-                ▼
-        Zed Chat (formatted JSON response)
-```
-
----
-
-## 8. Metadata Enrichment (v2.4.4+)
-
-### 8.1 Chunk Metadata
-
-Each chunk in LanceDB stores 6 metadata fields for deterministic
-filtering and multi-granularity retrieval:
-
-| Field | Type | Example | Purpose |
-|-------|------|---------|---------|
-| `layer` | string | `"core"` | Architecture layer: core/mcp/utils/tests/... |
-| `module_name` | string | `"core.parser"` | Logical module name from file path |
-| `hierarchy_level` | string | `"method"` | Level: function/method/class/impl/lines |
-| `is_public` | bool | `true` | Public/private (`_`-prefixed) |
-| `symbol_type` | string | `"method_definition"` | AST node type |
-| `parent_id` | string | md5 hash | Deterministic parent hash |
-
-Layer detection — automatic, by file path:
-
-| Path | layer |
-|------|-------|
-| `src/core/*` | `core` |
-| `src/mcp/tools/*` | `mcp_tools` |
-| `src/mcp/*` | `mcp` |
-| `src/utils/*` | `utils` |
-| `tests/*` | `tests` |
-| `docs/*` | `docs` |
-| `.agents/*` | `agents` |
-| `scripts/*` | `scripts` |
-| `.github/*` | `ci` |
-| other | `root` |
-
-### 8.2 Flat Tree Hierarchy (SproutRAG-style)
-
-`parent_id` — deterministic md5 hash:
-
-- **For method:** `md5(file_path + "::" + class_name)` — parent = class
-- **For function:** `md5(file_path)` — parent = module
-- **For giant function part:** `md5(file_path + "::" + symbol_name)` — parent = function
-
-Enables multi-granularity retrieval without graph DB:
-- Find all methods of a class → `get_chunks_by_parent_id("md5_hash")`
-- Navigate up to module → aggregation by parent_id
-
-### 8.3 Layer Filtering in search_code
-
-    ```python
-    # Only core layer
-    search_code(query="DI container", filter_layer="core")
-
-    # Only tests
-    search_code(query="test_parser", filter_layer="tests")
-
-    # No filter (all layers, as before)
-    search_code(query="parser")
-    ```
-
-    Layer filtering works at the LanceDB level via `.where(prefilter=True)` — vector search only searches chunks of the specified layer. BM25 post-filters by layer from metadata.
-
-    ---
-
-    ## 9. Windows Specifics
-
-### 8.1 Path Resolution
-
-`PROJECT_PATH` may contain `$ZED_WORKTREE_ROOT` literal string (env var not resolved by Zed on Windows).
-Solution: `resolve_project_root()` checks 7 fallback strategies:
-
-1. Provided argument
-2. LSP→MCP bridge (temp file from LSP, which knows `root_uri`)
-3. `PROJECT_PATH` env var (resolved if not `$ZED`)
-4. `ext_root` if it's a git repo
-5. `ZED_WORKTREE_ROOT` env var
-6. CWD (from Zed `settings.json`)
-7. `ext_root` as final fallback
-
-### 8.2 Git Subprocess Safety
-
-```python
-env["GIT_TERMINAL_PROMPT"] = "0"    # No interactive prompts
-env["GIT_ASKPASS"] = "echo"         # No credential helper
-env["GIT_PAGER"] = "cat"            # No pager
-creationflags = subprocess.CREATE_NO_WINDOW  # No console window
-```
-
-### 8.3 Long Path Support
-
-SafePathManager uses `to_win_long_path()` (prepending `\\?\`) for paths > 260 chars.
-
----
-
-## 9. Multi-Window Registry (v2.3+)
-
-v2.3+ supports **multiple open projects in Zed simultaneously**.
-Previously DI held a singleton `Indexer` — when switching windows, state would break
-(one `file_guard`, one `db_path`, shared `SymbolIndex`).
-
-### 9.1 `ProjectIndexerRegistry`
-
-`src/core/indexing/project_indexer_registry.py` — thread-safe registry of `Indexer` objects:
-
-```python
-registry = ProjectIndexerRegistry(
-    max_cached=5,                      # LRU limit (5 projects = 1-2.5GB RAM)
-    resource_monitor=get_global_resource_monitor(),  # adaptive throttling
-)
-
-# Per-project lazy creation via factory:
-def _create_indexer(p: Path) -> Indexer:
-    return Indexer(
-        db_path=_generate_unique_db_path(p),
-        file_guard=FileGuard(p),
-        symbol_index=SymbolIndex(),  # isolated
-        project_path=p, ...
-    )
-
-services.add_singleton(IndexerFactoryKey, _create_indexer)
-indexer = registry.get_indexer(project_path, factory=_create_indexer)
-```
-
-**Guarantees:**
-- **Isolation:** each window gets its own `FileGuard`/`SymbolIndex`/`db_path`.
-- **LRU:** when the 6th project opens, the oldest `Indexer` is evicted.
-- **Pressure-evict:** when RAM > 1GB or CPU > 85% — forced evict
-  **before** creating a new `Indexer` (prevents OOM).
-- **Cleanup:** `_safe_close()` resets LanceDB connection + `gc.collect()`
-  (for Windows mmap handles).
-
-### 9.2 `ResourceMonitor`
-
-`src/core/indexing/resource_monitor.py` — stdlib-only monitoring (no `psutil`):
-
-| Platform | Method |
-|-----------|-------|
-| POSIX | `resource.getrusage(RUSAGE_SELF).ru_maxrss` |
-| Windows | `psapi.GetProcessMemoryInfo` via `ctypes` |
-| CPU | `resource.getrusage` utime+stime delta / wall-clock |
-
-**Thresholds:**
-- Soft: 768MB / 75% CPU → throttle indexing (0.1s delay between files)
-- Hard: 1024MB / 85% CPU → pressure-evict + 0.5-2s delay
-
-```python
-monitor = get_global_resource_monitor()
-snap = monitor.sample()  # ResourceSnapshot (rss_mb, cpu_percent, threads)
-
-if monitor.is_under_pressure():
-    delay = monitor.suggest_throttle_delay_sec()
-    time.sleep(delay)  # in Indexer.index_project between files
-```
-
-### 9.3 Per-workspace DI (multi-window)
-
-Standalone LSP (`src/lsp_main.py`) is **deleted** (WONTFIX, см.
-`docs/en/investigations/LSP_WONTFIX.md`). Per-workspace DI lives in
-`ProjectIndexerRegistry` (v2.3+):
-
-```python
-registry: ProjectIndexerRegistry = services.resolve(ProjectIndexerRegistry)
-indexer = registry.get_indexer(project_path, factory=factory)
-# → creates isolated per-project Indexer (LRU max_cached=5 + pressure eviction)
-```
-
-Each workspace/project window gets its own Indexer with its own LanceDB DB
-and PropertyGraph (paths hashed outside the project — Задача 4/5).
-
-### 9.4 MCP `resolve_indexer_for_request`
-
-`src/mcp/tools/base.py` — single entry point for per-project Indexer:
-
-```python
-def resolve_indexer_for_request(services, explicit_project_root=None):
-    target = explicit_project_root or resolve_project_root() or DI_default
-    registry = services.resolve(ProjectIndexerRegistry)
-    factory = services.resolve(IndexerFactoryKey)
-    return registry.get_indexer(target, factory=factory)
-
-class MCPTool:
-    def resolve_indexer(self, project_root=None):
-        return resolve_indexer_for_request(self._services, project_root)
-```
-
-**All MCP tools** must use `self.resolve_indexer(...)`
-instead of `self._services.resolve(Indexer)` — the latter no longer works
-(Indexer is not a singleton).
-
-### 9.5 HealthReport `_check_resources`
-
-`src/core/code_health.py` — added method:
-
-```python
-def _check_resources(self):
-    summary = get_global_resource_monitor().get_summary()
-    self.metrics["process_rss_mb"] = summary["rss_mb"]
-    self.metrics["process_cpu_percent"] = summary["cpu_percent"]
-    self.metrics["registry_cached_projects"] = ...
-    self.metrics["registry_evictions"] = ...
-    if summary["under_hard_pressure"]:
-        self.issues.append({...})
-```
-
----
-
-## 10. Testing Strategy
-
-```
-tests/
-├── test_error_handler.py     # 18 tests — ToolError, error_boundary
-├── test_rate_limiter.py      # 21 tests — SlidingWindow, DebounceBatch, CircuitBreaker
-├── test_di_container.py      # 13 tests — ServiceCollection, 11 services
-├── test_resource_monitor.py  # 11 tests — ResourceMonitor + ProjectIndexerRegistry (v2.3+)
-├── test_parser.py            # 4 tests — Tree-sitter parsing
-├── test_execution_contract.py# 10 tests — verify_action
-├── test_task_queue.py        # 6 tests — background task queue
-├── test_branch_aware_index.py# 8 tests — get_branch_info
-├── test_symbol_index_call_graph.py  # 8 tests — call graph
-├── ... (20 more test files)
-```
-
-**Total: 853 tests.**
-
-Run:
-```bash
-pytest tests/ -m "not integration and not benchmark"
-```
-
----
-
-## Quick Reference
-
-| Command | Description |
-|---------|-------------|
-| `python -m src.main` | Run MCP server (STDIO) |
-| `pytest tests/` | Run all tests |
-| `pytest tests/test_di_container.py -v` | Run DI container tests only |
-| `python -c "from src.mcp.server import create_mcp_server; mcp = create_mcp_server()"` | Verify server loads |
-
----
-
-## 11. Architectural Invariants
-
-These rules must NOT be violated by any new PR.
-
-```
-1. Tool does not access Registry directly.
-2. Tool does not read Bridge directly.
-3. Tool works only through RuntimeCoordinator.
-4. RuntimeCoordinator does not know about Search / Indexer / Memory.
-5. ProjectContext is an immutable snapshot (does not start operations).
-6. All system files are defined only through SystemArtifacts.
-7. The indexer never indexes system artifacts.
-8. Any project path goes through the single resolver (resolve_project_root).
-9. All Intel tools use ProjectContext (not low-level APIs).
-10. Any new runtime component must have a single responsibility.
-11. Core layer has no MCP imports.
-12. Tools do not create dependencies — everything through DI.
-13. server.py registers — does not contain business logic.
-```
-
-**Code review check:** every PR must answer the question
-"Which existing layer does this extend?". If the answer is "none, I created
-a new Manager/Services/Provider" — this is a reason to stop and reconsider.
+Rules enforced by the architecture linter (`scripts/architecture_linter.py`)
+and the layer-boundary gate:
+
+- `core` never imports `mcp`; tools depend on core, not the reverse.
+- `RuntimeCoordinator` decides readiness; tools do not second-guess it.
+- Each tool is one file (or one class) with one responsibility; the `codebase`
+  hub dispatches by `action` instead of growing more top-level tools.
+
+## 2. Composition and lifecycle
+
+`src/main.py` → `create_mcp_server()` (`src/mcp/server_factory.py`):
+
+1. Build the DI container (`src/core/di_container.py`) with data paths from
+   `src/core/artifact_paths.py`.
+2. Register core tools, then intel, inline diagnostics and dev tools
+   (`register_all_tools`).
+3. Apply the **tool profile** (`_apply_tool_profile`): the full registry is
+   built, then everything outside `CORE_PROFILE` is removed from the client
+   surface. Registration never depends on the profile.
+4. Start the stdio transport; providers and the contradiction ledger start in
+   the background so the handshake is never blocked.
+
+Per-request lifecycle: `require_ready_project()` → tool body → `error_boundary`
+wraps the result (timeout, telemetry, structured error). Search tools also
+trigger a throttled freshness check (hot-reload) before querying.
+
+## 3. Storage
+
+| What | Where | Format |
+|---|---|---|
+| Text chunks + FTS5 index | `<project>/.mscodebase/chunks.db` | SQLite |
+| Graph (symbols, edges, meta) | `<data_root>/projects/<hash>/graph.db` | SQLite (PropertyGraph) |
+| Project memory, incidents, jobs | `<data_root>/projects/<hash>/intelligence/` | JSON |
+| Commit memory | `<data_root>/projects/<hash>/commit_memory/` | JSON |
+| Logs, telemetry | `<data_root>/logs/`, `<data_root>/projects/<hash>/telemetry/` | files |
+| Vector table (optional) | `<data_root>/projects/<hash>/lancedb_v2/` | LanceDB |
+
+`<data_root>` is `MSCODEBASE_DATA_DIR`, else `%LOCALAPPDATA%/mscodebase`
+(Windows) or `~/.cache/mscodebase`. Nothing but `chunks.db` and `.mscodebase/`
+lives inside the project, and both are gitignored.
+
+## 4. Indexing
+
+Two entry points, one pipeline:
+
+- **Full text index** — `scripts/reindex_text_only.py`: walk (FileGuard
+  excludes), parse with Tree-sitter, write chunks to SQLite and symbols/edges
+  to the graph. No embeddings.
+- **Incremental** — `FreshnessChecker` compares `(mtime, size, hash)` of files
+  on disk with the SQLite store, reindexes changed/new files and prunes deleted
+  ones. Runs throttled (default 30 s) after searches, and at startup via the
+  auto-index task when the store is empty.
+
+`experiments/**` is excluded from indexing by `SystemArtifacts`
+(`src/core/indexing/file_guard.py`): frozen panels must not leak into
+retrieval.
+
+## 5. Search stack
+
+`Searcher` (`src/core/search/engine.py`) owns retrieval:
+
+- **Phase 3 path** — SQLite FTS5 candidates (limit × 4, capped), optional
+  on-demand rerank of the top pool; no LanceDB access.
+- **Identifier short-circuit** — identifier-shaped queries go straight to the
+  graph stage for an exact location.
+- **Docs routing** — one extra FTS query over `docs/**`; if the best docs score
+  exceeds the best code score by `MSCODEBASE_DOCS_MARGIN` (4.0), docs win.
+- **Legacy dense path** — only when `MSCODEBASE_DENSE_OFF=false` and a provider
+  is available.
+
+Details and stage budgets are in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
+
+## 6. Tool layer
+
+**69 registered** tools (36 core + 16 intel + 13 inline + 4 dev); the default
+`core` profile exposes **17**. `execute_script` is an optional 70th tool behind
+`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`.
+
+The visible set is one entry per intent: `investigate`, `search_code`,
+`grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`,
+`read_live_file`, `notify_change`, `get_health_report`,
+`intel_get_project_memory`, `predict_change`, `tool_help`, plus the four dev
+tools. `MSCODEBASE_MCP_PROFILE=full` exposes everything;
+`MSCODEBASE_MCP_TOOLS` remains an explicit allowlist.
+
+`investigate` is a two-pass fan-out: pass 1 runs search, symbols and grep in
+parallel; pass 2 runs impact, callers, tests and project memory for what pass 1
+found. Results merge by `(file, line)` and carry the set of channels that found
+each item; a channel that times out appears in `degraded[]`.
+
+`codebase(action=…)` is a hub: `index` (status/progress/health/timeline),
+`git` (log/history/branch), and the write actions (rename/move/safe_delete/
+replace/insert) with preview and impact guards.
+
+## 7. Safety and failure behaviour
+
+- Every tool has a timeout; a hung provider degrades the answer, it does not
+  freeze the server.
+- Search/write tools refuse to run on an empty index instead of returning "no
+  results" (empty and broken must look different).
+- Writes are previewed; destructive actions require the impact acknowledgement
+  token.
+- Subprocesses are spawned with `Popen(stdin=DEVNULL, stdout=PIPE,
+  stderr=DEVNULL) + communicate`; `capture_output=True` deadlocks when the
+  server's stdout is the JSON-RPC pipe (AGENTS.md §5.16).
+- The contradiction ledger (startup, cached 6 h) verifies `✅` claims in
+  `AGENT_DIARY.md` against the code; its own failures are reported, never
+  silently ignored.
+
+## 8. Optional layers
+
+- **Embeddings/reranker:** llama.cpp GGUF, ONNX, LM Studio or Ollama; used by
+  the on-demand rerank and the legacy dense path.
+- **LSP:** basedpyright-backed references/definition/diagnostics, with a hard
+  start budget and a 30 s failure cache.
+- **Vector store:** LanceDB, only when dense retrieval is enabled.
+
+None of them is required for the default text-first path.

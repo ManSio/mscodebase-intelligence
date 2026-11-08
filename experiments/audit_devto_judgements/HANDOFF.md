@@ -3,16 +3,13 @@
 **Задача (цитата владельца):** «проведи исследования, подтверди или опровергни» + пересказ 6 пунктов;
 «собери максимально точные данные для другого агента на исправления и решения и экспериментов и red атак».
 
-**Статус первоисточника:** `frozen/devto_4p1h_raw_fetch.md`, sha256
-`9810421000B812D3D904933D5BB00F597B3AE7F5D6D0B4A1C012E2D4BFF93DA0`.
+**Статус первоисточника:** удалён 2026-10-24 по §20.1 (дословная копия чужой статьи
+с комментариями). sha256 сохранён в карантинном манифесте:
+`%LOCALAPPDATA%\mscodebase\audit-cache\purged_third_party_2026-10-24\MANIFEST.sha256`
+(`9810421000B812D3D904933D5BB00F597B3AE7F5D6D0B4A1C012E2D4BFF93DA0`).
 
-⚠️ **Первоисточник хранится ВНЕ репозитория** (§7.1a AGENTS.md): дословная копия чужой
-статьи со всеми комментариями содержит личные email третьих лиц и профильные блоки —
-коммитить это в публичный MIT-репозиторий нельзя.
-Путь: `%LOCALAPPDATA%\mscodebase\audit-cache\audit_devto_judgements\devto_4p1h_raw_fetch.md`
-(sha256 совпадает, целостность не нарушена). Защищено `scripts/check_third_party_data.py` (R1/R2/R3)
-+ правила `.gitignore`. **В этом репозитории остаётся только `HANDOFF.md` — наш вывод.**
-Все `L###` ниже — строки этого файла (заморожен до анализа, §17).
+**В этом репозитории остаётся только `HANDOFF.md` — наш вывод.** Ссылки вида `L###`
+ниже привязаны к sha256 выше; источник больше не воспроизводим без него (§8: ссылка по sha).
 
 ⚠️ **Ссылки вида `L###` привязаны к sha256 выше.** При любой ротации/правке файла ссылки протухают —
 перецитировать по sha, а не по номеру строки (§8).
@@ -128,10 +125,10 @@ this article warns about.»
 (от 01.10 23:35), исходников `.py` нет.
 
 **Корневая причина — НЕ «файл потерян» (первая версия этого отчёта была неверна, опровергнуто).**
-`git log --all --follow` → коммит `285dbc3f feat(verification): move the gates into the repo so they
+`git log --all --follow` → коммит `9462dc2f feat(verification): move the gates into the repo so they
 version with the code`; файл цел (25 356 B). Удаляющего коммита нет (`--diff-filter=D` пуст).
 Ветка **`feat/protocol-triage-and-t10-guards`** не является предком HEAD
-(`merge-base --is-ancestor` rc=1), HEAD = `ee5edd20` на `chore/bump-urllib3-pyjwt-cve`.
+(`merge-base --is-ancestor` rc=1), HEAD = `d1e77fad` на `chore/bump-urllib3-pyjwt-cve`.
 Вся верификация (13 файлов) **не слита на текущую ветку**.
 
 **Вердикт:** любой вердикт `gate` на этой ветке = **BLOCK, а не ALLOW** — гейт, который не может
@@ -140,7 +137,7 @@ version with the code`; файл цел (25 356 B). Удаляющего ком�
 
 **⛔ Не переписывать `gates.py` с нуля и не вытаскивать из `.pyc`** — файл цел, лежит в git.
 **⛔ HALT:** эта ветка зачекаучена в другом worktree
-(`C:\Users\misha\AppData\Local\Temp\mscb-wt-64` @ `dee49085`) → параллельная сессия, не трогать.
+(`C:\Users\misha\AppData\Local\Temp\mscb-wt-64` @ `74bfa2ad`) → параллельная сессия, не трогать.
 
 Класс — **«наличие ≠ живость»**: `.pyc`-ископаемое без `.py` + неслитая ветка заставляют тул
 выглядеть рабочим, пока он не падает. Фикс — merge/cherry-pick ветки (решение владельца) +
@@ -210,10 +207,9 @@ CI-гейт «тул зарегистрирован, но его скрипт о
 ## 6. Как проверить
 
 ```
-# цитата C1 (судья, 1 из 5) — первоисточник лежит ВНЕ репо (§7.1a)
-$raw = "$env:LOCALAPPDATA\mscodebase\audit-cache\audit_devto_judgements\devto_4p1h_raw_fetch.md"
-Get-FileHash -Algorithm SHA256 $raw          # должно совпасть с sha выше
-Select-String -LiteralPath $raw -Pattern "one run in five"   # -> L1513
+# цитата C1 (судья, 1 из 5) — первоисточник удалён 2026-10-24 (§20.1)
+# sha256 сверяется по карантинному манифесту, сам текст не воспроизводим
+Get-Content "$env:LOCALAPPDATA\mscodebase\audit-cache\purged_third_party_2026-10-24\MANIFEST.sha256"
 # C4 (edge/стриминг)
 Select-String -LiteralPath $raw -Pattern "x-api-key"        # -> L1032
 # наш silent-zero guard: знаменатель 73
@@ -221,7 +217,7 @@ cd D:\Project\MSCodeBase; (Get-ChildItem scripts\*.py).Count; Select-String -Pat
 # гейт против возврата дампа в репозиторий
 python scripts\check_third_party_data.py --selftest; python scripts\check_third_party_data.py --all
 # неслитая ветка с рабочим gate
-git branch --contains 285dbc3f --format="%(refname:short)"
+git branch --contains 9462dc2f --format="%(refname:short)"
 ```
 
 ---
@@ -276,7 +272,7 @@ informed). Обе сбиты <12 строк, на вердикт не повли
 
 **A6. Root cause P1 был сначала сформулирован неверно.** Я записал «`gates.py` никогда не
 был в треке» — потому что `git ls-files tools` его не показал. `git log --all --follow`
-показал: коммит `285dbc3f`, файл цел (25 356 B), удаляющего коммита нет, ветка
+показал: коммит `9462dc2f`, файл цел (25 356 B), удаляющего коммита нет, ветка
 `feat/protocol-triage-and-t10-guards` не слита в HEAD. **Я обобщил «нет в HEAD» до «нет
 в истории»** — ровно тот сдвиг, который документирую в §7.1, только на себе.
 Правильный фикс — merge/cherry-pick, а не «восстановить в трек» и **не** «переписать с нуля».
@@ -285,7 +281,7 @@ Lesson: **`git ls-files` говорит о HEAD, а не об истории.** 
 
 **A7. Дубликат первоисточника — и вторая, более дорогая ошибка на Absence.**
 Загружая и замораживая тред, я **не проверил, нет ли уже замороженной копии**. Она была:
-`tools/knowledge/tom-devto-thread-FROZEN.md` (55 KB).
+второй слепок того же треда (удалён 2026-10-24 по §20.1, sha256 в карантинном манифесте).
 Хуже: увидев, что каталога нет в моём дереве, я записал в `KNOWN_ISSUES.md`
 **«исчез, потеря данных, git не вернёт»**. Это **было неверно** — каталог цел, он в
 worktree параллельной сессии (`mscb-wt-64\tools\knowledge\`, все 15 файлов, включая

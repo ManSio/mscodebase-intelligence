@@ -15,6 +15,8 @@ from src.core.search.engine import Searcher, _cache_key
 
 def _make_searcher():
     searcher = Searcher(MagicMock(), MagicMock())
+    searcher._dense_off = False
+    searcher._chunk_store = None
     searcher._bm25_search_async = AsyncMock(return_value=[])
     searcher._fts5_search_async = AsyncMock(return_value=[])
     searcher._ensure_multi_reranker_async = AsyncMock(return_value=None)

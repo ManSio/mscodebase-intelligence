@@ -115,5 +115,41 @@
       "stale_detector": "7609faea603ee03f1b9e34b4b30f3369b53d75f7dbcde291abefdee3fc1c71b8",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-10-24T09:51:28Z",
+    "reason": "stale_drift_fixture bytes re-normalized in working tree (CRLF); functional control re-proved independently: rc=0 + PASSED marker",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "58570c6f2a470ddf34bcefcf4bf97c549981481a30cc82804b367f658b151b2b",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-10-24T13:43:36Z",
+    "reason": "stale_config.json: exclude foreign-audit dirs (readme_clew_audit, tom_*, trap_rescore) from our-version drift; control re-proved rc=0 markers ok",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "34c531f16d19a637a048bcc58e9114eea817d53171f3ae8288a7a306fc7ba3b3",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-10-24T15:01:48Z",
+    "reason": "stale_check: isolate GIT_* env for stage/tracked discovery (hook-env fixture bug); control re-proved",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "338613dbbbc5647f894c71d37bb46731777e7bbc6a3c1f5bd3bbccbcd5e021a7",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
+  },
+  {
+    "pinned_at_utc": "2026-11-08T05:48:08Z",
+    "reason": "stale_check.py: capture_output -> Popen (MCP pipe deadlock); mutant still fails",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "2ccfb294583a201017e9118181cf94e53e5684095944f9e5831d9c33e9752ef0",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

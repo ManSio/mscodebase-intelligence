@@ -1,0 +1,23 @@
+{
+  "_note": "Reference plan authored by the experiment designer as a compiler test vector. It is NOT the planner's output. The planner sees only frozen/prompts/planner.md, the task file and the repo.",
+  "tasks": [
+    {
+      "id": "T1",
+      "goal": "Round a money amount half up to two decimal places.",
+      "symbol": "tinycalc.core.round_money",
+      "files": ["tinycalc/core.py"],
+      "depends_on": [],
+      "acceptance": "python -m pytest tests/test_public.py::test_round_money_basic -q",
+      "max_steps": 3
+    },
+    {
+      "id": "T2",
+      "goal": "Format the total of priced lines using the shared round_money helper.",
+      "symbol": "tinycalc.formatting.format_total",
+      "files": ["tinycalc/formatting.py"],
+      "depends_on": ["T1"],
+      "acceptance": "python -m pytest tests/test_public.py::test_total_half_up -q",
+      "max_steps": 3
+    }
+  ]
+}

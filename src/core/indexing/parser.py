@@ -520,10 +520,84 @@ class CodeParser:
             tree.root_node, code, file_path, chunks, symbols, parent_context=""
         )
 
+        # P3 drill-down: AST-чанкер дропал module-level docstrings index-wide,
+        # и passage, который реранкер скорит выше всех, не существовал как
+        # чанк. Файл с docstring + функциями получает docstring чанком 0;
+        # без docstring — поведение без изменений; walk без чанков —
+        # fallback как раньше (срез 0 и так содержит head файла).
+        if chunks:
+            module_chunk = self._extract_module_docstring(file_path, ext)
+            if module_chunk is not None:
+                chunks.insert(0, module_chunk)
+
         if not chunks:
             return self._fallback_line_chunking(file_path)
 
         return chunks, symbols
+
+    # Имя символа для module-docstring чанка (chunk 0). Непустое и
+    # greppable — так наличие чанков проверяется запросом к индексу.
+    MODULE_DOC_SYMBOL = "__module_doc__"
+
+    def _extract_module_docstring(self, file_path: Path, ext: str):
+        """Module-level docstring .py-файла как чанк (chunk 0).
+
+        Только Python (stdlib ast — робастно к версиям tree-sitter
+        грамматик): первый statement — строковый Expr → чанк в том же
+        формате, что _walk_node. Иначе None (поведение без изменений).
+
+        Symbols не трогаем: это чанк для поиска, не definition для графа.
+        """
+        if ext != ".py":
+            return None
+        try:
+            import ast
+
+            source = file_path.read_text(encoding="utf-8", errors="ignore")
+            tree = ast.parse(source)
+        except Exception:
+            return None
+        if not tree.body or not isinstance(tree.body[0], ast.Expr):
+            return None
+        first = tree.body[0]
+        value = first.value
+        if not (isinstance(value, ast.Constant) and isinstance(value.value, str)):
+            return None
+        if not value.value or not value.value.strip():
+            return None
+        try:
+            segment = ast.get_source_segment(source, first)
+        except Exception:
+            segment = None
+        text = segment.strip() if segment and segment.strip() else value.value.strip()
+        if len(text) > self.MAX_CHUNK_CHARS:
+            text = text[: self.MAX_CHUNK_CHARS] + "\n..."
+
+        rel_path = str(file_path)
+        prefix = f"// File: {rel_path}\n"
+        meta = self._build_chunk_metadata(
+            rel_path,
+            symbol_name=self.MODULE_DOC_SYMBOL,
+            node_type="module_docstring",
+            context="",
+        )
+        return {
+            "text": prefix + text,
+            "text_compact": prefix + text,
+            "file": rel_path,
+            "start_line": 1,
+            "end_line": first.end_lineno or 1,
+            "type": "module_docstring",
+            "context": "",
+            "symbol_name": self.MODULE_DOC_SYMBOL,
+            # Metadata (MCompassRAG + SproutRAG) — как у _walk_node
+            "layer": meta["layer"],
+            "module_name": meta["module_name"],
+            "hierarchy_level": meta["hierarchy_level"],
+            "is_public": meta["is_public"],
+            "symbol_type": meta["symbol_type"],
+            "parent_id": meta["parent_id"],
+        }
 
     def _get_signature_and_docstring(self, node, code):
         """Извлекает сигнатуру и docstring символа из tree-sitter узла.
@@ -817,6 +891,7 @@ class CodeParser:
             "fallback_lines": "lines",
             "giant_function_part": "function_part",
             "markdown_section": "section",
+            "module_docstring": "module",
         }
         hierarchy_level = hierarchy_map.get(node_type, "other")
 

@@ -9,8 +9,8 @@
 > Language: English per owner protocol §0.-2 (RU translation available on request).
 
 > **STATUS 2026-08-18 (late):** Фаза 0 + Фаза 1 executed on
-> `feat/universal-engine` (commits 7232a6e2, cb8f671f, 55a2af41, e661861f,
-> 7a8e703b, c9800368). Audit round (research agent findings): layer gate wired
+> `feat/universal-engine` (commits d35fd1e7, 5a611b4f, 3e69d168, 54acc263,
+> d6a80804, 3cdbdc8b). Audit round (research agent findings): layer gate wired
 > into pre-commit (installer + reinstall) and CI (ci.yml step); CI OS matrix
 > (ubuntu+windows) already present; KNOWN_ISSUES Фаза-0 drift corrected
 > (helpers' final home); platform_utils.get_zed_* deadline moved to Фаза 3
@@ -367,21 +367,21 @@ attacks passed before fix — new code is systematically leaky until proven othe
 
 **Фаза 3 — Streamable HTTP transport** per §3. DoD: transport-equivalence suite
 (E-07), auth (Bearer), rate limiting reuse, `/healthz`, Docker image.
-- Step 1-3 ✅ (8ecec52b): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
+- Step 1-3 ✅ (91f70e3a): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
   (Starlette /mcp+/healthz + Bearer-auth MSCODEBASE_REMOTE_TOKEN) + tests (5).
-- Step 4 ✅ (9e8b8491): remote-gate rate limit — reuse `SlidingWindowRateLimiter` +
+- Step 4 ✅ (59904f43): remote-gate rate limit — reuse `SlidingWindowRateLimiter` +
   `CircuitBreaker` (per-token sha256 + per-IP, MSCODEBASE_REMOTE_RATE_LIMIT_RPS,
   /healthz exempt; circuit breaker on /mcp via ASGI mount: 5xx→503, OPEN
   short-circuit); remote_main tests 5→13.
 - Remaining: step 5 Docker image+compose; E-07 stdio↔HTTP equivalence suite;
   deployment docs.
-- Step 5 ✅ (462ea66f): Docker (Variant A) — `deploy/docker/{Dockerfile, docker-compose.yml,
+- Step 5 ✅ (f7650184): Docker (Variant A) — `deploy/docker/{Dockerfile, docker-compose.yml,
   .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
   /healthz, `/data` volume; llama.cpp/reranker = optional external service (Variant C).
 - Remaining Phase 3: E-07 stdio↔HTTP equivalence suite; live image build on CI /
   owner machine (Docker not available in sandbox, not run locally); rolling-restart
   deployment docs (multi-instance) later (ТЗ §9б-7).
-- E-07 ✅ (76646a0e): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
+- E-07 ✅ (69d3432d): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
   + `E07_RESULTS.md`. Toy mode (minimal FastMCP) PASSED live 2/2 (ping-result +
   bad-args identical over stdio/HTTP) — harness proven. Engine mode (real
   create_mcp_server) shared harness, live run deferred to CI/idle (2nd MCP /
@@ -389,7 +389,7 @@ attacks passed before fix — new code is systematically leaky until proven othe
 
 **Фаза 4 — Plugin manifest** per §5. DoD: PoC plugin (VOR `verify_claim` extracted),
 RCE negative-control tests, version-mismatch tests, trust-gate UX.
-- v1 ✅ (ae2b01bb): trust-gate foundation — `src/plugins/{manifest, trust_store, loader}.py`
+- v1 ✅ (1e8848e6): trust-gate foundation — `src/plugins/{manifest, trust_store, loader}.py`
   (schema/version/platform/engine-compat validation, sha256-pin per id@version,
   TOCTOU re-hash before import, default-deny resolver, self-check P-001) +
   `tests/test_plugins.py` (15: RCE no-exec, trust first-then-cached, sha-drift,
@@ -397,7 +397,7 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 - PoC plugin ✅: `examples/plugins/verify_claim/` (deterministic VOR, no LLM).
 - Increments (next round): subprocess-isolation runner + MCP proxy + wiring into
   DI/server and trust-gate UX (publisher prompt) — plan §5.4/§5.6.
-- Subprocess isolation ✅ (898e88f0): `src/plugins/{runner, proxy}.py` — host does
+- Subprocess isolation ✅ (a75fa390): `src/plugins/{runner, proxy}.py` — host does
   trust-gate WITHOUT import (preauthorize_plugin), runner executes plugin in a SEPARATE
   process (fail-closed, JSON-RPC/stdio), proxy proxies. tests/test_plugins_subprocess.py
   (5): untrusted no-spawn/no-exec, process isolation (host-module mutation not visible),
@@ -406,7 +406,7 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 - Remaining Phase 4: MCP proxy wiring into server (register plugin tools as engine MCP
   tools), trust-gate UX (publisher prompt: name/version/publisher/sha256),
   dependencies scan (pip-audit style, §5.1).
-- MCP-proxy wiring ✅ (2f30f585): `registry.py` (PluginRegistry: discover/preauthorize/
+- MCP-proxy wiring ✅ (39d5b888): `registry.py` (PluginRegistry: discover/preauthorize/
   spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-gate UX: trust_prompt,
   make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (== pin validation),
   manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end via PoC
@@ -416,7 +416,7 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.
-- ✅ (1f07952a): `adapters/clients/` configs (Claude Code `mcpServers`, VS Code/Cursor
+- ✅ (f09bcdcf): `adapters/clients/` configs (Claude Code `mcpServers`, VS Code/Cursor
   `servers`) — stdio (venv py `-m src.main` + PYTHONPATH + cwd) + http remote
   (Streamable HTTP /mcp + Bearer); README placeholders. `src/cli.py` — thin wrapper
   that calls tool-classes through DI without MCP (curated allowlist), JSON in/out,
@@ -669,7 +669,7 @@ broken fixture → fix the extractor, not the fixture.
 spec as string, kind manifest/lockfile); `python -m pytest tests/` green + ruff
 clean; parity check of our extractors vs osv-scanner on same corpus — diff 0
 (Option B, CI); update ADR-0005 / KNOWN_ISSUES when expanding sources.
-**Status 2026-08-19:** foundation ✅ `11c71262` — `src/sources/manifest/`
+**Status 2026-08-19:** foundation ✅ `bb55a053` — `src/sources/manifest/`
 (ManifestEntry + dispatch; python: pyproject dependency-groups/Pipfile/requirements*
 + npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Tests on real
 fixtures uv/requests/pipenv/express + edge-cases (09). pytest 1396 (+9).

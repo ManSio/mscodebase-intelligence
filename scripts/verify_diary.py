@@ -7,10 +7,12 @@ verify_diary.py — Ledger-проверка AGENT_DIARY.md против реал
   python scripts/verify_diary.py --fix-missing        # интерактивное добавление маркеров
 """
 import argparse
+import json
 import os
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Set, Tuple
@@ -288,7 +290,7 @@ def parse_diary() -> List[DiaryEntry]:
             _line_no_runid = re.sub(
                 r'\bRUN[_ ]?ID\s*[=:]?\s*[a-f0-9]{7,40}',
                 '', line, flags=re.IGNORECASE)
-            for c in re.findall(r'(?<![a-f0-9A-F])([a-f0-9]{7,40})(?![a-f0-9A-F])', _line_no_runid):
+            for c in re.findall(r'(?<![a-f0-9A-F_])([a-f0-9]{7,40})(?![a-f0-9A-F_])', _line_no_runid):
                 if c in _COMMIT_EXCLUDE:
                     continue
                 if c.startswith('c0000') or c.startswith('0000'):
@@ -376,6 +378,75 @@ def _kill_git_tree(proc: subprocess.Popen) -> None:
         pass  # аварийная ветка: утечка одной цепочки лучше, чем петля kill
 
 
+def _commit_creation_flags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(
+        subprocess, "DETACHED_PROCESS", 0
+    )
+
+
+# Результаты батч-проверки коммитов. Заполняется ОДНИМ процессом
+# `git cat-file --batch-check` (см. resolve_commits), а не N процессами.
+_COMMIT_CACHE: dict[str, bool] = {}
+
+
+# git недоступен/завис: коммиты не проверяем, но и не обвиняем (fail-open
+# по проверке, fail-closed по молчанию — статус виден в результате ledger).
+_GIT_UNAVAILABLE = False
+
+
+def resolve_commits(hashes: List[str]) -> None:
+    """Проверить пачку коммитов ОДНИМ процессом git.
+
+    Зачем (2026-11-07): ledger вызывал `git cat-file -t` на каждый хеш —
+    десятки процессов подряд. На Windows каждый спавн под Defender занимал
+    секунды, и они конкурировали с health-проверкой (`git log` таймаутил).
+    `cat-file --batch-check` решает ту же задачу за один старт (~50 мс).
+    """
+    pending = sorted({h for h in hashes if len(h) >= 7 and h not in _COMMIT_CACHE})
+    if not pending:
+        return
+    try:
+        proc = subprocess.Popen(
+            ["git", "cat-file", "--batch-check"],
+            cwd=str(ROOT),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_commit_creation_flags(),
+        )
+        out, _ = proc.communicate("\n".join(pending) + "\n", timeout=30)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        # Не запускаем N поштучных попыток по 30 с: в этом процессе git может
+        # висеть, и fallback превращает ledger в 30-минутный шторм спавнов.
+        global _GIT_UNAVAILABLE
+        _GIT_UNAVAILABLE = True
+        return  # батч не удался → см. check_commit_exists (fail-open)
+
+    found: list[str] = []
+    missing: set[str] = set()
+    for line in (out or "").splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        if parts[1] == "missing":
+            missing.add(parts[0])
+        elif parts[0]:
+            found.append(parts[0])
+    for h in pending:
+        # Чисто числовые токены — run-ID/byte-count/дата (issue #24), а не
+        # коммит: их решает digit-guard в check_commit_exists. Кэшировать
+        # False здесь нельзя, иначе guard обходится и ledger ложно падает.
+        if h.isdigit():
+            continue
+        if h in missing:
+            _COMMIT_CACHE[h] = False
+        elif any(full.startswith(h) for full in found):
+            _COMMIT_CACHE[h] = True
+
+
 def check_commit_exists(commit_hash: str) -> bool:
     """Проверяет наличие коммита в истории.
 
@@ -387,6 +458,11 @@ def check_commit_exists(commit_hash: str) -> bool:
     → ложные «не найден» в Contradiction Ledger (флапало 22:02–23:47, 1→3
     расхождения при одном и том же diary).
     """
+    if commit_hash in _COMMIT_CACHE:
+        return _COMMIT_CACHE[commit_hash]
+    if _GIT_UNAVAILABLE:
+        # Проверка невозможна: не выдаём ложное «коммит не найден».
+        return True
     for _attempt in range(2):
         try:
             proc = subprocess.Popen(
@@ -456,7 +532,14 @@ def gate_zero_full_suite() -> Tuple[bool, str]:
         ]
         try:
             import xdist  # noqa: F401
-            pytest_cmd += ["-n", "auto"]
+            # 2026-11-07: `-n auto` сделал гейт флакующим (разные прогоны дали
+            # 4 / 31 / 5 / 1 падений). Причина — тесты со спавном git
+            # (temporal_facts_generator: "десятки git-подпроцессов") под 16
+            # воркерами упираются в конкуренцию за процессы и падают на
+            # здоровом коде. Серийный прогон ~250s при бюджете 900s — дешевле,
+            # чем перезапускать хук. Параллель — только явно.
+            if os.getenv("MSCB_GATE_PARALLEL") == "1":
+                pytest_cmd += ["-n", "auto"]
         except ImportError:
             pass
         proc = subprocess.Popen(
@@ -500,6 +583,11 @@ def run_verification(entries: List[DiaryEntry], fix_missing: bool = False) -> Tu
     passed = 0
     failed = 0
     issues = []
+
+    # Один процесс git на весь ledger вместо N (см. resolve_commits).
+    resolve_commits(
+        [c for e in entries for c in e.commits if len(c) >= 7]
+    )
 
     for entry in entries:
         entry_issues = []
@@ -575,9 +663,63 @@ def interactive_fix(entries: List[DiaryEntry]) -> None:
     print(f"\n✅ {DIARY} обновлён")
 
 
+_LEDGER_CACHE_TTL_SEC = 6 * 3600
+
+
+def _read_head_sha() -> str:
+    """HEAD из файлов .git — БЕЗ subprocess.
+
+    `git rev-parse` в этом процессе может висеть (наблюдение 2026-11-07:
+    любой git-спавн из MCP не укладывается даже в 10 с). Для ключа кэша
+    достаточно прочитать .git/HEAD и ref — это просто файлы.
+    """
+    git_dir = ROOT / ".git"
+    try:
+        head = (git_dir / "HEAD").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    if not head.startswith("ref:"):
+        return head
+    ref = head[5:].strip()
+    ref_path = git_dir / ref
+    try:
+        return ref_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    try:
+        for line in (git_dir / "packed-refs").read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith("#") and line.endswith(" " + ref):
+                return line.split()[0]
+    except OSError:
+        pass
+    return ""
+
+
+def _ledger_cache_path() -> Path:
+    return ROOT / ".mscodebase" / "contradiction_ledger.json"
+
+
+def _ledger_cache_key() -> dict:
+    """Ключ кэша: дневник (mtime/size/sha) + HEAD. Меняется — перепроверяем."""
+    import hashlib
+
+    st = DIARY.stat()
+    return {
+        "diary_mtime_ns": st.st_mtime_ns,
+        "diary_size": st.st_size,
+        "head": _read_head_sha(),
+        "diary_sha": hashlib.sha256(DIARY.read_bytes()).hexdigest()[:16],
+    }
+
+
 def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
     """Runs contradiction ledger check. Returns dict, never sys.exit.
     Used by MCP startup for safe import-time validation.
+
+    Кэш (2026-11-07): полная проверка на старте занимала ~2.5 мин (34 записи,
+    rglob по tests/ на каждый символ) и насыщала диск так, что health-проба
+    `git log` таймаутила. Результат кэшируется на 6 ч и переиспользуется, пока
+    не изменились дневник (mtime/size/sha) и HEAD.
 
     Args:
         project_root: опциональный путь к проекту (если не указан — использует ROOT).
@@ -589,17 +731,43 @@ def run_contradiction_ledger(project_root: Optional[Path] = None) -> dict:
         # Обновляем DIARY для нового ROOT
         global DIARY
         DIARY = ROOT / "AGENT_DIARY.md"
+
+    cache_path = _ledger_cache_path()
+    try:
+        cache = json.loads(cache_path.read_text(encoding="utf-8"))
+        key = _ledger_cache_key()
+        fresh = (time.time() - float(cache.get("ts", 0))) < _LEDGER_CACHE_TTL_SEC
+        if fresh and cache.get("key") == key:
+            result = dict(cache.get("result") or {})
+            result["cached"] = True
+            return result
+    except (OSError, ValueError, KeyError):
+        pass
+
     # Gate-zero: full test suite — ТОЛЬКО для CLI, не для старта сервера.
     # На сервере pytest tests/ создаёт лишние процессы на 120 секунд.
     entries = parse_diary()
     passed, failed, issues = run_verification(entries)
-    return {
+    result = {
         "ok": failed == 0,
         "discrepancies": failed,
         "claims": passed + failed,
         "commits": sum(len(e.commits) for e in entries),
+        "git_unavailable": _GIT_UNAVAILABLE,
         "details": issues,
     }
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(
+            json.dumps(
+                {"ts": time.time(), "key": _ledger_cache_key(), "result": result},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+    return result
 
 
 def main():

@@ -1,7 +1,9 @@
-"""Guard: выводы экспериментов не индексируются (experiments/**/results|work).
+"""Guard: experiments/** не индексируется (E52).
 
-Замер 2026-09-28: 3127/15426 чанков (20.3%) — мусор (ctx-дампы, judged_raw).
-Git-трекинг не трогаем (§17) — только индекс.
+Раньше исключались только results/work; frozen-панели индексировались и
+утекали в BM25 (E51: 19/48 запросов находили файл панели). E41: удаление
+experiments/** не ухудшает hit@1 и ускоряет поиск. Git-трекинг не трогаем
+(§17) — только индекс.
 """
 from __future__ import annotations
 
@@ -23,11 +25,11 @@ def test_results_and_work_excluded():
     )
 
 
-def test_sources_and_frozen_kept():
-    assert not SystemArtifacts.is_experiment_output(
+def test_all_experiments_excluded():
+    assert SystemArtifacts.is_experiment_output(
         Path("experiments/4A_unit_of_return/run_experiment.py")
     )
-    assert not SystemArtifacts.is_experiment_output(
+    assert SystemArtifacts.is_experiment_output(
         Path("experiments/4A_unit_of_return/frozen/f5/queries.jsonl")
     )
     assert not SystemArtifacts.is_experiment_output(Path("src/core/search/engine.py"))
@@ -43,4 +45,4 @@ def test_fileguard_skips_experiment_output(tmp_path):
 
     src = tmp_path / "experiments" / "x" / "run.py"
     src.write_text("x = 1\n", encoding="utf-8")
-    assert guard.is_safe_to_index(src) is True
+    assert guard.is_safe_to_index(src) is False

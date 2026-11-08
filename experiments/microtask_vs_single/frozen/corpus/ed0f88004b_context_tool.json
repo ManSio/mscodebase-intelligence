@@ -1,0 +1,38 @@
+{
+  "task_id": "ed0f88004b_context_tool",
+  "source": "own-repo-history",
+  "parent_sha": "abc5b0da4ce22f19167aa97b78561b52a85d3bbf",
+  "fix_sha": "ed0f88004bb56a628b38d10bd89e81dabbd16c5e",
+  "subject": "feat(mcp): graph-backed sections in get_context with structured handoff and VOR filter (#30)",
+  "src_file": "src/mcp/tools/context_tool.py",
+  "src_files": [
+    "src/mcp/tools/context_tool.py"
+  ],
+  "test_file": "tests/test_context_sections.py",
+  "test_files": [
+    "tests/test_context_sections.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_context_sections.py::test_dataflow_no_candidates_returns_none",
+    "tests/test_context_sections.py::test_dataflow_renders_condition_path",
+    "tests/test_context_sections.py::test_memory_vor_filter",
+    "tests/test_context_sections.py::test_new_sections_declared_in_intents",
+    "tests/test_context_sections.py::test_receipts_empty_returns_none",
+    "tests/test_context_sections.py::test_receipts_filter_by_file",
+    "tests/test_context_sections.py::test_source_uses_meta_no_regex",
+    "tests/test_context_sections.py::test_writes_degrades_without_graph"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

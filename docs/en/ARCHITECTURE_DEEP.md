@@ -4,9 +4,14 @@
 
 > **Version:** v3.5.0 | **Last updated:** 2026-08-12
 
+> **Phase 3 status (2026-10-25):** default is text-first (SQLite FTS5/BM25 +
+> PropertyGraph); vector/LanceDB and phi-4 `ask` mode are optional. This is a
+> historical deep-dive; current contract and limits are in
+> [README.md](../../README.md).
+
 ```mermaid
 flowchart TD
-    User[User / AI Agent] --> MCP[MCP Server\n61 tools]
+    User[User / AI Agent] --> MCP[MCP Server\n64 tools]
     MCP --> DI[DI Container\n15+ services]
     DI --> Search[Search Pipeline]
     DI --> Index[Indexing Pipeline]
@@ -207,7 +212,7 @@ sequenceDiagram
     end
     
     DI-->>MCP: Container ready
-    MCP->>MCP: Register 61 tools
+    MCP->>MCP: Register 64 tools
     MCP-->>Zed: Server ready (PID announced)
     
     Note over Zed,DB: Total startup: ~2-5s (async embedder init)

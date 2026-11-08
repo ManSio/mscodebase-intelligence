@@ -28,6 +28,21 @@ from typing import List, Optional, Set, Tuple
 logger = logging.getLogger(__name__)
 
 
+def _ledger_autosync_enabled() -> bool:
+    """Реестры (KNOWN_ISSUES/AGENT_DIARY) — документы агента, не автодока.
+
+    Автосинк трижды дописывал сотни строк в трекнутый KNOWN_ISSUES.md
+    (2026-09-30 ×2: +267 и +241 строки; 2026-11-07: +242) и ломал гейт
+    check_known_issues. Включается только явно: MSCODEBASE_AUTODOC_LEDGERS=1.
+    """
+    return os.getenv("MSCODEBASE_AUTODOC_LEDGERS", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
 @dataclass
 class BrokenRef:
     """Одна битая ссылка в документации."""
@@ -102,12 +117,20 @@ class AutoDocUpdater:
         except Exception as e:
             errors.append(f"❌ README.md: {e}")
 
-        # Шаг 3: KNOWN_ISSUES.md синхронизация
-        try:
-            known_changed = self._sync_known_issues(root)
-            steps.append(f"✅ KNOWN_ISSUES.md: {'синхронизирован' if known_changed else 'актуален'}")
-        except Exception as e:
-            errors.append(f"❌ KNOWN_ISSUES.md: {e}")
+        # Шаг 3: KNOWN_ISSUES.md — это РЕЕСТР (его ведёт агент по протоколу),
+        # а не автогенерируемый документ. Автосинк уже трижды дописывал сотни
+        # строк в трекнутый файл и ломал гейт. По умолчанию не трогаем.
+        if _ledger_autosync_enabled():
+            try:
+                known_changed = self._sync_known_issues(root)
+                steps.append(f"✅ KNOWN_ISSUES.md: {'синхронизирован' if known_changed else 'актуален'}")
+            except Exception as e:
+                errors.append(f"❌ KNOWN_ISSUES.md: {e}")
+        else:
+            steps.append(
+                "⏭ KNOWN_ISSUES.md: пропущен (реестр агента; "
+                "MSCODEBASE_AUTODOC_LEDGERS=1 чтобы включить)"
+            )
 
         # Собираем отчёт
         report_lines = [
@@ -368,11 +391,76 @@ class AutoDocUpdater:
         if not new_entries:
             return False
 
+        # R1: если файл превысил 300 строк — архивируем старые записи перед
+        # добавлением новых, иначе автосинк сам становится драйвером переполнения.
+        if len(known_text.splitlines()) > 300:
+            known_text = self._archive_old_entries(known_path, known_text)
+
         # Добавляем новые записи перед последней строкой
         new_text = known_text.rstrip() + "\n" + "\n".join(new_entries) + "\n"
         known_path.write_text(new_text, encoding="utf-8")
         logger.info("KNOWN_ISSUES.md: добавлено %d записей", len(new_entries))
         return True
+
+    def _archive_old_entries(self, known_path: Path, known_text: str) -> str:
+        """Архивирует записи старше 1 календарного месяца из KNOWN_ISSUES.md.
+
+        Возвращает обрезанный текст с только актуальными записями.
+        """
+        from datetime import datetime
+
+        lines = known_text.splitlines()
+        heads = [i for i, line in enumerate(lines) if line.startswith("## ")]
+
+        if not heads:
+            return known_text
+
+        now = datetime.now()
+        # Архивируем всё, что из предыдущих месяцев (старше текущего календарного)
+        cutoff_date = datetime(now.year, now.month, 1)
+
+        header = lines[:heads[0]]
+        live_blocks: List[str] = []
+        archive_by_month: dict[tuple[int, int], List[str]] = {}
+
+        for i in range(len(heads)):
+            start = heads[i]
+            end = heads[i + 1] if i + 1 < len(heads) else len(lines)
+            block = lines[start:end]
+
+            m = re.search(r"\[(\d{4})-(\d{2})", block[0])
+            if m:
+                year, month = int(m.group(1)), int(m.group(2))
+                entry_date = datetime(year, month, 1)
+                if entry_date < cutoff_date:
+                    key = (year, month)
+                    archive_by_month.setdefault(key, []).extend(block)
+                    archive_by_month[key].append("")
+                    continue
+
+            live_blocks.extend(block)
+            live_blocks.append("")
+
+        # Пишем архив (append-only, за §4.8 R4) — только если есть что архивировать
+        if archive_by_month:
+            archive_dir = known_path.parent / "docs" / "archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+
+            for (year, month), blocks in archive_by_month.items():
+                archive_file = archive_dir / f"KNOWN_ISSUES_{year}_{month:02d}.md"
+            archive_text = "\n".join(blocks).rstrip() + "\n"
+            if archive_file.exists():
+                existing = archive_file.read_text(encoding="utf-8", errors="replace")
+                archive_file.write_text(
+                    existing.rstrip() + "\n\n---\n\n" + archive_text,
+                    encoding="utf-8",
+                )
+            else:
+                archive_file.write_text(archive_text, encoding="utf-8")
+
+        # Возвращаем обрезанный текст
+        live_text = "\n".join(header + live_blocks).rstrip() + "\n"
+        return live_text
 
     # ─── Internal: верификация code-референсов в .md ──────
 

@@ -1,0 +1,13 @@
+{
+  "task_id": "e7dc645652_project_resolution_noop",
+  "class": "no-op",
+  "snapshot_sha": "e7dc645652a598b31afdf018844b2c9be6d5e0d2",
+  "src_file": "src/core/project_resolution.py",
+  "test_file": "tests/test_project_resolution_multiwindow.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_project_resolution_multiwindow.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/core/project_resolution.py",
+  "unchanged_sha": "9b974b251251f793430b6666ca38eaa754f9adaf1c3fd30f77c07a7ac3b3e4f7",
+  "text": "Check that `src/core/project_resolution.py` already behaves the way its own test file `tests/test_project_resolution_multiwindow.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}

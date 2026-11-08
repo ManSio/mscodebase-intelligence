@@ -28,6 +28,7 @@ from src.utils.i18n import _
 from .agentic_search import AgenticSearchMixin
 from .bm25 import BM25Mixin
 from .fts5_mixin import FTS5Mixin
+from .ondemand_rerank import rerank_by_cosine, split_embed_inputs
 from .scoring import (
     _apply_co_change_boost,
     apply_bucket_weights,
@@ -71,6 +72,15 @@ def _cache_key(*parts: str) -> str:
 # который обязан перевешивать семантический мусор dense-поиска
 # (аудит Bot_snow BS-2/BS-4: точные хиты вытеснялись случайными чанками).
 _IDENTIFIER_QUERY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{1,63}$")
+
+# E33: non-code directories demoted in the fused pool (tests/docs/etc.).
+_NON_CODE_PREFIXES = (
+    "tests/",
+    "test/",
+    "docs/",
+    "experiments/",
+    "fixtures/",
+)
 
 # Вариант A (2026-08-17): doc-чанки не бустуются точным именем символа.
 # KNOWN_ISSUES/docs/adr цитируют имена кода ("class PropagationEngine") и раньше
@@ -420,6 +430,26 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._fts5 = None  # FTS5IndexManager (lazy)
         self._fts5_lock = threading.Lock()
         self._bm25_df: Any = None
+        self._bm25_rows = None
+        self._bm25_idf: Dict[str, float] = {}
+        self._bm25_doc_len: Dict[str, int] = {}
+        self._bm25_avgdl: float = 0.0
+        _search_cfg = get_config().search
+        self._code_bm25 = bool(getattr(_search_cfg, "code_bm25", False))
+        self._code_bm25_k1 = float(getattr(_search_cfg, "code_bm25_k1", 1.2))
+        self._code_bm25_b = float(getattr(_search_cfg, "code_bm25_b", 0.45))
+        self._code_bm25_stopwords = bool(
+            getattr(_search_cfg, "code_bm25_stopwords", True)
+        )
+        self._demote_non_code = bool(
+            getattr(_search_cfg, "demote_non_code", False)
+        )
+        self._demote_intent_aware = bool(
+            getattr(_search_cfg, "demote_intent_aware", False)
+        )
+        self._p3_anchor = bool(getattr(_search_cfg, "p3_anchor", False))
+        self._docs_margin = float(getattr(_search_cfg, "docs_margin", 4.0))
+        self._ru_synonyms = bool(getattr(_search_cfg, "ru_synonyms", False))
         self._tokenizer_re = re.compile(r"\W+")
         self._reranker = SearchResultReranker(
             bm25_weight=get_config().search.bm25_weight,
@@ -435,6 +465,41 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         self._tests_signal = bool(
             getattr(get_config().search, "tests_signal", False)
         )
+        # On-demand rerank (E25, Фаза 2): MSCODEBASE_ONDEMAND_RERANK=true.
+        # Скорит top-N fused-кандидатов живыми эмбеддингами вместо BGE.
+        # Off по умолчанию — поведение поиска неизменно без флага.
+        self._ondemand_rerank = bool(
+            getattr(get_config().search, "ondemand_rerank", False)
+        )
+        self._ondemand_rerank_top_n = int(
+            getattr(get_config().search, "ondemand_rerank_top_n", 10) or 10
+        )
+        self._ondemand_rerank_max_chars = int(
+            getattr(get_config().search, "ondemand_rerank_max_chars", 1600) or 1600
+        )
+        # Dense-off (E28, Фаза 3): MSCODEBASE_DENSE_OFF=true → dense-тир выключен,
+        # кандидаты только из BM25/FTS5/graph. Off по умолчанию.
+        self._dense_off = bool(
+            getattr(get_config().search, "dense_off", False)
+        )
+        # Phase 3: SQLite/FTS5 chunk store (text only, no stored vectors).
+        # When enabled, candidate retrieval bypasses LanceDB entirely.
+        self._sqlite_chunks = bool(
+            getattr(get_config().search, "sqlite_chunks", False)
+        )
+        self._chunk_store = None
+        if self._sqlite_chunks or self._dense_off:
+            try:
+                from src.core.indexing.chunk_store import (
+                    SQLiteChunkStore,
+                    get_chunks_db_path,
+                )
+
+                _project = getattr(self.indexer, "project_path", None)
+                if _project is not None:
+                    self._chunk_store = SQLiteChunkStore(get_chunks_db_path(_project))
+            except Exception as _cs_err:
+                logger.warning(f"SQLite chunk store init failed: {_cs_err}")
         self._multi_reranker: Optional[MultiProviderReranker] = None
         self._multi_reranker_initialized: bool = False
         self._multi_reranker_lock: Optional[asyncio.Lock] = None  # lazy: создаётся при первом async-вызове (привязка к event loop)
@@ -472,6 +537,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 logger.debug(f"Close MultiProviderReranker: {e}")
             finally:
                 self._multi_reranker = None
+        if getattr(self, "_chunk_store", None) is not None:
+            try:
+                self._chunk_store.close()
+            except Exception:
+                pass
                 self._multi_reranker_initialized = False
         # Закрываем async LanceDB соединение Indexer-а
         if self.indexer is not None and hasattr(self.indexer, "close_async"):
@@ -818,6 +888,159 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             logger.debug(f"[P2-anchor] +{added} exact-symbol chunks for {tokens}")
         return pool
 
+    async def _anchor_module_head_chunks_async(
+        self, pool: List[dict], query: str, limit: int
+    ) -> List[dict]:
+        """P3: anchor each candidate file's module-head chunk pre-rerank.
+
+        The reranker scores module-head/docstring chunks highest (persisted
+        probes: experiments/reranker_p3/rerank_probe_run{1,2}.json — gold_doc
+        #1 on 6/6 holdout-style queries; the eval code-chunk logit is P3
+        -0.99 / R2 -2.60 per EXPERIMENTS_LOG.md:2809), but the head never
+        enters the pool when multi-term RRF surfaces only a code chunk of
+        the file. For each distinct pool file (pool order), the chunk_index-0
+        head is resolved from the cached BM25 DataFrame (no new index
+        structures) and appended pre-rerank (tail, no re-sort — the reranker
+        re-sorts by its own scores), deduplicated by file:chunk_index,
+        capped at _O1_ANCHOR_TOTAL and MAX_RERANKER_INPUT — same bounds as
+        the P2 anchor above. Doc/data files are ineligible (P2/A2 doc-guard:
+        docs cite symbols without defining them). Any failure degrades to
+        the unanchored pool. limit<=0 keeps the empty contract.
+        """
+        if limit <= 0:
+            return pool
+        df = None
+        try:
+            self._build_bm25_index()
+            df = self._bm25_df
+        except Exception:  # noqa: BLE001 — degraded BM25 never breaks search
+            df = None
+        if df is None and getattr(self, "_chunk_store", None) is None:
+            return pool
+        have = set()
+        for r in pool:
+            meta = r.get("metadata") or {}
+            have.add(f"{meta.get('file', '?')}:{meta.get('chunk_index', 0)}")
+        added = 0
+        seen_files = set()
+        for r in pool:
+            if added >= _O1_ANCHOR_TOTAL or len(pool) >= MAX_RERANKER_INPUT:
+                break
+            meta = r.get("metadata") or {}
+            fname = str(meta.get("file", "") or "")
+            if not fname or fname in seen_files:
+                continue
+            seen_files.add(fname)
+            if not _is_anchor_eligible(r):
+                continue
+            try:
+                row = None
+                if df is not None:
+                    match = df[(df["file_path"] == fname) & (df["chunk_index"] == 0)]
+                    if not match.empty:
+                        row = match.iloc[0]
+                if row is None and self._chunk_store is not None:
+                    chunk = self._chunk_store.get_file_head(fname)
+                    if chunk:
+                        hmeta = chunk.get("metadata") or {}
+                        row = {
+                            "file_path": fname,
+                            "chunk_index": hmeta.get("chunk_index", 0),
+                            "text": chunk.get("text", ""),
+                            "text_full": chunk.get("text_full", chunk.get("text", "")),
+                            "indexed_at": hmeta.get("indexed_at", ""),
+                            "layer": hmeta.get("layer", ""),
+                        }
+                if row is None:
+                    continue
+            except Exception:  # noqa: BLE001 — one bad file never breaks search
+                continue
+            key = f"{row['file_path']}:{row['chunk_index']}"
+            if key in have:
+                continue
+            pool.append(
+                {
+                    "text": str(row["text"]),
+                    "text_full": str(row.get("text_full", row["text"])),
+                    "metadata": {
+                        "file": str(row["file_path"]),
+                        "chunk_index": int(row["chunk_index"]),
+                        "indexed_at": str(row.get("indexed_at", "")),
+                        "layer": str(row.get("layer", "")),
+                    },
+                    "module_head_anchor": True,
+                }
+            )
+            have.add(key)
+            added += 1
+        if added:
+            logger.debug(f"[P3-anchor] +{added} module-head chunks")
+        return pool
+
+    async def _sqlite_hybrid_search_async(
+        self,
+        query: str,
+        limit: int,
+        layer: Optional[str] = None,
+        tracer: Optional[SearchTracer] = None,
+    ) -> List[dict]:
+        """Phase 3 candidate retrieval: SQLite FTS5 + on-demand rerank.
+
+        No LanceDB table access: candidates come from the persistent SQLite
+        chunk store, vectors are recomputed only for the top-N pool.
+        """
+        raw_limit = min(max(int(limit) * 4, 20), 50)
+        candidates = await asyncio.to_thread(
+            self._chunk_store.search, query, raw_limit
+        )
+        if layer:
+            candidates = [
+                r
+                for r in candidates
+                if (r.get("metadata") or {}).get("layer") == layer
+            ]
+
+        # Deterministic graph bucket (PropertyGraph is a separate SQLite DB).
+        _symbolish = bool(re.search(r"[_\.::/]", query)) or _IDENTIFIER_QUERY_RE.match(
+            query.strip()
+        )
+        if _symbolish:
+            try:
+                graph_results = self._graph_stage(query, raw_limit, layer=layer)
+            except Exception:
+                graph_results = []
+            if graph_results:
+                seen = {
+                    f"{r.get('metadata', {}).get('file', '')}:"
+                    f"{r.get('metadata', {}).get('chunk_index', '')}"
+                    for r in candidates
+                }
+                for gr in graph_results:
+                    meta = gr.get("metadata", {})
+                    key = f"{meta.get('file', '')}:{meta.get('chunk_index', '')}"
+                    if key not in seen:
+                        seen.add(key)
+                        candidates.append(gr)
+
+        if not candidates:
+            self._last_rerank_timing = {}
+            return []
+
+        # On-demand rerank: embed only top-N live (E25), no stored vectors.
+        if self._ondemand_rerank:
+            final_results = await self._apply_ondemand_reranker_async(
+                query, candidates, limit
+            )
+        else:
+            self._last_rerank_timing = {"mode": "sqlite_fts5", "ms": 0.0}
+            final_results = candidates[: max(int(limit), 0)]
+
+        final_results = _boost_exact_name_matches(final_results, query)
+        final_results = _dedupe_by_symbol(final_results)
+        if tracer:
+            tracer.record_final(final_results)
+        return final_results[: max(int(limit), 0)]
+
     async def hybrid_search_async(
         self,
         query: str,
@@ -868,6 +1091,26 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         if not query or not query.strip():
             return []
 
+        # ── Phase 3: SQLite/FTS5 path (no LanceDB vector table) ─────────────
+        # Candidate retrieval is done by SQLite FTS5; vectors are computed
+        # on demand only for the top-N candidates (E25). This path never
+        # touches self.indexer.table.
+        #
+        # Условие — `dense_off`, а НЕ `table is None`: Indexer создаёт объект
+        # LanceDB-таблицы даже при dense_off=true (пустую), и старое условие
+        # молча уводило запрос в пустой dense-тир → «ничего не найдено» при
+        # 2 чанках в chunks.db (tests/test_integration.py, 2026-11-08).
+        if self._chunk_store is not None and (
+            self._dense_off or getattr(self.indexer, "table", None) is None
+        ):
+            try:
+                if self._chunk_store.count() > 0:
+                    return await self._sqlite_hybrid_search_async(
+                        query, limit, layer=layer, tracer=tracer
+                    )
+            except Exception as _sq_err:
+                logger.warning(f"SQLite chunk store path failed: {_sq_err}")
+
         # ── Symbol Graph Path (Вариант А, Step 2): deterministic short-circuit ──
         # Для идентификатор-запросов граф даёт точную локацию за ~6.8ms и полностью
         # заменяет векторный поиск (~3600ms). NL-запросы → graph [], идём вниз.
@@ -887,6 +1130,12 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Query Expansion: генерируем варианты запроса
         if expand:
             query_variants = _expand_query(query, max_expansions=3)
+            if self._ru_synonyms:
+                from .synonyms_ru import expand_ru_variants
+
+                query_variants = expand_ru_variants(
+                    query, query_variants, max_expansions=4
+                )
         else:
             query_variants = [query]
 
@@ -923,7 +1172,9 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
             # Векторный поиск (dense) — с prefilter в LanceDB
             # (варианты синонимов дают те же эмбеддинги)
-            if variant == query and not all_dense_results:
+            # MSCODEBASE_DENSE_OFF=true (E28, Фаза 3): гасит dense-тир целиком —
+            # и эмбеддинг запроса, и vector search. Default OFF.
+            if variant == query and not all_dense_results and not self._dense_off:
                 try:
                     # ── Embedding cache ──
                     query_hash = _cache_key(variant)
@@ -1042,6 +1293,25 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                     _boosts[key] = 1.0
             tracer.record_co_change(rrf_results, _boosts)
 
+        # E33: deterministic non-code demotion in the fused pool (before cut).
+        if self._demote_non_code:
+            _prefixes = _NON_CODE_PREFIXES
+            if self._demote_intent_aware:
+                _d_intent = (
+                    auto_detect_intent(query)
+                    if intent_hint == "auto"
+                    else intent_hint
+                )
+                if _d_intent == "docs":
+                    _prefixes = tuple(
+                        p for p in _NON_CODE_PREFIXES if p != "docs/"
+                    )
+            for r in rrf_results:
+                meta = r.get("metadata") or {}
+                f = str(meta.get("file", "") or "").replace("\\", "/")
+                if f.startswith(_prefixes):
+                    r["final_score"] = (r.get("final_score", 0.0) or 0.0) * 0.3
+
         # Сортируем и обрезаем (чистый Python, на 30 элементах — микросекунды)
         rrf_results.sort(key=lambda x: x.get("final_score", 0.0), reverse=True)
         pre_rerank_results = rrf_results[:limit]
@@ -1069,6 +1339,16 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             pre_rerank_results, query, limit
         )
 
+        # === P3 (2026-09-29): module-head anchors at PRE-RERANK pool ===
+        # The reranker scores docstring heads highest (probes in
+        # experiments/reranker_p3/), but RRF surfaces code chunks only —
+        # the head of each candidate file is anchored so it reaches the
+        # reranker; O1/doc-guard/caps conventions inherited from P2.
+        if self._p3_anchor:
+            pre_rerank_results = await self._anchor_module_head_chunks_async(
+                pre_rerank_results, query, limit
+            )
+
         # === O1 (2026-09-28): rare-identifier boost at PRE-RERANK pool (D3) ===
         # Runs here — after sort+cut/MMR, before the reranker — never post-cut:
         # the x100 guarantees a rare exact symbol match survives the reranker's
@@ -1081,9 +1361,16 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
         _pre_rerank = list(pre_rerank_results) if tracer else None
-        final_results = await self._apply_multi_reranker_async(
-            query, pre_rerank_results, limit
-        )
+        if self._ondemand_rerank and pre_rerank_results:
+            # Фаза 2 (E25): on-demand cosine вместо BGE — параллельный путь,
+            # включается только флагом. При ошибке — пул как есть (как BGE).
+            final_results = await self._apply_ondemand_reranker_async(
+                query, pre_rerank_results, limit
+            )
+        else:
+            final_results = await self._apply_multi_reranker_async(
+                query, pre_rerank_results, limit
+            )
         if tracer and _pre_rerank:
             tracer.record_reranker(_pre_rerank, final_results)
 
@@ -1217,6 +1504,84 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         except Exception as e:
             logger.error(f"Ошибка в ask_async: {e}")
             return _("❌ Ошибка генерации ответа: {error}", error=str(e))
+
+    def prefers_docs(self, query: str) -> bool:
+        """Cheap docs/code routing by BM25 score margin (no LLM).
+
+        E57: docs top score minus code top score > 4.0 gave 0 code false
+        positives and +10 p.p. hit@1 (same-basename gold) on the 48-query panel.
+        """
+        store = getattr(self, "_chunk_store", None)
+        if store is None or not (query or "").strip():
+            return False
+        try:
+            raw = store.search(query, limit=1000)
+        except Exception as exc:
+            logger.debug(f"prefers_docs failed: {exc}")
+            return False
+        docs_max = 0.0
+        code_max = 0.0
+        code_prefixes = ("src/", "tools/", "scripts/", "tests/")
+        for r in raw:
+            meta = r.get("metadata") or {}
+            fp = str(meta.get("file") or "").replace("\\", "/")
+            score = float(r.get("final_score") or 0.0)
+            if fp.startswith("docs/"):
+                docs_max = max(docs_max, score)
+            elif fp.startswith(code_prefixes):
+                code_max = max(code_max, score)
+        return (docs_max - code_max) > self._docs_margin
+
+    def search_docs(self, query: str, limit: int = 5) -> List[Dict[str, Any]]:
+        """Docs-only FTS5 channel for explicit ``intent="docs"``.
+
+        E56: docs are absent from the hybrid candidate pool; a dedicated
+        ``docs/**`` FTS query is cheap (~50 ms) and needs no LLM/router.
+        Returns results in BM25 order, one chunk per file.
+        """
+        store = getattr(self, "_chunk_store", None)
+        if store is None or not (query or "").strip():
+            return []
+        try:
+            raw = store.search(query, limit=max(limit * 8, 40))
+        except Exception as exc:
+            logger.debug(f"search_docs failed: {exc}")
+            return []
+        # Collapse language variants of the same doc (docs/en/X, docs/ru/X, ...)
+        # so one document does not occupy 3 of 5 slots. Prefer the query language.
+        langs = {"en", "ru", "zh", "de", "es", "fr", "ja", "ko", "pt", "it"}
+        prefer = "ru" if re.search(r"[А-Яа-яЁё]", query or "") else "en"
+
+        def _key(fp: str) -> str:
+            parts = fp.split("/")
+            if len(parts) >= 3 and parts[0] == "docs" and parts[1] in langs:
+                return "docs/__lang__/" + "/".join(parts[2:])
+            return fp
+
+        order: List[str] = []
+        chosen: Dict[str, Dict[str, Any]] = {}
+        chosen_lang: Dict[str, str] = {}
+        for r in raw:
+            meta = r.get("metadata") or {}
+            fp = str(meta.get("file") or "").replace("\\", "/")
+            if not fp.startswith("docs/"):
+                continue
+            key = _key(fp)
+            parts = fp.split("/")
+            lang = parts[1] if len(parts) >= 3 and parts[0] == "docs" else ""
+            item = dict(r)
+            item["source"] = "docs_fts"
+            if key not in chosen:
+                chosen[key] = item
+                chosen_lang[key] = lang
+                order.append(key)
+            elif lang == prefer and chosen_lang[key] != prefer:
+                chosen[key] = item
+                chosen_lang[key] = lang
+            if len(order) >= limit * 2:
+                break
+        out = [chosen[k] for k in order[:limit]]
+        return out
 
     def search(
         self,
@@ -1592,26 +1957,80 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             # Сортируем: определения выше использований (защита от перематчинга)
             refs_sorted = sorted(refs, key=lambda r: 0 if r.is_definition else 1)
             out: List[dict] = []
+            project_path = getattr(self.indexer, "project_path", None)
+            from pathlib import Path as _Path
+
+            from src.core.relpath import normalize_rel_path
+
             for ref in refs_sorted[:limit]:
-                ref_layer = self._layer_from_path(ref.file_path)
+                ref_file = str(ref.file_path or "")
+                if ref_file:
+                    try:
+                        _p = _Path(ref_file)
+                        if _p.is_absolute() and project_path:
+                            ref_file = (
+                                _p.resolve()
+                                .relative_to(_Path(project_path).resolve())
+                                .as_posix()
+                            )
+                        else:
+                            ref_file = normalize_rel_path(ref_file)
+                    except Exception:
+                        try:
+                            ref_file = normalize_rel_path(ref_file)
+                        except Exception:
+                            ref_file = ref_file.replace("\\", "/")
+                ref_layer = self._layer_from_path(ref_file)
                 if layer and ref_layer != layer:
                     continue
+
+                # Hydrate the graph pointer with the real chunk text when the
+                # SQLite store has it; otherwise keep the (short) pointer.
+                hydrated = None
+                if self._chunk_store is not None and ref_file:
+                    try:
+                        hydrated = self._chunk_store.get_symbol_chunk(
+                            ref_file, ref.symbol
+                        )
+                        if hydrated is None and "." in str(ref.symbol):
+                            hydrated = self._chunk_store.get_symbol_chunk(
+                                ref_file, str(ref.symbol).rsplit(".", 1)[-1]
+                            )
+                        if hydrated is None:
+                            hydrated = self._chunk_store.get_chunk_near_line(
+                                ref_file, int(ref.line)
+                            )
+                    except Exception:
+                        hydrated = None
+                hmeta = (hydrated or {}).get("metadata") or {}
+                text = (hydrated or {}).get("text") or (
+                    f"{ref.kind} {ref.symbol}\n📍 {ref_file}:{ref.line}"
+                )
+                meta = {
+                    "file": ref_file,
+                    "chunk_index": int(
+                        hmeta.get("chunk_index", -(10_000_000 + ref.line))
+                    ),
+                    "layer": ref_layer,
+                    "symbol": ref.symbol,
+                    "symbol_name": ref.symbol,
+                    "line": ref.line,
+                    "kind": ref.kind,
+                    "graph_stage": True,
+                    "is_symbol_ref": True,
+                    "is_definition": ref.is_definition,
+                }
+                for k, v in hmeta.items():
+                    meta.setdefault(k, v)
+                meta.update({
+                    "graph_stage": True,
+                    "is_symbol_ref": True,
+                    "is_definition": ref.is_definition,
+                })
                 out.append({
-                    "text": f"{ref.kind} {ref.symbol}\n📍 {ref.file_path}:{ref.line}",
-                    "metadata": {
-                        "file": ref.file_path,
-                        # Sentinel chunk_index: гарантированно уникален vs реальных
-                        # чанков (положительные int) → не коллайдит в RRF-ключе.
-                        "chunk_index": -(10_000_000 + ref.line),
-                        "layer": ref_layer,
-                        "symbol": ref.symbol,
-                        "symbol_name": ref.symbol,
-                        "line": ref.line,
-                        "kind": ref.kind,
-                        "graph_stage": True,
-                        "is_symbol_ref": True,
-                        "is_definition": ref.is_definition,
-                    },
+                    "text": text,
+                    "text_full": (hydrated or {}).get("text_full") or text,
+                    "metadata": meta,
                     "bm25_score": 0.0,
                     "dense_score": 0.0,
                     "fts5_score": 0.0,
@@ -1923,6 +2342,51 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 return None
             finally:
                 self._multi_reranker_initialized = True
+
+    async def _apply_ondemand_reranker_async(
+        self,
+        query: str,
+        pool: List[dict],
+        limit: int,
+    ) -> List[dict]:
+        """On-demand cosine-rerank (E25, Фаза 2): живые эмбеддинги вместо BGE.
+
+        Берёт top-N fused-пула, эмбеддит [query]+texts ОДНИМ батчем и сортирует
+        по косинусу. Ничего не пишет в индекс. При любой ошибке возвращает пул
+        как есть (тот же контракт, что у BGE-фолбэка ниже).
+        """
+        t0 = time.perf_counter()
+        try:
+            top_n = max(1, min(self._ondemand_rerank_top_n, len(pool)))
+            _, usable, texts, skipped = split_embed_inputs(
+                query, pool[:top_n], max_chars=self._ondemand_rerank_max_chars
+            )
+            if not usable:
+                return pool
+            embed_async = getattr(self.embedder, "embed_batch_async", None)
+            if embed_async is not None and inspect.iscoroutinefunction(embed_async):
+                vectors = await embed_async(texts, is_query=False)
+            else:
+                vectors = self.embedder.embed_batch(texts)
+            if not vectors or len(vectors) != len(texts):
+                raise RuntimeError(
+                    f"ondemand embed returned {len(vectors) if vectors else 0}/"
+                    f"{len(texts)} vectors"
+                )
+            ranked = rerank_by_cosine(usable, vectors[0], vectors[1:], top_n=top_n)
+            self._last_rerank_timing = {
+                "mode": "ondemand_cosine",
+                "ms": (time.perf_counter() - t0) * 1000,
+                "skipped_no_text": skipped,
+            }
+            # Добираем хвост пула за пределами top-N в исходном порядке,
+            # итог не длиннее limit (контракт как у BGE-пути).
+            ranked_ids = {id(r) for r in ranked}
+            tail = [r for r in pool if id(r) not in ranked_ids]
+            return (ranked + tail)[: max(limit, 0)]
+        except Exception as e:
+            logger.warning(f"On-demand rerank ошибка: {e}. Fallback к RRF-порядку.")
+            return pool
 
     async def _apply_multi_reranker_async(
         self,

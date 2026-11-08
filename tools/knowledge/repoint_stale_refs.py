@@ -26,7 +26,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8")
 CFG = Path(__file__).resolve().parent
-KI = Path(r"D:\Project\MSCodeBase\KNOWN_ISSUES.md")
+KI = Path(__file__).resolve().parents[2] / "KNOWN_ISSUES.md"
 KI_LINES = len(KI.read_text(encoding="utf-8", errors="replace").splitlines())
 
 # pattern id -> (target ref, why THIS target)

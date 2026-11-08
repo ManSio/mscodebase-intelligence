@@ -1,0 +1,323 @@
+{
+ "summary": {
+  "arm": "B",
+  "dense_off": true,
+  "n": 33,
+  "errors": 0,
+  "empty_top1": 0,
+  "mean_ms": 2354.1,
+  "subsets": {
+   "NL": {
+    "n": 18,
+    "hit1": 5,
+    "hit5": 6,
+    "hit1_pct": 27.8
+   },
+   "symbolic": {
+    "n": 15,
+    "hit1": 7,
+    "hit5": 10,
+    "hit1_pct": 46.7
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "F5S-01",
+   "subset": "NL",
+   "gold": "src/core/rate_limiter.py",
+   "ms": 8806.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-02",
+   "subset": "NL",
+   "gold": "src/core/redact.py",
+   "ms": 255.5,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/redact.py"
+  },
+  {
+   "id": "F5S-03",
+   "subset": "NL",
+   "gold": "src/core/gitignore_parser.py",
+   "ms": 3306.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-04",
+   "subset": "NL",
+   "gold": "src/core/embedder_lease.py",
+   "ms": 264.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/4A_unit_of_return/frozen/f5/queries.md"
+  },
+  {
+   "id": "F5S-05",
+   "subset": "NL",
+   "gold": "src/core/reindex_ledger.py",
+   "ms": 3677.6,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-06",
+   "subset": "NL",
+   "gold": "src/core/quiet_break_gate.py",
+   "ms": 248.7,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/quiet_break_gate.py"
+  },
+  {
+   "id": "F5S-07",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/reranker_scoring.py",
+   "ms": 3398.9,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/reranker_scoring.py"
+  },
+  {
+   "id": "F5S-08",
+   "subset": "symbolic",
+   "gold": "src/core/error_envelope.py",
+   "ms": 277.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/bootstrap_entities.py"
+  },
+  {
+   "id": "F5S-09",
+   "subset": "NL",
+   "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+   "ms": 3588.5,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/interfaces/__init__.py"
+  },
+  {
+   "id": "F5S-10",
+   "subset": "NL",
+   "gold": "docs/en/SEARCH_PIPELINE.md",
+   "ms": 282.7,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/mcp/server_tools.py"
+  },
+  {
+   "id": "F5S-11",
+   "subset": "NL",
+   "gold": "docs/TRUST_BOUNDARY.md",
+   "ms": 3547.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/search/agentic_search.py"
+  },
+  {
+   "id": "F5S-12",
+   "subset": "NL",
+   "gold": "docs/en/TELEMETRY.md",
+   "ms": 235.2,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/main.py"
+  },
+  {
+   "id": "F5S-13",
+   "subset": "NL",
+   "gold": "docs/adr/0003-verify-on-read.md",
+   "ms": 7187.9,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/intelligence/layer.py"
+  },
+  {
+   "id": "F5S-14",
+   "subset": "NL",
+   "gold": "docs/en/HANDFOFF.md",
+   "ms": 1033.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/platform_utils.py"
+  },
+  {
+   "id": "F5S-15",
+   "subset": "symbolic",
+   "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+   "ms": 7773.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/intelligence/verify_on_read.py"
+  },
+  {
+   "id": "F5S-16",
+   "subset": "NL",
+   "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+   "ms": 368.8,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/embedder/onnx_client.py"
+  },
+  {
+   "id": "TR-R1",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/db_writer.py",
+   "ms": 2932.1,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/indexing/index_project_runner.py"
+  },
+  {
+   "id": "TR-R2",
+   "subset": "symbolic",
+   "gold": "src/core/artifact_gc.py",
+   "ms": 263.1,
+   "hit1": false,
+   "hit5": true,
+   "top1": "src/core/log_manager.py"
+  },
+  {
+   "id": "TR-R3",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/llama_install.py",
+   "ms": 2437.5,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/reranker/llama_install.py"
+  },
+  {
+   "id": "TR-R4",
+   "subset": "symbolic",
+   "gold": "src/providers/reranker/llama_runner.py",
+   "ms": 329.0,
+   "hit1": false,
+   "hit5": true,
+   "top1": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "id": "TR-R5",
+   "subset": "symbolic",
+   "gold": "src/providers/embedder/remote_embedder.py",
+   "ms": 3460.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/providers/embedder/remote_embedder.py"
+  },
+  {
+   "id": "TR-R6",
+   "subset": "symbolic",
+   "gold": "src/core/graph.py",
+   "ms": 428.1,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/graph.py"
+  },
+  {
+   "id": "TR-R8",
+   "subset": "symbolic",
+   "gold": "src/core/search/cypher_sql.py",
+   "ms": 4065.1,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/cypher_sql.py"
+  },
+  {
+   "id": "TR-R9",
+   "subset": "symbolic",
+   "gold": "src/core/bootstrap_tests.py",
+   "ms": 282.1,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/bootstrap/a2_link_rate.py"
+  },
+  {
+   "id": "TR-R10",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/freshness.py",
+   "ms": 3123.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/freshness.py"
+  },
+  {
+   "id": "TR-P1",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/parser.py",
+   "ms": 344.1,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/parser.py"
+  },
+  {
+   "id": "TR-P2",
+   "subset": "symbolic",
+   "gold": "src/core/search/engine.py",
+   "ms": 4830.0,
+   "hit1": false,
+   "hit5": true,
+   "top1": "docs/zh/SEARCH_PIPELINE.md"
+  },
+  {
+   "id": "E2E-02",
+   "subset": "symbolic",
+   "gold": "src/core/indexing/db_manager.py",
+   "ms": 344.7,
+   "hit1": false,
+   "hit5": false,
+   "top1": "src/core/indexing/index_guard.py"
+  },
+  {
+   "id": "E2E-05",
+   "subset": "NL",
+   "gold": "src/core/intelligence/verify_on_read.py",
+   "ms": 2728.2,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/intelligence/verify_on_read.py"
+  },
+  {
+   "id": "E2E-07",
+   "subset": "NL",
+   "gold": "src/core/indexing/project_indexer_registry.py",
+   "ms": 220.1,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/indexing/project_indexer_registry.py"
+  },
+  {
+   "id": "E2E-08",
+   "subset": "NL",
+   "gold": "src/mcp/tools/indexing_tools.py",
+   "ms": 4511.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "experiments/context_engine/results_v2.json"
+  },
+  {
+   "id": "E2E-09",
+   "subset": "NL",
+   "gold": "src/providers/reranker/search_result_reranker.py",
+   "ms": 236.3,
+   "hit1": false,
+   "hit5": false,
+   "top1": "install.py"
+  },
+  {
+   "id": "E2E-10",
+   "subset": "NL",
+   "gold": "src/core/search/bm25.py",
+   "ms": 2897.4,
+   "hit1": true,
+   "hit5": true,
+   "top1": "src/core/search/bm25.py"
+  }
+ ]
+}

@@ -617,22 +617,39 @@ class HealthReport:
         """Проверка Execution Contract (git operations, timeout=15s)."""
 
         def _git_worker():
+            proc = None
             try:
                 _env = os.environ.copy()
                 _env["GIT_TERMINAL_PROMPT"] = "0"
                 _env["GIT_ASKPASS"] = "echo"
                 _env["GIT_PAGER"] = "cat"
                 _env["PAGER"] = "cat"
-                out = subprocess.check_output(
-                    ["git", "log", "--oneline", "-1"],
+                # Windows: check_output/capture_output в фоновом потоке вешает
+                # пайп, когда stdout MCP перенаправлен (AGENTS.md §5.16) → каждый
+                # health-check ждал 15s и писал «Git операция не удалась».
+                # Popen + communicate(timeout) — безопасный паттерн; 10s < 15s
+                # внешнего бюджета, чтобы не было гонки двух таймаутов.
+                # `rev-parse --short` возвращал только хеш и ломал контракт
+                # метрики (тест и `_OkPopen` ждут "hash subject", и это же
+                # видит пользователь в отчёте). Один вызов git, тот же бюджет.
+                proc = subprocess.Popen(
+                    ["git", "log", "-1", "--format=%h %s", "HEAD"],
                     cwd=str(self.project_path),
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
                     stderr=subprocess.DEVNULL,
-                    timeout=15,
                     env=_env,
                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                 )
-                return out.strip().decode("utf-8")
+                out, _ = proc.communicate(timeout=5)
+                return (out or b"").strip().decode("utf-8", "replace")
             except subprocess.TimeoutExpired:
+                if proc is not None:
+                    proc.kill()
+                    try:
+                        proc.communicate(timeout=2)
+                    except Exception:  # noqa: BLE001 — уже убит
+                        pass
                 return -3
             except Exception:
                 return -2
@@ -660,12 +677,11 @@ class HealthReport:
                     }
                 )
             elif last_commit == -3:
-                self.warnings.append(
-                    {
-                        "component": "execution_contract",
-                        "message": "Превышен внутренний таймаут Git команды",
-                    }
-                )
+                # Git медленный/завис в этом процессе — это НЕ проблема
+                # пользователя (наблюдение 2026-11-07: любой git-спавн из MCP
+                # не укладывается в 10 с, вне MCP — 40 мс). Метрика вместо
+                # постоянного warning'а в каждом отчёте.
+                self.metrics["git_probe"] = "timeout"
             else:
                 self.metrics["last_commit"] = last_commit
 

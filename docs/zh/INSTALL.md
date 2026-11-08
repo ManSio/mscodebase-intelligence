@@ -6,8 +6,12 @@
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](INSTALL.md)
 
-> **MSCodebase Intelligence** — 用于 Zed IDE 中语义代码搜索的 MCP 服务器。
+> **MSCodebase Intelligence** — 用于 Zed IDE 的本地代码智能 MCP 服务器。
 > 作为 Zed 扩展运行。开发目录：`<repo-root>`。
+
+> **Phase 3 说明（2026-10-25）：** 默认安装是文本优先
+> （SQLite FTS5/BM25 + PropertyGraph）。模型下载和 vector path 可选；
+> LanceDB 属于 legacy/optional，不是默认检索存储。
 
 ---
 

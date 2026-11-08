@@ -12,13 +12,42 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.core.indexing.chunk_augment import augment_enabled, build_file_prefix
+
 __all__ = [
     "IndexParser",
+    "decode_source_bytes",
 ]
 logger = logging.getLogger("mscodebase_server.index_parser")
+
+
+def decode_source_bytes(raw_data: bytes) -> str:
+    """Декодирует исходник: BOM → utf-8/utf-16, иначе utf-8 / cp1251 / latin-1.
+
+    Один канон для всех точек чтения файла: полная индексация Phase 3 читала
+    `read_text(encoding="utf-8", errors="replace")` и превращала cp1251-файлы в
+    мусор (Cyrillic-запросы переставали находить код; найдено на
+    tests/test_integration.py, где write_text() без encoding пишет cp1251).
+    """
+    if raw_data.startswith(b"\xef\xbb\xbf"):
+        return raw_data[3:].decode("utf-8", errors="replace")
+    if raw_data.startswith(b"\xff\xfe") or raw_data.startswith(b"\xfe\xff"):
+        return raw_data.decode("utf-16", errors="replace")
+    try:
+        return raw_data.decode("utf-8")
+    except UnicodeDecodeError:
+        for enc in ("cp1251", "latin-1"):
+            try:
+                return raw_data.decode(enc)
+            except UnicodeDecodeError:
+                continue
+        return raw_data.decode("utf-8", errors="replace")
 
 # Префиксы строк-комментариев для проверки «файл без кода» (BS-1):
 # файл, где все непустые строки — комментарии (напр. __init__.py с одной
@@ -74,12 +103,48 @@ class IndexParser:
         self.path_manager = path_manager
         self.project_path = project_path
 
+    @contextmanager
+    def _parse_source(self, full_path: Path, content: Optional[str]):
+        """Путь для парсера: реальный файл или временная тень с content.
+
+        CodeParser читает файл с диска сам (parse_file/_parse_with_tree_sitter/
+        extract_calls), поэтому переданный из LSP VFS `content` до парсера не
+        доходил: notify_change индексировал СТАРУЮ версию с диска (TOCTOU).
+        Если content передан и отличается от диска — пишем его во временный
+        файл с тем же расширением и парсим его; чанки не содержат путей, так
+        что индекс получает правильный rel_path из вызывающего кода.
+        """
+        if content is None:
+            yield full_path
+            return
+        try:
+            same = full_path.exists() and full_path.read_bytes() == content.encode("utf-8")
+        except OSError:
+            same = False
+        if same:
+            yield full_path
+            return
+        shadow = None
+        try:
+            fd, name = tempfile.mkstemp(suffix=full_path.suffix or ".txt")
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+                fh.write(content)
+            shadow = Path(name)
+            yield shadow
+        finally:
+            if shadow is not None:
+                try:
+                    shadow.unlink()
+                except OSError:
+                    pass
+
     def parse_file(
         self,
         full_path: Path,
         rel_path_str: str,
         source: str = "filesystem",
         existing_hash: Optional[str] = None,
+        content: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Только парсинг файла (без эмбеддинга и записи в БД).
 
@@ -89,6 +154,10 @@ class IndexParser:
             source: Источник ('filesystem' | 'lsp_vfs')
             existing_hash: SHA256 хэш предыдущей версии из БД (если известен).
                 Передаётся снаружи — парсер не ходит в БД.
+            content: Готовый текст (LSP VFS / буфер IDE). Если задан, диск не
+                читается — иначе notify_change с несохранённым буфером
+                индексировал бы старую версию с диска (TOCTOU, регрессия
+                найдена при разборе tests/test_lsp_vfs_indexing.py).
 
         Returns:
             Dict с данными чанков или None если файл не изменился.
@@ -101,31 +170,13 @@ class IndexParser:
                 "health": Dict, "source": str
             }
         """
+        _content_provided = content is not None
         try:
-            safe_read_path = self.path_manager.get_safe_path(full_path)
-            with open(str(safe_read_path), "rb") as f:
-                raw_data = f.read()
-
-            # Encoding detection: BOM → utf-8/utf-16; иначе utf-8 с
-            # fallback на распространённые однобайтовые кодировки (cp1251 и т.п.).
-            if raw_data.startswith(b"\xef\xbb\xbf"):
-                content = raw_data[3:].decode("utf-8", errors="replace")
-            elif raw_data.startswith(b"\xff\xfe") or raw_data.startswith(b"\xfe\xff"):
-                content = raw_data.decode("utf-16", errors="replace")
-            else:
-                try:
-                    content = raw_data.decode("utf-8")
-                except UnicodeDecodeError:
-                    content = None
-                    for enc in ("cp1251", "latin-1"):
-                        try:
-                            content = raw_data.decode(enc)
-                            logger.debug(f"File {rel_path_str} decoded as {enc}")
-                            break
-                        except UnicodeDecodeError:
-                            continue
-                    if content is None:
-                        content = raw_data.decode("utf-8", errors="replace")
+            if content is None:
+                safe_read_path = self.path_manager.get_safe_path(full_path)
+                with open(str(safe_read_path), "rb") as f:
+                    raw_data = f.read()
+                content = decode_source_bytes(raw_data)
 
             current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -151,7 +202,10 @@ class IndexParser:
 
             if self.parser is not None:
                 try:
-                    ast_chunks, symbols = self.parser.parse_file(full_path)
+                    with self._parse_source(
+                        full_path, content if _content_provided else None
+                    ) as _parse_path:
+                        ast_chunks, symbols = self.parser.parse_file(_parse_path)
                     if ast_chunks:
                         for c in ast_chunks:
                             compact = c.get("text_compact", "") or c.get("text", "")
@@ -212,6 +266,15 @@ class IndexParser:
 
             if not chunk_texts:
                 return None
+
+            # Фаза 1 (E26): опциональный препенд FILE/SYMBOLS/DOC.
+            # Default OFF — тексты байт-идентичны. При ON меняется каждый текст,
+            # а значит и chunk_hash (sha256 текста) — вектора пересчитаются,
+            # а не протухнут. Единая точка для AST- и fallback-путей.
+            if augment_enabled():
+                _aug = build_file_prefix(rel_path_str, content)
+                chunk_texts = [_aug + t for t in chunk_texts]
+                chunk_texts_full = [_aug + t for t in chunk_texts_full]
 
             # Code Health
             try:

@@ -15,13 +15,39 @@ Returns exit code 1 if critical drifts found.
 import json
 import re
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
+
+
+def _run_git(args: list[str], cwd: Path, timeout: int = 60) -> tuple[int, str]:
+    """git без capture_output (§5.16): внутри MCP stdout — JSON-RPC-пайп, и
+    subprocess.run(capture_output=True) вешает дочерний процесс насмерть.
+    Именно поэтому скан доков «зависал» только в MCP, а в консоли шёл 1.2 s.
+    """
+    import os as _os
+    import subprocess as _sp
+
+    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    try:
+        proc = _sp.Popen(
+            args,
+            cwd=str(cwd),
+            env=env,
+            stdin=_sp.DEVNULL,
+            stdout=_sp.PIPE,
+            stderr=_sp.DEVNULL,
+            creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
+        )
+        out, _ = proc.communicate(timeout=timeout)
+        return proc.returncode, (out or b"").decode("utf-8", "replace")
+    except (OSError, _sp.SubprocessError):
+        return 1, ""
 
 
 
@@ -201,17 +227,75 @@ def scan_doc(doc_path: Path, project_root: Path, actual_version: str,
     )
 
 
-def run(project_root: Path, config: StaleConfig) -> list[DocReport]:
-    """Scan all docs and return reports.
+def staged_markdown_files(project_root: Path) -> list[Path]:
+    """Markdown files that are actually part of the pending commit.
+
+    A pre-commit gate must judge the commit, not the whole working tree: when
+    another session has unstaged drafts in this tree, a full-tree scan blocks
+    commits that have nothing to do with them (§21 — parallel sessions).
+    """
+    _rc, _out = _run_git(
+        ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
+        project_root,
+        timeout=60,
+    )
+    files: list[Path] = []
+    for line in _out.splitlines():
+        rel = line.strip()
+        if not rel.endswith(".md"):
+            continue
+        path = project_root / rel
+        if path.is_file():
+            files.append(path)
+    return files
+
+
+def tracked_markdown_files(project_root: Path) -> set[str]:
+    """Paths of markdown files that git actually tracks (index + HEAD).
+
+    An untracked draft is not part of the repository, so it cannot be a
+    documentation-drift finding — but a full-tree scan used to report it, which
+    let a parallel session's working files block an unrelated commit (§21).
+    Staged-but-uncommitted files ARE tracked (git ls-files sees the index), so
+    a new document added by the pending commit is still checked.
+    """
+    _rc, _out = _run_git(
+        ["git", "ls-files", "-z", "--", "*.md"], project_root, timeout=60
+    )
+    if _rc != 0:
+        return set()
+    return {part for part in _out.split("\0") if part}
+
+
+def run(project_root: Path, config: StaleConfig, staged_only: bool = False) -> list[DocReport]:
+    """Scan docs and return reports.
 
     os.walk с прунингом (не rglob): не заходим в skip-каталоги и во ВЛОЖЕННЫЕ
     git-репозитории (каталог с собственным .git = клон/чек-аут — их доки не
-    версии ПРОЕКТА; инцедент 2026-08-18: e-s1-polygon/repos/uv changelogs).
+    версии ПРОЕКТА; инцидент 2026-08-18: e-s1-polygon/repos/uv changelogs).
+
+    Файлы, которых нет в git (черновики другой сессии), пропускаются: дрейф
+    версий — свойство репозитория, а не рабочей копии (§21).
+
+    staged_only=True сканирует только файлы, входящие в коммит (для
+    pre-commit: чужие незастейдженные драфты другой сессии не должны блокировать
+    мой коммит).
     """
     import os as _os
 
     actual_version = get_actual_version(project_root)
     results = []
+
+    if staged_only:
+        for md_file in staged_markdown_files(project_root):
+            report = scan_doc(md_file, project_root, actual_version, config)
+            if report:
+                results.append(report)
+        return results
+
+    tracked = tracked_markdown_files(project_root)
+    if tracked:
+        tracked_set = {Path(p).as_posix() for p in tracked}
 
     for root, dirs, files in _os.walk(project_root):
         keep = []
@@ -227,6 +311,8 @@ def run(project_root: Path, config: StaleConfig) -> list[DocReport]:
             if not fname.endswith(".md"):
                 continue
             md_file = Path(root) / fname
+            if tracked and md_file.relative_to(project_root).as_posix() not in tracked_set:
+                continue  # untracked draft — not part of the repository
             report = scan_doc(md_file, project_root, actual_version, config)
             if report:
                 results.append(report)
@@ -246,7 +332,7 @@ def format_human(results: list[DocReport], actual_version: str) -> str:
 
     lines = [
         "=" * 70,
-        f"📋 STALE DETECTOR — Doc Drift Report",
+        "📋 STALE DETECTOR — Doc Drift Report",
         f"   Actual version: {actual_version}",
         f"   Docs with drift: {len(results)}",
         f"   Total drift instances: {total_hits}",
@@ -324,6 +410,12 @@ def main():
         "--project-root", default=".",
         help="Project root directory"
     )
+    parser.add_argument(
+        "--staged", action="store_true",
+        help="Scan only markdown files that are part of the pending commit "
+             "(for pre-commit: a parallel session's unstaged drafts must not "
+             "block an unrelated commit)"
+    )
     args = parser.parse_args()
 
     project_root = Path(args.project_root).resolve()
@@ -331,7 +423,7 @@ def main():
     config = StaleConfig.from_file(config_path)
 
     actual_version = get_actual_version(project_root)
-    results = run(project_root, config)
+    results = run(project_root, config, staged_only=args.staged)
 
     if args.report_format == "json":
         print(format_json(results, actual_version))

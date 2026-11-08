@@ -1,0 +1,18 @@
+{
+ "P3_orig": {
+  "module_head": 0.5668665170669556,
+  "_dir_has_files": -6.313180446624756,
+  "_rmtree_safe": -3.794283390045166,
+  "_prune_project_dirs": -1.3174166679382324,
+  "_prune_telemetry": -2.575758457183838,
+  "prune_stale_artifacts": -0.6998268365859985
+ },
+ "R2_orig": {
+  "module_head": 0.4332163333892822,
+  "_dir_has_files": -5.922153949737549,
+  "_rmtree_safe": -3.7569305896759033,
+  "_prune_project_dirs": -1.972429633140564,
+  "_prune_telemetry": -0.9512827396392822,
+  "prune_stale_artifacts": 0.2744801640510559
+ }
+}

@@ -16,6 +16,9 @@ from tools.stale_detector.stale_check import StaleConfig
 from tools.stale_detector.stale_check import run as stale_run
 
 logger = logging.getLogger(__name__)
+# Дочерний к настроенному логгеру сервера: иначе строки этого модуля не
+# попадают в mcp_global.log (наблюдение 2026-11-07).
+_log = logging.getLogger("mscodebase_server.doc_tools")
 
 
 class StaleDetectorTool(MCPTool):
@@ -28,11 +31,13 @@ class StaleDetectorTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="stale_detector")
 
-    @error_boundary("stale_detector", timeout_ms=60000)
+    @error_boundary("stale_detector", timeout_ms=90000)
     async def execute(
         self,
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
+        import time as _time
+
         # INC-MULTI-WINDOW: корень из резолвера (CWD-first, per-window), а не
         # из __file__: в installed-режиме __file__ = каталог расширения, и
         # stale_detector сканировал чужую документацию расширения (аудит Bot_snow #6).
@@ -40,6 +45,8 @@ class StaleDetectorTool(MCPTool):
 
         project_root = resolve_project_root()
         config_path = project_root / "tools" / "stale_detector" / "stale_config.json"
+        _t0 = _time.perf_counter()
+        _log.info("[stale] start root=%s cwd=%s", project_root, Path.cwd())
 
         config = self._load_config(config_path)
         actual_version = self._get_actual_version(project_root)
@@ -50,8 +57,30 @@ class StaleDetectorTool(MCPTool):
         # (10-30s, синхронный subprocess/filesystem) блокирует async event loop,
         # и asyncio.wait_for из error_boundary не может прервать его на таймауте
         # (см. инцидент 2026-09-05 — stale_detector стабильно падал по -32001).
-        results = await asyncio.to_thread(
-            self._scan_docs, project_root, actual_version, config
+        # 2026-11-07: скан 0.9 s в процессе, но 90 s таймаут внутри MCP при
+        # вызове через asyncio.to_thread. Держим поток (не блокируем loop) и
+        # ставим СВОЙ короткий предел: вместо 90-секундного молчания отдаём
+        # диагностику с root/cwd. Внешний decorator-таймаут (90 s) — запас.
+        try:
+            results = await asyncio.wait_for(
+                asyncio.to_thread(self._scan_docs, project_root, actual_version, config),
+                timeout=15.0,
+            )
+        except asyncio.TimeoutError:
+            _log.warning(
+                "[stale] scan exceeded 15s root=%s cwd=%s", project_root, Path.cwd()
+            )
+            return (
+                "Stale Detector — скан превысил 15 s (диагностика)\n"
+                f"root={project_root}\ncwd={Path.cwd()}\n"
+                "Документация не проверена; полный скан вне MCP: "
+                "python scripts/stale_detector.py"
+            )
+        _log.info(
+            "[stale] scan done in %.1fs, docs=%d, root=%s",
+            _time.perf_counter() - _t0,
+            len(results),
+            project_root,
         )
         total_hits = sum(r["total_hits"] for r in results)
         errors = sum(

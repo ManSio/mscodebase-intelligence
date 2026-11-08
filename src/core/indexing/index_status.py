@@ -23,11 +23,15 @@ class IndexStatusReporter:
     """Собирает статистику индекса: чанки, файлы, stale-проверка."""
 
     def __init__(self, table, project_path: Path, file_guard, watchdog_callback,
-                 table_write_lock=None, reindex_check=None):
+                 table_write_lock=None, reindex_check=None, chunk_store=None):
         self.table = table
         self.project_path = project_path
         self.file_guard = file_guard
         self._watchdog_callback = watchdog_callback
+        # Phase 3: при dense_off/sqlite_chunks активный индекс — SQLite/FTS5,
+        # а LanceDB-таблица пуста. Без этого поля total_chunks=0 навсегда, и
+        # require_ready_project блокирует поиск/запись (инцидент 2026-11-07).
+        self._chunk_store = chunk_store
         # reindex_check: callable → bool. Если reindex в процессе — get_status()
         # обязан МГНОВЕННО вернуть кэш, а не блокировать event loop на
         # _table_write_lock, который begin_write() держит весь reindex
@@ -117,8 +121,32 @@ class IndexStatusReporter:
                         unique_count = _fp_series.nunique()
                         self._cached_unique_files = set(_fp_series.unique())
 
-            # Stale scan
-            stale_files, on_disk_files, missing_files = self._scan_stale(total_chunks, unique_count)
+                # Phase 3: активный store может быть SQLite/FTS5. Считаем его
+                # ПОСЛЕ LanceDB и берём максимум — статус обязан отражать тот
+                # store, из которого реально идёт поиск (инцидент 2026-11-07:
+                # 7 314 чанков в chunks.db при total_chunks=0 → все тулы BLOCK).
+                store_name = "lancedb" if total_chunks > 0 else "none"
+                if self._chunk_store is not None:
+                    try:
+                        _sqlite_chunks = int(self._chunk_store.count() or 0)
+                    except Exception as _cs_err:  # noqa: BLE001 — статус не роняем
+                        _sqlite_chunks = 0
+                        logger.debug(f"chunk_store.count failed: {_cs_err}")
+                    if _sqlite_chunks > total_chunks:
+                        total_chunks = _sqlite_chunks
+                        store_name = "sqlite"
+                        try:
+                            unique_count = int(self._chunk_store.files_count() or 0)
+                        except Exception as _cs_err:  # noqa: BLE001
+                            logger.debug(f"chunk_store.files_count failed: {_cs_err}")
+
+            # Stale scan: только по тому store, из которого читаем. LanceDB
+            # при sqlite-индексе пуст — сверка по нему дала бы «missing» на
+            # каждый файл диска.
+            if store_name == "sqlite":
+                stale_files, on_disk_files, missing_files = 0, unique_count, 0
+            else:
+                stale_files, on_disk_files, missing_files = self._scan_stale(total_chunks, unique_count)
 
             watchdog = self._watchdog_callback() if self._watchdog_callback else {}
 
@@ -129,6 +157,7 @@ class IndexStatusReporter:
                 "stale_files": stale_files,
                 "missing_files": missing_files,
                 "status": "active" if total_chunks > 0 else "empty",
+                "store": store_name,
                 "watchdog": watchdog,
             }
         except Exception as e:

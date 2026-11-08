@@ -1,0 +1,34 @@
+{
+  "task_id": "32f1166290_index_project_runner",
+  "source": "own-repo-history",
+  "parent_sha": "098daa5c8d59870f472cacaa9a84904da05d2464",
+  "fix_sha": "32f1166290ce7622333bf60cd980492bdd781d1a",
+  "subject": "fix(reindex): honest ETA from log speed + progress in Finalizing",
+  "src_file": "src/core/indexing/index_project_runner.py",
+  "src_files": [
+    "src/core/indexing/index_project_runner.py",
+    "src/core/intelligence/layer.py"
+  ],
+  "test_file": "tests/test_job_history.py",
+  "test_files": [
+    "tests/test_job_history.py",
+    "tests/test_reindex_responsive.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_job_history.py::test_enrich_eta_none_when_no_embed_progress",
+    "tests/test_job_history.py::test_enrich_eta_uses_real_embed_speed"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

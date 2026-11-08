@@ -1,0 +1,13 @@
+{
+  "task_id": "11c88afca6_bootstrap_entities_noop",
+  "class": "no-op",
+  "snapshot_sha": "11c88afca679b0006d6954e7322c2c7a913d299c",
+  "src_file": "src/core/bootstrap_entities.py",
+  "test_file": "tests/test_bootstrap_entities.py",
+  "fail_to_pass": [],
+  "hidden_test_file": "tests/test_bootstrap_entities.py",
+  "hidden_test_ids": [],
+  "unchanged_file": "src/core/bootstrap_entities.py",
+  "unchanged_sha": "3b01383ced0259740f2578d0d18e88cf5d07334c9aba35cf57c5337292677c01",
+  "text": "Check that `src/core/bootstrap_entities.py` already behaves the way its own test file `tests/test_bootstrap_entities.py` requires. If it already does, say so and change nothing. Do not edit the test file."
+}

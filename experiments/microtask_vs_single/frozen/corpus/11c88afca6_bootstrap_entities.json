@@ -1,0 +1,36 @@
+{
+  "task_id": "11c88afca6_bootstrap_entities",
+  "source": "own-repo-history",
+  "parent_sha": "c628d5552037b4c341f040948607a7331595fba2",
+  "fix_sha": "11c88afca679b0006d6954e7322c2c7a913d299c",
+  "subject": "feat(bootstrap): auto-detect source root instead of hardcoded src/",
+  "src_file": "src/core/bootstrap_entities.py",
+  "src_files": [
+    "src/core/bootstrap_entities.py"
+  ],
+  "test_file": "tests/test_bootstrap_entities.py",
+  "test_files": [
+    "tests/test_bootstrap_entities.py"
+  ],
+  "fail_to_pass": [
+    "tests/test_bootstrap_entities.py::test_auto_detect_core_layout",
+    "tests/test_bootstrap_entities.py::test_auto_detect_project_name_dir",
+    "tests/test_bootstrap_entities.py::test_auto_detect_statistical_fallback",
+    "tests/test_bootstrap_entities.py::test_env_src_dir_overrides_auto",
+    "tests/test_bootstrap_entities.py::test_explicit_src_dir_beats_env",
+    "tests/test_bootstrap_entities.py::test_missing_everything_returns_none_src_root"
+  ],
+  "class": "fix",
+  "snapshot_paths": [
+    "src",
+    "tests",
+    "pytest.ini",
+    "pyproject.toml"
+  ],
+  "excluded_from_snapshot": [
+    "experiments/",
+    "docs/",
+    "AGENT_DIARY.md",
+    "KNOWN_ISSUES.md"
+  ]
+}

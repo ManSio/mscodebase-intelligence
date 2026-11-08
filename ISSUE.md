@@ -119,7 +119,7 @@
 
 ### P1-11: `error_handler.py` — `future.cancel()` не вызывается при timeout
 - **Файл:** `src/core/error_handler.py:593-598`
-- **Статус:** ✅ CONFIRMED FIXED (уже было в 5601de39: `except TimeoutError: future.cancel(); raise`)
+- **Статус:** ✅ CONFIRMED FIXED (уже было в ccd4891c: `except TimeoutError: future.cancel(); raise`)
 - **Детали:** При `TimeoutError` future остаётся в пуле, поток продолжает выполнение. 4 зависших timeout-а исчерпают `_SYNC_POOL` (max_workers=4), все последующие sync-вызовы будут ждать вечно.
 
 ### P1-12: `remote_embedder.py` — silent zero-vector fallback маскирует отказ
@@ -196,7 +196,7 @@
 - **Файл:** `src/core/search/engine.py:303-317`
 - **Статус:** ⏳ TECH DEBT (ACCEPTED, 2026-07-31) — закрыт как осознанный выбор владельцем-протоколом: НЕ deadlock, а starvation с `future.result(timeout=30)`; протокол проекта (§0.1 AGENTS.md) сам запрещает 3+ параллельных MCP-вызовов, поэтому max_workers=2 не достижимо легитимно; persistent loop — риск выше пользы
 - **Детали:** `asyncio.run` создаёт новый event loop в каждом вызове. 3+ параллельных запроса → третий ждёт.
-- **Решено:** общий пул уже был (batch 5601de39); полный переход на persistent loop — отдельный рефакторинг (риск выше пользы для текущего использования).
+- **Решено:** общий пул уже был (batch ccd4891c); полный переход на persistent loop — отдельный рефакторинг (риск выше пользы для текущего использования).
 - **Верификация (Claude review 2026-07-31, вторая волна):** ✅ CONFIRMED по коду (L308-316, max_workers=2, вызовы только `search_with_mode`/`search` из `SearchCodeTool.execute`) — starvation с таймаутом 30с, не circular deadlock; воркеры пула не ждут друг друга; дубликат не создавался; закрыт с обоснованием.
 
 ### P2-7: `engine.py` — 18 `except Exception` с возвратом `[]`
@@ -369,7 +369,7 @@
 
 ### P3-9: `write_tools.py` — `_apply_changes` неатомарная запись без backup
 - **Файл:** `src/mcp/tools/write_tools.py:569-602`
-- **Статус:** ✅ CONFIRMED FIXED (batch 5601de39: tempfile.mkstemp + os.replace)
+- **Статус:** ✅ CONFIRMED FIXED (batch ccd4891c: tempfile.mkstemp + os.replace)
 - **Детали:** Нет backup-файла, нет `tempfile + os.replace` паттерна.
 
 ### P3-10: `error_handler.py` — traceback в MCP-ответ (info leak)
@@ -430,10 +430,10 @@
 - ✅ **G-2 (2026-07-31): E2E MCP smoke-тест** — `tests/e2e/test_e2e_mcp_smoke.py`: реальный embedder (llama.cpp :8080) → реальная LanceDB (временная) → реальный поиск (fast, FTS5-fusion). Проверка входа→выхода: запрос `move_chunks_metadata` → чанк из `file_move_manager.py`. Требует живого MCP+embedder; в CI скипается (без `MSCODEBASE_E2E=1`). Команда: `MSCODEBASE_E2E=1 python -m pytest tests/e2e/test_e2e_mcp_smoke.py -v`.
 - ⏳ P2-1/P2-7, P3-3: осознанный техдолг — задокументировано в статусах (legacy broad excepts grandfathered через BLE001 ignores; RWLock — отдельный рефакторинг)
 - ✅ P2-6: закрыт как TECH DEBT (ACCEPTED, 2026-07-31) — starvation, не deadlock; max_workers=2 недостижим легитимно (протокол запрещает 3+ параллельных MCP); persistent loop отложен намеренно
-- ✅ **P0 deadlock реиндекса (2026-07-31, регрессия ac6e5ba0e P1-3)** — см. «z.ai review верификация»: bulk known_hashes в `index_project_runner.py` + тест test_index_runner_deadlock (валидирован)
+- ✅ **P0 deadlock реиндекса (2026-07-31, регрессия b194a7b96 P1-3)** — см. «z.ai review верификация»: bulk known_hashes в `index_project_runner.py` + тест test_index_runner_deadlock (валидирован)
 - Верификация через pytest после каждого фикса — выполнено: 666 passed, 0 failed
 - `AGENT_DIARY.md` и `KNOWN_ISSUES.md` — синхронизированы
-- ✅ **HTTP 400 llama.cpp embedder (2026-08-01)** — v2: нативный `/tokenize` truncation (лимит 480 < 512), фикс 48e695b8 (HF 512) опровергнут замером (макс 502, в прогоне 526). Реиндекс 22:37→22:47 ЗАВЕРШЁН: 4677 chunks, FTS5 built, HTTP 400=0, Aborted=0, E2E search_code OK. Попутно: vulkaninfo cp1251-краш (§5.16) + pylance==9.0.0 (known_hashes). Тесты 667 passed, 13 skipped; версия 3.3.11 (локально).
+- ✅ **HTTP 400 llama.cpp embedder (2026-08-01)** — v2: нативный `/tokenize` truncation (лимит 480 < 512), фикс ea31cd95 (HF 512) опровергнут замером (макс 502, в прогоне 526). Реиндекс 22:37→22:47 ЗАВЕРШЁН: 4677 chunks, FTS5 built, HTTP 400=0, Aborted=0, E2E search_code OK. Попутно: vulkaninfo cp1251-краш (§5.16) + pylance==9.0.0 (known_hashes). Тесты 667 passed, 13 skipped; версия 3.3.11 (локально).
 - ✅ **Pre-commit hook блокер (2026-08-01)** — verify_diary: время в заголовке опционально (склейка записей 31.07), negative lookbehind в `_extract_code_functions`/`_check_test_file_exists`, поле `clean_state_reason` (§0.2); hook-шаблон: Popen+utf-8+CREATE_NO_WINDOW (§5.16) + reconfigure (9.9); SyntaxError:36 в git_hooks_installer.py починен (экранирование `\"\"\"` в PRE_COMMIT_HOOK); dead-ссылки generate_docs удалены (скрипт не существовал). Hook прогон: verify_diary 36 ✅/0 ❌ + stale_detector OK, RC 0.
 
 ## z.ai review верификация (2026-07-31)
@@ -443,7 +443,7 @@
 | ID | Утверждение | File:Line | Статус | Вердикт / Фикс |
 |----|-------------|-----------|--------|----------------|
 | LOGIC-4 Blocker | `await self._flush()` внутри `with self._lock` → deadlock batch_full | rate_limiter.py:168-171 | ❌ REFUTED | flush уже ВНЕ lock (INC-53EC); _flush callback тоже вне lock (L234) |
-| WIN-1 High | `hash(str(db_path))` рандомизирован → mutex не работает | graph.py:59 | ❌ REFUTED | уже blake2b (a9d92e00 P2-21) |
+| WIN-1 High | `hash(str(db_path))` рандомизирован → mutex не работает | graph.py:59 | ❌ REFUTED | уже blake2b (8b1a35b5 P2-21) |
 | LOGIC-1 High | move ищет по file_hash, не file_path | file_move_manager.py:37 | ⏳ PARTIAL | орфанный класс никем не вызывается (продакшн — Indexer.move_chunks_metadata, уже по file_path); сам класс ПОЧИНЕН |
 | LOGIC-2 High | delete+add нетранзакционен | file_move_manager.py:34-41 | ⏳ PARTIAL | то же; починено: read→delete→add под lock |
 | SEC-1 High | socket/ssl/http/multiprocessing в ALLOWED_MODULES | executor.py:36-46 | ❌ REFUTED | allowlist уже чистый (только stdlib) |
@@ -509,7 +509,7 @@
 ## Аудит Bot_snow 2026-08-07 — остаток (передача в новый чат)
 
 > Источник: `` `debug_runtime_passport`.md `` L3394-3466 (аудит MCP-инструментов из окна Bot_snow).
-> Уже закрыто этой сессией: multi-window CWD-first (229c7156), stale_detector/_grep_fallback `__file__`-root (e2950a14), search_quality мониторинг (f54bea8b). Тесты 894 passed.
+> Уже закрыто этой сессией: multi-window CWD-first (c113af25), stale_detector/_grep_fallback `__file__`-root (0c5585cc), search_quality мониторинг (267cf098). Тесты 894 passed.
 
 ### BS-1 (🔴 #12): `search_code` — ложная уверенность: мусор вместо пустого ответа ✅ FIXED (2026-08-07)
 - **Фикс:** файлы без единой строки кода (__init__.py с комментарием) не индексируются

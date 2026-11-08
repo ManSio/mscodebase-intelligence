@@ -8,8 +8,8 @@
 > локальные эксперименты E-01/E-02 прогнаны в этой сессии (raw output ниже).
 
 > **СТАТУС 2026-08-18 (поздно):** Фаза 0 + Фаза 1 выполнены на
-> `feat/universal-engine` (коммиты 7232a6e2, cb8f671f, 55a2af41, e661861f,
-> 7a8e703b, c9800368). Раунд аудита (находки исследовательского агента): гейт
+> `feat/universal-engine` (коммиты d35fd1e7, 5a611b4f, 3e69d168, 54acc263,
+> d6a80804, 3cdbdc8b). Раунд аудита (находки исследовательского агента): гейт
 > слоёв подключён в pre-commit (инсталлятор + переустановка) и CI (шаг ci.yml);
 > CI-матрица ОС (ubuntu+windows) уже была; дрейф KNOWN_ISSUES «Фаза 0»
 > исправлен (финальный дом хелперов); дедлайн platform_utils.get_zed_* → Фаза 3
@@ -379,21 +379,21 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 
 **Фаза 3 — Streamable HTTP транспорт** по §3. DoD: сьют эквивалентности
 транспортов (E-07), auth (Bearer), реюз rate limiting, /healthz, Docker image.
-- Шаг 1-3 ✅ (8ecec52b): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
+- Шаг 1-3 ✅ (91f70e3a): `src/mcp/transport/streamable_http.py` + `src/remote_main.py`
   (Starlette /mcp+/healthz + Bearer-auth MSCODEBASE_REMOTE_TOKEN) + tests (5).
-- Шаг 4 ✅ (9e8b8491): rate-limit на гейте — реюз `SlidingWindowRateLimiter` +
+- Шаг 4 ✅ (59904f43): rate-limit на гейте — реюз `SlidingWindowRateLimiter` +
   `CircuitBreaker` (per-token sha256 + per-IP, MSCODEBASE_REMOTE_RATE_LIMIT_RPS,
   /healthz exempt; circuit breaker на /mcp через ASGI-mount: 5xx→503, OPEN
   short-circuit); тесты remote_main 5→13.
 - Остаток: шаг 5 Docker image+compose; E-07 сьют эквивалентности stdio↔HTTP;
   деплой-доки.
-- Шаг 5 ✅ (462ea66f): Docker (Вариант A) — `deploy/docker/{Dockerfile, docker-compose.yml,
+- Шаг 5 ✅ (f7650184): Docker (Вариант A) — `deploy/docker/{Dockerfile, docker-compose.yml,
   .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
   /healthz, том `/data`; llama.cpp/reranker = опциональный внешний сервис (Вариант C).
 - Остаток Фазы 3: E-07 сьют эквивалентности stdio↔HTTP; live build образа на
   CI-джобе/машине владельца (локально Docker вне песочницы не гонялся); деплой-доки
   для rolling-restart (multi-instance) — позже (ТЗ §9б-7).
-- E-07 ✅ (76646a0e): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
+- E-07 ✅ (69d3432d): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
   + `E07_RESULTS.md`. Toy-режим (минимальный FastMCP) PASSED live 2/2 (ping-result +
   bad-args идентичны через stdio/HTTP) — гарнесс доказан. Engine-режим (реальный
   create_mcp_server) — тот же харнесс, live-прогон отложен на CI/idle (2-й MCP /
@@ -401,7 +401,7 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 
 **Фаза 4 — Plugin-манифест** по §5. DoD: PoC-плагин (VOR `verify_claim`
 вынесенный), RCE-негативные контроли, тесты несовпадения версий, trust-гейт UX.
-- v1 ✅ (ae2b01bb): trust-гейт foundation — `src/plugins/{manifest, trust_store, loader}.py`
+- v1 ✅ (1e8848e6): trust-гейт foundation — `src/plugins/{manifest, trust_store, loader}.py`
   (srzchema/version/platform/engine-compat валидация, sha256-pin per id@version,
   TOCTOU re-hash перед import, default-deny resolver, self-check P-001) +
   `tests/test_plugins.py` (15: RCE не-exec, trust first-then-cached, sha-drif,
@@ -409,7 +409,7 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 - PoC-плагин ✅: `examples/plugins/verify_claim/` (детерминированный VOR без LLM).
 - Инкременты (след. раунд): subprocess-изоляция runner + MCP-proxy + wiring в DI/сервер
   и trust-гейт UX (промпт издателя) — план §5.4/§5.6.
-- Subprocess-изоляция ✅ (898e88f0): `src/plugins/{runner, proxy}.py` — хост выполняет
+- Subprocess-изоляция ✅ (a75fa390): `src/plugins/{runner, proxy}.py` — хост выполняет
   trust-гейт БЕЗ import (preauthorize_plugin), runner исполняет плагин в ОТДЕЛЬНОМ
   процессе (fail-closed, JSON-RPC/stdio), proxy проксирует. tests/test_plugins_subprocess.py
   (5): untrusted не-spawn/не-exec, изоляция процесса (мутация host-модуля не видна),
@@ -418,7 +418,7 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 - Остаток Фазы 4: MCP-proxy в сервер (wiring в DI/сервер, регистрация тулов плагина
   как MCP-тулов движка), trust-гейт UX (промпт издателя: name/version/publisher/sha256),
   dependencies-скан (pip-audit-стиль, §5.1).
-- MCP-proxy wiring ✅ (2f30f585): `registry.py` (PluginRegistry: discover/preauthorize/
+- MCP-proxy wiring ✅ (39d5b888): `registry.py` (PluginRegistry: discover/preauthorize/
   spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-гейт UX: trust_prompt,
   make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (валидация пинов ==),
   manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end через PoC
@@ -428,7 +428,7 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.
-- ✅ (1f07952a): `adapters/clients/` конфиги (Claude Code `mcpServers`, VS Code/Cursor
+- ✅ (f09bcdcf): `adapters/clients/` конфиги (Claude Code `mcpServers`, VS Code/Cursor
   `servers`) — stdio (venv py `-m src.main` + PYTHONPATH + cwd) + http remote
   (Streamable HTTP /mcp + Bearer); README плейсхолдеры. `src/cli.py` — тонкий wrapper
   прямого вызова tool-классов через DI без MCP (curated allowlist), JSON in/out,
@@ -689,7 +689,7 @@ stdlib, pnpm-lock.yaml (YAML) — единственная допущенная 
 spec строкой, kind manifest/lockfile); `python -m pytest tests/` зелёный + ruff
 чист; parity-чека выхлопа vs osv-scanner расхождение 0 (Вариант В, CI); ADR-0005 /
 KNOWN_ISSUES обновлены при расширении источников.
-**Статус 2026-08-19:** foundation ✅ `11c71262` — `src/sources/manifest/`
+**Статус 2026-08-19:** foundation ✅ `bb55a053` — `src/sources/manifest/`
 (ManifestEntry + диспетчер; python: pyproject dependency-groups/Pipfile/requirements*
 + npm package.json; `manifest_packages(root)->Set[str]`; stdlib). Тесты на реальных
 фикстурах uv/requests/pipenv/express + edge-кейсы (09). pytest 1396 (+9).

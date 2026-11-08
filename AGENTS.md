@@ -1,7 +1,7 @@
-# Project Agent Rules — MSCodeBase Hybrid Architecture (65 Registered Tools)
+# Project Agent Rules — MSCodeBase Hybrid Architecture (69 Registered Tools, 17 Visible)
 
 > Global system prompt / context injection for the AI Agent in Zed IDE. Applied across all projects.
-> Optimized for the hybrid model: 16 Intel Layer + 32 Core MCP (включая `codebase` hub + 6 LSP + `predict_change` + `bootstrap_pipeline`) + 13 Inline/Diagnostic + 4 Dev Tools = 65 registered (+1 `execute_script` при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` → 66)
+> Optimized for the hybrid model: 16 Intel Layer + 36 Core MCP (включая `codebase` hub + `investigate` + `grep_code` + `predict_change` + `bootstrap_pipeline`) + 13 Inline/Diagnostic + 4 Dev Tools = **69 registered**; `MSCODEBASE_MCP_PROFILE=core` (default) exposes **17**, `full` exposes all 69. Канон чисел — `docs/FACTS.md`.
 
 > \* `execute_script` отключён по умолчанию. Включить: `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` в `.env`.
 
@@ -535,7 +535,7 @@ For file renames, use `apply_file_move(old, new)` instead of `notify_change` —
 
 ## 8. СТАБИЛЬНЫЕ ССЫЛКИ И РОТАЦИЯ ЛОГОВ (ADR-style)
 
-- Ссылка на факт — только `(файл, SHA коммита, ID записи)`: `EXPERIMENTS_LOG.md @ d74785d4`, никогда голый `:line`. Живые логи ротируются/архивируются — `:line` сгнивает при первой архивации (прецедент: архивация KNOWN_ISSUES 429→204 сдвинула каждую строку). Цитата с SHA резолвится через git-историю навсегда; без SHA — Recalled, не Verified.
+- Ссылка на факт — только `(файл, SHA коммита, ID записи)`: `EXPERIMENTS_LOG.md @ a912f99c`, никогда голый `:line`. Живые логи ротируются/архивируются — `:line` сгнивает при первой архивации (прецедент: архивация KNOWN_ISSUES 429→204 сдвинула каждую строку). Цитата с SHA резолвится через git-историю навсегда; без SHA — Recalled, не Verified.
 - Каждая НОВАЯ запись несёт стабильный ID: эксперименты `EXP-N`, дневник `YYYY-MM-DD-slug`, решения ADR-стиль `ADR-NNN` со статусом proposed/accepted/superseded (по Nygard 2011 + adr-tools: номера последовательные, не переиспользуются; отмена — только новой supersede-записью, никогда правкой/удалением истории).
 - Ротация (обобщает §4.8 R4 для KNOWN_ISSUES.md + `scripts/check_known_issues.py`): живой лог >300 строк ИЛИ ежемесячно → append-only перенос закрытых/superseded записей в `docs/archive/<NAME>_YYYY_MM.md`; открытые остаются; коммит ротации цитируется по SHA; история публичного репо не переписывается.
 - Правки опубликованных чисел — только новой записью со ссылкой на старый ID (supersede-цепочка), никаких тихих правок.

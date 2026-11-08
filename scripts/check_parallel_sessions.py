@@ -221,7 +221,7 @@ def selftest() -> int:
         failures.append("обычный путь ошибочно помечен как %TEMP%")
 
     # Контроль на нормализацию разделителей: git отдаёт слэши, pathlib — обратные.
-    if _norm("C:\\Users\\misha\\AppData\\Local\\Temp\\wt") != _norm("C:/Users/misha/AppData/Local/Temp/wt"):
+    if _norm("C:\\Users\\test-user\\AppData\\Local\\Temp\\wt") != _norm("C:/Users/test-user/AppData/Local/Temp/wt"):
         failures.append("собственное дерево было бы принято за чужое (разделители путей)")
     if _norm("D:/Project/MSCodeBase/") != "d:/project/mscodebase":
         failures.append("нормализация пути не каноническая")

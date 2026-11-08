@@ -1,0 +1,2137 @@
+{
+  "control": "selftest_frozen: PASS",
+  "rows": [
+    {
+      "run_id": "A-001f7d3a41_write_tools-20261021T011348Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 295.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 81,
+      "worker_prompt_tokens_max": 87586,
+      "worker_total_tokens_sum": 5326158,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-001f7d3a41_write_tools-20261021T161233Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 64.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 11,
+      "worker_prompt_tokens_max": 53788,
+      "worker_total_tokens_sum": 399532,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-001f7d3a41_write_tools-20261021T010813Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 138.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 16,
+      "worker_prompt_tokens_max": 58121,
+      "worker_total_tokens_sum": 697956,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-001f7d3a41_write_tools-20261021T160125Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 240.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 41036,
+      "worker_total_tokens_sum": 116956,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-001f7d3a41_write_tools_noop-20261020T212704Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 29.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 7,
+      "worker_prompt_tokens_max": 39962,
+      "worker_total_tokens_sum": 141473,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-001f7d3a41_write_tools_noop-20261020T214334Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "001f7d3a41_write_tools_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 115.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 3,
+      "worker_prompt_tokens_max": 8403,
+      "worker_total_tokens_sum": 19184,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-01d1cce11d_codebase_tool-20261021T011844Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "01d1cce11d_codebase_tool",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 30.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 9,
+      "worker_prompt_tokens_max": 20918,
+      "worker_total_tokens_sum": 135077,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-01d1cce11d_codebase_tool-20261021T011035Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "01d1cce11d_codebase_tool",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 91.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 12,
+      "worker_prompt_tokens_max": 20536,
+      "worker_total_tokens_sum": 198553,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-01d1cce11d_codebase_tool_block-20261020T224142Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "01d1cce11d_codebase_tool_block",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 1089.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 2,
+      "worker_prompt_tokens_max": 6602,
+      "worker_total_tokens_sum": 8527,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra-turbo"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "blocked"
+    },
+    {
+      "run_id": "A-11c88afca6_bootstrap_entities-20261021T012233Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 41.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 13,
+      "worker_prompt_tokens_max": 18025,
+      "worker_total_tokens_sum": 176633,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "A-11c88afca6_bootstrap_entities-20261021T161341Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 69.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 7,
+      "worker_prompt_tokens_max": 15007,
+      "worker_total_tokens_sum": 77268,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-11c88afca6_bootstrap_entities-20261021T001826Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 176.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 14110,
+      "worker_total_tokens_sum": 37225,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "C-11c88afca6_bootstrap_entities-20261021T160542Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 221.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 12,
+      "worker_prompt_tokens_max": 20267,
+      "worker_total_tokens_sum": 179127,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-11c88afca6_bootstrap_entities_noop-20261020T212735Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 21.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 14381,
+      "worker_total_tokens_sum": 48124,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-11c88afca6_bootstrap_entities_noop-20261020T213048Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "11c88afca6_bootstrap_entities_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 94.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 3,
+      "worker_prompt_tokens_max": 8559,
+      "worker_total_tokens_sum": 19650,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-17e65663b7_health-20261020T204257Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 237.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 50,
+      "worker_prompt_tokens_max": 68735,
+      "worker_total_tokens_sum": 2602614,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "A-17e65663b7_health-20261020T210053Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 683.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 58,
+      "worker_prompt_tokens_max": 80780,
+      "worker_total_tokens_sum": 3360935,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra",
+        "deepinfra-turbo"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    },
+    {
+      "run_id": "C-17e65663b7_health-20261020T204655Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 18.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 2,
+      "worker_prompt_tokens_max": 7085,
+      "worker_total_tokens_sum": 8600,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-17e65663b7_health-20261020T205033Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 106.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 6,
+      "worker_prompt_tokens_max": 19417,
+      "worker_total_tokens_sum": 85517,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-17e65663b7_health-20261020T205705Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 195.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 6,
+      "worker_prompt_tokens_max": 19440,
+      "worker_total_tokens_sum": 85727,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-17e65663b7_health-20261021T002127Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "17e65663b7_health",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 134.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 6,
+      "worker_prompt_tokens_max": 19451,
+      "worker_total_tokens_sum": 85836,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-17e65663b7_health_block-20261020T220507Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "17e65663b7_health_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 18.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 6,
+      "worker_prompt_tokens_max": 7229,
+      "worker_total_tokens_sum": 37149,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    },
+    {
+      "run_id": "C-17e65663b7_health_block-20261020T233325Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "17e65663b7_health_block",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 397.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 23,
+      "worker_prompt_tokens_max": 24082,
+      "worker_total_tokens_sum": 413988,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "blocked"
+    },
+    {
+      "run_id": "A-32f1166290_index_project_runner-20261021T011915Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "32f1166290_index_project_runner",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 118.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 35,
+      "worker_prompt_tokens_max": 50904,
+      "worker_total_tokens_sum": 1355870,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-32f1166290_index_project_runner_noop-20261020T212757Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "32f1166290_index_project_runner_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 26.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 18832,
+      "worker_total_tokens_sum": 43648,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-32f1166290_index_project_runner_noop-20261020T214534Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "32f1166290_index_project_runner_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 81.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 3,
+      "worker_prompt_tokens_max": 8500,
+      "worker_total_tokens_sum": 19424,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-6e63f85ac3_cypher_executor-20261021T012114Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "6e63f85ac3_cypher_executor",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 64.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 15,
+      "worker_prompt_tokens_max": 32466,
+      "worker_total_tokens_sum": 364990,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "C-6e63f85ac3_cypher_executor-20261021T003045Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "6e63f85ac3_cypher_executor",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 381.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 23,
+      "worker_prompt_tokens_max": 30206,
+      "worker_total_tokens_sum": 506212,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-6e63f85ac3_cypher_executor_block-20261020T220526Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "6e63f85ac3_cypher_executor_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 15.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 7087,
+      "worker_total_tokens_sum": 22532,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    },
+    {
+      "run_id": "C-6e63f85ac3_cypher_executor_block-20261020T231755Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "6e63f85ac3_cypher_executor_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 345.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 2,
+      "worker_prompt_tokens_max": 7386,
+      "worker_total_tokens_sum": 9214,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "blocked"
+    },
+    {
+      "run_id": "A-8a05b599f6_verify_on_read-20261021T012315Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "8a05b599f6_verify_on_read",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 54.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 13,
+      "worker_prompt_tokens_max": 41877,
+      "worker_total_tokens_sum": 431074,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-8a05b599f6_verify_on_read-20261021T010303Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "8a05b599f6_verify_on_read",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 122.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 7,
+      "worker_prompt_tokens_max": 30054,
+      "worker_total_tokens_sum": 146108,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "missing"
+    },
+    {
+      "run_id": "A-8a05b599f6_verify_on_read_noop-20261020T212824Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "8a05b599f6_verify_on_read_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 34.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 38025,
+      "worker_total_tokens_sum": 105833,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-8a05b599f6_verify_on_read_noop-20261020T214700Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "8a05b599f6_verify_on_read_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 94.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 3,
+      "worker_prompt_tokens_max": 7798,
+      "worker_total_tokens_sum": 17328,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-9b66fbed2a_parser-20261021T012411Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "9b66fbed2a_parser",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 78.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 16,
+      "worker_prompt_tokens_max": 53414,
+      "worker_total_tokens_sum": 613312,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra",
+        "frontier-max"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-9b66fbed2a_parser-20261021T003921Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "9b66fbed2a_parser",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 173.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 16,
+      "worker_prompt_tokens_max": 55131,
+      "worker_total_tokens_sum": 696117,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-9b66fbed2a_parser_block-20261020T220543Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "9b66fbed2a_parser_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 14.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 7079,
+      "worker_total_tokens_sum": 22512,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    },
+    {
+      "run_id": "A-P1_mean-20261020T180712Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "P1_mean",
+      "corpus": false,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 16.0,
+      "hidden_scoped_rc": 0,
+      "changed": 1,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": 4,
+      "baseline_total_tokens": 7628,
+      "baseline_max_input_with_cache": 7486,
+      "worker_requests": null,
+      "worker_prompt_tokens_max": null,
+      "worker_total_tokens_sum": null,
+      "worker_modes": [],
+      "worker_served_by": [],
+      "worker_served_model_ids": [],
+      "agent_status": null
+    },
+    {
+      "run_id": "D-P1_mean-20261020T180829Z",
+      "arm": "D",
+      "transport": "proxy",
+      "task": "P1_mean",
+      "corpus": false,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 101.0,
+      "hidden_scoped_rc": 0,
+      "changed": 1,
+      "scope_violations": 0,
+      "planner_requests": 2,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 7094,
+      "worker_total_tokens_sum": 29172,
+      "worker_modes": [
+        "low"
+      ],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [
+        "Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo",
+        "openai/gpt-oss-120b"
+      ],
+      "agent_status": null
+    },
+    {
+      "run_id": "A-P2_money-20261020T180735Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "P2_money",
+      "corpus": false,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 47.0,
+      "hidden_scoped_rc": 0,
+      "changed": 2,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": 5,
+      "baseline_total_tokens": 14308,
+      "baseline_max_input_with_cache": 8442,
+      "worker_requests": null,
+      "worker_prompt_tokens_max": null,
+      "worker_total_tokens_sum": null,
+      "worker_modes": [],
+      "worker_served_by": [],
+      "worker_served_model_ids": [],
+      "agent_status": null
+    },
+    {
+      "run_id": "D-P2_money-20261020T181030Z",
+      "arm": "D",
+      "transport": "proxy",
+      "task": "P2_money",
+      "corpus": false,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 98.0,
+      "hidden_scoped_rc": 0,
+      "changed": 2,
+      "scope_violations": 0,
+      "planner_requests": 2,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 11,
+      "worker_prompt_tokens_max": 7451,
+      "worker_total_tokens_sum": 66984,
+      "worker_modes": [
+        "low"
+      ],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [
+        "Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo",
+        "openai/gpt-oss-120b"
+      ],
+      "agent_status": null
+    },
+    {
+      "run_id": "A-a7c221f88d_parser-20261021T012530Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "a7c221f88d_parser",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 201.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 20,
+      "worker_prompt_tokens_max": 36969,
+      "worker_total_tokens_sum": 498361,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "frontier-max",
+        "llama-sambanova"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-a7c221f88d_parser-20261021T004219Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "a7c221f88d_parser",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 342.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 7,
+      "worker_prompt_tokens_max": 16207,
+      "worker_total_tokens_sum": 86741,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-a7c221f88d_parser_noop-20261020T212859Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "a7c221f88d_parser_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 21.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 26309,
+      "worker_total_tokens_sum": 83651,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-a7c221f88d_parser_noop-20261020T213549Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "a7c221f88d_parser_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 117.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 28847,
+      "worker_total_tokens_sum": 92669,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-c4c9296fdc_file_guard-20261020T204714Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 75.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 16,
+      "worker_prompt_tokens_max": 18702,
+      "worker_total_tokens_sum": 233312,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "A-c4c9296fdc_file_guard-20261021T161457Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 175.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 27,
+      "worker_prompt_tokens_max": 24217,
+      "worker_total_tokens_sum": 465135,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-c4c9296fdc_file_guard-20261020T204830Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 11.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 2,
+      "worker_prompt_tokens_max": 7067,
+      "worker_total_tokens_sum": 8568,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-c4c9296fdc_file_guard-20261020T205437Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 143.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 15191,
+      "worker_total_tokens_sum": 50274,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "C-c4c9296fdc_file_guard-20261021T004806Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 242.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 15000,
+      "worker_total_tokens_sum": 52653,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "C-c4c9296fdc_file_guard-20261021T160936Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 127.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 12572,
+      "worker_total_tokens_sum": 47698,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-c4c9296fdc_file_guard_block-20261020T220559Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "c4c9296fdc_file_guard_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 15.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 7071,
+      "worker_total_tokens_sum": 22481,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    },
+    {
+      "run_id": "C-e7dc645652_project_resolution-20261021T011210Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "e7dc645652_project_resolution",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 78.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 17032,
+      "worker_total_tokens_sum": 58523,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "A-e7dc645652_project_resolution_noop-20261020T212921Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "e7dc645652_project_resolution_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 20.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 17140,
+      "worker_total_tokens_sum": 56502,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "C-e7dc645652_project_resolution_noop-20261020T214839Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "e7dc645652_project_resolution_noop",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 60.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 4,
+      "worker_prompt_tokens_max": 14669,
+      "worker_total_tokens_sum": 38698,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "done"
+    },
+    {
+      "run_id": "A-ed0f88004b_context_tool-20261021T013853Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "ed0f88004b_context_tool",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 103.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 10,
+      "worker_prompt_tokens_max": 14015,
+      "worker_total_tokens_sum": 95218,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "frontier-max",
+        "llama-sambanova"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "unparsed"
+    },
+    {
+      "run_id": "C-ed0f88004b_context_tool-20261021T005350Z",
+      "arm": "C",
+      "transport": "proxy",
+      "task": "ed0f88004b_context_tool",
+      "corpus": true,
+      "outcome": "fail_quality",
+      "passed": false,
+      "wall_s": 191.0,
+      "hidden_scoped_rc": 1,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 7,
+      "worker_prompt_tokens_max": 18231,
+      "worker_total_tokens_sum": 95776,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "missing"
+    },
+    {
+      "run_id": "A-ed0f88004b_context_tool_block-20261020T220616Z",
+      "arm": "A",
+      "transport": "proxy",
+      "task": "ed0f88004b_context_tool_block",
+      "corpus": true,
+      "outcome": "pass",
+      "passed": true,
+      "wall_s": 17.0,
+      "hidden_scoped_rc": 0,
+      "changed": 0,
+      "scope_violations": 0,
+      "planner_requests": null,
+      "baseline_requests": null,
+      "baseline_total_tokens": 0,
+      "baseline_max_input_with_cache": null,
+      "worker_requests": 5,
+      "worker_prompt_tokens_max": 12751,
+      "worker_total_tokens_sum": 35437,
+      "worker_modes": [],
+      "worker_served_by": [
+        "Cerebras",
+        "deepinfra"
+      ],
+      "worker_served_model_ids": [],
+      "agent_status": "failed"
+    }
+  ],
+  "by_class": [
+    {
+      "class": "fix",
+      "arm": "A",
+      "runs": 15,
+      "passed": 3,
+      "tokens_total": 16135489,
+      "tokens_max_per_run": 5326158,
+      "prompt_max": 87586,
+      "requests_max": 81,
+      "outcomes": {
+        "fail_quality": 12,
+        "pass": 3
+      }
+    },
+    {
+      "class": "fix",
+      "arm": "C",
+      "runs": 19,
+      "passed": 4,
+      "tokens_total": 3244167,
+      "tokens_max_per_run": 697956,
+      "prompt_max": 58121,
+      "requests_max": 23,
+      "outcomes": {
+        "fail_quality": 15,
+        "pass": 4
+      }
+    },
+    {
+      "class": "noop",
+      "arm": "A",
+      "runs": 6,
+      "passed": 6,
+      "tokens_total": 479231,
+      "tokens_max_per_run": 141473,
+      "prompt_max": 39962,
+      "requests_max": 7,
+      "outcomes": {
+        "pass": 6
+      }
+    },
+    {
+      "class": "noop",
+      "arm": "C",
+      "runs": 6,
+      "passed": 6,
+      "tokens_total": 206953,
+      "tokens_max_per_run": 92669,
+      "prompt_max": 28847,
+      "requests_max": 5,
+      "outcomes": {
+        "pass": 6
+      }
+    },
+    {
+      "class": "block",
+      "arm": "A",
+      "runs": 5,
+      "passed": 5,
+      "tokens_total": 140111,
+      "tokens_max_per_run": 37149,
+      "prompt_max": 12751,
+      "requests_max": 6,
+      "outcomes": {
+        "pass": 5
+      }
+    },
+    {
+      "class": "block",
+      "arm": "C",
+      "runs": 3,
+      "passed": 1,
+      "tokens_total": 431729,
+      "tokens_max_per_run": 413988,
+      "prompt_max": 24082,
+      "requests_max": 23,
+      "outcomes": {
+        "fail_quality": 2,
+        "pass": 1
+      }
+    },
+    {
+      "class": "synthetic-pilot",
+      "arm": "A",
+      "runs": 2,
+      "passed": 2,
+      "tokens_total": 0,
+      "tokens_max_per_run": 0,
+      "prompt_max": 0,
+      "requests_max": 0,
+      "outcomes": {
+        "pass": 2
+      }
+    },
+    {
+      "class": "synthetic-pilot",
+      "arm": "D",
+      "runs": 2,
+      "passed": 2,
+      "tokens_total": 96156,
+      "tokens_max_per_run": 66984,
+      "prompt_max": 7451,
+      "requests_max": 11,
+      "outcomes": {
+        "pass": 2
+      }
+    }
+  ],
+  "partition": [
+    {
+      "task": "001f7d3a41_write_tools",
+      "arms": {
+        "A/proxy": [
+          2,
+          2
+        ],
+        "C/proxy": [
+          1,
+          2
+        ]
+      },
+      "contested": false,
+      "single_run_cells": []
+    },
+    {
+      "task": "001f7d3a41_write_tools_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "01d1cce11d_codebase_tool",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "01d1cce11d_codebase_tool_block",
+      "arms": {
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "11c88afca6_bootstrap_entities",
+      "arms": {
+        "A/proxy": [
+          0,
+          2
+        ],
+        "C/proxy": [
+          0,
+          2
+        ]
+      },
+      "contested": false,
+      "single_run_cells": []
+    },
+    {
+      "task": "11c88afca6_bootstrap_entities_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "17e65663b7_health",
+      "arms": {
+        "A/proxy": [
+          0,
+          2
+        ],
+        "C/proxy": [
+          3,
+          4
+        ]
+      },
+      "contested": true,
+      "single_run_cells": []
+    },
+    {
+      "task": "17e65663b7_health_block",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": true,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "32f1166290_index_project_runner",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy"
+      ]
+    },
+    {
+      "task": "32f1166290_index_project_runner_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "6e63f85ac3_cypher_executor",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "6e63f85ac3_cypher_executor_block",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "8a05b599f6_verify_on_read",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "8a05b599f6_verify_on_read_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "9b66fbed2a_parser",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "9b66fbed2a_parser_block",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy"
+      ]
+    },
+    {
+      "task": "P1_mean",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "D/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "D/proxy"
+      ]
+    },
+    {
+      "task": "P2_money",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "D/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "D/proxy"
+      ]
+    },
+    {
+      "task": "a7c221f88d_parser",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "a7c221f88d_parser_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "c4c9296fdc_file_guard",
+      "arms": {
+        "A/proxy": [
+          1,
+          2
+        ],
+        "C/proxy": [
+          0,
+          4
+        ]
+      },
+      "contested": true,
+      "single_run_cells": []
+    },
+    {
+      "task": "c4c9296fdc_file_guard_block",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy"
+      ]
+    },
+    {
+      "task": "e7dc645652_project_resolution",
+      "arms": {
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "e7dc645652_project_resolution_noop",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ],
+        "C/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "ed0f88004b_context_tool",
+      "arms": {
+        "A/proxy": [
+          0,
+          1
+        ],
+        "C/proxy": [
+          0,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy",
+        "C/proxy"
+      ]
+    },
+    {
+      "task": "ed0f88004b_context_tool_block",
+      "arms": {
+        "A/proxy": [
+          1,
+          1
+        ]
+      },
+      "contested": false,
+      "single_run_cells": [
+        "A/proxy"
+      ]
+    }
+  ],
+  "superseded": [
+    "A-01d1cce11d_codebase_tool_block-20261020T215002Z",
+    "A-05809e70a8_process_titles-20261020T202852Z",
+    "A-P1_mean-20261020T180423Z",
+    "C-001f7d3a41_write_tools-20261021T001050Z",
+    "C-001f7d3a41_write_tools-20261021T005855Z",
+    "C-001f7d3a41_write_tools_noop-20261020T212943Z",
+    "C-01d1cce11d_codebase_tool-20261021T001548Z",
+    "C-01d1cce11d_codebase_tool-20261021T010146Z",
+    "C-01d1cce11d_codebase_tool_block-20261020T220634Z",
+    "C-17e65663b7_health_block-20261020T222012Z",
+    "C-17e65663b7_health_block-20261020T225956Z",
+    "C-32f1166290_index_project_runner_noop-20261020T213227Z",
+    "C-6e63f85ac3_cypher_executor_block-20261020T222925Z",
+    "C-8a05b599f6_verify_on_read-20261021T003710Z",
+    "C-8a05b599f6_verify_on_read_noop-20261020T213347Z",
+    "C-c4c9296fdc_file_guard-20261020T205221Z",
+    "C-e7dc645652_project_resolution-20261021T005213Z",
+    "C-e7dc645652_project_resolution-20261021T010509Z",
+    "C-e7dc645652_project_resolution_noop-20261020T213751Z"
+  ]
+}

@@ -1,6 +1,6 @@
 # CLAIMS AUDIT — результат (mirror of Tom's 84→107 correction)
 
-**Дата:** 2026-09-30. **Commit:** `ea9b5911`
+**Дата:** 2026-09-30. **Commit:** `a8c830df`
 **Манифест (frozen до прогона):** `experiments/claims_audit/frozen/CLAIMS_MANIFEST.md`, sha256 `6bd0ab75b9067b941d429d164e9583349cf5f3e6af44ba5dc9b40b25b39dec49`
 **Правило:** список претензий не менялся после просмотра результатов. Непроверяемое помечено `CANNOT VERIFY`, а не смягчено.
 
@@ -42,7 +42,7 @@ LockBusyError: PID lock still held by alive pid=548 after 8.0s
 Причина **не** в регрессии. `ORPHAN` удалён из классификатора намеренно:
 
 - `src/core/indexing/database_lock.py:81-84` — «ORPHAN удалён (R3TF 2026-08-26): TerminateProcess по эвристике убивал живые MCP»
-- коммит `7974d981` (2026-08-28); поведение введено `3798d6a9` (2026-08-08)
+- коммит `145fda16` (2026-08-28); поведение введено `867dbe56` (2026-08-08)
 
 Оставшиеся кейсы воспроизводятся: healthy **1507 ms** (публиковано 1.5 s ✅), stale 19 ms, free 5 ms, тесты **20/20**.
 
@@ -54,7 +54,7 @@ LockBusyError: PID lock still held by alive pid=548 after 8.0s
 
 | Файл:строка | Что стоит |
 |---|---|
-| `EXPERIMENTS_LOG.md:1320` | вердикт помечен `SUPERSEDED` + sha `3798d6a9` + ссылка на R3TF `7974d981` |
+| `EXPERIMENTS_LOG.md:1320` | вердикт помечен `SUPERSEDED` + sha `867dbe56` + ссылка на R3TF `145fda16` |
 | `experiments/README.md:27` | та же метка в таблице экспериментов |
 | `experiments/lock_zombie/README.md:9` | та же метка; сырой вывод прогона не тронут |
 

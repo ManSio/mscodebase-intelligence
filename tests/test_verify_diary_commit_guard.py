@@ -72,3 +72,61 @@ def test_mixed_hex_is_not_guard_bypassed_when_absent():
     with mock.patch.object(verify.subprocess, "Popen", _popen_returning(1)):
         # Has letters -> isdigit() False -> still flagged as missing.
         assert verify.check_commit_exists("a1b2c3d") is False
+
+
+class _FakeBatchPopen:
+    """Фейковый `git cat-file --batch-check`: детерминированный stdout."""
+
+    def __init__(self, *args, **kwargs):
+        self.returncode = 0
+
+    def communicate(self, input=None, timeout=30):
+        return (
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa commit 10\n"
+            "f00baa1 missing\n"
+            "34737070903 missing\n",
+            None,
+        )
+
+
+def test_batch_resolves_short_hash_and_marks_absent(monkeypatch):
+    """Батч: короткий хеш → True по префиксу; отсутствующий hex → False."""
+    monkeypatch.setattr(verify.subprocess, "Popen", _FakeBatchPopen)
+    verify._COMMIT_CACHE.clear()
+    verify.resolve_commits(["aaaaaaa", "f00baa1"])
+    assert verify._COMMIT_CACHE.get("aaaaaaa") is True
+    assert verify._COMMIT_CACHE.get("f00baa1") is False
+
+
+def test_batch_never_caches_numeric_tokens_as_missing(monkeypatch):
+    """Regression caught in review: the batch must not bypass the digit guard.
+
+    `34737070903` is a byte-count/run-ID, not a commit. Caching False for it
+    made the ledger fail on two entries that pass with the per-hash path.
+    """
+    monkeypatch.setattr(verify.subprocess, "Popen", _FakeBatchPopen)
+    verify._COMMIT_CACHE.clear()
+    verify.resolve_commits(["34737070903", "20261021"])
+    assert "34737070903" not in verify._COMMIT_CACHE
+    assert "20261021" not in verify._COMMIT_CACHE
+    assert verify.check_commit_exists("34737070903") is True
+    assert verify.check_commit_exists("20261021") is True
+
+
+def test_batch_spawn_failure_falls_back(tmp_path):
+    """Если батч не стартовал — кэш пуст, а коммиты не обвиняются (fail-open)."""
+    verify._COMMIT_CACHE.clear()
+    verify._GIT_UNAVAILABLE = False
+
+    def _boom(*args, **kwargs):
+        raise OSError("spawn failed")
+
+    import unittest.mock as _mock
+
+    with _mock.patch.object(verify.subprocess, "Popen", _boom):
+        verify.resolve_commits(["f00baa1"])
+        assert verify._COMMIT_CACHE == {}
+        assert verify._GIT_UNAVAILABLE is True
+        # Нет ложного «коммит не найден»: проверка невозможна → не обвиняем.
+        assert verify.check_commit_exists("f00baa1") is True
+    verify._GIT_UNAVAILABLE = False

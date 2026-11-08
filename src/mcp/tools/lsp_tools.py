@@ -17,6 +17,7 @@ docs/en/investigations/LSP_WONTFIX.md).
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -87,6 +88,15 @@ async def _ensure_lsp():
 
             root = resolve_project_root()
             client = LspClient(project_root=Path(root))
+            # 2026-11-08: полный старт по умолчанию 40 s, а внутри MCP он
+            # уходил в ~50 s и всё равно падал (basedpyright не поднимается).
+            # Короткий бюджет делает отказ быстрым; вернуть 40 можно env-ом.
+            try:
+                client.START_TIMEOUT = float(
+                    os.getenv("MSCODEBASE_LSP_START_TIMEOUT", "15")
+                )
+            except ValueError:
+                client.START_TIMEOUT = 15.0
             if await client.start():
                 _lsp_client = client
                 _lsp_last_failed_at = None
@@ -172,7 +182,7 @@ class LspFindReferencesTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_find_references")
 
-    @error_boundary("lsp_find_references", timeout_ms=15000)
+    @error_boundary("lsp_find_references", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
@@ -215,7 +225,7 @@ class LspFindDefinitionTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_find_definition")
 
-    @error_boundary("lsp_find_definition", timeout_ms=15000)
+    @error_boundary("lsp_find_definition", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
@@ -258,7 +268,7 @@ class LspDocumentSymbolsTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_document_symbols")
 
-    @error_boundary("lsp_document_symbols", timeout_ms=15000)
+    @error_boundary("lsp_document_symbols", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
@@ -293,7 +303,7 @@ class LspGetTypeInfoTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_get_type_info")
 
-    @error_boundary("lsp_get_type_info", timeout_ms=15000)
+    @error_boundary("lsp_get_type_info", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
@@ -341,7 +351,7 @@ class LspGetDiagnosticsTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_get_diagnostics")
 
-    @error_boundary("lsp_get_diagnostics", timeout_ms=20000)
+    @error_boundary("lsp_get_diagnostics", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
@@ -405,7 +415,7 @@ class LspGetCodeActionsTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="lsp_get_code_actions")
 
-    @error_boundary("lsp_get_code_actions", timeout_ms=15000)
+    @error_boundary("lsp_get_code_actions", timeout_ms=60000)
     async def execute(
         self,
         file_path: str,
