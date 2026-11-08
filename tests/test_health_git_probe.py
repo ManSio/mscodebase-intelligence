@@ -66,6 +66,31 @@ def test_probe_uses_communicate_with_inner_timeout(tmp_path, monkeypatch):
     assert not [w for w in report.warnings if w["component"] == "execution_contract"]
 
 
+def test_real_probe_returns_hash_and_subject(tmp_path):
+    """Real-repo guard: the mocked payload must match what git actually prints.
+
+    The fake spawner above pins the *contract* ("hash subject"), so it cannot
+    catch a probe whose real command returns only a hash — that is exactly how
+    `rev-parse --short HEAD` slipped past it and broke
+    `test_last_commit_metric`.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+    (repo / "a.py").write_text("x = 1", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+
+    report = HealthReport(project_path=repo)
+    report._check_execution_contract()
+
+    value = report.metrics.get("last_commit", "")
+    assert len(value.split(" ", 1)) == 2, value
+    assert "initial" in value
+
+
 def test_probe_timeout_is_a_metric_not_a_warning(tmp_path, monkeypatch):
     """Медленный git в песочнице MCP — не проблема пользователя (2026-11-07)."""
     proc = _SlowPopen()

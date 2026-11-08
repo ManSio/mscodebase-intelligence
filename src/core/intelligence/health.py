@@ -629,8 +629,11 @@ class HealthReport:
                 # health-check ждал 15s и писал «Git операция не удалась».
                 # Popen + communicate(timeout) — безопасный паттерн; 10s < 15s
                 # внешнего бюджета, чтобы не было гонки двух таймаутов.
+                # `rev-parse --short` возвращал только хеш и ломал контракт
+                # метрики (тест и `_OkPopen` ждут "hash subject", и это же
+                # видит пользователь в отчёте). Один вызов git, тот же бюджет.
                 proc = subprocess.Popen(
-                    ["git", "rev-parse", "--short", "HEAD"],
+                    ["git", "log", "-1", "--format=%h %s", "HEAD"],
                     cwd=str(self.project_path),
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
