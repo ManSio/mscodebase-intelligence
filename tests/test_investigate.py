@@ -43,6 +43,23 @@ def test_empty_result_is_not_invented():
     assert "Ничего не найдено" in text
 
 
+def test_memory_hits_match_title_or_body():
+    from src.mcp.tools.investigate_tool import _memory_hits
+
+    nodes = [
+        {"data": {"title": "ADR-0003 verify-on-read", "description": "lazy validation"}},
+        {"data": {"title": "Something else", "description": "unrelated"}},
+    ]
+    hits = _memory_hits(nodes, "how does verify-on-read work")
+    assert hits == ["ADR-0003 verify-on-read"]
+
+
+def test_memory_hits_ignore_short_tokens():
+    from src.mcp.tools.investigate_tool import _memory_hits
+
+    assert _memory_hits([{"title": "x"}], "how do we do it") == []
+
+
 def _fake_tool(tmp_path: Path) -> InvestigateTool:
     tool = InvestigateTool(ServiceCollection())
 

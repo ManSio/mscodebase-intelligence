@@ -28,6 +28,28 @@ _MAX_IDS = 3
 _CHANNEL_TIMEOUT = 8.0
 
 
+def _memory_hits(nodes: Iterable[Dict[str, Any]], query: str) -> List[str]:
+    """Project-memory nodes whose title/body shares a meaningful token."""
+    tokens = {t for t in re.findall(r"[a-zа-я0-9_]{5,}", query.lower())}
+    if not tokens:
+        return []
+    hits: List[str] = []
+    for node in nodes:
+        data = node.get("data") if isinstance(node.get("data"), dict) else node
+        title = str(data.get("title") or data.get("name") or node.get("title") or "")
+        body = " ".join(
+            str(data.get(k) or "") for k in ("description", "content", "text", "summary")
+        )
+        haystack = (title + " " + body).lower()
+        if any(token in haystack for token in tokens):
+            label = (title or haystack[:80]).strip()
+            if label and label not in hits:
+                hits.append(label[:120])
+        if len(hits) >= 3:
+            break
+    return hits
+
+
 def _identifiers(query: str) -> List[str]:
     """Code-ish tokens from a natural-language question."""
     found: List[str] = []
@@ -174,6 +196,83 @@ class InvestigateTool(MCPTool):
             _run("grep", _grep, False),
         )
 
+        # ─── Pass 2: channels that need a symbol/file from pass 1 ───
+        first_pass = _merge(items, 50)
+        top_files = [row["file"] for row in first_pass if row["file"]][:3]
+        top_names = identifiers[:2]
+        root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
+
+        def _impact() -> None:
+            for name in top_names:
+                res = symbol_index.get_impact_analysis(name, 2) or {}
+                cg = res.get("call_graph") or {}
+                definition = cg.get("definition") or {}
+                if not definition:
+                    continue
+                items.append(
+                    {
+                        "file": definition.get("file") or "",
+                        "line": definition.get("line") or 0,
+                        "text": (
+                            f"impact {name}: risk={res.get('risk_level', '?')}, "
+                            f"affected={len(res.get('affected_files') or [])}"
+                        ),
+                        "score": 1.0,
+                        "channels": {"impact"},
+                    }
+                )
+
+        def _graph() -> None:
+            for name in top_names:
+                for caller in (symbol_index.get_callers(name) or [])[:3]:
+                    items.append(
+                        {
+                            "file": getattr(caller, "file", ""),
+                            "line": getattr(caller, "line", 0),
+                            "text": f"caller of {name}",
+                            "score": 1.0,
+                            "channels": {"graph"},
+                        }
+                    )
+
+        def _tests() -> None:
+            from src.core.test_impact import predict_affected_tests
+
+            for rel_file in top_files:
+                pred = predict_affected_tests([rel_file], str(root)) or {}
+                for test in (pred.get("affected_tests") or [])[:3]:
+                    items.append(
+                        {
+                            "file": test,
+                            "line": 0,
+                            "text": f"covers {rel_file}",
+                            "score": 0.8,
+                            "channels": {"tests"},
+                        }
+                    )
+
+        def _memory() -> None:
+            from src.core.intelligence.store import IntelligenceStore
+
+            nodes = IntelligenceStore(root)._load_json("project_memory.json")  # noqa: SLF001
+            for node in _memory_hits(nodes, query):
+                items.append(
+                    {
+                        "file": "(memory)",
+                        "line": 0,
+                        "text": node,
+                        "score": 0.9,
+                        "channels": {"memory"},
+                    }
+                )
+
+        await asyncio.gather(
+            _run("impact", _impact, False),
+            _run("graph", _graph, False),
+            _run("tests", _tests, False),
+            _run("memory", _memory, False),
+        )
+
         merged = _merge(items, limit)
         return self._format(query, identifiers, merged, symbol_lines, degraded)
 
@@ -200,6 +299,9 @@ class InvestigateTool(MCPTool):
 
         for i, row in enumerate(merged, 1):
             channels = "+".join(sorted(row["channels"]))
+            if row["file"] == "(memory)":
+                lines.append(f"{i}. [memory] {row['text']}  [{channels}]")
+                continue
             lines.append(f"{i}. {row['file']}:{row['line']}  [{channels}]")
             if row["text"]:
                 lines.append(f"   {row['text'].strip()[:180]}")
