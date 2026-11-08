@@ -72,6 +72,47 @@ def _vectors_collapsed(vectors: List[List[float]], eps: float = 1e-3) -> bool:
     return var < eps
 
 
+_MODEL_DIMENSIONS = {
+    # name fragment -> output dimension. Measured against the shipped GGUFs and
+    # the llama.cpp server on 2026-11-08: `embeddinggemma-2` answers 768
+    # ("query dim(768) doesn't match the column vector dim(384)" came from the
+    # config default, not from the model).
+    "embeddinggemma": 768,
+    "bge-m3": 1024,
+    "bge-base": 768,
+    "bge-small": 384,
+    "bge-large": 1024,
+    "text-embedding-ada": 1536,
+    "multilingual-e5-small": 384,
+    "multilingual-e5-base": 768,
+    "e5-small": 384,
+    "e5-base": 768,
+    "e5-large": 1024,
+    "gte-small": 384,
+    "gte-base": 768,
+    "gte-large": 1024,
+}
+
+
+def model_dimension(model_name: str, default: int) -> int:
+    """Dimension for `model_name`, or `default` when the model is unknown.
+
+    Why: the vector table schema and the query vector must agree. The config
+    default is 384 (e5-small); running a 768-d model against it raised
+    `lance error: query dim(768) doesn't match the column vector dim(384)` and
+    the search kept going, half-broken. `EMBEDDING_DIMENSION` still wins, so a
+    deployment can pin the value explicitly.
+    """
+    override = os.getenv("EMBEDDING_DIMENSION", "").strip()
+    if override.isdigit():
+        return int(override)
+    lowered = (model_name or "").lower()
+    for fragment, dim in _MODEL_DIMENSIONS.items():
+        if fragment in lowered:
+            return dim
+    return default
+
+
 class RemoteEmbedder(IEmbedder):
     def __init__(
         self,
@@ -89,7 +130,11 @@ class RemoteEmbedder(IEmbedder):
         self.model_name = config.embedding.model_name
 
         self._breaker = breaker
-        self.embedding_dim = config.embedding.embedding_dimension
+        # The schema and the query vector must agree; the config default is not
+        # the model's dimension (measured 2026-11-08: 384 vs 768).
+        self.embedding_dim = model_dimension(
+            self.model_name, config.embedding.embedding_dimension
+        )
 
         # ONNX Server (общий для всех проектов, через HTTP) — теперь через Singleton Client
         perf_cfg = config.performance
@@ -113,6 +158,14 @@ class RemoteEmbedder(IEmbedder):
         # Benchmark: eliminates per-batch TCP handshake overhead (~10-20ms/batch saved)
         self._http_client = httpx.Client(timeout=self.timeout)
 
+        # The configured name can be stale (`qwen3-embedding` in .env while the
+        # server runs embeddinggemma-2): the only reliable answer is the server.
+        # Measured 2026-11-08: config said 384, the model returned 768, and dense
+        # search raised "query dim(768) doesn't match the column vector dim(384)".
+        probed = self._probe_server_dimension()
+        if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
+            self.embedding_dim = probed
+
         # llama.cpp idle timeout
         self._llama_idle_timeout = 300
         self._llama_last_used = 0.0
@@ -135,6 +188,18 @@ class RemoteEmbedder(IEmbedder):
         ]
         self.local_model_dir = self._onnx_search_paths[0]
         self._detect_model_dir()
+
+        # The width must describe the model that will actually answer. Detection
+        # above looks at ONNX files on disk; the live provider may be llama.cpp
+        # with a different width (measured 2026-11-08: file 384, server 768).
+        # Env still wins, and a probe that needs a moment does not block startup.
+        if not os.getenv("EMBEDDING_DIMENSION", "").strip():
+            live_dim = self._probe_server_dimension()
+            if live_dim and live_dim != self.embedding_dim:
+                logger.info(
+                    f"embedding_dim {self.embedding_dim} -> {live_dim} (live server)"
+                )
+                self.embedding_dim = live_dim
 
         # Shadow Canary: эталонные пары запрос→чанк
         self._canary_pairs: List[dict] = []
@@ -205,6 +270,25 @@ class RemoteEmbedder(IEmbedder):
             return tok.decode(enc.ids, skip_special_tokens=True)
         except Exception:
             return text
+
+    def _probe_server_dimension(self) -> Optional[int]:
+        """Length of one embedding from the live llama.cpp server, or None.
+
+        Best effort: a missing server is normal (the host starts it later), so
+        the call is short and every failure is silent.
+        """
+        try:
+            resp = httpx.post(
+                self.llama_cpp_url,
+                json={"input": "dimension probe", "model": self.model_name},
+                timeout=3.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            vector = (data.get("data") or [{}])[0].get("embedding") or []
+            return len(vector) or None
+        except Exception:  # noqa: BLE001 — no server means "unknown", not an error
+            return None
 
     def _truncate_for_llama(self, texts: List[str]) -> List[str]:
         """Guarantee every text tokenizes to <= _LLAMA_MAX_TOKENS llama tokens.
@@ -411,7 +495,12 @@ class RemoteEmbedder(IEmbedder):
                 # Lightweight dimension detection: onnx protobuf metadata,
                 # NOT full InferenceSession (saves ~544 MB peak).
                 dim = self._lightweight_onnx_dim(model_file)
-                if dim:
+                # An ONNX file in the models dir says nothing about the model the
+                # ACTIVE provider uses: with llama.cpp running, the server answers
+                # 768 while this file is 384, and the override silently put the
+                # index at the wrong width (measured 2026-11-08). An explicit
+                # EMBEDDING_DIMENSION always wins.
+                if dim and not os.getenv("EMBEDDING_DIMENSION", "").strip():
                     self.embedding_dim = dim
                 dim_str = f"{dim}dim" if dim else "dim?"
                 logger.info(
