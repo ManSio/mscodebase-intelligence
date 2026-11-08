@@ -18,6 +18,19 @@ from src.core.di_container import ServiceCollection
 from src.mcp.tools.grep_tool import GrepCodeTool
 from src.mcp.tools.investigate_tool import _abstains
 
+# ── profiles ────────────────────────────────────────────────────────────────
+
+def test_profiles_are_two_and_intent_driven():
+    """`exploratory` was measured and removed (top10 0.750 vs 0.875, rank1 0.344
+    vs 0.656); a dead profile that is strictly worse must not be selectable."""
+    from src.mcp.tools.investigate_tool import _PROFILES
+
+    assert set(_PROFILES) == {"def_first", "references"}
+    assert _PROFILES["def_first"]["definition"] > _PROFILES["def_first"]["search"]
+    assert _PROFILES["def_first"]["symbol"] > _PROFILES["def_first"]["search"]
+    assert _PROFILES["references"]["grep"] > _PROFILES["references"]["search"]
+
+
 # ── abstention truth table ──────────────────────────────────────────────────
 
 def test_abstains_when_subject_is_absent_and_unknown():

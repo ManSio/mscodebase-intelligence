@@ -25,6 +25,25 @@ from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.mcp.tools.base import MCPTool
 
+# Channel weights, additive on top of each channel's own (rank-based) score.
+# `def_first` is the shipped default: an exact name lookup is evidence, a
+# semantic neighbour is a guess. `exploratory` is the alternative measured in
+# experiments/xerj_2026_11/run_profiles.py - it exists to test whether "let
+# retrieval win" is better for vague questions, not because it is believed.
+#  `exploratory` (let retrieval win) was measured and removed: on 32 tasks with
+#  an identifier it scored top10 0.750 / rank1 0.344 against 0.875 / 0.656 for
+#  `def_first`, and on the 4 tasks without an identifier the two were identical
+#  (0.250 / 0.000) - so it was never a second profile, only a worse one.
+#  Experiment: experiments/xerj_2026_11/run_profiles.py.
+_PROFILES = {
+    "def_first": {"symbol": 1.8, "definition": 2.5, "impact": 1.3, "graph": 1.0,
+                  "grep": 0.3, "search": 0.6},
+    # For a reference question the exact matches are the answer, and the
+    # definition is context, not the answer.
+    "references": {"symbol": 0.6, "definition": 2.5, "impact": 0.7, "graph": 1.6,
+                   "grep": 1.7, "search": 0.6},
+}
+
 _MAX_IDS = 4
 _CHANNEL_TIMEOUT = 12.0
 _GREP_TIMEOUT = 15.0
@@ -165,7 +184,7 @@ def _search_row_to_item(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
         "line": row.get("line") or row.get("start_line") or meta.get("start_line") or 0,
         "text": row.get("text") or row.get("content") or "",
         "score": rank_score,
-        "weight": 0.6,
+        "weight": 0.6,  # replaced by the profile weight in `_search`
         "channels": {"search"},
     }
 
@@ -250,18 +269,16 @@ class InvestigateTool(MCPTool):
         # and "where is X defined" have the same identifiers and opposite
         # answers. The definition used to win both.
         intent_callers = _asks_for_callers(query)
-        # Weights are additive on top of each channel's own score. Measured
-        # 2026-11-08 on the external corpus: with the semantic channel alive, a
-        # chunk that merely MENTIONS `Signer` (search score ~0.9 + 0.6 = 1.5)
-        # outranked the exact-name symbol hit (1.0) and the answer led with
-        # serializer.py instead of signer.py. Exact name > fuzzy proximity.
-        w_symbol = 0.6 if intent_callers else 1.8
-        w_impact = 0.7 if intent_callers else 1.3
-        w_graph = 1.6 if intent_callers else 1.0
-        # For a reference question the exact matches are the answer, not
-        # corroboration: "who raises ParseError" has no CALLS edge, so without
-        # this the semantic neighbours (1.6) beat the actual `raise` lines (0.3).
-        w_grep = 1.7 if intent_callers else 0.3
+        # Profile names are the measured table; the env var exists so an
+        # experiment can compare them without a code edit. Unknown/empty -> the
+        # documented default.
+        weights = _PROFILES["references" if intent_callers else "def_first"]
+        w_symbol = weights["symbol"]
+        w_impact = weights["impact"]
+        w_graph = weights["graph"]
+        w_grep = weights["grep"]
+        w_definition = weights["definition"]
+        w_search = weights["search"]
         # "who raises X" is a statement-kind question: plain grep returns the
         # subclass lines (`class BadTimeSignature(BadSignature)`) and imports
         # first. Measured 2026-11-08 on itsdangerous: the raise sites were rows
@@ -287,7 +304,9 @@ class InvestigateTool(MCPTool):
         async def _search() -> None:
             raw = await searcher.hybrid_search_async(query, limit=limit * 2) or []
             for idx, row in enumerate(raw):
-                items.append(_search_row_to_item(row, idx))
+                item = _search_row_to_item(row, idx)
+                item["weight"] = w_search
+                items.append(item)
 
         def _symbols() -> None:
             # Some indexes (and the test doubles) only implement search_symbols.
@@ -315,7 +334,7 @@ class InvestigateTool(MCPTool):
                             "line": line,
                             "text": f"{name} — {kind}",
                             "score": 0.0,
-                            "weight": 2.5,
+                            "weight": w_definition,
                             "defines": True,
                             "channels": {"definition"},
                         }

@@ -1,0 +1,1571 @@
+[
+ {
+  "corpus": "ours",
+  "id": "P01",
+  "kind": "positive",
+  "question": "Где определяется `build_call_graph` и что оно возвращает?",
+  "gold": [
+   "src/core/indexing/symbol_index.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "tools/knowledge/REDTEAM-protocol.md",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "build_call_graph=39",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "tools/knowledge/REDTEAM-protocol.md",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "tools/knowledge/RESEARCH-protocol-landscape.md",
+    "WISDOM.md",
+    "src/mcp/tools/base.py",
+    "src/core/search/agentic_search.py",
+    "src/mcp/tools/base.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "build_call_graph=39",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P02",
+  "kind": "positive",
+  "question": "Кто вызывает `get_impact_analysis`?",
+  "gold": [
+   "src/core/graph_rag.py",
+   "src/core/modification_guard.py",
+   "src/mcp/tools/investigate_tool.py",
+   "src/mcp/tools/search_tools.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/search/engine.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/modification_guard.py",
+    "tests/test_impact_confidence.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "get_impact_analysis=6",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/search/engine.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/indexing/symbol_index.py",
+    "docs/ru/README.md",
+    "src/core/doc_generator.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "get_impact_analysis=6",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P03",
+  "kind": "positive",
+  "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+  "gold": [
+   "src/mcp/server_tools.py",
+   "src/mcp/tools/write_tools.py"
+  ],
+  "def_first": {
+   "files": [
+    "tests/test_modification_guard.py",
+    "tests/test_modification_guard.py",
+    "tests/test_modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "ModificationGuard=2",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "docs/ru/README.md",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "ModificationGuard=2",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P04",
+  "kind": "positive",
+  "question": "Где решается, нужно ли переиндексировать файл?",
+  "gold": [
+   "src/core/indexing/freshness.py"
+  ],
+  "def_first": {
+   "files": [
+    "docs/ru/README.md",
+    "docs/ru/README.md",
+    "src/core/doc_sync_engine.py",
+    "EXPERIMENTS_LOG.md",
+    "scripts/e2e_quality_search.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/ru/README.md",
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "docs/ru/README.md",
+    "src/core/doc_sync_engine.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": false
+ },
+ {
+  "corpus": "ours",
+  "id": "P05",
+  "kind": "positive",
+  "question": "Где вычисляется путь `progress.json` вне проекта?",
+  "gold": [
+   "src/core/artifact_paths.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/artifact_paths.py",
+    "install.py",
+    "src/core/artifact_paths.py",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py",
+    "src/core/search/agentic_search.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "progress.json=17",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "docs/archive/i18n/en/HANDFOFF.md",
+    "docs/archive/ARCHITECTURE_2026-07-20.md",
+    "docs/ru/FAQ.md",
+    "src/core/artifact_paths.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "progress.json=17",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P06",
+  "kind": "positive",
+  "question": "Какая функция возвращает путь прогресса?",
+  "gold": [
+   "src/core/artifact_paths.py"
+  ],
+  "def_first": {
+   "files": [
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/task_queue.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/bootstrap_trace_plugin.py",
+    "EXPERIMENTS_LOG.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/task_queue.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/bootstrap_trace_plugin.py",
+    "EXPERIMENTS_LOG.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": false
+ },
+ {
+  "corpus": "ours",
+  "id": "P07",
+  "kind": "positive",
+  "question": "Где выдаётся и проверяется impact-токен?",
+  "gold": [
+   "src/core/modification_guard.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "tools/knowledge/CONSOLIDATION.md",
+    "src/core/modification_guard.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "impact=265",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "tools/knowledge/CONSOLIDATION.md",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/context_tool.py",
+    "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "docs/ru/CONTRIBUTING.md"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "impact=265",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P08",
+  "kind": "positive",
+  "question": "Где в `investigate` появляется строка `degraded`?",
+  "gold": [
+   "src/mcp/tools/investigate_tool.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "tests/test_health_report.py",
+    "scripts/o1_holdout_gate.py",
+    "scripts/p2_holdout_gate.py",
+    "docs/ru/README.md",
+    "src/providers/embedder/remote_embedder.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "investigate=105, degraded=76",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/ru/README.md",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "docs/zh/GRACEFUL_DEGRADATION.md",
+    "docs/en/GRACEFUL_DEGRADATION.md",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "investigate=105, degraded=76",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P09",
+  "kind": "positive",
+  "question": "Где определяется allowlist/профиль инструментов?",
+  "gold": [
+   "src/mcp/server_tools.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "docs/ru/FAQ.md",
+    "AGENTS.md",
+    "docs/ru/ARCHITECTURE.md",
+    "docs/ru/README.md",
+    "docs/ru/CONFIGURATION.md",
+    "docs/ru/ARCHITECTURE.md"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "allowlist=90",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/ru/FAQ.md",
+    "AGENTS.md",
+    "docs/ru/ARCHITECTURE.md",
+    "docs/ru/README.md",
+    "docs/ru/CONFIGURATION.md",
+    "docs/ru/ARCHITECTURE.md",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "allowlist=90",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P10",
+  "kind": "positive",
+  "question": "Где задан профиль ETA для `impact_analysis`?",
+  "gold": [
+   "src/core/eta_predictor.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py",
+    "src/core/eta_predictor.py",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "src/core/intelligence/tools_reg.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "impact_analysis=66, ETA=76",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "src/core/eta_predictor.py",
+    "docs/ru/ARCHITECTURE.md",
+    "docs/ru/CONFIGURATION.md",
+    "AGENTS.md",
+    "docs/ru/README.md",
+    "docs/RESEARCH_SUBAGENTS_OPENCODE.md",
+    "docs/RESEARCH_SUBAGENTS_OPENCODE.md"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "impact_analysis=66, ETA=76",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P11",
+  "kind": "positive",
+  "question": "Где объявлен `SymbolIndexAdapter`?",
+  "gold": [
+   "src/core/search/graph_adapter.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "SymbolIndexAdapter=36",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter.py",
+    "tools/knowledge/PATTERNS.md",
+    "src/core/search/graph_adapter_pure.py",
+    "docs/adr/0006-lsp-graph-enrichment.md",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "SymbolIndexAdapter=36",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P12",
+  "kind": "positive",
+  "question": "Где считается call chain?",
+  "gold": [
+   "src/core/indexing/symbol_index.py"
+  ],
+  "def_first": {
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "tests/test_database_lock_selfhealing.py",
+    "src/core/indexing/database_lock.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/server_factory.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/indexing/symbol_index.py",
+    "docs/archive/AGENT_DIARY_2026_08.md"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "chain=114",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/indexing/symbol_index.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "src/core/search/graph_adapter_pure.py",
+    "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "tools/knowledge/REDTEAM-protocol.md"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "chain=114",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P13",
+  "kind": "positive",
+  "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+  "gold": [
+   "src/core/indexing/db_manager.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py",
+    "docs/archive/i18n/ru/HANDFOFF.md",
+    "src/core/indexing/freshness.py",
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/indexer.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "file_mtime_ns=7, file_hash=23",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/i18n/ru/HANDFOFF.md",
+    "src/core/indexing/freshness.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_manager.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "file_mtime_ns=7, file_hash=23",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P14",
+  "kind": "positive",
+  "question": "Какой документ является каноном публичных чисел?",
+  "gold": [
+   "docs/FACTS.md"
+  ],
+  "def_first": {
+   "files": [
+    "WISDOM.md",
+    "tools/knowledge/PENDING_LEDGER.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AGENT_DIARY.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "WISDOM.md",
+    "tools/knowledge/PENDING_LEDGER.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AGENT_DIARY.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": false
+ },
+ {
+  "corpus": "ours",
+  "id": "P15",
+  "kind": "positive",
+  "question": "Где LSP-инструмент отправляет за ссылками?",
+  "gold": [
+   "src/mcp/tools/lsp_tools.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "src/mcp/tools/write_tools.py",
+    "docs/RESEARCH_SUBAGENTS_OPENCODE.md",
+    "docs/ru/INSTALL.md",
+    "docs/ru/LM_STUDIO_SETUP.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "LSP=397",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "docs/RESEARCH_SUBAGENTS_OPENCODE.md",
+    "docs/ru/INSTALL.md",
+    "docs/ru/LM_STUDIO_SETUP.md",
+    "src/core/intelligence/tools_reg.py",
+    "ISSUE.md",
+    "src/mcp/tools/base.py",
+    "src/core/code_health.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "LSP=397",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "P16",
+  "kind": "positive",
+  "question": "Где описан контракт «артефакты вне проекта»?",
+  "gold": [
+   "src/core/artifact_paths.py"
+  ],
+  "def_first": {
+   "files": [
+    "docs/archive/i18n/en/HANDFOFF.md",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/i18n/en/HANDFOFF.md",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": false
+ },
+ {
+  "corpus": "ours",
+  "id": "A01",
+  "kind": "ambiguity",
+  "question": "Где реализован `build_call_graph`?",
+  "gold": [
+   "src/core/indexing/symbol_index.py",
+   "src/core/search/graph_adapter.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "build_call_graph=39",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "src/mcp/tools/search_tools.py",
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "build_call_graph=39",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "A02",
+  "kind": "ambiguity",
+  "question": "Где реализован `get_call_chain`?",
+  "gold": [
+   "src/core/indexing/symbol_index.py",
+   "src/core/search/graph_adapter_pure.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "src/core/graph_rag.py",
+    "tests/test_graph_center.py",
+    "tests/test_symbol_index_call_graph.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "get_call_chain=7",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "tools/factory/README.md",
+    "AGENT_DIARY.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "AGENT_DIARY.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "get_call_chain=7",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "A03",
+  "kind": "ambiguity",
+  "question": "Где считается «устаревание» (staleness)?",
+  "gold": [
+   "src/core/auto_doc_updater.py",
+   "src/core/indexing/freshness.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "tests/test_stale_after.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "src/core/intelligence/store.py",
+    "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "docs/archive/research/2026-07-11-telemetry-and-metrics.md"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "staleness=26",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "docs/archive/research/2026-07-11-telemetry-and-metrics.md",
+    "tools/knowledge/REDTEAM-protocol.md",
+    "src/mcp/tools/dev_tools.py",
+    "tools/knowledge/REDTEAM-protocol.md",
+    "ISSUE.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "staleness=26",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "A04",
+  "kind": "ambiguity",
+  "question": "Где определён `Indexer`?",
+  "gold": [
+   "src/core/indexing/indexer.py",
+   "src/core/indexing/indexer_table.py"
+  ],
+  "def_first": {
+   "files": [
+    "src/core/indexing/indexer.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "docs/ru/FAQ.md",
+    "docs/ru/INSTALL.md",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "Indexer=214",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/ru/FAQ.md",
+    "docs/ru/INSTALL.md",
+    "src/core/indexing/symbol_index.py",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "docs/archive/KNOWN_ISSUES_2026_10.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md",
+    "docs/archive/KNOWN_ISSUES_2026_09.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "Indexer=214",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "N01",
+  "kind": "negative",
+  "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+  "gold": [],
+  "def_first": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "partner_agreement=0",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "partner_agreement=0",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "N02",
+  "kind": "negative",
+  "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+  "gold": [],
+  "def_first": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "XERJ_FACTS_MODEL_DIR=0",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "XERJ_FACTS_MODEL_DIR=0",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "N03",
+  "kind": "negative",
+  "question": "Где ключ подписи Corpus Hub?",
+  "gold": [],
+  "def_first": {
+   "files": [
+    "tools/knowledge/check_knowledge.py",
+    "tools/microtask_pipeline/live_smoke.py",
+    "tests/test_codebase_hub.py",
+    "tests/test_codebase_hub.py",
+    "tests/test_codebase_hub.py",
+    "tests/test_codebase_hub.py",
+    "docs/adr/0006-lsp-graph-enrichment.md",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "Corpus=2, Hub=42",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "docs/adr/0006-lsp-graph-enrichment.md",
+    "docs/archive/KNOWN_ISSUES_2026_10.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "tools/microtask_pipeline/README.md",
+    "EXPERIMENTS_LOG.md",
+    "scripts/run_1L_live_arm.py",
+    "docs/research/UNIVERSAL_ENGINE_PLAN.md"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "Corpus=2, Hub=42",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "ours",
+  "id": "N04",
+  "kind": "negative",
+  "question": "Где `consensus_partner_agreement`?",
+  "gold": [],
+  "def_first": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "consensus_partner_agreement=0",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [],
+   "top10": true,
+   "top1": true,
+   "rows": 0,
+   "exact": "consensus_partner_agreement=0",
+   "invalid": false
+  },
+  "differs": false,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X01",
+  "kind": "definition",
+  "question": "Where is `Signer` defined?",
+  "gold": [
+   "src/itsdangerous/signer.py"
+  ],
+  "def_first": {
+   "files": [
+    "signer.py",
+    "test_signer.py",
+    "signer.py",
+    "signer.py",
+    "signer.py",
+    "signer.py",
+    "serializer.py",
+    "test_signer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "Signer=56",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "signer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "signer.py",
+    "signer.py",
+    "timed.py",
+    "signer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "Signer=56",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X02",
+  "kind": "definition",
+  "question": "Where is `TimestampSigner` defined?",
+  "gold": [
+   "src/itsdangerous/timed.py"
+  ],
+  "def_first": {
+   "files": [
+    "timed.py",
+    "test_timed.py",
+    "test_timed.py",
+    "test_timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "TimestampSigner=9",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "timed.py",
+    "test_timed.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "TimestampSigner=9",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X03",
+  "kind": "definition",
+  "question": "Where is `Serializer` defined?",
+  "gold": [
+   "src/itsdangerous/serializer.py"
+  ],
+  "def_first": {
+   "files": [
+    "serializer.py",
+    "test_serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "Serializer=69",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "Serializer=69",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X04",
+  "kind": "definition",
+  "question": "Where is `URLSafeSerializer` defined?",
+  "gold": [
+   "src/itsdangerous/url_safe.py"
+  ],
+  "def_first": {
+   "files": [
+    "url_safe.py",
+    "test_url_safe.py",
+    "test_url_safe.py",
+    "test_url_safe.py",
+    "url_safe.py",
+    "__init__.py",
+    "url_safe.py",
+    "README.md"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "URLSafeSerializer=12",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "test_url_safe.py",
+    "url_safe.py",
+    "__init__.py",
+    "url_safe.py",
+    "serializer.py",
+    "README.md",
+    "serializer.py",
+    "serializer.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "URLSafeSerializer=12",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X05",
+  "kind": "definition",
+  "question": "Where is `BadSignature` defined?",
+  "gold": [
+   "src/itsdangerous/exc.py"
+  ],
+  "def_first": {
+   "files": [
+    "exc.py",
+    "exc.py",
+    "exc.py",
+    "exc.py",
+    "signer.py",
+    "__init__.py",
+    "serializer.py",
+    "signer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "BadSignature=27",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "exc.py",
+    "exc.py",
+    "__init__.py",
+    "serializer.py",
+    "signer.py",
+    "timed.py",
+    "timed.py",
+    "serializer.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "BadSignature=27",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X06",
+  "kind": "definition",
+  "question": "Where is `want_bytes` defined?",
+  "gold": [
+   "src/itsdangerous/encoding.py"
+  ],
+  "def_first": {
+   "files": [
+    "encoding.py",
+    "test_encoding.py",
+    "encoding.py",
+    "encoding.py",
+    "serializer.py",
+    "test_encoding.py",
+    "encoding.py",
+    "encoding.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "want_bytes=29",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "test_encoding.py",
+    "encoding.py",
+    "test_encoding.py",
+    "encoding.py",
+    "encoding.py",
+    "serializer.py",
+    "serializer.py",
+    "serializer.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "want_bytes=29",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X07",
+  "kind": "callers",
+  "question": "Who calls `want_bytes`?",
+  "gold": [
+   "src/itsdangerous/serializer.py",
+   "src/itsdangerous/signer.py",
+   "src/itsdangerous/timed.py"
+  ],
+  "def_first": {
+   "files": [
+    "encoding.py",
+    "encoding.py",
+    "serializer.py",
+    "test_encoding.py",
+    "encoding.py",
+    "test_encoding.py",
+    "encoding.py",
+    "encoding.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "want_bytes=29",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "test_encoding.py",
+    "encoding.py",
+    "test_encoding.py",
+    "encoding.py",
+    "encoding.py",
+    "__init__.py",
+    "timed.py",
+    "signer.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "want_bytes=29",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "itsdangerous",
+  "id": "X08",
+  "kind": "callers",
+  "question": "Who raises `BadSignature`?",
+  "gold": [
+   "src/itsdangerous/signer.py",
+   "src/itsdangerous/timed.py"
+  ],
+  "def_first": {
+   "files": [
+    "test_serializer.py",
+    "test_serializer.py",
+    "signer.py",
+    "test_signer.py",
+    "serializer.py",
+    "serializer.py",
+    "signer.py",
+    "timed.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "BadSignature=27",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "test_serializer.py",
+    "test_serializer.py",
+    "test_signer.py",
+    "serializer.py",
+    "test_signer.py",
+    "test_serializer.py",
+    "timed.py",
+    "test_serializer.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "BadSignature=27",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "iniconfig",
+  "id": "Y01",
+  "kind": "definition",
+  "question": "Where is `IniConfig` defined?",
+  "gold": [
+   "src/iniconfig/__init__.py"
+  ],
+  "def_first": {
+   "files": [
+    "__init__.py",
+    "__init__.py",
+    "__init__.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "IniConfig=30",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "__init__.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "__init__.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "IniConfig=30",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "iniconfig",
+  "id": "Y02",
+  "kind": "definition",
+  "question": "Where is `ParseError` defined?",
+  "gold": [
+   "src/iniconfig/exceptions.py"
+  ],
+  "def_first": {
+   "files": [
+    "exceptions.py",
+    "exceptions.py",
+    "exceptions.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "_parse.py",
+    "_parse.py",
+    "_parse.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "ParseError=17",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "_parse.py",
+    "__init__.py",
+    "__init__.py",
+    "__init__.py"
+   ],
+   "top10": false,
+   "top1": false,
+   "rows": 8,
+   "exact": "ParseError=17",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "iniconfig",
+  "id": "Y03",
+  "kind": "definition",
+  "question": "Where is `SectionWrapper` defined?",
+  "gold": [
+   "src/iniconfig/__init__.py"
+  ],
+  "def_first": {
+   "files": [
+    "__init__.py",
+    "__init__.py",
+    "__init__.py",
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "__init__.py",
+    "__init__.py",
+    "__init__.py"
+   ],
+   "top10": true,
+   "top1": true,
+   "rows": 8,
+   "exact": "SectionWrapper=5",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "__init__.py",
+    "__init__.py",
+    "__init__.py",
+    "testing/test_iniconfig.py",
+    "_parse.py",
+    "testing/test_iniconfig.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "SectionWrapper=5",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ },
+ {
+  "corpus": "iniconfig",
+  "id": "Y04",
+  "kind": "callers",
+  "question": "Who raises `ParseError`?",
+  "gold": [
+   "src/iniconfig/_parse.py"
+  ],
+  "def_first": {
+   "files": [
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "_parse.py",
+    "_parse.py",
+    "_parse.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "_parse.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "ParseError=17",
+   "invalid": false
+  },
+  "exploratory": {
+   "files": [
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "testing/test_iniconfig.py",
+    "__init__.py",
+    "_parse.py",
+    "testing/test_iniconfig.py"
+   ],
+   "top10": true,
+   "top1": false,
+   "rows": 8,
+   "exact": "ParseError=17",
+   "invalid": false
+  },
+  "differs": true,
+  "has_identifier": true
+ }
+]

@@ -63,7 +63,16 @@ def main() -> int:
         # `corpus_hub_signing_key` in the GRACEFUL_DEGRADATION examples), and
         # the tool then "found" the experiment's own text.
         if task["kind"] == "negative":
-            tokens = TOKEN_RE.findall(task["question"]) + list(task.get("tokens") or [])
+            in_question = TOKEN_RE.findall(task["question"])
+            if not in_question:
+                # A negative task whose absent token never reaches the question
+                # does not test abstention at all: N03 asks "where is the Corpus
+                # Hub signing key" (no token) and the tool answers about
+                # "Corpus"/"Hub", which exist. That is a malformed control.
+                invalid.append(task["id"])
+                print(f"{task['id']:<4} {'negative':<10} {'<token not in question>':<28} -  INVALID")
+                continue
+            tokens = in_question + list(task.get("tokens") or [])
             tokens = list(dict.fromkeys(tokens))
             dirty = {tok: _occurrences(tok, roots_all) for tok in tokens}
             dirty = {k: v for k, v in dirty.items() if v}
