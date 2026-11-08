@@ -1455,3 +1455,9 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Находка:** `check_gold.py` — E1/P03 спрашивает `ModificationGuard`, которого в `src/` нет (класс только в тесте); gold заморожен по ожиданию (§19.17). Не правил, помечен INVALID; пересчёт без неё: A=0.696 / B=0.652.
 **Итог:** на «файл в топ-10» плечи равны (0.65–0.70), на «правильный файл первым» investigate 1.000 против 0.222 — разные вопросы, разные ответы.
 **Открыто:** два профиля весов по интенту; «who raises» — эвристика по тексту, не по AST; отмена раз в 16 файлов.
+
+## [2026-11-08] живая проверка после рестарта + док-пример сломал негативный контроль — Fixed
+**Проверено вживую (MCP, после рестарта хоста):** `investigate("Where is IndexStatusReporter defined?")` → #1 `src/core/indexing/index_status.py:22 [definition+grep+impact+symbol]` (6.6 s, без `degraded`); `investigate("where is corpus_hub_signing_key defined")` → `results: 0`, `exact=0`, «Neighbours withheld: 8»; с `include_neighbours=true` → 8 строк + предупреждение «neighbours, not matches».
+**Находка:** первый живой прогон дал `exact: corpus_hub_signing_key=9` — мой же пример в `docs/{en,ru,zh}/GRACEFUL_DEGRADATION.md` вписал токен негативного контроля в репозиторий, и инструмент «нашёл» текст эксперимента. Токен заменён на `missing_widget` (в `src/` 0 вхождений).
+**Guard:** `check_gold.py` теперь проверяет и negatives (токен обязан встречаться 0 раз) и считает positives только по `src/` — иначе упоминание символа в документации «создавало» его и P03 переставал быть INVALID.
+**Урок (класс §19.17):** пример в документации — это тоже вход эксперимента. Токен, использованный в тексте, перестаёт быть отрицательным контролем.

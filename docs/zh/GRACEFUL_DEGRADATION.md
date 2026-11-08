@@ -88,10 +88,10 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 当第一个标识符在代码中**完全不存在**、且图也不知道该符号时，回答是拒绝，而不是邻居列表：
 
 ```
-🧭 investigate: `where is corpus_hub_signing_key defined`
-   identifiers: corpus_hub_signing_key
+🧭 investigate: `where is missing_widget defined`
+   identifiers: missing_widget
    results: 0
-   exact: corpus_hub_signing_key=0
+   exact: missing_widget=0
    ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
    Neighbours withheld: 8. Pass include_neighbours=true to see them anyway.
 ```

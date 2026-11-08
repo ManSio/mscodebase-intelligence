@@ -41,7 +41,12 @@ def _occurrences(token: str, roots: list[Path]) -> int:
 
 def main() -> int:
     tasks = parse_tasks()
-    roots = [ROOT / d for d in ("src", "docs", "tests", "scripts", "tools") if (ROOT / d).is_dir()]
+    roots_all = [ROOT / d for d in ("src", "docs", "tests", "scripts", "tools")
+                 if (ROOT / d).is_dir()]
+    # A symbol "exists" only in code. Writing its name into a document does not
+    # create it - but it DOES create a hit for the tool, which is why negatives
+    # are checked against every indexed root and positives only against code.
+    roots_code = [ROOT / "src"] if (ROOT / "src").is_dir() else roots_all
 
     invalid = []
     print(f"{'id':<4} {'kind':<10} {'subject':<28} occurrences")
@@ -52,11 +57,27 @@ def main() -> int:
         # rule was added).
         gold_col = " ".join(task["gold"])
         names = TOKEN_RE.findall(task["question"]) or TOKEN_RE.findall(gold_col)
+        # A NEGATIVE task is only valid while its token occurs NOWHERE. Writing
+        # the token into documentation or a probe invalidates the control - it
+        # happened twice on 2026-11-08 (`partner_agreement`, then
+        # `corpus_hub_signing_key` in the GRACEFUL_DEGRADATION examples), and
+        # the tool then "found" the experiment's own text.
+        if task["kind"] == "negative":
+            tokens = TOKEN_RE.findall(task["question"]) + list(task.get("tokens") or [])
+            tokens = list(dict.fromkeys(tokens))
+            dirty = {tok: _occurrences(tok, roots_all) for tok in tokens}
+            dirty = {k: v for k, v in dirty.items() if v}
+            if dirty:
+                invalid.append(task["id"])
+                print(f"{task['id']:<4} {'negative':<10} {'<token leaked>':<28} {dirty} INVALID")
+            else:
+                print(f"{task['id']:<4} {'negative':<10} {', '.join(tokens):<28} 0 ok")
+            continue
         if not names:
             print(f"{task['id']:<4} {task['kind']:<10} {'<no identifier>':<28} -  skipped")
             continue
         subject = names[0]
-        hits = _occurrences(subject, roots)
+        hits = _occurrences(subject, roots_code)
         flag = "INVALID" if (task["kind"] != "negative" and hits == 0) else ""
         if flag:
             invalid.append(task["id"])

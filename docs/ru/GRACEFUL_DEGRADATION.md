@@ -99,10 +99,10 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 ответ — отказ, а не список соседей:
 
 ```
-🧭 investigate: `where is corpus_hub_signing_key defined`
-   identifiers: corpus_hub_signing_key
+🧭 investigate: `where is missing_widget defined`
+   identifiers: missing_widget
    results: 0
-   exact: corpus_hub_signing_key=0
+   exact: missing_widget=0
    ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
    Neighbours withheld: 8. Pass include_neighbours=true to see them anyway.
 ```
