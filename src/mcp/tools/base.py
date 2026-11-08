@@ -424,6 +424,7 @@ class MCPTool(ABC):
                         "finishes. Poll intel_get_job_status for progress."
                     ),
                     recoverable=True,
+                    code="REINDEX_IN_PROGRESS",
                 )
             if status.get("total_chunks", 0) == 0:
                 raise IndexNotReadyError(

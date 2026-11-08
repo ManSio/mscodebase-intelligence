@@ -13,7 +13,7 @@
 |---|---|
 | **完整回答** | 正常结果 |
 | **带洞的回答** | 结果加上 `degraded: [...]` 列表（在 `investigate` 中）或一行警告 |
-| **失败** | Markdown 错误块：`🟡 **Warning:** …` / `🔴 **Error:** …`，带 `Detail`、`Hint`、latency。`ToolError` 携带 `status`（`error`/`warning`/`timeout`）与 `recoverable` |
+| **失败** | JSON 错误封套：`{"ok": false, "error": {"code", "message", "next_action", "details"}}`。`details` 保留原有字段：`status`（`error`/`warning`/`timeout`）、`detail`、`latency_ms`、`tool`、`recoverable` |
 
 规则：*次要*通道可以静默失败（它不得把回答搞垮）；*主要*能力要大声失败，并给出
 调用方可据以分支的状态。
@@ -64,17 +64,36 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 
 - 超时是真正的 `asyncio.wait_for`——挂起的协程会被取消；
 - **只有超时才重试**（间隔 1 s）。`ToolError` 是确定性的，立即返回；意外异常会带
-  回溯记录到日志，并作为 `🔴 **Error:**` 返回，消息经过净化（绝对路径被替换，
+  回溯记录到日志，并作为 `INTERNAL_ERROR` 返回，消息经过净化（绝对路径被替换，
   上限 200 字符）；
 - 预算：`write` 与 `investigate` 为 30 s，`get_health_report` 为 45 s，
   `dual_arm_health_check` 为 300 s；
 - 每次调用都为 `intel_tool_health` / `get_tool_metrics_summary` 记录，包括失败，
   因此总是失败的通道会以统计数字的形式可见。
 
-`src/core/error_envelope.py` 定义了一种更丰富的机器可读格式，带代码
-（`INDEX_NOT_READY`、`REINDEX_IN_PROGRESS`，……）与 `next_action`。今天它**只被
-自己的单元测试**导入，所以没有工具返回那些代码——那是一份计划中的契约，不是当前
-行为。
+### 错误契约（破坏性变更，2026-11-08）
+
+任何失败都返回 JSON 文本，而不是 Markdown 块：
+
+```json
+{"ok": false,
+ "error": {"code": "INDEX_NOT_READY",
+           "message": "Index is not ready",
+           "next_action": "Index is empty or building. Call intel_trigger_reindex(mode='incremental') …",
+           "details": {"status": "warning", "tool": "search_code",
+                       "detail": "Run index_project_dir() to initialize",
+                       "latency_ms": 12, "recoverable": true}}}
+```
+
+`code` 取自 `VALIDATION_FAILED`、`NOT_FOUND`、`AUTH_REQUIRED`、`TIMEOUT`、
+`RATE_LIMIT`、`INDEX_NOT_READY`、`REINDEX_IN_PROGRESS`、`DEPENDENCY_DOWN`、
+`CONFLICT`、`INTERNAL_ERROR`（`src/core/error_envelope.py`）。按 `code` 分支；
+读取 `next_action`，不要自创重试策略。带错误 `status`（`error`、`warning`、
+`denied`、`too_large`、`not_installed`）的字典结果会转换成同一封套——它不再可能
+显示成成功的「✅ Completed」。
+
+**已知残留：** MCP 自身的 `isError` 标志仍为 `false`，因为包装器把封套当作普通工具
+输出返回。请按 payload 中的 `ok` 分支，而不要依赖协议标志。
 
 ## 6. 索引
 

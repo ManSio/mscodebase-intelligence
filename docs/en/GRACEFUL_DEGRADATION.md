@@ -11,7 +11,7 @@
 |---|---|
 | **Full answer** | normal result |
 | **Answer with holes** | result plus a `degraded: [...]` list (in `investigate`) or a warning line |
-| **Failure** | Markdown error block: `🟡 **Warning:** …` / `🔴 **Error:** …` with `Detail`, `Hint`, latency. `ToolError` carries `status` (`error`/`warning`/`timeout`) and `recoverable` |
+| **Failure** | JSON error envelope: `{"ok": false, "error": {"code", "message", "next_action", "details"}}`. `details` keeps the legacy `status` (`error`/`warning`/`timeout`), `detail`, `latency_ms`, `tool`, `recoverable` |
 
 Rule: a *secondary* channel may fail silently (it must not take the answer down);
 a *primary* capability fails loudly with a status the caller can branch on.
@@ -65,17 +65,38 @@ tool 30 s). Pass 1: `search`, `symbols`, `grep`. Pass 2: `impact`, `graph`,
 - the timeout is a real `asyncio.wait_for` — a hung coroutine is cancelled;
 - **only timeouts retry** (1 s apart). `ToolError` is deterministic and returned
   immediately; an unexpected exception is logged with a traceback and returned as
-  `🔴 **Error:**` with the message sanitised (absolute paths replaced, capped at
+  `INTERNAL_ERROR` with the message sanitised (absolute paths replaced, capped at
   200 chars);
 - budgets: 30 s for `write` and `investigate`, 45 s for `get_health_report`,
   300 s for `dual_arm_health_check`;
 - every call is recorded for `intel_tool_health` / `get_tool_metrics_summary`,
   failures included, so a channel that always fails is visible as a statistic.
 
-`src/core/error_envelope.py` defines a richer machine-readable format with codes
-(`INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, …) and `next_action`. It is imported
-**only by its unit test** today, so no tool returns those codes — a planned
-contract, not current behaviour.
+### Error contract (breaking change, 2026-11-08)
+
+Every failure returns JSON text, not a Markdown block:
+
+```json
+{"ok": false,
+ "error": {"code": "INDEX_NOT_READY",
+           "message": "Index is not ready",
+           "next_action": "Index is empty or building. Call intel_trigger_reindex(mode='incremental') …",
+           "details": {"status": "warning", "tool": "search_code",
+                       "detail": "Run index_project_dir() to initialize",
+                       "latency_ms": 12, "recoverable": true}}}
+```
+
+`code` is one of `VALIDATION_FAILED`, `NOT_FOUND`, `AUTH_REQUIRED`, `TIMEOUT`,
+`RATE_LIMIT`, `INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, `DEPENDENCY_DOWN`,
+`CONFLICT`, `INTERNAL_ERROR` (`src/core/error_envelope.py`). Branch on `code`;
+read `next_action` instead of inventing a retry strategy. A dictionary result with
+an error-like `status` (`error`, `warning`, `denied`, `too_large`,
+`not_installed`) is converted to the same envelope — it can no longer be rendered
+as a successful "✅ Completed" answer.
+
+**Known residual:** MCP's own `isError` flag stays `false`, because the wrapper
+returns the envelope as normal tool output. Branch on `ok` in the payload, not on
+the protocol flag.
 
 ## 6. Indexing
 

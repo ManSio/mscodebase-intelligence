@@ -8,6 +8,7 @@ Tests for next_step hints in MCP tools (Axon pattern, audit.md п.5).
   - graph_query: dict с ключом next_step для всех query_type
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -167,7 +168,13 @@ class TestImpactAnalysisNextStep:
             res = await tool.execute(symbol="ghost", depth=2)
 
         assert isinstance(res, str)
-        assert "next step" in res, f"warning-path должен содержать next step:\n{res}"
+        # 2026-11-08: словарь с status="warning" теперь уходит в JSON-конверт,
+        # поэтому ключ читается как машинное поле details.next_step, а не как
+        # человекочитаемый bullet "next step".
+        payload = json.loads(res)
+        assert payload["ok"] is False
+        assert payload["error"]["details"]["status"] == "warning"
+        assert payload["error"]["details"]["next_step"]
         assert "search_code" in res
 
 

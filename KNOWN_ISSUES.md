@@ -12,8 +12,6 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 `run_bounded`/IVF-guard, `blocked`-пути индексатора.
 
 Открыто (каждое — отдельная задача, не «шум»):
-- `src/core/error_envelope.py` не вшит в прод: 0 импортов вне теста; S1 в
-  `ideal_system_patterns` помечен `[done]` преждевременно.
 - `wait_reason` для звеньев индексатора отсутствует (heartbeat только на 4 из 13).
 - docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
   открытый пользовательский дефект поиска.

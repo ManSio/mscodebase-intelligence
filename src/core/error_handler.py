@@ -26,6 +26,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from src.core.error_envelope import ErrorCode as _EnvelopeCode
+from src.core.error_envelope import tool_error as _tool_error
 from src.utils.i18n import _
 
 __all__ = [
@@ -50,6 +52,9 @@ logger = logging.getLogger("mscodebase_server.error_handler")
 # ══════════════════════════════════════════════════════════
 # Per-tool telemetry: автоматический сбор с error_boundary
 # ══════════════════════════════════════════════════════════
+
+# Статусы словарного результата, которые означают "не удалось", а не "✅ Completed".
+_ERROR_STATUSES = frozenset({"error", "critical", "warning", "denied", "too_large", "not_installed"})
 
 _TOOL_METRICS: dict = {}
 """Счётчики вызовов инструментов. Ключ — имя инструмента, значение — dict с calls, errors, min_ms, max_ms, total_ms, last_call, route, avg_confidence, avg_results."""
@@ -447,11 +452,13 @@ class ToolError(Exception):
         status: str = "error",
         detail: Optional[str] = None,
         recoverable: bool = True,
+        code: Optional[str] = None,
     ):
         self.message = message
         self.status = status  # "error" | "timeout" | "warning"
         self.detail = detail
         self.recoverable = recoverable
+        self.code = code or _EnvelopeCode.INTERNAL.value
         super().__init__(message)
 
     def to_dict(self) -> dict:
@@ -471,6 +478,7 @@ class IndexNotReadyError(ToolError):
             status="warning",
             detail=detail or "Run index_project_dir() to initialize",
             recoverable=True,
+            code=_EnvelopeCode.INDEX_NOT_READY.value,
         )
 
 
@@ -483,6 +491,7 @@ class RateLimitError(ToolError):
             status="warning",
             detail=detail,
             recoverable=True,
+            code=_EnvelopeCode.RATE_LIMIT.value,
         )
 
 
@@ -492,17 +501,36 @@ def _format_error_response(
     detail: Optional[str] = None,
     recovery_hint: Optional[str] = None,
     latency_ms: Optional[int] = None,
+    *,
+    tool: Optional[str] = None,
+    code: Optional[str] = None,
+    details: Optional[dict] = None,
+    recoverable: bool = True,
 ) -> str:
-    """Форматирует Markdown-ответ с ошибкой."""
-    icon = "🔴" if status in ("error", "critical") else "🟡"
-    lines = [_(f"{icon} **{status.title()}:** {message}")]
+    """Форматирует ответ с ошибкой как типизированный JSON-конверт.
+
+    Breaking change 2026-11-08 (решение владельца): вместо Markdown-блока
+    `**Error:** …` инструменты отдают
+    ``{"ok": false, "error": {"code", "message", "next_action", "details"}}``.
+    Код выбирается так: явный ``code`` -> ``TIMEOUT`` для status="timeout" ->
+    ``INTERNAL_ERROR``. Совместимость: поля ``status``/``detail``/``latency_ms``
+    сохранены внутри ``details``, поэтому старые читатели находят их на месте.
+    """
+    _code = code or (
+        _EnvelopeCode.TIMEOUT.value if status == "timeout"
+        else _EnvelopeCode.INTERNAL.value
+    )
+    extra: dict = {"status": status, "recoverable": recoverable}
+    if tool:
+        extra["tool"] = tool
     if detail:
-        lines.append(_(f"  • **Detail:** {detail}"))
-    if recovery_hint:
-        lines.append(_(f"  💡 **Hint:** {recovery_hint}"))
+        extra["detail"] = detail
     if latency_ms is not None:
-        lines.append(_(f"  ⏱ `{latency_ms}ms`"))
-    return "\n".join(lines)
+        extra["latency_ms"] = latency_ms
+    if details:
+        extra.update(details)
+    return _tool_error(_code, message, details=extra, next_action=recovery_hint).to_json()
+
 
 
 def _sanitize_error_message(raw: str) -> str:
@@ -571,7 +599,7 @@ def error_boundary(
                     # Успех
                     latency_ms = int((time.perf_counter() - start_time) * 1000)
                     record_tool_call(tool_name, latency_ms, success=True)
-                    return _format_success_response(raw_result, latency_ms)
+                    return _format_success_response(raw_result, latency_ms, tool=tool_name)
 
                 except asyncio.TimeoutError as e:
                     last_error = e
@@ -590,6 +618,7 @@ def error_boundary(
                             detail=f"Attempts: {attempt + 1}/{max_retries + 1}",
                             recovery_hint="Try with fewer results or smaller scope",
                             latency_ms=elapsed,
+                            tool=tool_name,
                         )
 
                 except ToolError as e:
@@ -605,6 +634,10 @@ def error_boundary(
                         message=e.message,
                         detail=e.detail,
                         recovery_hint=None if e.recoverable else "Contact admin",
+                        latency_ms=elapsed,
+                        tool=tool_name,
+                        code=e.code,
+                        recoverable=e.recoverable,
                     )
 
                 except Exception as e:
@@ -621,6 +654,8 @@ def error_boundary(
                         # P3-10 audit: traceback не попадает в MCP-ответ
                         # (info leak: пути, имена модулей) — только в логи.
                         detail=None,
+                        latency_ms=elapsed,
+                        tool=tool_name,
                     )
 
             # Недостижимо, но на всякий случай
@@ -628,6 +663,7 @@ def error_boundary(
                 status="error",
                 message=f"Max retries ({max_retries}) exhausted",
                 detail=str(last_error) if last_error else "Unknown",
+                tool=tool_name,
             )
 
         @functools.wraps(func)
@@ -667,7 +703,7 @@ def error_boundary(
 
                 latency_ms = int((time.perf_counter() - start_time) * 1000)
                 record_tool_call(tool_name, latency_ms, success=True)
-                return _format_success_response(result, latency_ms)
+                return _format_success_response(result, latency_ms, tool=tool_name)
 
             except ToolError as e:
                 logger.warning(
@@ -680,6 +716,10 @@ def error_boundary(
                     status=e.status,
                     message=e.message,
                     detail=e.detail,
+                    latency_ms=elapsed,
+                    tool=tool_name,
+                    code=e.code,
+                    recoverable=e.recoverable,
                 )
             except Exception as e:
                 logger.error(
@@ -692,6 +732,8 @@ def error_boundary(
                     message=_sanitize_error_message(str(e)),
                     # P3-10 audit: traceback не попадает в MCP-ответ (info leak)
                     detail=None,
+                    latency_ms=elapsed,
+                    tool=tool_name,
                 )
 
         if inspect.iscoroutinefunction(func):
@@ -743,7 +785,7 @@ def _sanitize(obj: Any) -> Any:
         return None
 
 
-def _format_success_response(data: Any, latency_ms: int) -> str:
+def _format_success_response(data: Any, latency_ms: int, tool: Optional[str] = None) -> str:
     """Форматирует успешный ответ.
 
     Стратегия:
@@ -755,6 +797,34 @@ def _format_success_response(data: Any, latency_ms: int) -> str:
     data = _sanitize(data)
     if isinstance(data, str):
         return data
+    if isinstance(data, dict):
+        # 2026-11-08: словарь с ошибочным статусом больше НЕ рендерится как
+        # "✅ Completed" (это был дефект "green while broken": 69 мест в
+        # mcp/tools возвращают {"status": "error"}). Он уходит в тот же
+        # JSON-конверт, что и исключения.
+        if isinstance(data.get("error"), dict) and "code" in data["error"]:
+            return json.dumps(data, ensure_ascii=False)
+        _status = str(data.get("status", "")).lower()
+        if data.get("ok") is False or _status in _ERROR_STATUSES:
+            _details = {
+                k: v for k, v in data.items()
+                if k not in ("status", "message", "detail", "hint",
+                             "recovery_hint", "next_action", "code")
+            }
+            return _format_error_response(
+                status=_status or "error",
+                message=str(
+                    data.get("message") or data.get("error") or "Tool reported an error"
+                ),
+                detail=data.get("detail"),
+                recovery_hint=(
+                    data.get("hint") or data.get("recovery_hint") or data.get("next_action")
+                ),
+                latency_ms=latency_ms,
+                tool=tool,
+                code=data.get("code"),
+                details=_details,
+            )
     if isinstance(data, list):
         items = "\n".join(f"  • {item}" for item in data)
         return f"✅ **Completed** ({latency_ms}ms)\n{items}\n"

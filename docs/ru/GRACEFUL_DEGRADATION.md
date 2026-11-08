@@ -13,7 +13,7 @@
 |---|---|
 | **Полный ответ** | обычный результат |
 | **Ответ с дырами** | результат плюс список `degraded: [...]` (в `investigate`) или строка предупреждения |
-| **Отказ** | Markdown-блок ошибки: `🟡 **Warning:** …` / `🔴 **Error:** …` с `Detail`, `Hint`, задержкой. `ToolError` несёт `status` (`error`/`warning`/`timeout`) и `recoverable` |
+| **Отказ** | JSON-конверт ошибки: `{"ok": false, "error": {"code", "message", "next_action", "details"}}`. В `details` сохранены прежние поля: `status` (`error`/`warning`/`timeout`), `detail`, `latency_ms`, `tool`, `recoverable` |
 
 Правило: *вторичный* канал может тихо упасть (он не должен утаскивать ответ за
 собой); *основная* возможность падает громко, со статусом, по которому вызывающий
@@ -69,17 +69,38 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 - таймаут — это настоящий `asyncio.wait_for` — зависшая корутина отменяется;
 - **повторяются только таймауты** (с интервалом 1 s). `ToolError` детерминирован
   и возвращается сразу; неожиданное исключение логируется с traceback и
-  возвращается как `🔴 **Error:**` с санитизированным сообщением (абсолютные пути
+  возвращается как `INTERNAL_ERROR` с санитизированным сообщением (абсолютные пути
   заменены, длина ограничена 200 символами);
 - бюджеты: 30 s для `write` и `investigate`, 45 s для `get_health_report`,
   300 s для `dual_arm_health_check`;
 - каждый вызов записывается для `intel_tool_health` / `get_tool_metrics_summary`,
   включая падения, поэтому канал, который всегда падает, виден как статистика.
 
-`src/core/error_envelope.py` определяет более богатый машиночитаемый формат с
-кодами (`INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, …) и `next_action`. Сегодня он
-импортируется **только своим unit-тестом**, так что ни один инструмент эти коды
-не возвращает — это запланированный контракт, а не текущее поведение.
+### Контракт ошибок (breaking change, 2026-11-08)
+
+Любой отказ возвращает JSON-текст, а не Markdown-блок:
+
+```json
+{"ok": false,
+ "error": {"code": "INDEX_NOT_READY",
+           "message": "Index is not ready",
+           "next_action": "Index is empty or building. Call intel_trigger_reindex(mode='incremental') …",
+           "details": {"status": "warning", "tool": "search_code",
+                       "detail": "Run index_project_dir() to initialize",
+                       "latency_ms": 12, "recoverable": true}}}
+```
+
+`code` — одно из `VALIDATION_FAILED`, `NOT_FOUND`, `AUTH_REQUIRED`, `TIMEOUT`,
+`RATE_LIMIT`, `INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, `DEPENDENCY_DOWN`,
+`CONFLICT`, `INTERNAL_ERROR` (`src/core/error_envelope.py`). Ветвитесь по `code`;
+читайте `next_action` вместо собственной стратегии повтора. Словарный результат
+с ошибочным `status` (`error`, `warning`, `denied`, `too_large`, `not_installed`)
+превращается в тот же конверт — он больше не может выглядеть как успешный
+«✅ Completed».
+
+**Известный остаток:** флаг MCP `isError` остаётся `false`, потому что обёртка
+возвращает конверт как обычный вывод инструмента. Ветвитесь по `ok` в payload, а
+не по протокольному флагу.
 
 ## 6. Индексация
 

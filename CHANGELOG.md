@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2026-11-08
+
+### Changed (BREAKING)
+- **Tool failures now return the typed JSON error envelope** instead of a Markdown
+  block: `{"ok": false, "error": {"code", "message", "next_action", "details"}}`.
+  `src/core/error_envelope.py` is wired into `error_boundary` and
+  `_format_success_response` (it had zero importers in `src/` before). Branch on
+  `error.code` (`INDEX_NOT_READY`, `TIMEOUT`, `RATE_LIMIT`, …); `next_action`
+  replaces the old free-form `Hint:`. Legacy fields (`status`, `detail`,
+  `latency_ms`, `tool`, `recoverable`) live in `error.details`.
+  Fixes a "green while broken" defect: dictionary results with
+  `status` ∈ {`error`, `warning`, `denied`, `too_large`, `not_installed`} were
+  rendered as "✅ Completed"; they are envelopes now.
+  Known residual: MCP's `isError` flag stays `false` (the envelope is returned as
+  normal tool output) — branch on `ok`, not on the protocol flag.
+  Guard: `tests/test_error_envelope_wiring.py` (17, including negative controls).
+  Docs: `docs/{en,ru,zh}/GRACEFUL_DEGRADATION.md`.
+
 ## [Unreleased] - 2026-09-27
 
 ### Added

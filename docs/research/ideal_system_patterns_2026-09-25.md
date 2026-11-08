@@ -65,15 +65,23 @@ cosine).
 ## Roadmap (each slice: Phase Zero -> Experiment -> Fix -> Guard -> Record)
 
 > **Status audited 2026-11-08** against `main` with commands, not from memory:
-> `grep -r error_envelope src/` (0 hits), `grep -r wait_reason src/` (0),
-> `grep -r integrity_report src/` (0), `grep -c run_bounded src/**` (14 call sites),
-> `grep watchdog_heartbeat` (parse/write/embed/text-index only), stall watchdog at
+> `grep -r error_envelope src/` (2 hits after wiring: `error_handler.py:29-30`),
+> `grep -r wait_reason src/` (0), `grep -r integrity_report src/` (0),
+> `grep -c run_bounded src/**` (14 call sites), `grep watchdog_heartbeat`
+> (parse/write/embed/text-index only), stall watchdog at
 > `src/core/intelligence/layer.py:2025`.
 
-- S1 [module only, NOT wired] error_envelope core (P-D). `src/core/error_envelope.py`
-  exists but is imported only by its test; the live error path is still Markdown via
-  `error_handler._format_error_response`. Treating it as done was wrong.
-- S2 [open] wire envelope into MCP error paths (P-D) — blocked on S1.
+- S1 **[done 2026-11-08]** error_envelope core (P-D). `src/core/error_envelope.py` is
+  now imported by `src/core/error_handler.py`; `ToolError` carries a `code`
+  (`IndexNotReadyError` → `INDEX_NOT_READY`, `RateLimitError` → `RATE_LIMIT`,
+  timeout → `TIMEOUT`).
+- S2 **[done 2026-11-08, breaking]** wire envelope into MCP error paths (P-D).
+  All 21 `@error_boundary` tools return the JSON envelope instead of a Markdown
+  block; dictionary results with an error-like `status` go through the same path
+  (this also fixed a "green while broken" bug — those dicts were rendered as
+  "✅ Completed"). Owner decision: breaking format change.
+  Guard: `tests/test_error_envelope_wiring.py` (17 tests, with negative controls).
+  Residual: MCP-level `isError` is still `false` — the envelope is normal output.
 - S3 [partial] per-phase heartbeat + stall detection + wait_reason (P-A/P-B):
   stall detection **done** (`_REINDEX_STALL_SEC` + finalize), heartbeat covers
   parse/embed/write/text-index only, `wait_reason` **absent**.
