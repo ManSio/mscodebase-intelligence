@@ -59,6 +59,7 @@ def format_index_status(
     embedder: str,
     status: str,
     other_projects: Optional[List[str]] = None,
+    wait_reason: Optional[Dict[str, Any]] = None,
 ) -> str:
     icon = "🟢" if chunks > 0 else "🟡"
     result = _("{icon} **MSCodeBase** — {status}\n", icon=icon, status=status)
@@ -77,6 +78,20 @@ def format_index_status(
         symbols=symbols,
     )
     result += _("🧠 **Embedder:** {embedder}\n", embedder=embedder)
+
+    # 2026-11-08: на чём стоит индексатор прямо сейчас (P-B: «идёт» != «завис»).
+    # Поле приходит из IndexStatusReporter (src/core/indexing/wait_state.py) и
+    # раньше терялось в рендере — агент видел только «active/reindexing».
+    if wait_reason:
+        _reason = wait_reason.get("reason", "?")
+        _elapsed = wait_reason.get("elapsed_ms")
+        _timeout = wait_reason.get("timeout_s")
+        _tail = ""
+        if _elapsed is not None:
+            _tail += f" — {_elapsed / 1000:.1f}s"
+        if _timeout:
+            _tail += f" of {_timeout:.0f}s timeout"
+        result += _("⏳ **Waiting on:** `{reason}`{tail}\n", reason=_reason, tail=_tail)
 
     if other_projects:
         result += _("\n📁 **Другие проекты:**\n")
@@ -264,6 +279,7 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
 
     _reindex_pct = tel.get("reindex_progress_pct")
     _reindex_eta = tel.get("reindex_eta_sec")
+    _wait = tel.get("wait_reason")
     if reindexing:
         # Честный статус вместо «0 chunks»: агент ждёт, а не чинит.
         _idx_line = (
@@ -276,6 +292,14 @@ def format_runtime_status(data: Dict[str, Any]) -> str:
             )
             + "\n"
         )
+        # 2026-11-08: «идёт» без указания звена неотличимо от «завис» (P-B).
+        if _wait:
+            _idx_line += (
+                "      ⏳ waiting on `{r}` ({e:.1f}s)\n".format(
+                    r=_wait.get("reason", "?"),
+                    e=(_wait.get("elapsed_ms") or 0) / 1000,
+                )
+            )
     else:
         _idx_line = "   {il} {chunks} chunks | {files} files | {symbols} symbols\n"
 

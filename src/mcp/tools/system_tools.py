@@ -113,6 +113,7 @@ class GetIndexStatusTool(MCPTool):
             other_projects=[Path(p).name for p in other_projects]
             if other_projects
             else None,
+            wait_reason=stats.get("wait_reason"),
         )
         return output
 

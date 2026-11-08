@@ -108,3 +108,56 @@ class TestStatusExposesWait:
             assert status["wait_reason"]["reason"] == "native:save_symbol_index"
         finally:
             clear_wait()
+
+
+class TestFormatterShowsIt:
+    """The field existed in the dict but was dropped by the renderer until now."""
+
+    def test_index_status_renders_the_reason(self):
+        from src.utils.ui_formatter import format_index_status
+
+        text = format_index_status(
+            chunks=100,
+            files=10,
+            symbols=50,
+            embedder="llama_cpp",
+            status="reindexing",
+            wait_reason={"reason": "native:prune", "elapsed_ms": 12_300, "timeout_s": 300},
+        )
+        assert "Waiting on" in text
+        assert "native:prune" in text
+        assert "12.3s" in text
+        assert "300s timeout" in text
+
+    def test_index_status_is_unchanged_when_idle(self):
+        from src.utils.ui_formatter import format_index_status
+
+        text = format_index_status(
+            chunks=100,
+            files=10,
+            symbols=50,
+            embedder="llama_cpp",
+            status="active",
+        )
+        assert "Waiting on" not in text
+
+    def test_runtime_status_renders_it_during_reindex(self):
+        from src.utils.ui_formatter import format_runtime_status
+
+        text = format_runtime_status(
+            {
+                "project_path": "D:/p",
+                "index_telemetry": {
+                    "total_chunks": 10,
+                    "total_files": 2,
+                    "symbol_index_count": 3,
+                    "status": "reindexing",
+                    "reindex_in_progress": True,
+                    "reindex_progress_pct": 40,
+                    "wait_reason": {"reason": "native:bm25_reindex", "elapsed_ms": 900},
+                },
+            }
+        )
+        assert "native:bm25_reindex" in text
+        assert "waiting on" in text
+
