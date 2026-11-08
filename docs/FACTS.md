@@ -33,10 +33,10 @@ counted separately from the 69.
 
 | Fact | Value |
 |---|---|
-| Text chunks | **7 375** |
-| Indexed files | **498** |
-| Graph nodes | **13 106** |
-| Graph edges | **49 306** |
+| Text chunks | **7 099** |
+| Indexed files | **508** |
+| Graph nodes | **13 098** |
+| Graph edges | **49 136** |
 | Full text reindex | **262 s**, 0 errors |
 
 Command (regenerates all of it):
