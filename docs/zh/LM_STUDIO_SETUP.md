@@ -1,259 +1,127 @@
-# LM Studio 设置指南 — MSCodeBase Intelligence
+# LM Studio 配置（可选）
 
-<!-- stale-ignore -->
-> **最后更新：** 2026-07-12 | **适用版本：** v3.2.0+
-<!-- stale-ignore -->
+[English](../en/LM_STUDIO_SETUP.md) · [Русский](../ru/LM_STUDIO_SETUP.md) · [中文](LM_STUDIO_SETUP.md)
 
-## ⚠️ LM Studio 现为次要方案
+> 翻译：2026-11-08，来源 docs/en/LM_STUDIO_SETUP.md。英文版为准。
 
-**自 2026-07-12 起，主要嵌入提供者（provider）为 ONNX E5-base INT8（进程内 CPU，768 维）。**
-LM Studio 是**回退（fallback）提供者（provider）**，在以下场景中必需：
-- **`mode=ask`**（通过 phi-4 进行 RAG 生成）— llama.cpp 不支持聊天功能
-- 偏好使用 LM Studio GUI 进行模型管理的用户
-
-**默认提供者（provider）优先级：**
-```
-1. ONNX E5-base INT8（进程内 CPU，768 维）
-2. LM Studio（外部 API，端口 1234）
-3. Ollama（外部 API，端口 11434）
-4. 仅 BM25（关键词搜索）
-```
-
-主要安装方法请参见 [`INSTALL_MODELS.md`](INSTALL_MODELS.md)。
+> 版本 3.5.0。**LM Studio 是可选的。** 默认运行时是文本优先：
+> `MSCODEBASE_DENSE_OFF=true`，不存储 embedding，不需要任何 provider。只有在你想要
+> 外部 embedder/reranker 或 `mode=ask` 时才需要读这一页。
 
 ---
 
-## 为什么选择 LM Studio（旧版）？
+## 1. LM Studio 在这里能做什么
 
-MSCodeBase 可以通过 LM Studio 的 OpenAI 兼容 API 使用 **本地 AI 模型**。
-它在您的机器上 **完全离线** 运行 — 无需云服务、无数据外传、无 API 费用。
+| 角色 | 何时使用 | 没有它时 |
+|---|---|---|
+| Embedder（`lm_studio` 模式） | LM Studio 应答启动探测（它是进程内 ONNX 之后的自动回退，不是按名字选择的东西） | 文本检索仍可用；按需 rerank 回退到融合顺序 |
+| Reranker provider | `RERANKER_PROVIDERS` 包含 `lm_studio`（默认列表是 `ollama,lm_studio`） | 结果保持 RRF 顺序 |
+| `search_code(mode="ask")` 的聊天后端 | `SYSTEM_PROFILE=server`（默认的 `light` profile 会阻止 `ask` 并静默降级为 `quality`） | 没有生成的回答；只有常规检索 |
 
-### ONNX/OpenVINO 模型（主要，进程内）
+没有别的东西依赖它。没有登录、没有云调用，除了本地服务器接受的东西之外也没有 API
+密钥校验。
 
-| 模型 | 类型 | 用途 | 大小 |
-|-------|------|---------|:----:|
-| `multilingual-e5-base` INT8/FP32 | 嵌入（768 维） | 向量语义搜索 | 105 MB / 266 MB |
-| `bge-reranker-v2-m3`（ONNX） | 交叉编码器 | 结果重排序 | 544 MB |
+## 2. 端点与默认值
 
-> **E5-base ONNX** — 主要的嵌入器（embedder），在 MCP 进程内运行，无需外部依赖。
-> BGE-M3 重排序器（reranker）为 ONNX 模型，通过 onnx_server.py（端口 1235）或 llama.cpp（端口 8081）运行。
+来自 `src/config/settings.py`（`EmbeddingConfig`）：
 
-### LM Studio 模型（仅回退 fallback）
+| 设置项 | 默认值 | 含义 |
+|---|---|---|
+| `LM_STUDIO_HOST` | `127.0.0.1` | 绑定主机 |
+| `LM_STUDIO_PORT` | `1234` | LM Studio 服务器的默认端口 |
+| `MODEL_NAME` | `multilingual-e5-small-int8` | 请求中发送的 embedding 模型名 |
+| `EMBEDDING_DIMENSION` | `384` | 期望的向量宽度 |
+| `EMBEDDING_MODEL` | `qwen3-embedding` | llama.cpp/GGUF 路径的模型名（不是 LM Studio） |
+| `API_KEY` | `.env.example` 中的 `sk-local` | LM Studio 内置的占位键 |
+| `EMBEDDING_TIMEOUT` | `240.0` s | embedding 批次的请求超时 |
 
-| 模型 | 类型 | 用途 | 大小 |
-|-------|------|---------|:----:|
-| `text-embedding-bge-m3` | 嵌入（1024 维） | 回退（fallback）向量搜索 | ~2.2 GB |
-| `bge-reranker-v2-m3` | 交叉编码器 | 回退（fallback）重排序 | ~1.1 GB |
+派生出的 URL：
 
-> LM Studio **仅当 ONNX/OpenVINO 模型不可用时**才使用。
-> 默认情况下 LM Studio 为回退（fallback）。
-
-### 替代方案：llama.cpp GGUF（重排序器推荐）
-
-| 模型 | 大小 | RAM | 用途 |
-|-------|:----:|:---:|---------|
-| bge-reranker-v2-m3 Q4_K_M | **418 MB** | 684 MB | 重排序（交叉编码器，推荐） |
-
-**相比 LM Studio 的优势：**
-- 内存占用小 5 倍（总计 ~1.0 GB vs ~6 GB）
-- 无需外部应用程序（作为子进程运行）
-- 由 `install.py` 自动安装
-- 支持 Vulkan GPU
-
----
-
-## 方法 1：通过 MSCodeBase 安装程序安装（推荐）
-
-```bash
-git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd mscodebase-intelligence
-python install.py
+```
+http://127.0.0.1:1234/v1/embeddings
+http://127.0.0.1:1234/v1/models
+http://127.0.0.1:1234/v1/chat/completions
 ```
 
-安装程序将：
-1. 检测您机器上的 LM Studio
-2. 如果 LM Studio **在线** → 显示需要加载哪些模型
-3. 如果 LM Studio **离线** → 提供下载 ONNX 回退（fallback）模型的选项
-4. 引导您完成剩余的设置
+如果你在 LM Studio 中改了端口，也要改 `LM_STUDIO_PORT`——服务器不会自动发现它。
 
----
+## 3. 配置步骤
 
-## 方法 2：手动设置 LM Studio
+1. 安装 LM Studio 并打开 **Developer → Local Server**（或 "server" 标签页，取决于
+   版本）。
+2. 加载一个 embedding 模型。`multilingual-e5-small`（384 维）是与默认
+   `EMBEDDING_DIMENSION=384` 最省事的匹配；`multilingual-e5-base`（768 维）也可用，
+   前提是你同时设置 `EMBEDDING_DIMENSION=768` 与
+   `MODEL_NAME=multilingual-e5-base`。
+3. 在 `127.0.0.1:1234` 上启动服务器。若你经常切换模型，请保持 "just-in-time model
+   loading" 开启；切换后的第一次请求会较慢。
+4. 让 MCP 指向它——扩展旁边的 `.env`（或宿主的环境变量块）：
 
-### 步骤 1：安装 LM Studio
-
-1. 从 [lmstudio.ai](https://lmstudio.ai/) 下载
-2. 安装并启动 LM Studio
-3. 进入 **设置** → **本地服务器** 选项卡
-4. 启用 **"服务地址"**，端口设为：`1234`
-5. 启用 **CORS**（允许所有来源）
-6. 启用 **"启动时自动加载模型"**
-
-### 步骤 2：下载模型
-
-在 LM Studio 的 **搜索** 选项卡中，搜索并下载每个模型：
-
-#### 1. text-embedding-bge-m3（必需）
-```
-搜索："bge-m3"
-→ 选择："text-embedding-bge-m3" 
-→ 点击下载（建议量化：Q8_0）
-```
-
-#### 2. bge-reranker-v2-m3（必需）
-```
-搜索："bge-reranker-v2-m3"  
-→ 选择模型
-→ 点击下载（建议量化：Q8_0）
-```
-
-#### 3. phi-4-mini-instruct（可选，用于 mode=ask）
-```
-搜索："phi-4-mini-instruct"
-→ 选择模型
-→ 点击下载（建议量化：Q4_K_M）
-```
-
-### 步骤 3：加载模型
-
-在 LM Studio 的 **本地服务器** 选项卡中，按以下顺序加载模型：
-
-1. 点击 **"添加模型"** → 选择 `text-embedding-bge-m3`
-2. 点击 **"添加模型"** → 选择 `bge-reranker-v2-m3`
-3. 点击 **"添加模型"** → 选择 `phi-4-mini-instruct`
-4. 点击 **"启动服务器"**
-
-### 步骤 4：验证
-
-```bash
-# 检查 LM Studio API
-curl http://127.0.0.1:1234/v1/models
-
-# 预期输出（3 个模型）：
-# {
-#   "data": [
-#     {"id": "text-embedding-bge-m3", ...},
-#     {"id": "bge-reranker-v2-m3", ...},
-#     {"id": "phi-4-mini-instruct", ...}
-#   ]
-# }
-```
-
----
-
-## 方法 3：通过 Hugging Face CLI 下载
-
-如果您更倾向于从终端下载模型：
-
-```bash
-# 安装 Hugging Face CLI
-pip install huggingface-hub
-
-# 下载 bge-m3 嵌入模型（GGUF，Q8_0）
-huggingface-cli download mradermacher/bge-m3-GGUF \
-  bge-m3.Q8_0.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-
-# 下载 bge-reranker-v2-m3（GGUF，Q8_0）
-huggingface-cli download mradermacher/bge-reranker-v2-m3-GGUF \
-  bge-reranker-v2-m3.Q8_0.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-
-# 下载 phi-4-mini-instruct（GGUF，Q4_K_M）
-huggingface-cli download mradermacher/phi-4-mini-instruct-GGUF \
-  phi-4-mini-instruct.Q4_K_M.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-```
-
-> **注意：** LM Studio 模型目录在 Windows 上为 `%USERPROFILE%\.lmstudio\models\`，
-> 在 macOS/Linux 上为 `~/.lmstudio/models/`。
-
----
-
-## 配置参考
-
-### LM Studio 的 `.env` 变量
-
-```ini
-# 嵌入提供者：auto, lm_studio, onnx, ollama
-EMBEDDING_PROVIDER=auto
-
-# LM Studio 连接
+```dotenv
 LM_STUDIO_HOST=127.0.0.1
 LM_STUDIO_PORT=1234
-
-# 默认嵌入模型名称
-MODEL_NAME=text-embedding-bge-m3
-EMBEDDING_DIMENSION=1024
-
-# mode=ask LLM 设置
-ASK_MODEL=phi-4-mini-instruct
-ASK_TIMEOUT=60.0
-
-# 重排序提供者（逗号分隔）
-RERANKER_PROVIDERS=ollama,lm_studio
+MODEL_NAME=multilingual-e5-small-int8
+EMBEDDING_DIMENSION=384
 ```
 
----
+不存在 `EMBEDDING_PROVIDER=lm_studio` 这样的开关。启动顺序是固定的：进程内 ONNX
+（`ONNX_PROVIDERS=cpu`）→ **LM Studio** → Ollama（仅当
+`EMBEDDING_PROVIDER=ollama`）→ 第二次 ONNX 尝试 → `fallback`。因此运行中的
+LM Studio 会在下次重启时被采用；停掉它则把角色交回 ONNX 或 `fallback`。
 
-## 故障排除
+5. 重启宿主（OpenCode 会话或 Zed 窗口）。设置在进程启动时读取；`reload_config()`
+   存在，但宿主仍持有旧模块。
 
-### 未检测到 LM Studio
+## 4. 验证
+
+```powershell
+# the server is up and lists models
+curl http://127.0.0.1:1234/v1/models
+
+# embeddings answer with the expected width
+curl -s http://127.0.0.1:1234/v1/embeddings `
+  -H "Content-Type: application/json" `
+  -d '{\"model\":\"multilingual-e5-small-int8\",\"input\":[\"ping\"]}'
 ```
-LM Studio / Ollama not running. Vector search will be unavailable.
-```
-- 确保 LM Studio 正在运行且服务器已启用，端口为 1234
-- 检查防火墙设置（允许 LM Studio 在专用网络上通信）
-- 验证：`curl http://127.0.0.1:1234/v1/models`
 
-### 嵌入模型返回错误的维度
-```
-LM Studio вернул пустой список embeddings.
-Проверьте что модель 'text-embedding-bge-m3' поддерживает embeddings.
-```
-- 确保您加载的是 `text-embedding-bge-m3` 模型（而非用于嵌入的 `phi-4`）
-- 检查 `EMBEDDING_DIMENSION=1024` 是否与您的模型匹配
-- 加载新模型后重启 LM Studio 服务器
+在宿主内：`intel_get_telemetry()` 报告**实时** provider 的
+`llm.provider` / `llm.model` / `llm.ping_ms` / `llm.tokens_per_sec`；`llm.error`
+表示 ping 失败。`get_health_report()` 作为诊断的一部分显示 provider 块。
 
-### 重排序不工作
-- 确保 `bge-reranker-v2-m3` 已在 LM Studio 中加载
-- 检查 `RERANKER_PROVIDERS=ollama,lm_studio`
-- 如果使用 Ollama：确保已拉取 `bge-reranker-v2-m3`：`ollama pull bge-reranker-v2-m3`
+## 5. 维度不匹配——你实际会遇到的失败
 
-### phi-4 无响应（mode=ask）
-```
-mode=ask заблокирован в light profile
-```
-- 在 `.env` 中设置 `SYSTEM_PROFILE=server`
-- 确保 `phi-4-mini-instruct` 已在 LM Studio 中加载
-- 检查 `ASK_TIMEOUT=60.0`（如果模型较慢可适当增加）
-
----
-
-## ONNX 备用方案（无 LM Studio）
-
-如果无法运行 LM Studio，MSCodeBase 可以使用 **ONNX Runtime**
-进行嵌入和重排序。安装程序会下载两个模型：
+来自不同宽度模型的向量无法与已存的向量比较。`EMBEDDING_DIMENSION` 必须与模型
+匹配，切换模型意味着要重建索引中所有存了向量的内容。默认 `dense_off=true` 下不存
+任何向量，所以不匹配只影响实时 rerank 打分（表现为排序静默变差，而不是崩溃）——
+但如果你启用了稠密路径，就要重建：
 
 ```bash
-# 完整 ONNX 设置（推荐）：
-python install.py
-# → 第 6 步将下载两个模型
-
-# 手动设置：
-pip install onnxruntime transformers torch huggingface-hub
-
-# 1. 嵌入模型（BAAI/bge-m3，438 MB）
-python scripts/download_model.py --model BAAI/bge-m3 --type embedding
-# → 保存至 .codebase_models/onnx/bge-m3/model.onnx
-
-# 2. 重排序模型（BAAI/bge-reranker-v2-m3，636 MB）
-python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker
-# → 保存至 .codebase_models/onnx/bge-reranker/model.onnx
+python scripts/reindex_text_only.py --project .   # text-first, no vectors
 ```
 
-**ONNX 备用方案的限制：**
-- 仅 CPU（无 GPU 加速）
-- 处理大批量时比 LM Studio 慢
-- 不支持 `mode=ask`（RAG 生成需要 LM Studio 中的 phi-4）
-- 两个模型共占用约 ~1.1 GB 磁盘空间
+或在完整 profile 下用 `intel_reset_index()`。
+
+## 6. `mode=ask`
+
+`search_code(mode="ask")` 把 top 块作为上下文发到 LM Studio 聊天端点上的
+`ASK_MODEL`（默认 `phi-4-mini-instruct`），temperature 0.1、最多 512 tokens，并带
+"仅根据上下文回答"的提示。它要求 `SYSTEM_PROFILE=server`；在 `light` 下该工具返回
+"mode=ask заблокирован в light profile. Переключение на mode=quality." 并改跑一次
+普通的 quality 检索。没有其它工具使用聊天端点。
+
+## 7. 关掉它
+
+删除或注释掉 LM Studio 相关变量并停止 LM Studio 服务器，然后重启宿主。embedder
+扫描器以退避重新检查 provider（基准 30 s，上限 300 s），并落到任何一个应答者上；
+若无人应答则停留在 `fallback` 模式，而这正是项目自带的文本优先行为。不需要卸载
+任何东西。
+
+---
+
+**Verified against:** `src/config/settings.py` (`EmbeddingConfig`,
+`PerformanceConfig`, `SYSTEM_PROFILE`, `ASK_MODEL`),
+`src/providers/embedder/remote_embedder.py` (mode detection, scan backoff,
+LM Studio calls), `src/providers/reranker/multi_provider.py` (LM Studio rerank
+ping), `src/core/search/engine.py` (`ask_async`, chat endpoint, fallback to
+search), `src/mcp/tools/search_tools.py` (`mode=ask` light-profile block),
+`src/core/intelligence/layer.py` (`llm` telemetry block), `.env.example`.

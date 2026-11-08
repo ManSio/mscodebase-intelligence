@@ -1,240 +1,153 @@
-# Graceful Degradation — System Resilience Guide
+# Graceful Degradation
 
-> **Part of MSCodeBase Intelligence** | v3.5.0
+[English](GRACEFUL_DEGRADATION.md) · [Русский](../ru/GRACEFUL_DEGRADATION.md) · [中文](../zh/GRACEFUL_DEGRADATION.md)
 
-## Overview
+> Version 3.5.0. What the code does when a component is missing. There is no
+> numbered "degradation level" model in this codebase — only the fallbacks below.
 
-MSCodeBase never crashes completely. Instead, it **degrades gracefully** through 6 levels,
-maintaining basic functionality even when external services fail.
+## 1. Three outcomes
 
-> **Provider reality (2026-08-16):** The embedding provider runs via **llama.cpp GGUF**
-> (`llama-server.exe`, native, preferred) — ONNX INT8 preload is canceled as soon as
-> llama.cpp is detected, and the runtime scanner switches mode to `llama_cpp`.
-> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim) is the
-> **in-process fallback** (startup path until llama.cpp is up). `LM Studio` is an
-> **optional fallback** if neither local provider is available. The **reranker** runs
-> as a separate `llama-server.exe` process serving the `bge-reranker-v2-m3` GGUF model
-> (port `:8081`).
+| Outcome | How you see it |
+|---|---|
+| **Full answer** | normal result |
+| **Answer with holes** | result plus a `degraded: [...]` list (in `investigate`) or a warning line |
+| **Failure** | Markdown error block: `🟡 **Warning:** …` / `🔴 **Error:** …` with `Detail`, `Hint`, latency. `ToolError` carries `status` (`error`/`warning`/`timeout`) and `recoverable` |
 
-```mermaid
-stateDiagram-v2
-    [*] --> L1_GGUF: Default startup (llama.cpp native)
+Rule: a *secondary* channel may fail silently (it must not take the answer down);
+a *primary* capability fails loudly with a status the caller can branch on.
 
-    state L1_GGUF[Level 1: llama.cpp GGUF (native)]
-        L1_GGUF: E5-small embedder (384-dim)
-        L1_GGUF: BM25 + Dense + Reranker (llama.cpp)
-        L1_GGUF: ~300ms-3s latency
-    end
+## 2. Retrieval ladder (default text-first configuration)
 
-    L1_GGUF --> L2_ONNX: llama.cpp unavailable
-    L1_GGUF --> L3_LM: local providers missing → LM Studio fallback
+`MSCODEBASE_DENSE_OFF=true` and `MSCODEBASE_SQLITE_CHUNKS=true` are the defaults:
 
-    state L2_ONNX[Level 2: ONNX/OpenVINO INT8 (in-process fallback)]
-        L2_ONNX: E5-small INT8 embedder (384-dim)
-        L2_ONNX: BM25 + Dense + Reranker
-        L2_ONNX: ~300ms-3s latency
-    end
-
-    L2_ONNX --> L1_GGUF: llama.cpp becomes available
-
-    state L3_LM[Level 3: LM Studio (remote, optional)]
-        L3_LM: External API (port 1234)
-        L3_LM: BM25 + Dense + Reranker
-        L3_LM: ~300ms-5s latency (network)
-    end
-
-    L3_LM --> L4_BM25: All external offline
-
-    state L4_BM25[Level 4: BM25 Only]
-        L4_BM25: Keyword search only
-        L4_BM25: SymbolIndex + FTS5 fallback
-        L4_BM25: No vector search
-    end
-
-    L4_BM25 --> L5_SYMBOL: BM25 unavailable
-
-    state L5_SYMBOL[Level 5: SymbolIndex Only]
-        L5_SYMBOL: Pure AST symbol index
-        L5_SYMBOL: Tree-sitter definitions + references
-        L5_SYMBOL: No semantic search
-    end
+```
+SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
+                   → exact-name boost → dedupe
 ```
 
-### Cross-cutting layers (always available)
+| Component missing | Behaviour | Where |
+|---|---|---|
+| Embedder | candidates still come from FTS5 + graph; the on-demand rerank raises, is caught, and the fused pool is returned unchanged | `engine.py::_apply_ondemand_reranker_async` |
+| Reranker (BGE / multi-provider) | RRF ordering returned as-is; `is_available == False` short-circuits before any call | `engine.py::_apply_multi_reranker_async` |
+| Graph DB | graph bucket yields nothing; text results unaffected | `_sqlite_hybrid_search_async` (graph stage wrapped in `try/except`) |
+| SQLite chunk store (init failed) | warning logged, `_chunk_store = None`; the FTS5 tier is skipped and the call falls through to graph / BM25 (and dense, if enabled) | `Searcher.__init__`, `hybrid_search_async` |
+| Reindex in progress | sync path returns **an empty result immediately** instead of blocking on DB locks; async path raises "retry in a few seconds" | `_reindex_fast_fail()`, `hybrid_search_async` |
 
-These are **independent** of the search level above:
+An empty answer during a reindex is deliberate but looks like "no match", so
+check `codebase(action="index", path="progress")` before concluding the query is
+bad.
 
-```mermaid
-stateDiagram-v2
-    [*] --> LSP_ACTIVE: basedpyright available
+## 3. Legacy dense path (`dense_off=false`)
 
-    state LSP_ACTIVE[LSP: basedpyright]
-        LSP_ACTIVE: Cross-file rename precision
-        LSP_ACTIVE: Full semantic WorkspaceEdit
-        LSP_ACTIVE: ~105ms warm latency
-    end
+`fast` embeds the query; if the embedder throws, `query_vector` becomes `None`
+and the call continues on FTS5 + graph (E24: an unguarded embed used to fail
+10/10 while `quality` degraded). `quality` adds the reranker stage, skipped when
+no provider answers. Dense retrieval is an enhancement, never a precondition.
 
-    LSP_ACTIVE --> LSP_FALLBACK: Timeout (5s) or unavailable
+## 4. `investigate` — per-channel degradation
 
-    state LSP_FALLBACK[LSP: SymbolIndex]
-        LSP_FALLBACK: Tree-sitter text-based rename
-        LSP_FALLBACK: May miss dynamic imports
-        LSP_FALLBACK: Always works, zero infra
-    end
+Seven channels in two passes, per-channel timeouts (12 s, 15 s for grep; whole
+tool 30 s). Pass 1: `search`, `symbols`, `grep`. Pass 2: `impact`, `graph`,
+`tests`, `memory`. A timeout appends `name:timeout`; an exception appends
+`name:<ExceptionType>`. The merged answer is still returned and ranked by
+`(channel count, rank)`, but you always see which channels were silent:
+
+```
+🧭 investigate: `who calls ack_impact`
+   identifiers: ack_impact
+   results: 6 | degraded: tests:TimeoutError
 ```
 
-```mermaid
-stateDiagram-v2
-    [*] --> DEFAULT_TOOLS: Normal operation
+## 5. Tool-level failure and timeouts
 
-    state DEFAULT_TOOLS[Visible: 12 tools]
-        DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
-        DEFAULT_TOOLS: notify_change, get_index_status
-        DEFAULT_TOOLS: intel_get_runtime_status
-        DEFAULT_TOOLS: rename_symbol, replace_symbol
-    end
+`@error_boundary(name, timeout_ms=...)` is the single wrapper:
 
-    DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
-    DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
+- the timeout is a real `asyncio.wait_for` — a hung coroutine is cancelled;
+- **only timeouts retry** (1 s apart). `ToolError` is deterministic and returned
+  immediately; an unexpected exception is logged with a traceback and returned as
+  `🔴 **Error:**` with the message sanitised (absolute paths replaced, capped at
+  200 chars);
+- budgets: 30 s for `write` and `investigate`, 45 s for `get_health_report`,
+  300 s for `dual_arm_health_check`;
+- every call is recorded for `intel_tool_health` / `get_tool_metrics_summary`,
+  failures included, so a channel that always fails is visible as a statistic.
 
-    state ALL_TOOLS[Visible: 61 tools]
-        ALL_TOOLS: All 61 MCP tools available (28 core + 16 intel + 13 inline + 4 dev)
-    end
+`src/core/error_envelope.py` defines a richer machine-readable format with codes
+(`INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, …) and `next_action`. It is imported
+**only by its unit test** today, so no tool returns those codes — a planned
+contract, not current behaviour.
 
-    state CUSTOM_TOOLS[Custom selection]
-        CUSTOM_TOOLS: User-specified tool subset
-    end
-```
+## 6. Indexing
 
-## Level Details
+- **Text-only (default)** — `index_project()` routes to
+  `_index_text_only_project()`: parse, chunk, write to SQLite, update the graph.
+  No embedder is contacted.
+- **Dense (`dense_off=false`)** — the embedder is required. `is_ready()` false
+  aborts with "Embedder not ready. Indexing aborted."; a provider returning the
+  wrong number of vectors aborts the batch rather than writing a half-index.
 
-### Level 1: llama.cpp GGUF (native, default)
+A missing Tree-sitter grammar degrades one language, not the run: `parser.py`
+imports each grammar in its own `try/except ImportError`.
 
-```python
-# Preferred path: llama.cpp (Zed 1.10.0 native) — ONNX preload is canceled once it is up
-class RemoteEmbedder:
-    def _preload_onnx_delayed(self):
-        if self._check_llama_cpp():
-            self.mode = "llama_cpp"  # ONNX preload отменена — llama.cpp основной
-```
+## 7. Providers
 
-| Component | Status |
-|-----------|:------:|
-| llama.cpp GGUF (e5-small) | ✅ Preferred (native llama-server, `:8080`) |
-| BM25 index | ✅ Built |
-| Reranker (llama.cpp) | ✅ Available (`:8081`) |
-| mode=ask | ⚠️ Optional (needs LLM profile) |
-| **Latency** | **300ms-3s** |
-| **Quality** | **Best** (no external dependency) |
+`RemoteEmbedder.mode` ∈ `onnx`, `onnx_server`, `lm_studio`, `ollama`,
+`llama_cpp`, `fallback`, `unknown`. Startup sets `fallback` when nothing answers
+("safe default — don't pretend ONNX works"); a scanner re-checks with backoff
+(30 s base, 300 s cap). llama.cpp embed does 3 batch retries with backoff, then
+per-chunk retries, then raises — it does not invent zero vectors. Rerankers (LM
+Studio, Ollama, llama.cpp, HTTP ONNX) are probed at init; all unreachable means
+`is_available == False` and RRF ordering. The optional ONNX server is a
+subprocess on `127.0.0.1:1235` (`DISABLE_ONNX_FALLBACK=true` removes it).
 
-**Trigger:** llama.cpp available (default). Falls back to in-process ONNX when unavailable.
+## 8. LSP and network
 
-### Level 2: ONNX/OpenVINO INT8 (in-process fallback)
+`lsp_*` tools need `basedpyright-langserver` on `PATH`. Without it each returns
+"LSP недоступен (basedpyright не найден). …" and points at the symbol index; a
+failed start is cached with a TTL and re-probed, so installing basedpyright later
+does not need a permanent restart. The LSP→MCP bridge itself was removed on
+2026-07-20 and no tool depends on it.
 
-If the user has a Vulkan-capable GPU and prefers GGUF embedding, `llama-server.exe` can
-serve the embedder. This is an acceleration path, not the default.
+Nothing in the default path uses the network. Exceptions are opt-in: downloads in
+`install.py` (always prompted) and the optional `tree-sitter-language-pack`, whose
+extra parsers download on first use.
 
-| Component | Status |
-|-----------|:------:|
-| llama.cpp embed (GPU) | ✅ Available |
-| BM25 index | ✅ Built |
-| Reranker | ✅ Available |
-| mode=ask | ⚠️ Optional |
-| **Latency** | **286ms-3s** |
-| **Quality** | **Best** |
+## 9. What does **not** degrade
 
-### Level 3: LM Studio (remote, optional fallback)
+"Graceful" here would mean "silently wrong":
 
-```python
-# Only reached if the local ONNX/OpenVINO model is unavailable
-class RemoteEmbedder:
-    def _check_lm_studio(self) -> bool:
-        """Routed through CircuitBreaker to prevent cascade failures."""
-        if self._breaker is not None:
-            return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
-        return self._check_lm_studio_raw()
-```
+| Situation | Response |
+|---|---|
+| Empty index (`total_chunks == 0`) | `IndexNotReadyError` → `🟡 Warning: Index is not ready`, not "no results" |
+| Write to a load-bearing file without ack | `denied` from `modification_guard`, with an impact token |
+| Ambiguous symbol for a write | `denied`, candidate list, no silent pick |
+| Destructive action outside a trusted root | refusal per `trust_boundary` policy |
+| `execute_script` when not enabled | tool not registered at all |
+| Sandbox violation in `execute_script` | `SandboxViolation` before execution |
 
-| Component | Status |
-|-----------|:------:|
-| LM Studio | ✅ Online (if running) |
-| ONNX model | ❌ Missing |
-| Reranker | ✅ Available (via LM Studio) |
-| mode=ask | ✅ Available |
-| **Latency** | **300ms-5s** (network) |
-| **Quality** | **Good** |
+## 10. How to observe degradation
 
-**Trigger:** `EMBEDDING_PROVIDER=lm_studio` or local ONNX model absent.
+1. `get_health_report()` — index, providers, resources, memory warnings.
+2. `codebase(action="index", path="status")` — `total_chunks`, files.
+3. `get_runtime_counters()` — `verdict_blocked_*` reasons; `blocked > 5%` of
+   checks is the documented signal to look at the architecture.
+4. `intel_tool_health()` (full profile) — success rate, P50/P95, repeat rate.
+5. `investigate` `degraded[]` — per-call channel failures.
+6. `get_logs()` — recent warnings/errors; payloads stay in logs, not responses.
 
-### Level 4: BM25 Only (Minimal)
+---
 
-```python
-# Graceful degradation in BM25 builder
-class Searcher:
-    def _build_bm25_index(self) -> None:
-        if self.indexer.table is None:
-            self._bm25 = {}  # Empty BM25 = degraded mode
-            return
-        try:
-            if self.indexer.table.count_rows() == 0:
-                self._bm25 = {}
-                return
-        except Exception:
-            self._bm25 = {}  # Table corrupted → degraded
-            return
-```
-
-| Component | Status |
-|-----------|:------:|
-| ONNX model | ❌ Missing |
-| LM Studio | ❌ Offline |
-| BM25 index | ✅ Available |
-| Reranker | ❌ Unavailable |
-| mode=ask | ❌ Unavailable |
-| **Latency** | **50ms-300ms** |
-| **Quality** | **Basic** (keyword only) |
-
-### Level 5: SymbolIndex Only (Last resort)
-
-| Component | Status |
-|-----------|:------:|
-| ONNX model | ❌ Missing |
-| BM25 index | ❌ Unavailable |
-| SymbolIndex | ✅ Available |
-| Reranker | ❌ Unavailable |
-| mode=ask | ❌ Unavailable |
-| **Latency** | **<50ms** |
-| **Quality** | **AST symbols only** (no semantic search) |
-
-### Level 6: Fallback (First Run)
-
-| Component | Status |
-|-----------|:------:|
-| ONNX model | ❌ Unavailable |
-| BM25 index | ❌ Empty |
-| Reranker | ❌ Unavailable |
-| mode=ask | ❌ Unavailable |
-| **Latency** | N/A |
-| **Quality** | **None** (awaiting index) |
-
-## Auto-Recovery
-
-```mermaid
-sequenceDiagram
-    participant EM as RemoteEmbedder
-    participant LLAMA as llama.cpp GGUF (native)
-    participant ONNX as ONNX/OpenVINO (in-process fallback)
-    participant LM as LM Studio (optional)
-    participant BM25 as BM25 Index
-
-    Note over EM: Level 1 (llama.cpp, default)
-    EM->>LLAMA: embed query (llama.cpp native)
-    LLAMA-->>EM: vector (384-dim)
-
-    par Every 30s — scanner loop
-        EM->>LM: GET /v1/models (if enabled)
-        LM-->>EM: 200 OK
-        EM->>EM: switch to LM Studio (optional)
-        Note over EM: Level 3 restored (optional)
-    end
-```
+**Verified against:** `src/core/search/engine.py` (tier order, rerank fallbacks,
+`_reindex_fast_fail`), `src/core/error_handler.py` (`error_boundary`, retry
+policy, `_format_error_response`, `IndexNotReadyError`, message sanitising),
+`src/mcp/tools/base.py` (`require_index` → `IndexNotReadyError`),
+`src/mcp/tools/investigate_tool.py` (7 channels, timeouts, `degraded`),
+`src/core/indexing/indexer.py` (`index_project` → text-only),
+`src/core/indexing/index_project_runner.py` (abort on embedder failure),
+`src/core/indexing/index_pipeline.py`, `src/core/indexing/parser.py`,
+`src/providers/embedder/remote_embedder.py`,
+`src/providers/reranker/multi_provider.py`,
+`src/providers/reranker/llama_runner.py`, `src/mcp/tools/lsp_tools.py`,
+`src/core/lsp_client.py`, `src/mcp/tools/system_tools.py`,
+`src/core/runtime_coordinator.py`, `src/config/settings.py`,
+`src/core/error_envelope.py`.

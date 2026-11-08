@@ -6,7 +6,7 @@
 
 # MSCodebase Intelligence
 
-**Local-first code intelligence for Zed: one question in, parallel retrieval out — lexical search, call graph, impact analysis, project memory and safe writes, over MCP.**
+**Local-first code intelligence for OpenCode and Zed: one question in, parallel retrieval out — lexical search, call graph, impact analysis, project memory and safe writes, over MCP.**
 
 [![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -22,8 +22,8 @@
 ## What this is
 
 MSCodebase Intelligence is a **local MCP server** that gives an AI assistant in
-Zed a grounded view of a codebase. It is not a chat model and not a replacement
-for the editor's language server. It answers four kinds of questions:
+OpenCode (or Zed) a grounded view of a codebase. It is not a chat model and not a
+replacement for the editor's language server. It answers four kinds of questions:
 
 - Where is this symbol defined, who calls it, and what breaks if it changes?
 - Which files matter for this question — code, tests, or documentation?
@@ -112,16 +112,18 @@ number and the command that regenerates it are listed in
 
 ## Quick start
 
-Requirements: Windows is the validated platform; Python 3.14+; Zed with the
-`mscodebase-intelligence` extension.
+Requirements: Windows is the validated platform; Python 3.14+; an MCP host
+(**OpenCode is the primary one**, the Zed extension still works).
 
 ```bash
 cd <repo-root>
-python install.py            # copies the server into the Zed extension dir
-python install.py --sync     # code-only sync, no prompts
+python install.py            # full install: venv, pip, optional models
+python install.py --sync     # code-only sync into the installed copy
 ```
 
-Restart Zed after `install.py` finishes. Verify from the agent panel:
+Restart the host after `install.py` finishes (the OpenCode session, or the Zed
+window). The installed copy lives in `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`
+and both hosts launch that venv. Verify from the agent panel:
 
 ```text
 tool_help()                        # profile, visible and hidden tools
@@ -189,9 +191,9 @@ server, only filtered from the client surface.
 ## Architecture
 
 ```text
-Zed
+MCP host: OpenCode (primary) or Zed
  │
- ├── built-in LSP (autocomplete, diagnostics)
+ ├── host built-in LSP (autocomplete, diagnostics)
  │
  └── MCP client
       │
@@ -319,13 +321,21 @@ stale/empty index, and gold-label mismatch.
 | [docs/FACTS.md](docs/FACTS.md) | Every public number and the command that regenerates it |
 | [docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md) | Layers, DI, module boundaries, tool profile |
 | [docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md) | Retrieval, ranking, docs routing, investigate fan-out |
-| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation and platform notes |
+| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, the sync/restart loop, troubleshooting |
+| [docs/en/CONFIGURATION.md](docs/en/CONFIGURATION.md) | Every environment variable and its default |
+| [docs/en/CLIENTS.md](docs/en/CLIENTS.md) | OpenCode, Zed, Claude Code, VS Code, CLI, Docker |
+| [docs/en/HOOKS_AND_GATES.md](docs/en/HOOKS_AND_GATES.md) | The OpenCode plugin, the 12 pre-commit gates, CI jobs |
+| [docs/en/FAQ.md](docs/en/FAQ.md) | Short answers to the questions that come up first |
+| [docs/en/SECURITY.md](docs/en/SECURITY.md) | Threat model of a local MCP server |
 | [docs/en/GRACEFUL_DEGRADATION.md](docs/en/GRACEFUL_DEGRADATION.md) | Behaviour when providers are unavailable |
-| [docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md) | Windows and Zed-specific behaviour |
+| [docs/en/ZED_WINDOWS_QUIRKS.md](docs/en/ZED_WINDOWS_QUIRKS.md) | Windows behaviour shared by both hosts |
 | [docs/en/CHANGELOG.md](docs/en/CHANGELOG.md) | Version history |
 | [AGENTS.md](AGENTS.md) | Rules for AI agents working in this repository |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Open debt and observations |
 | [EXPERIMENTS_LOG.md](EXPERIMENTS_LOG.md) | Experiment hypotheses and raw results |
+
+Russian and Chinese translations of every canonical page live in
+`docs/ru/` and `docs/zh/` with the same file names.
 
 Historical material (blog posts, research notes, archived diaries) is kept for
 provenance and carries a status banner; it is not a description of today.

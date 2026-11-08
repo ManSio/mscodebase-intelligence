@@ -1,243 +1,158 @@
-<img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
+# Архитектура
 
-[English](../en/ARCHITECTURE.md) · [Русский](ARCHITECTURE.md) · [中文](../zh/ARCHITECTURE.md)
+> Перевод: 2026-11-08, источник — docs/en/ARCHITECTURE.md. Английская версия — канон.
 
-# MSCodeBase Intelligence — Архитектура
+> Переписано 2026-11-08. Описывает дефолтный runtime Phase 3 (text-first:
+> SQLite FTS5/BM25 + PropertyGraph). Vector/LanceDB, эмбеддинги, реранкер и
+> LSP rename — опциональные слои, и они помечены как таковые.
+> Числа живут в [FACTS.md](../FACTS.md); эта страница объясняет устройство, а не счётчики.
+> Настройка клиента: [CLIENTS.md](CLIENTS.md). Конфигурация: [CONFIGURATION.md](CONFIGURATION.md).
+> Гейты коммитов: [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md).
 
-> **Актуально на 2026-10-25.** Документ описывает дефолтный Phase 3 runtime:
-> SQLite FTS5/BM25 плюс PropertyGraph. Эмбеддинги, реранкинг и LanceDB/vector
-> path опциональны и отмечены явно.
-
----
-
-## 1. Цели дизайна
-
-Сервер даёт AI-ассистенту обоснованные локальные ответы о кодовой базе, не
-делая удалённый сервис или большую модель обязательными.
-
-1. **Local-first.** Поиск, граф и память проекта работают без сети.
-2. **Deterministic before probabilistic.** Точные символы, пути и BM25
-   проверяются раньше опциональных semantic-слоёв.
-3. **Fail open, not silent.** Нет embedder, пустой граф или stale index должны
-   давать диагноз, а не выдуманный ответ.
-4. **Один контракт для людей и агентов.** Одна tool schema для Zed, скриптов и
-   тестов.
-5. **Observable.** Runtime passport, index status, health report и logs —
-   полноценные инструменты, не debug-приложение.
-
-## 2. Runtime в двух словах
+## 1. Слои
 
 ```text
-Zed
- ├── built-in LSP (autocomplete, diagnostics)
- └── MCP client
-      │
-      ▼
- src/main.py (stdio) или src/remote_main.py (HTTP)
-      │
-      ▼
- server_factory.create_mcp_server()
-      ├── create_service_collection()      DI container
-      ├── register_all_tools()             66 registered tools
-      └── notification / extension hooks
-      │
-      ├── Search        core/search
-      ├── Index         core/indexing
-      ├── Graph         core/graph.py + core/search/graph_adapter.py
-      ├── Memory        core/intelligence
-      ├── Writes        core/modification_guard.py + mcp/tools/write_tools.py
-      └── Optional      providers/embedder, providers/reranker, LSP client
-      │
-      ▼
- Storage
-      ├── <project>/.mscodebase/chunks.db       SQLite + FTS5
-      ├── <data_root>/projects/<hash>/graph.db  PropertyGraph
-      ├── <data_root>/projects/<hash>/intelligence/  memory, incidents
-      └── <data_root>/logs/                     server logs
+┌───────────────────────────────────────────────────────────────────┐
+│ Клиент: хост MCP — OpenCode (основной) или Zed (stdio, JSON-RPC)  │
+├───────────────────────────────────────────────────────────────────┤
+│ Слой инструментов  src/mcp/tools/*                                │
+│   investigate · search_code · grep_code · get_symbol_info         │
+│   impact_analysis · graph_query · хаб codebase · lifecycle        │
+│   каждый инструмент обёрнут в @error_boundary (timeout + envelope)│
+├───────────────────────────────────────────────────────────────────┤
+│ Intelligence       src/core/intelligence/*                        │
+│   память проекта · инциденты · health · jobs · телеметрия         │
+├───────────────────────────────────────────────────────────────────┤
+│ Сервисы ядра       src/core/search, src/core/indexing, graph      │
+│   Searcher · SQLiteChunkStore · Indexer · PropertyGraph           │
+├───────────────────────────────────────────────────────────────────┤
+│ Провайдеры         src/providers/*   (опционально)                │
+│   эмбеддеры llama.cpp/ONNX/LM Studio/Ollama · реранкер BGE-M3     │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-`<data_root>` — `%LOCALAPPDATA%/mscodebase` на Windows или платформенный
-эквивалент. Артефакты проекта лежат вне репозитория; `chunks.db` — единственный
-store внутри директории проекта.
+Правила, которые обеспечивает линтер архитектуры (`scripts/architecture_linter.py`)
+и гейт границ слоёв:
 
-## 3. Слои
+- `core` никогда не импортирует `mcp`; инструменты зависят от core, а не наоборот.
+- Готовность определяет `RuntimeCoordinator`; инструменты не перепроверяют его решение.
+- Каждый инструмент — один файл (или один класс) с одной ответственностью; хаб
+  `codebase` диспетчеризует по `action`, вместо того чтобы плодить новые
+  инструменты верхнего уровня.
 
-| Слой | Ответственность | Основные модули |
+## 2. Сборка и жизненный цикл
+
+`src/main.py` → `create_mcp_server()` (`src/mcp/server_factory.py`):
+
+1. Собрать DI-контейнер (`src/core/di_container.py`) с путями данных из
+   `src/core/artifact_paths.py`.
+2. Зарегистрировать инструменты ядра, затем intel, inline-диагностику и dev-инструменты
+   (`register_all_tools`).
+3. Применить **профиль инструментов** (`_apply_tool_profile`): полный реестр
+   собирается целиком (все 69 инструментов), затем всё, что вне `CORE_PROFILE`,
+   удаляется из клиентской поверхности. Регистрация не зависит от профиля — это
+   утверждение было ложным до 2026-11-08, когда жёстко заданный дефолтный allowlist
+   всё ещё урезал регистрацию до 56 имён, а `_apply_tool_profile` выполнялся раньше,
+   чем регистрировались dev-инструменты. Теперь инвариант закреплён в
+   `tests/test_tool_profile.py` (`test_core_profile_registers_full_registry_then_hides`).
+4. Запустить stdio-транспорт; провайдеры и реестр противоречий стартуют в фоне,
+   чтобы рукопожатие никогда не блокировалось.
+
+Жизненный цикл одного запроса: `require_ready_project()` → тело инструмента →
+`error_boundary` оборачивает результат (таймаут, телеметрия, структурированная
+ошибка). Инструменты поиска перед запросом также запускают троттлингованную проверку
+свежести (hot-reload).
+
+## 3. Хранилище
+
+| Что | Где | Формат |
 |---|---|---|
-| Entry | Старт процесса, project root, stdio/HTTP | `src/main.py`, `src/remote_main.py` |
-| Protocol | MCP server, lifecycle, hooks | `src/mcp/server.py`, `server_factory.py` |
-| Tool | Тонкие адаптеры: валидация, формат, error boundary | `src/mcp/tools/*.py`, `server_tools.py` |
-| Core | Search, indexing, graph, memory, write guards | `src/core/*` |
-| Providers | Опциональные embedders, rerankers, LSP | `src/providers/*`, `src/core/lsp_client.py` |
-| Storage | SQLite/FTS5, PropertyGraph, JSON memory, logs | `chunk_store.py`, `graph.py`, `intelligence/` |
+| Текстовые чанки + индекс FTS5 | `<project>/.mscodebase/chunks.db` | SQLite |
+| Граф (символы, рёбра, мета) | `<data_root>/projects/<hash>/graph.db` | SQLite (PropertyGraph) |
+| Память проекта, инциденты, jobs | `<data_root>/projects/<hash>/intelligence/` | JSON |
+| Память коммитов | `<data_root>/projects/<hash>/commit_memory/` | JSON |
+| Логи, телеметрия | `<data_root>/logs/`, `<data_root>/projects/<hash>/telemetry/` | файлы |
+| Таблица векторов (опционально) | `<data_root>/projects/<hash>/lancedb_v2/` | LanceDB |
 
-Tool layer не реализует ranking или parsing сам. Он резолвит project-scoped
-service и делегирует в core.
+`<data_root>` — это `MSCODEBASE_DATA_DIR`, иначе `%LOCALAPPDATA%/mscodebase`
+(Windows) или `~/.cache/mscodebase`. Внутри проекта лежат только `chunks.db` и
+`.mscodebase/`, и оба в gitignore.
 
-## 4. Точки входа и lifecycle
+## 4. Индексация
 
-- `src/main.py` — stdio MCP server для Zed extension. Определяет extension/
-  project root, настраивает logging, запускает server loop.
-- `src/remote_main.py` — тот же сервер через authenticated HTTP transport.
-  Опционален и выключен без конфигурации.
-- `src/mcp/server_factory.py` — создаёт сервер, DI container, регистрирует
-  tools, notifications и shutdown handlers.
-- `src/mcp/server_tools.py` — регистрация и allowlist.
+Две точки входа, один конвейер:
 
-Второй проект в другом окне Zed изолируется `ProjectIndexerRegistry`: у каждого
-проекта свои indexer/searcher/graph handles, LRU-лимит и resource monitoring.
+- **Полный текстовый индекс** — `scripts/reindex_text_only.py`: обход (с исключениями
+  FileGuard), разбор через Tree-sitter, запись чанков в SQLite, а символов и рёбер —
+  в граф. Без эмбеддингов.
+- **Инкрементальная** — `FreshnessChecker` сравнивает `(mtime, size, hash)` файлов
+  на диске с хранилищем SQLite, переиндексирует изменённые/новые файлы и вычищает
+  удалённые. Работает с троттлингом (по умолчанию 30 с) после поисков и при старте
+  через задачу автоиндексации, когда хранилище пусто.
 
-## 5. Dependency injection
+`experiments/**` исключён из индексации через `SystemArtifacts`
+(`src/core/indexing/file_guard.py`): замороженные панели не должны протекать в
+выдачу поиска.
 
-`src/core/di_container.py` даёт `ServiceCollection` и
-`create_service_collection(project_root)`. Сервисы — singletons в рамках
-процесса:
+## 5. Стек поиска
 
-- project root и parser;
-- indexer/searcher и опциональный embedder;
-- PropertyGraph и symbol index;
-- `ProjectIndexerRegistry` / `MultiProjectSearcher`;
-- rate limiter, circuit breaker, notification broker.
+`Searcher` (`src/core/search/engine.py`) отвечает за retrieval:
 
-Tool classes получают collection через constructor injection. Они не создают
-indexer и не открывают БД напрямую. Shutdown закрывает ресурсы и фоновые задачи.
+- **Путь Phase 3** — кандидаты SQLite FTS5 (лимит × 4, с потолком), опциональный
+  реранк верхней части пула по запросу; доступа к LanceDB нет.
+- **Короткое замыкание по идентификатору** — запросы, похожие на идентификатор,
+  идут сразу в графовую стадию за точным расположением.
+- **Маршрутизация документов** — один дополнительный FTS-запрос по `docs/**`; если
+  лучший счёт документов превышает лучший счёт кода на `MSCODEBASE_DOCS_MARGIN` (4.0),
+  побеждают документы.
+- **Legacy dense-путь** — только когда `MSCODEBASE_DENSE_OFF=false` и доступен
+  провайдер.
 
-## 6. Tool layer
+Детали и бюджеты стадий — в [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
 
-Сервер регистрирует **66 инструментов**:
+## 6. Слой инструментов
 
-- 33 core tool class (search, LSP, graph, analysis, write, lifecycle);
-- 16 `intel_*`;
-- 13 inline diagnostic;
-- 4 dev.
+**Зарегистрировано 69** инструментов (36 core + 16 intel + 13 inline + 4 dev);
+дефолтный профиль `core` открывает **17**. `execute_script` — опциональный 70-й
+инструмент за `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`.
 
-`execute_script` — 67-й опциональный инструмент, только при
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Default allowlist показывает выбранное подмножество;
-`MSCODEBASE_MCP_TOOLS` управляет видимостью (пусто — все зарегистрированные).
+Видимый набор — одна запись на намерение: `investigate`, `search_code`,
+`grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`,
+`read_live_file`, `notify_change`, `get_health_report`,
+`intel_get_project_memory`, `predict_change`, `tool_help`, плюс четыре dev-инструмента.
+`MSCODEBASE_MCP_PROFILE=full` открывает всё; `MSCODEBASE_MCP_TOOLS` остаётся явным
+allowlist.
 
-`codebase(action=...)` — hub над index, git и write. У поиска есть
-`search_code` и `plan_search`, который возвращает детерминированный план
-(primary query, exact tokens, symbols, concepts, intent).
+`investigate` — двухпроходный веер: проход 1 параллельно запускает поиск, символы и
+grep; проход 2 запускает impact, вызывающие, тесты и память проекта по тому, что
+нашёл проход 1. Результаты сливаются по `(file, line)` и несут набор каналов, которые
+нашли каждый элемент; канал, ушедший в таймаут, попадает в `degraded[]`.
 
-Все tools обёрнуты в `error_boundary`: timeout, telemetry и structured error
-вместо зависшего MCP loop.
+`codebase(action=…)` — хаб: `index` (status/progress/health/timeline),
+`git` (log/history/branch) и действия записи (rename/move/safe_delete/
+replace/insert) с preview и impact-guard.
 
-## 7. Indexing pipeline
+## 7. Безопасность и поведение при отказах
 
-```text
-discover files
-  → FileGuard (extensions, size, binaries, system dirs, .gitignore)
-  → parser (Tree-sitter; language-specific extractors)
-  → chunks + symbols + calls/imports/assignments/decorators/overrides
-  → SQLiteChunkStore (text + FTS5) and PropertyGraph
-```
+- У каждого инструмента есть таймаут; зависший провайдер ухудшает ответ, но не
+  замораживает сервер.
+- Инструменты поиска и записи отказываются работать на пустом индексе, вместо того
+  чтобы вернуть «ничего не найдено» (пустое и сломанное должны выглядеть по-разному).
+- Записи выполняются с предпросмотром; деструктивные действия требуют токен
+  подтверждения impact.
+- Подпроцессы запускаются через `Popen(stdin=DEVNULL, stdout=PIPE,
+  stderr=DEVNULL) + communicate`; `capture_output=True` приводит к взаимной
+  блокировке, когда stdout сервера — это JSON-RPC-пайп (AGENTS.md §5.16).
+- Реестр противоречий (при старте, кеш 6 ч) проверяет утверждения `✅` в
+  `AGENT_DIARY.md` против кода; о его собственных сбоях сообщается, они никогда
+  не игнорируются молча.
 
-Правила:
+## 8. Опциональные слои
 
-- `experiments/**` **исключён из индекса**. Там frozen-панели и run artifacts;
-  их индексация заставляла BM25 возвращать саму панель вместо кода. Файлы
-  остаются в git.
-- Incremental indexing обновляет chunks и graph rows файла одной транзакцией.
-- Полный vector reindex намеренно блокируется при
-  `MSCODEBASE_DENSE_OFF=true`. Используйте `scripts/reindex_text_only.py` для
-  текста и `scripts/rebuild_graph.py` для графа.
-- `build_head` пишется только после полного успешного индекса, чтобы freshness
-  можно было сверить с git HEAD.
-- `FileGuard` и `SafePathManager` отсекают пути вне проекта и системные
-  директории до parsing.
+- **Эмбеддинги/реранкер:** llama.cpp GGUF, ONNX, LM Studio или Ollama;
+  используются реранком по запросу и legacy dense-путём.
+- **LSP:** ссылки/определения/диагностика на базе basedpyright, с жёстким
+  бюджетом запуска и кешем отказов на 30 с.
+- **Векторное хранилище:** LanceDB, только когда включён dense-retrieval.
 
-## 8. Storage
-
-| Store | Путь | Назначение |
-|---|---|---|
-| Chunk store | `<project>/.mscodebase/chunks.db` | Текст, metadata, FTS5 |
-| Graph | `<data_root>/projects/<hash>/graph.db` | Символы, файлы, typed edges |
-| Memory | `<data_root>/projects/<hash>/intelligence/` | Память, инциденты, jobs |
-| Logs | `<data_root>/logs/` | Диагностика сервера и tools |
-
-LanceDB — legacy/optional vector store. Дефолтный text-first путь её не требует
-и не использует как основной источник candidates при
-`MSCODEBASE_SQLITE_CHUNKS=true`.
-
-## 9. Интеграция поиска
-
-Поиск — крупнейшая core-подсистема. Дефолтный путь:
-
-1. SQLite FTS5/BM25 candidates;
-2. опциональный symbol/graph stage для identifier-shaped запросов;
-3. опциональный on-demand rerank;
-4. exact-name boost и symbol deduplication;
-5. docs routing на уровне tool при сильном BM25-разрыве.
-
-Полный RRF/MMR/anchor pipeline в `core/search/engine.py` относится к
-опциональному dense/LanceDB path или старым путям. Он не применяется молча к
-каждому Phase 3 запросу. Точное разделение — в
-[SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
-
-## 10. Intelligence и память
-
-`core/intelligence/` реализует память проекта и инциденты:
-
-- ADR и known issues хранятся как записи со статусом и evidence;
-- инциденты можно логировать, искать и предсказывать по runtime data;
-- `verify-on-read` помечает факты как verified/refuted/superseded;
-- retraction/supersede сохраняют историю вместо удаления.
-
-Память локальна и project-scoped. Это не общий chat log.
-
-## 11. Записи и безопасность
-
-Write tools (`rename`, `move`, `safe_delete`, `replace`, `insert_before/after`)
-работают с символами, а не с сырым текстом. Pipeline:
-
-1. resolve symbol и references;
-2. impact summary;
-3. `ack_impact`, если файл load-bearing;
-4. preview;
-5. apply только с `apply=true`, затем refresh chunks/graph.
-
-Cross-file rename может использовать basedpyright LSP; при timeout —
-fallback на SymbolIndex. `execute_script` выключен по умолчанию; при включении
-использует AST validation, import wrapper и subprocess sandbox.
-
-## 12. Concurrency и multi-window
-
-- Один indexer/searcher на проект через registry.
-- SQLite writes сериализуются lock'ом chunk store; reads безопасны между
-  потоками.
-- Background indexing использует watchdog heartbeat и job state: агент
-  опрашивает статус, не блокируя редактор.
-- Внешние процессы — `Popen` + `communicate(timeout=...)`, не
-  `capture_output` в daemon threads (Windows pipe deadlock).
-- Reindex fast-fail возвращает понятную ошибку вместо зависания.
-
-## 13. Отказы и операционные проверки
-
-| Симптом | Первая проверка | Исправление |
-|---|---|---|
-| Graph tools пусты | nodes/edges в `graph.db` | `python scripts/rebuild_graph.py` |
-| Поиск возвращает experiment docs | в индексе есть `experiments/**` | reindex; FileGuard их исключает |
-| Docs всегда мимо | gold `docs/en`, ответ `docs/ru` | нормализовать по basename |
-| Index stale | `codebase(action="index", path="status")` | `scripts/reindex_text_only.py` |
-| Embedder missing | `debug_runtime_passport()` | text path работает; настроить provider |
-| Tools не видны | `MSCODEBASE_MCP_TOOLS` | добавить имена или пустое значение |
-
-## 14. Тесты и проверка
-
-- `pytest tests/` — unit/integration suite; markers разделяют integration и
-  benchmark.
-- `python scripts/smoke_e2e.py --project .` — реальные embed/rerank/search без
-  моков, когда providers доступны.
-- `scripts/rebuild_graph.py` и `scripts/reindex_text_only.py` — штатные пути
-  починки graph/index drift.
-- Search experiments — в `experiments/` с frozen inputs и raw runs; это источник
-  чисел качества в README.
-
-## 15. Связанные документы
-
-- [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) — retrieval, ranking, modes и limits.
-- [ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md) — исторический deep dive и
-  опциональные детали.
-- [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) — поведение без providers.
-- [INSTALL.md](INSTALL.md) — установка и команды починки.
-- [README.md](../../README.md) — текущий публичный контракт и качество.
+Ни один из них не нужен для дефолтного text-first пути.

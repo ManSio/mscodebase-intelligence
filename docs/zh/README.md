@@ -6,7 +6,7 @@
 
 # MSCodebase Intelligence
 
-**面向 Zed 的本地代码智能：一个问题，多通道并行检索 —— 词法搜索、调用图、影响分析、项目记忆和安全写入，通过 MCP 提供。**
+**面向 OpenCode 与 Zed 的本地代码智能：一个问题，多通道并行检索 —— 词法搜索、调用图、影响分析、项目记忆和安全写入，通过 MCP 提供。**
 
 *重写于 2026-11-08。本文描述当前代码；英文版为准，本页为完整中文镜像。*
 
@@ -16,7 +16,7 @@
 
 ## 这是什么
 
-一个本地 MCP 服务器，让 Zed 中的 AI 助手获得有依据的代码库视图。它不是聊天模型，也不替代编辑器的语言服务器。它回答四类问题：
+一个本地 MCP 服务器，让 OpenCode（或 Zed）中的 AI 助手获得有依据的代码库视图。它不是聊天模型，也不替代编辑器的语言服务器。它回答四类问题：
 
 - 这个符号在哪里定义、谁在调用、修改会破坏什么？
 - 针对这个问题哪些文件重要 —— 代码、测试还是文档？
@@ -86,15 +86,17 @@ investigate("索引器如何决定重新索引一个文件")
 
 ## 快速开始
 
-要求：以 Windows 为验证平台；Python 3.14+；Zed 安装 `mscodebase-intelligence` 扩展。
+要求：以 Windows 为验证平台；Python 3.14+；MCP 宿主（**主要是 OpenCode**，Zed 扩展也可用）。
 
 ```bash
 cd <repo-root>
-python install.py            # 将服务器复制到 Zed 扩展目录
-python install.py --sync     # 仅同步代码，无交互
+python install.py            # 完整安装：venv、pip、可选模型
+python install.py --sync     # 仅同步代码到已安装副本
 ```
 
-完成后重启 Zed。在助手面板验证：
+`install.py` 完成后重启宿主：OpenCode 会话或 Zed 窗口。已安装副本位于
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`，两种宿主都启动该 venv。
+在助手面板验证：
 
 ```text
 tool_help()                        # 配置档、可见与隐藏工具
@@ -134,9 +136,9 @@ python scripts/rebuild_graph.py
 ## 架构
 
 ```text
-Zed
+MCP 宿主：OpenCode（主要）或 Zed
  │
- ├── 内置 LSP（补全、诊断）
+ ├── 宿主内置 LSP（补全、诊断）
  │
  └── MCP 客户端
       │
@@ -235,13 +237,22 @@ python scripts/smoke_e2e.py --project .
 | 文档 | 内容 |
 |---|---|
 | [docs/FACTS.md](../FACTS.md) | 所有公开数字与复现命令 |
-| [docs/en/ARCHITECTURE.md](../en/ARCHITECTURE.md) | 分层、DI、模块边界、工具配置档 |
-| [docs/en/SEARCH_PIPELINE.md](../en/SEARCH_PIPELINE.md) | 检索、排序、文档路由、`investigate` fan-out |
-| [docs/zh/INSTALL.md](INSTALL.md) | 安装与平台说明 |
-| [docs/en/CHANGELOG.md](../en/CHANGELOG.md) | 版本历史 |
+| [docs/zh/ARCHITECTURE.md](ARCHITECTURE.md) | 分层、DI、模块边界、工具配置档 |
+| [docs/zh/SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) | 检索、排序、文档路由、`investigate` fan-out |
+| [docs/zh/INSTALL.md](INSTALL.md) | 安装、sync+restart 循环、故障排查 |
+| [docs/zh/CONFIGURATION.md](CONFIGURATION.md) | 所有环境变量及其默认值 |
+| [docs/zh/CLIENTS.md](CLIENTS.md) | OpenCode、Zed、Claude Code、VS Code、CLI、Docker |
+| [docs/zh/HOOKS_AND_GATES.md](HOOKS_AND_GATES.md) | OpenCode 钩子、12 个 pre-commit 门禁、CI 任务 |
+| [docs/zh/FAQ.md](FAQ.md) | 常见问题的简短回答 |
+| [docs/zh/SECURITY.md](SECURITY.md) | 本地 MCP 服务器的威胁模型 |
+| [docs/zh/GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) | 提供者不可用时的行为 |
+| [docs/zh/ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) | 两种宿主共有的 Windows 行为 |
+| [docs/zh/CHANGELOG.md](CHANGELOG.md) | 版本历史 |
 | [AGENTS.md](../../AGENTS.md) | 本仓库的 AI 代理规则 |
 | [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | 未决技术债与观察 |
 | [EXPERIMENTS_LOG.md](../../EXPERIMENTS_LOG.md) | 实验假设与原始结果 |
+
+英文原版在 `docs/en/`，俄文译版在 `docs/ru/`，文件名相同。
 
 历史材料（博客、研究笔记、归档日记）为溯源保留并带有状态横幅；它们不是今天的说明。
 

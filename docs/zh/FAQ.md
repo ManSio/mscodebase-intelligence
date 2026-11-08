@@ -1,136 +1,148 @@
-# FAQ — MSCodeBase Intelligence
+# 常见问题 — MSCodeBase Intelligence
 
-> 常见问题解答。基于实际的开发和运维经验。
+[English](../en/FAQ.md) · [Русский](../ru/FAQ.md) · [中文](FAQ.md)
 
----
+> 翻译：2026-11-08，来源 docs/en/FAQ.md。英文版为准。
 
-## 📦 安装与启动
-
-### 什么是 llama.cpp，为什么需要它？
-
-**llama.cpp** 是一个内置的嵌入器（embedder）和重排序器（reranker）提供者（provider），
-通过 `install.py` 自动安装。它会下载
-GGUF 模型（bge-m3 Q4_K_M 417 MB 和 bge-reranker-v2-m3 Q4_K_M 418 MB）
-并在本地运行 `llama-server.exe`。不需要像 LM Studio 这样的外部服务。
-仅消耗 227 MB RAM 而非 1200 MB — 节省 5.3 倍。
-
-### 安装后 MCP 服务器无响应
-
-**原因：** 未重启 Zed。`window: reload` 不够。
-**解决方案：** File → Quit → 重新打开项目。
-
-日志：`%LOCALAPPDATA%\mscodebase\logs\`（data_root）
-
-### 运行 `python install.py` 后没有任何变化
-
-**原因：** 安装程序将文件复制到了扩展目录，但 MCP 服务器已在运行旧代码。
-**解决方案：** File → Quit → 重新打开项目。只有完全重启才能重启 MCP。
-
-### 索引为空（0 个块（chunk））
-
-**解决方案：** 在 Agent Panel 中运行 `intel_trigger_reindex()`。等待 1-5 分钟。
-通过 `intel_get_job_status(<job_id>)` 跟踪进度。
+以下答案读自本仓库的代码（版本 3.5.0），而不是更早的博客文章。可引用的数字
+位于 `docs/FACTS.md`。
 
 ---
 
-## 🔍 搜索与工具
+## 搜索需要 embedding 吗？
 
-### `search_code` 返回 0 个结果
+不需要，默认情况下不用。默认运行时是 **文本优先**：
 
-**原因：**
-- 索引为空 → 见上文
-- 嵌入器（embedder）未运行 → `intel_get_runtime_status()` 显示 "offline"
-- 项目错误 → 检查 `intel_get_runtime_status()` 输出
+| 设置项 | 默认值 | 作用 |
+|---|---|---|
+| `MSCODEBASE_DENSE_OFF` | `true` | 没有稠密层：查询永远不会被 embedding 用于向量检索 |
+| `MSCODEBASE_SQLITE_CHUNKS` | `true` | 块以文本形式存放在 SQLite FTS5 中，不存储向量 |
+| `MSCODEBASE_ONDEMAND_RERANK` | `true` | 查询时对 top-N 候选实时做 embedding，**前提是**有 embedder 应答 |
 
-### `intel_get_runtime_status()` 显示错误的项目
+候选来自 SQLite FTS5（BM25 排序）加上 PropertyGraph。索引过程同样跳过
+embedding：当 `dense_off` 为 true 时，`Indexer.index_project()` 会路由到
+`_index_text_only_project()`。
 
-**原因：** 通过 SQLite 进行项目解析 — 如果在 Zed 中打开了多个项目，
-它可能选择了错误的项目。尤其在 Windows 上，`ZED_WORKTREE_ROOT` 未设置。
+如果没有可达的 embedder，按需 rerank 会抛出异常，被捕获后返回 RRF 顺序的融合
+结果池（`engine.py::_apply_ondemand_reranker_async`，"Fallback к RRF-порядку"）。
+搜索仍然可用——只是不再按余弦相似度重排。
 
-**解决方案：** 关闭所有 Zed 窗口，只打开所需项目。
-详情：`investigations/ACTIVE_WORKSPACE_RESOLUTION.md`
+## 为什么结果看起来很"词法"？
 
-### 工具返回原始 JSON
+因为它们确实就是词法的。在 `dense_off=true` 下，候选列表是 FTS5 上的 BM25 加上
+图命中；排序由词项驱动，所以精确的标识符胜过同义改写。有两个升级项，但默认关闭，
+必须先在你自己的查询上做实测：`MSCODEBASE_CODE_BM25=true`（标识符切分、字段加权）
+与 `MSCODEBASE_RERANKER_*` 系列 provider。各模式的质量数字在 `docs/FACTS.md` §5
+——那是快照，不是保证。
 
-**如果来自旧版本：** 已修复。在提交 `05de324`（2026-07-05）之后，
-所有 42 个工具输出可读的 Markdown。
-**解决方案：** 运行 `python install.py` 并重启 Zed。
+## 数据存放在哪里？
 
----
+两处位置，刻意分开：
 
-## 🪟 Windows
+| 内容 | 路径 |
+|---|---|
+| 块文本 + FTS5 索引 | `<project>/.mscodebase/chunks.db`（可用 `MSCODEBASE_CHUNKS_DB` 覆盖） |
+| 图、项目记忆、遥测、LanceDB（仅在用到时） | `<data_root>/projects/<hash8>/` |
 
-### LSP 无法启动（mscodebase-lsp）
+`<data_root>` 在 Windows 上是 `%LOCALAPPDATA%\mscodebase`，在 macOS 上是
+`~/Library/Caches/mscodebase`，在 Linux 上是 `~/.cache/mscodebase`。可用
+`MSCODEBASE_DATA_DIR` 覆盖（`BASE_INDEX_DIR` 是旧别名）；一个项目目录中包含
+`graph.db`、`intelligence/project_memory.json`、`metrics/job_history.json`、
+`commit_memory/`、`telemetry/YYYY-MM-DD.json`。
 
-**背景：** 独立的 LSP 服务器（`src/lsp_main.py`，已移除 — 曾为实验性）**无法工作** — Zed 需要 Rust/WASM 适配器才能使用自定义 LSP。
-**但：** MSCodeBase **内部确实使用了 LSP** 用于 `rename_symbol` — LSP 客户端（`src/core/lsp_client.py`）启动 pyright-langserver 以实现精确的跨文件重命名，并优雅降级到 SymbolIndex。
-详情：`investigations/LSP_WONTFIX.md`
+产物被刻意移出被索引的项目：索引别人的仓库时，不得往它里面写东西。`chunks.db`
+是例外，可通过 `MSCODEBASE_CHUNKS_DB` 选择退出。
 
-### Zed 显示 "Restricted Mode"
+## 怎么看到其它工具？
 
-**解决方案：** 点击 "Trust and Continue"。勾选 "Trust all projects in..."。
-否则 LSP 不会启动，MCP 将看不到项目。
+注册与可见性是两回事。**69** 个工具始终注册（36 core + 16 intel + 13 inline +
+4 dev）。对外呈现的表面按 profile 过滤：
 
-### MCP 不会自动重启
+```bash
+# default: 17 tools, one entry per intent
+MSCODEBASE_MCP_PROFILE=core
 
-**解决方案：** 仅 File → Quit → 重新打开项目。
-Zed 在 Windows 上不支持自动重启。
+# everything
+MSCODEBASE_MCP_PROFILE=full
+```
 
-### 项目解析为 "ext_root"（自索引）
+改动之后要重启宿主——过滤器只在 `create_mcp_server()` 期间运行一次。
+`tool_help()` 会列出当前 profile、可见工具与隐藏工具；它在 core profile 下始终可见。
+`MSCODEBASE_MCP_TOOLS=a,b,c` 是显式允许列表，会覆盖 profile。`execute_script`
+是独立的第 70 个可选工具，由 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true` 打开。
 
-**原因：** `resolve_project_root()` 无法通过 SQLite 找到项目。
-**解决方案：** 确保项目在 Zed 中打开。检查 `LocalAPPDATA/Zed/db/0-stable/db.sqlite`。
-如果为空 — 可能是受限模式阻止了它。
+## 如何重置索引？
 
----
+完整 profile：`intel_reset_index()`——关闭数据库句柄、释放 PID 锁、删除索引目录
+与遗留的项目内目录，然后启动后台重建索引（用 `intel_get_job_status(job_id)` 轮询）。
 
-## ⚡ 性能
+core profile（没有 `intel_reset_index`）：删除产物并强制重建。
 
-### 搜索慢（>10 秒）
+```powershell
+Remove-Item .mscodebase\chunks.db* -Force
+Remove-Item "$env:LOCALAPPDATA\mscodebase\projects\<hash8>" -Recurse -Force
+```
 
-**原因：**
-- llama.cpp 或嵌入器（embedder）未就绪（检查 `intel_get_runtime_status()`）
-- 索引未优化（运行 `intel_trigger_reindex()`）
-- `search_code` 中的 `limit` 太高（建议 6-10）
+然后用 `codebase(action="index", path="project_dir", project_root=".")` 重建索引
+（完整 profile 用 `intel_trigger_reindex()`），或在 shell 中执行：
+`python scripts/reindex_text_only.py --project .`（文本 + 图，无 embedding）；
+`python scripts/rebuild_graph.py` 只重建图。
 
-### LLM Ping > 2000ms
+## "什么都没找到" 与 "索引为空"
 
-**解决方案：** 检查嵌入器（embedder）状态。如果使用 llama.cpp：
-`curl http://127.0.0.1:8080/health`。如果使用 LM Studio：
-确保已加载嵌入模型（例如 `BAAI/bge-m3`）。
+这是两种不同的状态，工具的回答也不一样。
 
-### 内存 > 500 MB
+- **索引为空** —— `codebase(action="index", path="status")` 报告
+  `total_chunks = 0`。这不是"无匹配"；而是什么都还没被索引。检查就绪状态的工具
+  会抛出 `IndexNotReadyError`，渲染为 `🟡 Warning: Index is not ready`，详情为
+  `Index is empty for project: … Run index_project_dir() first.`
+- **正在重建索引** —— 同步搜索路径（`hybrid_search` / `search_with_mode`）立即
+  返回空结果，而不是在数据库锁上等待；异步路径会抛出
+  "⏳ Индекс перестраивается … повторите поисковый запрос через несколько секунд"。
+- **确实没有匹配** —— `total_chunks > 0`，只是查询没有词法命中。改用源码中出现的
+  标识符重述，或改成 `docs/` 意图的查询；静态检索不是同义改写引擎。
 
-**正常：** LanceDB 使用 mmap 文件。Windows 将其保留在内存中。
-**解决方案：** 重启 MCP 以释放内存（File → Quit）。
+`investigate` 展示同样的区分：只有当七条通道全部返回空时，它才打印
+"Ничего не найдено. Запрос не подтверждён ни одним каналом"；如果某条通道超时，
+则改为追加 `degraded: ...`。
 
----
+## 没有 GPU 或没有网络能运行吗？
 
-## 🐛 错误与故障
+能。默认路径中没有任何东西需要 GPU、云 API 或互联网：FTS5、AST 图与 tree-sitter
+解析都在本地。唯一的网络用途是下载可选模型（通过 `install.py` 获取 GGUF/ONNX）
+以及可选的 `tree-sitter-language-pack`，其解析器在首次使用时抓取
+（`MSCODEBASE_LANGUAGE_PACK=true`）。关掉该开关后，所有语法都来自固定版本的
+wheel，不会发生任何下载。
 
-### `ModuleNotFoundError: No module named 'src'`
+可选加速器，全部默认关闭：LM Studio（`127.0.0.1:1234`）、Ollama
+（`127.0.0.1:11434`）、llama.cpp（`127.0.0.1:8080` embedder / `8081` reranker）、
+ONNX server（`127.0.0.1:1235`）。参见 `LM_STUDIO_SETUP.md` 与 `INSTALL_MODELS.md`。
 
-**原因：** PYTHONPATH 未指向扩展目录。
-**解决方案：** 运行 `python install.py` — 它会设置正确的 PYTHONPATH。
+## 宿主、日志，以及修改服务端之后
 
-### `ToolError: Refusing to index self`
+**OpenCode 是主要宿主**：它启动
+`…\Zed\extensions\mscodebase-intelligence\venv\Scripts\mscodebase-mcp.exe -u -m src.main`，
+并把 `PYTHONPATH` 指向该扩展目录。Zed 扩展仍受支持（`extension.toml`，
+`capabilities = ["context_servers"]`）。两者运行的都是被复制过去的代码，因此修改
+`src/` 之后要执行 `python install.py --sync-only` 并重启宿主——只重载不够，进程仍
+持有旧模块。
 
-**原因：** 自索引守卫 — MCP 保护自身不被索引其自己的源代码。
-**解决方案：** 在 Zed 中打开其他项目（而不是扩展目录）。
+日志：`<data_root>/logs/`（崩溃 + 轮转）、`get_logs()`（本项目近期的
+warnings/errors）、`debug_runtime_passport()`（完整 profile：RUN_ID、BUILD_ID、PID、
+uptime、解析出的项目——用它判断是否真的重启过）。
 
-### 批量 notify_change 后 MCP 挂起
+回答变慢或某条通道总是失败：先看 `get_health_report()`，再看
+`codebase(action="index", path="status")`，然后看 `intel_get_runtime_status()`
+（完整 profile）。单条通道变慢只会让 `investigate` 降级，而不是失败；哪些降级、
+哪些失败见 `GRACEFUL_DEGRADATION.md`。
 
-**曾在旧版本中（2026-07-05 之前）：** DebounceBatch 死锁。
-**已修复。** 如果仍然发生 — 检查版本（`debug_runtime_passport` → BUILD_ID）。
-解决方案：File → Quit。
+另见 `INSTALL.md`、`ARCHITECTURE.md`、`SEARCH_PIPELINE.md`、`TELEMETRY.md`，
+以及 `docs/FACTS.md`——所有可引用数字都在那里。
 
----
-
-## 🔗 相关文档
-
-| 文档 | 描述 |
-|----------|-------------|
-| `INSTALL.md` | 用户安装指南 |
-| `ARCHITECTURE.md` | 项目架构（10 层） |
-| `ZED_WINDOWS_QUIRKS.md` | Windows 特殊说明 |
-| `HANDFOFF.md` | 开发经验，架构决策 |
+**Verified against:** `pyproject.toml`, `src/config/settings.py`,
+`src/core/search/engine.py`, `src/core/indexing/indexer.py`,
+`src/core/indexing/chunk_store.py`, `src/core/artifact_paths.py`,
+`src/core/intelligence/tools_reg.py`, `src/core/error_handler.py`,
+`src/mcp/server_tools.py`, `src/mcp/tools/investigate_tool.py`,
+`src/mcp/tools/codebase_tool.py`, `install.py`, `extension.toml`,
+`scripts/reindex_text_only.py`, `%USERPROFILE%\.config\opencode\opencode.jsonc`.

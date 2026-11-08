@@ -1,246 +1,160 @@
-# Graceful Degradation — Руководство по отказоустойчивости
+# Плавная деградация
 
-> **Часть MSCodeBase Intelligence** | v3.5.0
+> Перевод: 2026-11-08, источник — docs/en/GRACEFUL_DEGRADATION.md. Английская версия — канон.
 
-## Обзор
+[English](../en/GRACEFUL_DEGRADATION.md) · [Русский](GRACEFUL_DEGRADATION.md) · [中文](../zh/GRACEFUL_DEGRADATION.md)
 
-MSCodeBase никогда не падает полностью. Вместо этого он **плавно деградирует** через 6 уровней,
-сохраняя базовую функциональность даже при отказе внешних сервисов.
+> Версия 3.5.0. Что делает код, когда компонент отсутствует. В этой кодовой базе
+> нет нумерованной модели «уровней деградации» — только откаты, описанные ниже.
 
-> **Реальность провайдеров (2026-08-16):** Провайдер эмбеддингов работает через **llama.cpp GGUF**
-> (`llama-server.exe`, нативный, предпочтительный) — ONNX INT8 предзагрузка отменяется, как только
-> llama.cpp обнаружен, рантайм-сканер переключает режим на `llama_cpp`.
-> **ONNX INT8 / OpenVINO INT8** (`multilingual-e5-small-int8`, 384-dim) — **in-process fallback**
-> (путь при старте, пока llama.cpp не поднялся). `LM Studio` — **опциональный fallback**, если ни один
-> локальный провайдер недоступен. **Реранкер** работает как отдельный процесс `llama-server.exe`,
-> обслуживающий GGUF-модель `bge-reranker-v2-m3` (порт `:8081`).
+## 1. Три исхода
 
-```mermaid
-stateDiagram-v2
-    [*] --> L1_GGUF: Старт по умолчанию (llama.cpp native)
+| Исход | Как это видно |
+|---|---|
+| **Полный ответ** | обычный результат |
+| **Ответ с дырами** | результат плюс список `degraded: [...]` (в `investigate`) или строка предупреждения |
+| **Отказ** | Markdown-блок ошибки: `🟡 **Warning:** …` / `🔴 **Error:** …` с `Detail`, `Hint`, задержкой. `ToolError` несёт `status` (`error`/`warning`/`timeout`) и `recoverable` |
 
-    state L1_GGUF[Уровень 1: llama.cpp GGUF (native)]
-        L1_GGUF: E5-small эмбеддер (384-dim)
-        L1_GGUF: BM25 + Dense + Reranker (llama.cpp)
-        L1_GGUF: ~300ms-3s задержка
-    end
+Правило: *вторичный* канал может тихо упасть (он не должен утаскивать ответ за
+собой); *основная* возможность падает громко, со статусом, по которому вызывающий
+может ветвиться.
 
-    L1_GGUF --> L2_ONNX: llama.cpp недоступен
-    L1_GGUF --> L3_LM: локальные провайдеры недоступны → LM Studio fallback
+## 2. Лестница поиска (дефолтная text-first конфигурация)
 
-    state L2_ONNX[Уровень 2: ONNX/OpenVINO INT8 (in-process fallback)]
-        L2_ONNX: E5-small INT8 эмбеддер (384-dim)
-        L2_ONNX: BM25 + Dense + Reranker
-        L2_ONNX: ~300ms-3s задержка
-    end
+`MSCODEBASE_DENSE_OFF=true` и `MSCODEBASE_SQLITE_CHUNKS=true` — это дефолты:
 
-    L2_ONNX --> L1_GGUF: llama.cpp стал доступен
-
-    state L2_GGUF[Уровень 2: llama.cpp GGUF (GPU)]
-        L2_GGUF: GGUF эмбеддер + реранкер (Vulkan GPU)
-        L2_GGUF: BM25 + Dense + Reranker
-        L2_GGUF: ~286ms-3s задержка
-    end
-
-    L2_GGUF --> L1_ONNX: llama.cpp недоступен
-
-    state L3_LM[Уровень 3: LM Studio (remote, опц.)]
-        L3_LM: Внешний API (порт 1234)
-        L3_LM: BM25 + Dense + Reranker
-        L3_LM: ~300ms-5s задержка (сеть)
-    end
-
-    L3_LM --> L4_BM25: Все внешние офлайн
-
-    state L4_BM25[Уровень 4: Только BM25]
-        L4_BM25: Только ключевой поиск
-        L4_BM25: SymbolIndex + FTS5 fallback
-        L4_BM25: Нет векторного поиска
-    end
-
-    L4_BM25 --> L5_SYMBOL: BM25 недоступен
-
-    state L5_SYMBOL[Уровень 5: Только SymbolIndex]
-        L5_SYMBOL: Чистый AST symbol index
-        L5_SYMBOL: Tree-sitter определения + ссылки
-        L5_SYMBOL: Нет семантического поиска
-    end
+```
+SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
+                   → exact-name boost → dedupe
 ```
 
-### Cross-cutting слои (всегда доступны)
+| Отсутствующий компонент | Поведение | Где |
+|---|---|---|
+| Эмбеддер | кандидаты всё равно приходят из FTS5 + графа; on-demand реранк выбрасывает исключение, оно перехватывается, и объединённый пул возвращается без изменений | `engine.py::_apply_ondemand_reranker_async` |
+| Реранкер (BGE / multi-provider) | порядок RRF возвращается как есть; `is_available == False` обрывает путь до любого вызова | `engine.py::_apply_multi_reranker_async` |
+| Граф БД | графовая корзина ничего не даёт; текстовые результаты не затронуты | `_sqlite_hybrid_search_async` (этап графа обёрнут в `try/except`) |
+| Хранилище чанков SQLite (инициализация упала) | записывается предупреждение, `_chunk_store = None`; уровень FTS5 пропускается, и вызов проваливается дальше к графу / BM25 (и dense, если включён) | `Searcher.__init__`, `hybrid_search_async` |
+| Идёт переиндексация | синхронный путь возвращает **пустой результат немедленно** вместо блокировки на лок-объектах БД; асинхронный путь выбрасывает «повторите через несколько секунд» | `_reindex_fast_fail()`, `hybrid_search_async` |
 
-Эти слои **независимы** от уровня поиска выше:
+Пустой ответ во время переиндексации сделан намеренно, но выглядит как «нет
+совпадений», поэтому перед выводом, что запрос плохой, проверьте
+`codebase(action="index", path="progress")`.
 
-```mermaid
-stateDiagram-v2
-    [*] --> LSP_ACTIVE: basedpyright доступен
+## 3. Устаревший dense-путь (`dense_off=false`)
 
-    state LSP_ACTIVE[LSP: basedpyright]
-        LSP_ACTIVE: Точность cross-file rename
-        LSP_ACTIVE: Полный семантический WorkspaceEdit
-        LSP_ACTIVE: ~105ms warm latency
-    end
+`fast` эмбеддит запрос; если эмбеддер бросает исключение, `query_vector`
+становится `None`, и вызов продолжается на FTS5 + графе (E24: незащищённый embed
+раньше падал 10/10, пока `quality` деградировал). `quality` добавляет этап
+реранкера, который пропускается, когда ни один провайдер не отвечает. Dense-поиск
+— улучшение, никогда не предварительное условие.
 
-    LSP_ACTIVE --> LSP_FALLBACK: Таймаут (5s) или недоступен
+## 4. `investigate` — деградация по каналам
 
-    state LSP_FALLBACK[LSP: SymbolIndex]
-        LSP_FALLBACK: Tree-sitter text-based rename
-        LSP_FALLBACK: Может пропустить динамические импорты
-        LSP_FALLBACK: Всегда работает, ноль инфраструктуры
-    end
+Семь каналов в два прохода, таймауты на канал (12 s, 15 s для grep; весь
+инструмент 30 s). Проход 1: `search`, `symbols`, `grep`. Проход 2: `impact`,
+`graph`, `tests`, `memory`. Таймаут добавляет `name:timeout`; исключение
+добавляет `name:<ExceptionType>`. Объединённый ответ всё равно возвращается и
+ранжируется по `(channel count, rank)`, но вы всегда видите, какие каналы молчали:
+
+```
+🧭 investigate: `who calls ack_impact`
+   identifiers: ack_impact
+   results: 6 | degraded: tests:TimeoutError
 ```
 
-```mermaid
-stateDiagram-v2
-    [*] --> DEFAULT_TOOLS: Нормальная работа
+## 5. Отказы и таймауты на уровне инструмента
 
-    state DEFAULT_TOOLS[Видимо: 12 инструментов]
-        DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
-        DEFAULT_TOOLS: notify_change, get_index_status
-        DEFAULT_TOOLS: intel_get_runtime_status
-        DEFAULT_TOOLS: rename_symbol, replace_symbol
-    end
+`@error_boundary(name, timeout_ms=...)` — единственная обёртка:
 
-    DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
-    DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
+- таймаут — это настоящий `asyncio.wait_for` — зависшая корутина отменяется;
+- **повторяются только таймауты** (с интервалом 1 s). `ToolError` детерминирован
+  и возвращается сразу; неожиданное исключение логируется с traceback и
+  возвращается как `🔴 **Error:**` с санитизированным сообщением (абсолютные пути
+  заменены, длина ограничена 200 символами);
+- бюджеты: 30 s для `write` и `investigate`, 45 s для `get_health_report`,
+  300 s для `dual_arm_health_check`;
+- каждый вызов записывается для `intel_tool_health` / `get_tool_metrics_summary`,
+  включая падения, поэтому канал, который всегда падает, виден как статистика.
 
-    state ALL_TOOLS[Видимо: 61 инструментов]
-        ALL_TOOLS: Все 61 MCP-инструментов (28 core + 16 intel + 13 inline + 4 dev)
-    end
+`src/core/error_envelope.py` определяет более богатый машиночитаемый формат с
+кодами (`INDEX_NOT_READY`, `REINDEX_IN_PROGRESS`, …) и `next_action`. Сегодня он
+импортируется **только своим unit-тестом**, так что ни один инструмент эти коды
+не возвращает — это запланированный контракт, а не текущее поведение.
 
-    state CUSTOM_TOOLS[Пользовательский выбор]
-        CUSTOM_TOOLS: Заданное подмножество инструментов
-    end
-```
+## 6. Индексация
 
-## Детали уровней
+- **Только текст (по умолчанию)** — `index_project()` уходит в
+  `_index_text_only_project()`: разбор, нарезка на чанки, запись в SQLite,
+  обновление графа. Эмбеддер не вызывается.
+- **Dense (`dense_off=false`)** — эмбеддер обязателен. `is_ready()` == false
+  прерывает работу с «Embedder not ready. Indexing aborted.»; провайдер,
+  вернувший неверное число векторов, прерывает пакет, а не пишет полуиндекс.
 
-### Уровень 1: llama.cpp GGUF (native, дефолт)
+Отсутствующая грамматика Tree-sitter деградирует один язык, а не прогон:
+`parser.py` импортирует каждую грамматику в собственном `try/except ImportError`.
 
-```python
-# Предпочтительный путь: llama.cpp (Zed 1.10.0 native) — ONNX предзагрузка отменяется, когда он поднялся
-class RemoteEmbedder:
-    def _preload_onnx_delayed(self):
-        if self._check_llama_cpp():
-            self.mode = "llama_cpp"  # ONNX предзагрузка отменена — llama.cpp основной
-```
+## 7. Провайдеры
 
-| Компонент | Статус |
-|-----------|:------:|
-| llama.cpp GGUF (e5-small) | ✅ Предпочтительный (native llama-server, `:8080`) |
-| BM25 index | ✅ Построен |
-| Reranker (llama.cpp) | ✅ Доступен (`:8081`) |
-| mode=ask | ⚠️ Опционально (нужен LLM profile) |
-| **Задержка** | **300ms-3s** |
-| **Качество** | **Лучшее** (без внешних зависимостей) |
+`RemoteEmbedder.mode` ∈ `onnx`, `onnx_server`, `lm_studio`, `ollama`,
+`llama_cpp`, `fallback`, `unknown`. При старте ставится `fallback`, когда никто не
+отвечает («безопасный дефолт — не притворяться, что ONNX работает»); сканер
+перепроверяет с backoff (база 30 s, потолок 300 s). llama.cpp embed делает 3
+повтора пакета с backoff, затем повторы по чанкам, затем выбрасывает исключение —
+он не выдумывает нулевые векторы. Реранкеры (LM Studio, Ollama, llama.cpp,
+HTTP ONNX) проверяются при инициализации; если все недостижимы,
+`is_available == False` и действует порядок RRF. Опциональный ONNX-сервер — это
+подпроцесс на `127.0.0.1:1235` (`DISABLE_ONNX_FALLBACK=true` убирает его).
 
-**Триггер:** llama.cpp доступен (дефолт). При его недоступности — in-process ONNX fallback.
+## 8. LSP и сеть
 
-### Уровень 2: ONNX/OpenVINO INT8 (in-process fallback)
+Инструментам `lsp_*` нужен `basedpyright-langserver` в `PATH`. Без него каждый
+возвращает «LSP недоступен (basedpyright не найден). …» и указывает на индекс
+символов; неудачный запуск кешируется с TTL и перепроверяется, поэтому установка
+basedpyright позже не требует постоянного перезапуска. Сам мост LSP→MCP был
+удалён 2026-07-20, и ни один инструмент от него не зависит.
 
-Если у пользователя есть Vulkan-GPU и он предпочитает GGUF-эмбеддинг, `llama-server.exe`
-может обслуживать эмбеддер. Это путь ускорения, не дефолт.
+Ничто в дефолтном пути не использует сеть. Исключения включаются явно:
+скачивания в `install.py` (всегда со спросом) и опциональный
+`tree-sitter-language-pack`, чьи дополнительные парсеры скачиваются при первом
+использовании.
 
-| Компонент | Статус |
-|-----------|:------:|
-| llama.cpp embed (GPU) | ✅ Доступен |
-| BM25 index | ✅ Построен |
-| Reranker | ✅ Доступен |
-| mode=ask | ⚠️ Опционально |
-| **Задержка** | **286ms-3s** |
-| **Качество** | **Лучшее** |
+## 9. Что **не** деградирует
 
-### Уровень 3: LM Studio (remote, опциональный fallback)
+«Плавно» здесь означало бы «молча и неправильно»:
 
-```python
-# Достигается только если локальная ONNX/OpenVINO модель недоступна
-class RemoteEmbedder:
-    def _check_lm_studio(self) -> bool:
-        """Через CircuitBreaker для предотвращения каскадных сбоев."""
-        if self._breaker is not None:
-            return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
-        return self._check_lm_studio_raw()
-```
+| Ситуация | Ответ |
+|---|---|
+| Пустой индекс (`total_chunks == 0`) | `IndexNotReadyError` → `🟡 Warning: Index is not ready`, а не «нет результатов» |
+| Запись в несущий файл без ack | `denied` от `modification_guard`, с impact-токеном |
+| Неоднозначный символ для записи | `denied`, список кандидатов, без молчаливого выбора |
+| Деструктивное действие вне доверенного корня | отказ по политике `trust_boundary` |
+| `execute_script`, когда он не включён | инструмент вообще не регистрируется |
+| Нарушение песочницы в `execute_script` | `SandboxViolation` до исполнения |
 
-| Компонент | Статус |
-|-----------|:------:|
-| LM Studio | ✅ Online (если запущен) |
-| ONNX model | ❌ Отсутствует |
-| Reranker | ✅ Доступен (через LM Studio) |
-| mode=ask | ✅ Доступен |
-| **Задержка** | **300ms-5s** (сеть) |
-| **Качество** | **Хорошее** |
+## 10. Как наблюдать деградацию
 
-**Триггер:** `EMBEDDING_PROVIDER=lm_studio` или локальная ONNX модель отсутствует.
+1. `get_health_report()` — индекс, провайдеры, ресурсы, предупреждения о памяти.
+2. `codebase(action="index", path="status")` — `total_chunks`, файлы.
+3. `get_runtime_counters()` — причины `verdict_blocked_*`; `blocked > 5%` от
+   проверок — документированный сигнал посмотреть на архитектуру.
+4. `intel_tool_health()` (полный профиль) — доля успеха, P50/P95, доля повторов.
+5. `degraded[]` в `investigate` — сбои каналов на конкретном вызове.
+6. `get_logs()` — недавние предупреждения/ошибки; полезная нагрузка остаётся в
+   логах, а не в ответах.
 
-### Уровень 4: Только BM25 (минимальный)
+---
 
-```python
-# Graceful degradation в BM25 builder
-class Searcher:
-    def _build_bm25_index(self) -> None:
-        if self.indexer.table is None:
-            self._bm25 = {}  # Empty BM25 = degraded mode
-            return
-        try:
-            if self.indexer.table.count_rows() == 0:
-                self._bm25 = {}
-                return
-        except Exception:
-            self._bm25 = {}  # Table corrupted → degraded
-            return
-```
-
-| Компонент | Статус |
-|-----------|:------:|
-| ONNX model | ❌ Отсутствует |
-| LM Studio | ❌ Офлайн |
-| BM25 index | ✅ Доступен |
-| Reranker | ❌ Недоступен |
-| mode=ask | ❌ Недоступен |
-| **Задержка** | **50ms-300ms** |
-| **Качество** | **Базовое** (только ключевые слова) |
-
-### Уровень 5: Только SymbolIndex (последняя надежда)
-
-| Компонент | Статус |
-|-----------|:------:|
-| ONNX model | ❌ Отсутствует |
-| BM25 index | ❌ Недоступен |
-| SymbolIndex | ✅ Доступен |
-| Reranker | ❌ Недоступен |
-| mode=ask | ❌ Недоступен |
-| **Задержка** | **<50ms** |
-| **Качество** | **Только AST-символы** (нет семантического поиска) |
-
-### Уровень 6: Fallback (первый запуск)
-
-| Компонент | Статус |
-|-----------|:------:|
-| ONNX model | ❌ Недоступен |
-| BM25 index | ❌ Пуст |
-| Reranker | ❌ Недоступен |
-| mode=ask | ❌ Недоступен |
-| **Задержка** | N/A |
-| **Качество** | **Нет** (индекс строится) |
-
-## Авто-восстановление
-
-```mermaid
-sequenceDiagram
-    participant EM as RemoteEmbedder
-    participant ONNX as ONNX/OpenVINO (in-process)
-    participant LM as LM Studio (опц.)
-    participant BM25 as BM25 Index
-
-    Note over EM: Уровень 1 (ONNX, дефолт)
-    EM->>ONNX: embed query (in-process)
-    ONNX-->>EM: vector (768-dim)
-
-    par Каждые 30s — scanner loop
-        EM->>LM: GET /v1/models (если включено)
-        LM-->>EM: 200 OK
-        EM->>EM: switch to LM Studio (опц.)
-        Note over EM: Уровень 3 восстановлен (опц.)
-    end
-```
+**Verified against:** `src/core/search/engine.py` (tier order, rerank fallbacks,
+`_reindex_fast_fail`), `src/core/error_handler.py` (`error_boundary`, retry
+policy, `_format_error_response`, `IndexNotReadyError`, message sanitising),
+`src/mcp/tools/base.py` (`require_index` → `IndexNotReadyError`),
+`src/mcp/tools/investigate_tool.py` (7 channels, timeouts, `degraded`),
+`src/core/indexing/indexer.py` (`index_project` → text-only),
+`src/core/indexing/index_project_runner.py` (abort on embedder failure),
+`src/core/indexing/index_pipeline.py`, `src/core/indexing/parser.py`,
+`src/providers/embedder/remote_embedder.py`,
+`src/providers/reranker/multi_provider.py`,
+`src/providers/reranker/llama_runner.py`, `src/mcp/tools/lsp_tools.py`,
+`src/core/lsp_client.py`, `src/mcp/tools/system_tools.py`,
+`src/core/runtime_coordinator.py`, `src/config/settings.py`,
+`src/core/error_envelope.py`.

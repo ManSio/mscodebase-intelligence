@@ -1,356 +1,155 @@
 # 贡献指南 — MSCodeBase Intelligence
 
-> **版本：** 3.5.0
+[English](../en/CONTRIBUTING.md) · [Русский](../ru/CONTRIBUTING.md) · [中文](CONTRIBUTING.md)
 
----
+> 翻译：2026-11-08，来源 docs/en/CONTRIBUTING.md。英文版为准。
 
-## 1. 环境设置
+> 版本 3.5.0 · Python >= 3.14 · MIT
+
+一个本地 MCP 服务器：用 Tree-sitter 索引仓库，把块文本存入 SQLite FTS5 与
+PropertyGraph，并通过 MCP 回答代码问题。在第一次改动之前先读 `AGENTS.md`（仓库根
+目录）——它载有操作规则与根目录卫生契约（§0.6：允许的根目录集合）。
+
+## 1. 目录布局
+
+```
+src/core/        indexing, search, graph, intelligence, guards (never imports mcp)
+src/mcp/         server, tool classes, transports (depends on core, not the reverse)
+src/providers/   embedder / reranker implementations (llama.cpp, LM Studio, ONNX)
+src/config/      settings.py — every knob is an env var with a default
+scripts/         operational + gate scripts (reindex, verify_clean_state, lint)
+tools/           developer tooling (verification gates, knowledge checks, pipelines)
+experiments/     probes and frozen inputs; excluded from indexing and from pytest
+tests/           ~240 test modules at top level, plus tests/e2e and tests/fixtures
+docs/            canonical documentation; docs/FACTS.md owns every quotable number
+```
+
+分层是被强制的：`scripts/check_layer_boundaries.py` 会在出现 `core → mcp` 导入，
+以及工具层绕过 core 的依赖时失败。
+
+## 2. 环境搭建
 
 ```powershell
 git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd MSCodeBase
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-pip install -e "."
+cd mscodebase-intelligence
+python -m venv venv; venv\Scripts\activate; pip install -e ".[dev]"
 ```
 
-要求：Python 3.14+，Windows（主要）或 Linux（实验性）。
+文本优先的运行时只需要 `pip install -e .`。模型是可选的，且绝不会静默下载：
+`python install.py` 在每次下载前询问，并接受 `--skip-models`；`--sync-only` 只把
+代码复制进扩展目录，不碰 pip 也不碰模型。
 
----
+## 3. 测试与 lint
 
-## 2. 架构（整洁架构 Clean Architecture）
-
-```
-src/
-├── main.py              # 入口点（最小化）
-├── mcp/
-│   ├── server.py        # MCP 服务器注册（约 220 行）
-│   ├── server_factory.py # 服务器工厂 + DI 设置
-│   ├── server_tools.py  # 工具注册（共 58 个工具）
-│   └── tools/           # 15 个文件，28 个核心 + 14 个 intel + 12 个内联 + 4 个开发
-│       ├── base.py          # MCPTool ABC
-│       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
-│       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
-│       ├── write_tools.py   # write(action={rename,move,delete,replace,insert,impact})
-│       ├── graph_tools.py   # graph_query, cross_repo_search, cross_project_deps
-│       ├── indexing_tools.py# 索引管理
-│       ├── git_tools.py     # git(action={log,history,branch})
-│       ├── doc_tools.py     # generate_docs, bump_version, auto_update_docs, install_git_hooks
-│       ├── dev_tools.py     # 开发工具
-│       ├── system_tools.py  # 系统/健康工具
-│       ├── analysis_tools.py# structural_search, scan_changes 等
-│       ├── investigation_tools.py # bug_correlation, hotspots 等
-│       ├── lifecycle_tools.py# 后台任务，验证
-│       └── meta_tools.py    # 索引状态，健康报告
-├── core/                # 纯业务逻辑（无 MCP 导入）
-│   ├── di_container.py  # ServiceCollection（15+ 服务）
-│   ├── error_handler.py # error_boundary + ToolError
-│   ├── rate_limiter.py  # SlidingWindowRateLimiter + CircuitBreaker
-│   ├── runtime_coordinator.py # ExecutionVerdict + can_execute()
-│   ├── graph.py         # PropertyGraph（SQLite WAL）— 节点/边
-│   ├── doc_sync_engine.py # 自动同步文档与代码（重命名钩子）
-│   ├── search/
-│   │   ├── engine.py    # 混合搜索（BM25 + Dense + FTS5 + RRF）
-│   │   ├── fts5_mixin.py# FTS5 全文搜索
-│   │   ├── graph_adapter.py # PropertyGraph → SymbolIndex
-│   │   ├── cypher_engine.py # Cypher→SQL
-│   │   └── scoring.py   # RRF + MMR 多样性
-│   ├── indexing/
-│   │   ├── indexer.py   # LanceDB 向量存储
-│   │   ├── db_manager.py# LanceDB 生命周期（PID-lock）
-│   │   ├── parser.py    # Tree-sitter AST（16 种语言）
-│   │   ├── file_guard.py# .gitignore + 扩展过滤器
-│   │   ├── symbol_index.py # 调用图（BFS, PageRank）
-│   │   └── watchdog.py  # 文件变更监视器
-│   └── intelligence/
-│       ├── layer.py     # 14 个 intel_* 工具
-│       ├── project_context.py # 项目状态快照
-│       ├── health.py    # 系统健康检查
-│       └── tools_reg.py # Intel 工具注册
-├── providers/
-│   ├── embedder/
-│   │   └── remote_embedder.py # ONNX E5-small + LM Studio/Ollama
-│   └── reranker/
-│       ├── llama_runner.py   # llama-server.exe 生命周期
-│       ├── multi_provider.py # 多提供者（provider）重排序
-│       └── search_result_reranker.py # 结果重排序
-└── utils/
-    ├── i18n.py          # 国际化
-    ├── paths.py         # SafePathManager
-    └── zed_config.py    # Zed 设置管理
-```
-
-**关键原则：**
-1. 所有工具都是独立的类，使用构造函数注入（通过 `MCPTool`）
-2. 每个工具都使用 `@error_boundary` 装饰（JSON + 超时）
-3. 单一 DI 容器 — `create_service_collection()` 在 `di_container.py` 中
-4. 核心层有零个 MCP 导入
-
----
-
-## 3. 代码风格
-
-- **格式化工具**：Black（行长度 88）
-- **导入顺序**：isort
-- **类型提示**：所有公共 API 必需
-- **日志记录**：`logging.getLogger(__name__)` — production 代码中永远不要使用 `print()`
-- **异步**：使用 `async/await` 进行 I/O 操作；重型磁盘操作 → `asyncio.to_thread()`
-
-```powershell
-# 检查格式化
-black --check src/
-isort --check-only src/
-
-# 自动格式化
-black src/
-isort src/
-```
-
----
-
-## 4. 运行测试
-
-项目在 `tests/` 目录中有 **1180 个测试**（默认标记收集 1086 个 + 94 个被筛除为 slow/integration/benchmark）。
-
-```powershell
-# 完整测试集
-pytest tests/ -v
-
-# 仅快速测试（不含 slow/integration/benchmark）
-pytest tests/ -v -m "not slow and not integration and not benchmark"
-
-# 按标记
-pytest tests/ -v -m slow
-pytest tests/ -v -m integration
-pytest tests/ -v -m benchmark
-
-# 按模块
-pytest tests/test_engine.py -v
-pytest tests/test_parser.py -v
-
-# 带覆盖率
-pytest tests/ --cov=src --cov-report=term-missing
-```
-
-**标记**（在 `pyproject.toml` 中定义）：
-- `slow` — 慢速测试
-- `integration` — 集成测试（需要 LanceDB）
-- `benchmark` — 性能基准测试
-- `asyncio` — 异步测试
-
-### 测试分类
-
-| 类别 | 数量 | 描述 |
-|----------|-------|-------------|
-| 单元测试 | 550+ | 无外部服务，每个 <5 秒 |
-| 集成测试 | 3 | 需要 LanceDB，标记 `@pytest.mark.integration` |
-| 基准测试 | 6 | 延迟/吞吐量测量 |
-
-### CI 流水线
+`pyproject.toml` 设置了 `addopts = "-v --tb=short -m 'not slow and not benchmark'"`。
+这个默认值很重要：
 
 ```bash
-# 最小化（每次提交）
-pytest tests/ -m "not integration and not benchmark" --tb=short -q
-
-# 完整（夜间运行）
-pytest tests/ --tb=long -v
+python -m pytest tests/ -q                    # slow + benchmark excluded (addopts)
+python -m pytest tests/ -m "not benchmark"     # includes slow tests
+python -m pytest tests/ -q -n auto --cov=src   # what CI does (coverage gate: 38%)
 ```
 
----
+`pytest tests/ -q` 变绿**并不**意味着 slow 测试通过。CI 在 ubuntu-latest 与
+windows-latest 上、仅 Python 3.14，以 `--cov=src --cov-fail-under=38` 运行
+`not slow and not benchmark` 选择集。Lint：`ruff check src/ tests/`（CI）或
+`python scripts/ruff_gate.py`（pre-commit）。
 
-## 5. 添加新的 MCP 工具
+## 4. 新增一个工具
 
-工具在 `src/mcp/server_tools.py` 中通过 `register_all_tools()` 注册。
-每个工具是 `src/mcp/tools/*.py` 中的一个类，继承自 `MCPTool`。
-
-### 工具类别（共 58 个）：
-
-| 类别 | 数量 | 主要工具 |
-|----------|-------|-----------|
-| **搜索** | 3 | `search_code`, `get_symbol_info`, `impact_analysis` |
-| **LSP** | 6 | `lsp_find_references`, `lsp_find_definition`, `lsp_document_symbols`, `lsp_get_type_info`, `lsp_get_diagnostics`, `lsp_get_code_actions` |
-| **Codebase hub** | 1 | `codebase(action=index/git/rename/move/delete/replace/insert)` |
-| **分析** | 5 | `structural_search`, `get_repo_map`, `get_repo_rank`, `scan_changes`, `generate_chunk_summaries` |
-| **图** | 4 | `graph_query`, `cross_repo_search`, `cross_project_deps`, `detect_communities` |
-| **调查** | 3 | `get_bug_correlation`, `get_hotspots`, `find_similar_bugs` |
-| **重复** | 1 | `find_duplicates` |
-| **上下文** | 1 | `get_context` |
-| **生命周期** | 3 | `submit_background_task`, `get_task_status`, `verify_action` |
-| **文档** | 1 | `stale_detector` |
-| **Intelligence** | 14 | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_retract_memory_node` 等 |
-| **开发** | 4 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
-| **诊断内联** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
-
-### 添加新工具的步骤：
-
-1. **在 `src/mcp/tools/<category>.py` 中创建类**：
+一个工具 = 一个类 + 一条注册项 + 一个 profile 决策。
 
 ```python
-from src.core.di_container import ServiceCollection
-from src.mcp.tools.base import MCPTool
-from src.core.error_handler import error_boundary
+class MyTool(MCPTool):
+    def __init__(self, services):
+        super().__init__(services, tool_name="my_tool")
 
-
-class MyNewTool(MCPTool):
-    """供 AI 代理使用的描述。
-
-    使用此工具的情况：
-    - 使用场景 1
-    - 使用场景 2
-
-    Args:
-        param: 参数描述
-    """
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="my_new_tool")
-
-    @error_boundary("my_new_tool", timeout_ms=15000)
-    async def execute(self, param: str, **kwargs) -> dict:
-        # 实现
-        return {"status": "ok", "result": param}
-```
-
-2. **在 `src/mcp/server_tools.py` 中注册**：
-
-```python
-from src.mcp.tools.my_module import MyNewTool
-
-def register_all_tools(mcp, services):
-    tool_classes = [
-        ...
-        MyNewTool,
-    ]
-    for cls in tool_classes:
-        tool = cls(services)
-        mcp.tool()(tool.execute)
-```
-
-3. **在 `tests/test_<module>.py` 中添加测试**。
-
-4. **更新文档**：
-   - `README.md` — 工具部分
-   - `ARCHITECTURE.md` — 如果架构发生变化
-   - `CHANGELOG.md` — 添加记录
-
-5. **运行验证**：
-
-```powershell
-python -m pytest tests/ -q --tb=short
-auto_update_docs(action="verify")
-```
-
----
-
-## 6. 添加新的核心模块
-
-核心模块位于 `src/core/`。不允许 MCP 导入。
-
-### 步骤：
-
-1. **在适当的 `src/core/` 子目录中创建文件**：
-
-```python
-"""用于 ... 的模块"""
-import logging
-from typing import Any
-
-logger = logging.getLogger(__name__)
-
-
-class MyModule:
-    def __init__(self, ...):
-        ...
-
-    def do_something(self) -> Any:
-        """方法的作用。"""
+    async def execute(self, query: str) -> str | dict:
+        indexer = self.resolve_indexer()   # per-project, not a global singleton
         ...
 ```
 
-2. **在 DI 中注册** — `src/core/di_container.py`：
+1. **类** —— 在 `src/mcp/tools/<area>.py` 中继承 `MCPTool`。由评审与门禁强制的
+   规则：依赖通过 `self._services`（DI）注入，不允许模块级全局变量；就绪状态来自
+   `RuntimeCoordinator` / `require_index()`，不要自己写检查；返回 `str` 或可
+   JSON 序列化的 `dict`；失败时抛出 `ToolError`（或
+   `IndexNotReadyError` / `RateLimitError`），以便调用方拿到 `status`
+   （`error`/`warning`/`timeout`）与 `recoverable` 标志；用
+   `@error_boundary("<tool>", timeout_ms=...)` 装饰 `execute`。
+2. **写入** —— 走 `WriteTool.execute`（`src/mcp/tools/write_tools.py`），它被
+   `@modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600)` 装饰。
+   对承重文件，在被 guard 拿到有效影响令牌（`ack_impact`）之前，写入会被拒绝；
+   不要另加一条未加装饰的写入路径。
+3. **注册** —— 把类追加到
+   `src/mcp/server_tools.py::register_all_tools()` 中的 `tool_classes`。不要在别处
+   直接把它注册到 MCP 应用上：profile 过滤器在所有分组注册完成之后才运行。
+4. **Profile** —— 放进 `CORE_PROFILE`（17 个工具的默认表面，一个意图一个入口），
+   或让它只在 `MSCODEBASE_MCP_PROFILE=full` 下可见。计数在模块 docstring 中被
+   断言：36 core + 16 intel + 13 inline + 4 dev = 69。
+5. **测试与文档** —— 在 `tests/` 下加一个单元测试；任何触及检索或索引的东西都需要
+   一个"若工具静默返回空就会失败"的用例。若表面发生变化，更新 `tool_help` 可见的
+   文本以及任何列出工具的文档。
 
-```python
-services.add_singleton(MyModule, MyModule(...))
+## 5. 提交与 Pull Request
+
+Conventional Commits，祈使语气，原子化：
+
+```
+feat(search): add code-aware BM25 term field
+
+Restate the diff, not the intent. Explain why when the why is not obvious.
 ```
 
-3. **在 `tests/test_my_module.py` 中添加测试**。
+- Subject <= 72 字符，结尾不加句点，正文之前空一行；破坏性变更写作
+  `type(scope)!:` 并加 `BREAKING CHANGE:` 脚注。
+- 显式暂存文件（`git add src/core/x.py tests/test_x.py`）。禁止 `git add -A`、
+  `git add .` 与 `git commit -a`——一个 checkout 可能与其他 agent 或 worktree
+  共享，批量 add 会把它们未完成的工作一并扫进来。先运行 `git worktree list` 与
+  `git status`；在别处被编辑过的文件会被 `scripts/check_parallel_sessions.py`
+  拦下。
+- 不提交生成物或一次性文件：`docs/generated/MODULE_INDEX.md` 不被跟踪，
+  `experiments/**/results` 不被索引，根目录集合由 `AGENTS.md` §0.6 固定。一个 PR
+  只做一件事；请求评审前先自查 diff：每一行删除都是有意的，描述不比 diff 更丰富。
 
-4. **更新 ARCHITECTURE.md**。
+## 6. 门禁
 
-5. **运行 DocSync 验证文档匹配**：
+`core.hooksPath = .githooks`；`.githooks/pre-commit` 运行以下内容（每道门禁 900 s
+预算，`MSCB_PRECOMMIT_GATE_TIMEOUT`）：
 
-```python
-from src.core.doc_sync_engine import DocSyncEngine
-engine = DocSyncEngine(project_root)
-report = engine.sync_all()
-```
+| 门禁 | 脚本 |
+|---|---|
+| gate-zero + 日记 | `scripts/verify_diary.py`（完整 `pytest tests/`；docs-only 提交或 `--skip-gate-zero` 时跳过） |
+| 版本漂移 | `scripts/stale_detector.py --staged` |
+| 工具名 | `scripts/check_tool_names.py` |
+| 负控制 | `scripts/negative_controls_runner.py` |
+| 层边界 | `scripts/check_layer_boundaries.py` |
+| 架构不变量 | `scripts/architecture_linter.py` |
+| git 锁（advisory） | `scripts/lock_guard.py` |
+| known-issues 体量 | `scripts/check_known_issues.py` |
+| 第三方数据 | `scripts/check_third_party_data.py` |
+| 并行会话 | `scripts/check_parallel_sessions.py` |
+| lint | `scripts/ruff_gate.py` |
 
----
+CI 还追加 `bump_version.py --check`、`disk_guard.py --check`、`pip-audit`、
+`verify_clean_state.sh --no-clone`、`manifest_parity.py`，以及传输等价性 e2e 作业。
+用 `gh run list --branch <branch>` 与 `gh run view <id> --log-failed` 检查 CI，
+而不是靠假设。
 
-## 7. 提交信息
+## 7. 文档与登记册
 
-Conventional Commits 格式：`type(scope): description`
+- 数字（块数、文件数、节点、边、质量、计时）**只**存在于 `docs/FACTS.md`，并附
+  上可重新生成它们的命令。
+- 规范页面有三种语言（`docs/en`、`docs/ru`、`docs/zh`）；改一处就是改三个文件。
+  `docs/blog`、`docs/research`、`docs/archive` 中的历史材料保留其横幅与日期——
+  不要重写。引用事实用 `(file, commit SHA, record ID)`，不要用 `file:line`：
+  行号会腐烂。
+- 登记册：`AGENT_DIARY.md`（只有一个日记；`DEV_DIARY.md` 是重定向）、
+  `KNOWN_ISSUES.md`（<= 300 行，较早条目移入
+  `docs/archive/KNOWN_ISSUES_YYYY_MM.md`）、`EXPERIMENTS_LOG.md`、`WISDOM.md`。
+  在同一个提交中更新它们；第二个日记或第二个 `KNOWN_ISSUES.md` 是缺陷，不是变体。
 
-**类型：** `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`
-
-**范围：** `search`, `indexer`, `parser`, `mcp`, `core`, `tests`, `docs`, `doc_sync`
-
-**示例：**
-```
-feat(search): add FTS5 full-text search to hybrid pipeline
-fix(indexer): handle LanceDB Not found during reindex
-docs: update ARCHITECTURE.md with DocSync engine
-refactor(doc_sync): clean up suggestion logic
-```
-
----
-
-## 8. PR 流程
-
-### 检查清单：
-
-- [ ] 分支从 `development`（不是 `main`）创建
-- [ ] `pytest tests/ -v` — 所有测试通过
-- [ ] `black --check src/` — 符合格式化要求
-- [ ] 所有公共函数有类型提示
-- [ ] production 代码中没有 `print()`（仅使用 `logging`）
-- [ ] 新工具/模块有测试覆盖
-- [ ] `CHANGELOG.md` 已更新
-- [ ] `README.md` 已更新（如果公共 API 发生变化）
-- [ ] `ARCHITECTURE.md` 已更新（如果架构发生变化）
-- [ ] DocSync 检查：`auto_update_docs(action="verify")`
-
-### PR 描述应包含：
-
-1. **变更内容** — 具体的文件和函数
-2. **原因** — 解决什么问题
-3. **测试方式** — 添加/运行了哪些测试
-4. **Breaking changes** — 如果有，需明确说明
-
----
-
-## 9. 版本管理
-
-SemVer：MAJOR.MINOR.PATCH
-
-- **MAJOR** — 不兼容的 API 更改
-- **MINOR** — 新工具/功能（向后兼容）
-- **PATCH** — 错误修复
-
-当前版本在 `pyproject.toml` 中：`3.5.0`
-
----
-
-## 10. 故障排除
-
-| 问题 | 解决方案 |
-|---------|----------|
-| `ModuleNotFoundError: No module named 'src'` | 从项目根目录运行 |
-| 测试因嵌入错误失败 | 这在回退模式下是正常的；使用 LM Studio 进行完整测试 |
-| 首次调用 MCP 服务器超时 | 重排序器（reranker）冷启动 — 第二次调用即可正常工作 |
-| DocSync 报告误报 | 运行 `auto_update_docs(action="verify")` 获取当前状态 |
-
----
-
-*最后更新：2026-07-21 | DocSync 版*
+**Verified against:** `pyproject.toml`, `.github/workflows/ci.yml`,
+`.githooks/pre-commit`, `src/mcp/server_tools.py`, `src/mcp/tools/base.py`,
+`src/core/modification_guard.py`, `src/core/error_handler.py`, `install.py`,
+`AGENTS.md` (§0.6), directory listing of `src/`, `tests/`, `scripts/`, `tools/`,
+`experiments/`.

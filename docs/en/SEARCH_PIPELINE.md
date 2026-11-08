@@ -3,7 +3,7 @@
 > Rewritten 2026-11-08. The default runtime is **Phase 3 text-first**:
 > SQLite FTS5/BM25 over parsed chunks plus a Tree-sitter/PropertyGraph.
 > Dense, LanceDB and reranker stages exist but are optional and are marked.
-> Numbers: [FACTS.md](FACTS.md).
+> Numbers: [FACTS.md](../FACTS.md).
 
 ## 1. What a query goes through
 
@@ -119,7 +119,7 @@ plausible guess.
 - **No LLM router.** Docs routing is a score comparison, not a model call.
 - **No RRF/MMR over BM25+dense+graph in the default path.** Those exist in the
   legacy dense path only; mixing them into every query was not measured better.
-- **No 95% claim.** See [FACTS.md](FACTS.md) for the measured snapshot and the
+- **No 95% claim.** See [FACTS.md](../FACTS.md) for the measured snapshot and the
   harness that produces it.
 
 ## 8. How to diagnose a bad result

@@ -3,13 +3,15 @@
 > Rewritten 2026-11-08. Describes the default Phase 3 runtime (text-first:
 > SQLite FTS5/BM25 + PropertyGraph). Vector/LanceDB, embeddings, reranker and
 > LSP rename are optional layers and are marked as such.
-> Numbers live in [FACTS.md](FACTS.md); this page explains the shape, not the counts.
+> Numbers live in [FACTS.md](../FACTS.md); this page explains the shape, not the counts.
+> Client setup: [CLIENTS.md](CLIENTS.md). Configuration: [CONFIGURATION.md](CONFIGURATION.md).
+> Commit gates: [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md).
 
 ## 1. Layers
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ Client: Zed MCP client (stdio, JSON-RPC)                     │
+│ Client: MCP host — OpenCode (primary) or Zed (stdio, JSON-RPC)│
 ├──────────────────────────────────────────────────────────────┤
 │ Tool layer        src/mcp/tools/*                             │
 │   investigate · search_code · grep_code · get_symbol_info     │
@@ -44,8 +46,12 @@ and the layer-boundary gate:
 2. Register core tools, then intel, inline diagnostics and dev tools
    (`register_all_tools`).
 3. Apply the **tool profile** (`_apply_tool_profile`): the full registry is
-   built, then everything outside `CORE_PROFILE` is removed from the client
-   surface. Registration never depends on the profile.
+   built (all 69 tools), then everything outside `CORE_PROFILE` is removed from the
+   client surface. Registration does not depend on the profile — that sentence was
+   false until 2026-11-08, when a hard-coded default allowlist still cut registration
+   to 56 names and `_apply_tool_profile` ran before the dev tools registered. The
+   invariant is now pinned by `tests/test_tool_profile.py`
+   (`test_core_profile_registers_full_registry_then_hides`).
 4. Start the stdio transport; providers and the contradiction ledger start in
    the background so the handshake is never blocked.
 

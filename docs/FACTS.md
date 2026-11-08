@@ -9,7 +9,7 @@
 | Fact | Value | How to check |
 |---|---|---|
 | Version | `3.5.0` | `grep '^version' pyproject.toml` |
-| Python | 3.14+ (CI also runs 3.10–3.12) | `pyproject.toml` / CI matrix |
+| Python | 3.14+ — the only version in the CI matrix | `pyproject.toml` / `.github/workflows/ci.yml` |
 | License | MIT | `LICENSE` |
 | Platform | Windows validated; Linux CI | `.github/workflows/ci.yml` |
 
@@ -17,7 +17,7 @@
 
 | Fact | Value | How to check |
 |---|---|---|
-| Registered tools | **69** (36 core + 16 intel + 13 inline + 4 dev) | MCP startup log; `tool_help()` |
+| Registered tools | **69** (36 core + 16 intel + 13 inline + 4 dev) | MCP startup log; `tool_help()`; `tests/test_tool_profile.py` |
 | Visible by default | **17** (`MSCODEBASE_MCP_PROFILE=core`) | client tool list; `tool_help()` |
 | Visible with `full` | **69** | `MSCODEBASE_MCP_PROFILE=full` + restart |
 | `tool_help()` | lists profile, visible, hidden | one call |
@@ -26,6 +26,10 @@
 counted separately from the 69.
 
 ## 3. Index of this repository (2026-11-08)
+
+> Snapshot. The index is rebuilt whenever tracked files change, so these numbers
+> move: regenerate them with the command below and update this table in the same
+> commit that changes the documentation set.
 
 | Fact | Value |
 |---|---|

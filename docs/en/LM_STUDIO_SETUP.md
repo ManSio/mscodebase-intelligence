@@ -1,259 +1,134 @@
-# LM Studio Setup Guide for MSCodeBase Intelligence
+# LM Studio Setup (optional)
 
-<!-- stale-ignore -->
-> **Last updated:** 2026-07-12 | **Applies to:** v3.2.0+
-<!-- stale-ignore -->
+[English](LM_STUDIO_SETUP.md) · [Русский](../ru/LM_STUDIO_SETUP.md) · [中文](../zh/LM_STUDIO_SETUP.md)
 
-## ⚠️ LM Studio is now Secondary
-
-**Since 2026-07-12, the primary embedding provider is ONNX E5-base INT8 (in-process CPU, 768-dim).**
-LM Studio is a **fallback provider** and is required for:
-- **`mode=ask`** (RAG generation via phi-4) — llama.cpp doesn't support chat
-- Users who prefer LM Studio's GUI for model management
-
-**Default provider priority:**
-```
-1. ONNX E5-base INT8 (in-process CPU, 768-dim)
-2. LM Studio (external API, port 1234)
-3. Ollama (external API, port 11434)
-4. BM25 only (keyword search)
-```
-
-See [`INSTALL_MODELS.md`](INSTALL_MODELS.md) for the primary installation method.
+> Version 3.5.0. **LM Studio is optional.** The default runtime is text-first:
+> `MSCODEBASE_DENSE_OFF=true`, no embeddings stored, no provider required. Read
+> this page only if you want an external embedder/reranker or `mode=ask`.
 
 ---
 
-## Why LM Studio (Legacy)?
+## 1. What LM Studio can do here
 
-MSCodeBase can use **local AI models** via LM Studio's OpenAI-compatible API.
-It runs **fully offline** on your machine — no cloud, no data egress, no API costs.
+| Role | Used when | Without it |
+|---|---|---|
+| Embedder (`lm_studio` mode) | LM Studio answers the startup probe (it is an automatic fallback after in-process ONNX, not something you select by name) | text retrieval still works; on-demand rerank falls back to fused order |
+| Reranker provider | `RERANKER_PROVIDERS` contains `lm_studio` (default list is `ollama,lm_studio`) | results keep RRF order |
+| Chat backend for `search_code(mode="ask")` | `SYSTEM_PROFILE=server` (the default `light` profile blocks `ask` and silently downgrades to `quality`) | no generated answers; normal retrieval only |
 
-### Models for ONNX/OpenVINO (Primary, in-process)
+Nothing else depends on it. There is no sign-in, no cloud call, no API key
+validation beyond what the local server accepts.
 
-| Model | Type | Purpose | Size |
-|-------|------|---------|:----:|
-| `multilingual-e5-base` INT8/FP32 | Embedding (768-dim) | Vector semantic search | 105 MB / 266 MB |
-| `bge-reranker-v2-m3` (ONNX) | Cross-encoder | Result reranking | 544 MB |
+## 2. Endpoint and defaults
 
-> **E5-base ONNX** — primary embedder, runs in the MCP process with no external dependencies.
-> BGE-M3 reranker — ONNX model via onnx_server.py (port 1235) or llama.cpp (port 8081).
+From `src/config/settings.py` (`EmbeddingConfig`):
 
-### Models for LM Studio (Fallback only)
+| Setting | Default | Meaning |
+|---|---|---|
+| `LM_STUDIO_HOST` | `127.0.0.1` | bind host |
+| `LM_STUDIO_PORT` | `1234` | default LM Studio server port |
+| `MODEL_NAME` | `multilingual-e5-small-int8` | embedding model name sent in the request |
+| `EMBEDDING_DIMENSION` | `384` | expected vector width |
+| `EMBEDDING_MODEL` | `qwen3-embedding` | model name for the llama.cpp/GGUF path (not LM Studio) |
+| `API_KEY` | `sk-local` in `.env.example` | LM Studio's built-in placeholder key |
+| `EMBEDDING_TIMEOUT` | `240.0` s | request timeout for embedding batches |
 
-| Model | Type | Purpose | Size |
-|-------|------|---------|:----:|
-| `text-embedding-bge-m3` | Embedding (1024-dim) | Fallback vector search | ~2.2 GB |
-| `bge-reranker-v2-m3` | Cross-encoder | Fallback reranking | ~1.1 GB |
+Derived URLs:
 
-> LM Studio is used **only if ONNX/OpenVINO model is unavailable**.
-> By default, LM Studio is a fallback.
-
-### Alternative: llama.cpp GGUF (Recommended for Reranker)
-
-| Model | Size | RAM | Purpose |
-|-------|:----:|:---:|---------|
-| bge-reranker-v2-m3 Q4_K_M | **418 MB** | 684 MB | Reranking (cross-encoder, recommended) |
-
-**Advantages over LM Studio:**
-- 5× smaller RAM (~1.0 GB total vs ~6 GB)
-- No external app needed (runs as subprocess)
-- Auto-installed by `install.py`
-- Vulkan GPU support
-
----
-
-## Method 1: Install via MSCodeBase Installer (Recommended)
-
-```bash
-git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd mscodebase-intelligence
-python install.py
+```
+http://127.0.0.1:1234/v1/embeddings
+http://127.0.0.1:1234/v1/models
+http://127.0.0.1:1234/v1/chat/completions
 ```
 
-The installer will:
-1. Detect LM Studio on your machine
-2. If LM Studio is **online** → show which models to load
-3. If LM Studio is **offline** → offer to download ONNX fallback model
-4. Guide you through the remaining setup
+If you change the port in LM Studio, change `LM_STUDIO_PORT` too — the server
+does not discover it.
 
----
+## 3. Setup
 
-## Method 2: Manual LM Studio Setup
+1. Install LM Studio and open **Developer → Local Server** (or the "server" tab,
+   depending on version).
+2. Load an embedding model. `multilingual-e5-small` (384-dim) is the cheapest
+   match for the default `EMBEDDING_DIMENSION=384`; `multilingual-e5-base`
+   (768-dim) works if you also set `EMBEDDING_DIMENSION=768` and
+   `MODEL_NAME=multilingual-e5-base`.
+3. Start the server on `127.0.0.1:1234`. Keep "just-in-time model loading"
+   enabled if you switch models often; the first request after a swap is slower.
+4. Point the MCP at it — `.env` next to the extension (or the environment block
+   of your host):
 
-### Step 1: Install LM Studio
-
-1. Download from [lmstudio.ai](https://lmstudio.ai/)
-2. Install and launch LM Studio
-3. Go to **Settings** → **Local Server** tab
-4. Enable **"Serve at"** with port: `1234`
-5. Enable **CORS** (all origins)
-6. Enable **"Auto-load models on startup"**
-
-### Step 2: Download Models
-
-In LM Studio's **Search** tab, search for and download each model:
-
-#### 1. text-embedding-bge-m3 (Required)
-```
-Search: "bge-m3"
-→ Select: "text-embedding-bge-m3" 
-→ Click Download (Quant: Q8_0 recommended)
-```
-
-#### 2. bge-reranker-v2-m3 (Required)
-```
-Search: "bge-reranker-v2-m3"  
-→ Select the model
-→ Click Download (Quant: Q8_0 recommended)
-```
-
-#### 3. phi-4-mini-instruct (Optional, for mode=ask)
-```
-Search: "phi-4-mini-instruct"
-→ Select the model
-→ Click Download (Quant: Q4_K_M recommended)
-```
-
-### Step 3: Load Models
-
-In LM Studio's **Local Server** tab, load models in this order:
-
-1. Click **"Add Model"** → select `text-embedding-bge-m3`
-2. Click **"Add Model"** → select `bge-reranker-v2-m3`
-3. Click **"Add Model"** → select `phi-4-mini-instruct`
-4. Click **"Start Server"**
-
-### Step 4: Verify
-
-```bash
-# Check LM Studio API
-curl http://127.0.0.1:1234/v1/models
-
-# Expected output (3 models):
-# {
-#   "data": [
-#     {"id": "text-embedding-bge-m3", ...},
-#     {"id": "bge-reranker-v2-m3", ...},
-#     {"id": "phi-4-mini-instruct", ...}
-#   ]
-# }
-```
-
----
-
-## Method 3: Download via Hugging Face CLI
-
-If you prefer downloading models from the terminal:
-
-```bash
-# Install Hugging Face CLI
-pip install huggingface-hub
-
-# Download bge-m3 embedding model (GGUF, Q8_0)
-huggingface-cli download mradermacher/bge-m3-GGUF \
-  bge-m3.Q8_0.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-
-# Download bge-reranker-v2-m3 (GGUF, Q8_0)
-huggingface-cli download mradermacher/bge-reranker-v2-m3-GGUF \
-  bge-reranker-v2-m3.Q8_0.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-
-# Download phi-4-mini-instruct (GGUF, Q4_K_M)
-huggingface-cli download mradermacher/phi-4-mini-instruct-GGUF \
-  phi-4-mini-instruct.Q4_K_M.gguf \
-  --local-dir %USERPROFILE%\.lmstudio\models
-```
-
-> **Note:** LM Studio models directory is `%USERPROFILE%\.lmstudio\models\`
-> on Windows, `~/.lmstudio/models/` on macOS/Linux.
-
----
-
-## Configuration Reference
-
-### `.env` Variables for LM Studio
-
-```ini
-# Embedding provider: auto, lm_studio, onnx, ollama
-EMBEDDING_PROVIDER=auto
-
-# LM Studio connection
+```dotenv
 LM_STUDIO_HOST=127.0.0.1
 LM_STUDIO_PORT=1234
-
-# Default embedding model name
-MODEL_NAME=text-embedding-bge-m3
-EMBEDDING_DIMENSION=1024
-
-# mode=ask LLM settings
-ASK_MODEL=phi-4-mini-instruct
-ASK_TIMEOUT=60.0
-
-# Reranker providers (comma-separated)
-RERANKER_PROVIDERS=ollama,lm_studio
+MODEL_NAME=multilingual-e5-small-int8
+EMBEDDING_DIMENSION=384
 ```
 
----
+There is no `EMBEDDING_PROVIDER=lm_studio` switch. Startup order is fixed:
+in-process ONNX (`ONNX_PROVIDERS=cpu`) → **LM Studio** → Ollama (only if
+`EMBEDDING_PROVIDER=ollama`) → a second ONNX attempt → `fallback`. So a running
+LM Studio is picked up on the next restart; stopping it hands the role back to
+ONNX or to `fallback`.
 
-## Troubleshooting
+5. Restart the host (an OpenCode session or the Zed window). Settings are read
+   at process start; `reload_config()` exists but the host still holds the old
+   modules.
 
-### LM Studio not detected
+## 4. Verify
+
+```powershell
+# the server is up and lists models
+curl http://127.0.0.1:1234/v1/models
+
+# embeddings answer with the expected width
+curl -s http://127.0.0.1:1234/v1/embeddings `
+  -H "Content-Type: application/json" `
+  -d '{\"model\":\"multilingual-e5-small-int8\",\"input\":[\"ping\"]}'
 ```
-LM Studio / Ollama not running. Vector search will be unavailable.
-```
-- Ensure LM Studio is running with the server enabled on port 1234
-- Check firewall settings (allow LM Studio on private networks)
-- Verify: `curl http://127.0.0.1:1234/v1/models`
 
-### Embedded model returns wrong dimension
-```
-LM Studio returned an empty embeddings list.
-Verify that the 'text-embedding-bge-m3' model supports embeddings.
-```
-- Ensure you loaded the `text-embedding-bge-m3` model (not `phi-4` for embeddings)
-- Check that `EMBEDDING_DIMENSION=1024` matches your model
-- Restart LM Studio server after loading a new model
+In the host: `intel_get_telemetry()` reports
+`llm.provider` / `llm.model` / `llm.ping_ms` / `llm.tokens_per_sec` for the
+**live** provider; `llm.error` means the ping failed. `get_health_report()` shows
+the provider block as part of the diagnostic.
 
-### Reranker not working
-- Ensure `bge-reranker-v2-m3` is loaded in LM Studio
-- Check `RERANKER_PROVIDERS=ollama,lm_studio`
-- If using Ollama: ensure `bge-reranker-v2-m3` is pulled: `ollama pull bge-reranker-v2-m3`
+## 5. Dimension mismatch — the failure you will actually hit
 
-### phi-4 not responding (mode=ask)
-```
-mode=ask is blocked in light profile
-```
-- Set `SYSTEM_PROFILE=server` in `.env`
-- Ensure `phi-4-mini-instruct` is loaded in LM Studio
-- Check `ASK_TIMEOUT=60.0` (increase if model is slow)
-
----
-
-## ONNX Fallback Path (No LM Studio)
-
-If you cannot run LM Studio, MSCodeBase can use **ONNX Runtime** for
-both embedding AND reranking. The installer downloads both models:
+Vectors from a model of a different width cannot be compared with stored ones.
+`EMBEDDING_DIMENSION` must match the model, and switching models means
+re-indexing anything that stored vectors. With the default `dense_off=true`
+nothing is stored, so a mismatch only affects live rerank scoring (and shows up
+as a silently worse ordering, not a crash) — but if you enabled the dense path,
+rebuild:
 
 ```bash
-# Full ONNX setup (recommended):
-python install.py
-# → Step 6 will download both models
-
-# Manual setup:
-pip install onnxruntime transformers torch huggingface-hub
-
-# 1. Embedding model (BAAI/bge-m3, 438 MB)
-python scripts/download_model.py --model BAAI/bge-m3 --type embedding
-# → Saved to .codebase_models/onnx/bge-m3/model.onnx
-
-# 2. Reranker model (BAAI/bge-reranker-v2-m3, 636 MB)
-python scripts/download_model.py --model BAAI/bge-reranker-v2-m3 --type reranker
-# → Saved to .codebase_models/onnx/bge-reranker/model.onnx
+python scripts/reindex_text_only.py --project .   # text-first, no vectors
 ```
 
-**Limitations of ONNX fallback:**
-- CPU-only (no GPU acceleration)
-- Slower than LM Studio for large batches
-- No `mode=ask` (RAG generation requires phi-4 in LM Studio)
-- ~1.1 GB total disk space for both models
+or `intel_reset_index()` under the full profile.
+
+## 6. `mode=ask`
+
+`search_code(mode="ask")` sends the top chunks as context to
+`ASK_MODEL` (default `phi-4-mini-instruct`) at the LM Studio chat endpoint,
+temperature 0.1, 512 max tokens, with a "answer only from the context" prompt.
+It requires `SYSTEM_PROFILE=server`; in `light` the tool returns
+"mode=ask заблокирован в light profile. Переключение на mode=quality." and runs
+a normal quality search instead. No other tool uses the chat endpoint.
+
+## 7. Turning it off
+
+Remove or comment the LM Studio variables and stop the LM Studio server, then
+restart the host. The embedder scanner re-checks providers with backoff (30 s
+base, 300 s cap) and settles on whatever answers; with nothing answering it stays
+in `fallback` mode, which is exactly the text-first behaviour the project ships
+with. Nothing needs to be uninstalled.
+
+---
+
+**Verified against:** `src/config/settings.py` (`EmbeddingConfig`,
+`PerformanceConfig`, `SYSTEM_PROFILE`, `ASK_MODEL`),
+`src/providers/embedder/remote_embedder.py` (mode detection, scan backoff,
+LM Studio calls), `src/providers/reranker/multi_provider.py` (LM Studio rerank
+ping), `src/core/search/engine.py` (`ask_async`, chat endpoint, fallback to
+search), `src/mcp/tools/search_tools.py` (`mode=ask` light-profile block),
+`src/core/intelligence/layer.py` (`llm` telemetry block), `.env.example`.

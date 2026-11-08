@@ -6,7 +6,7 @@
 
 # MSCodebase Intelligence
 
-**Локальный code intelligence для Zed: один вопрос — параллельный поиск по всем каналам, лексический поиск, граф вызовов, impact analysis, память проекта и безопасные правки через MCP.**
+**Локальный code intelligence для OpenCode и Zed: один вопрос — параллельный поиск по всем каналам, лексический поиск, граф вызовов, impact analysis, память проекта и безопасные правки через MCP.**
 
 *Переписано: 2026-11-08. Описывает код в его текущем состоянии; канон — английская версия, здесь — полный перевод ключевых разделов.*
 
@@ -16,7 +16,7 @@
 
 ## Что это
 
-Локальный MCP-сервер, который даёт ИИ-ассистенту в Zed обоснованное представление о кодовой базе. Это не чат-модель и не замена языковому серверу редактора. Он отвечает на четыре типа вопросов:
+Локальный MCP-сервер, который даёт ИИ-ассистенту в OpenCode (или Zed) обоснованное представление о кодовой базе. Это не чат-модель и не замена языковому серверу редактора. Он отвечает на четыре типа вопросов:
 
 - Где определён символ, кто его вызывает и что сломается при изменении?
 - Какие файлы важны для вопроса — код, тесты или документация?
@@ -86,15 +86,17 @@ investigate("как индексатор решает, что файл надо 
 
 ## Быстрый старт
 
-Требования: Windows — проверенная платформа; Python 3.14+; Zed с расширением `mscodebase-intelligence`.
+Требования: Windows — проверенная платформа; Python 3.14+; MCP-хост (**основной — OpenCode**, расширение Zed тоже работает).
 
 ```bash
 cd <repo-root>
-python install.py            # копирует сервер в каталог расширения Zed
-python install.py --sync     # только код, без вопросов
+python install.py            # полная установка: venv, pip, опциональные модели
+python install.py --sync     # только код — в установленную копию
 ```
 
-После `install.py` перезапустить Zed. Проверка из панели агента:
+После `install.py` перезапустить хост: сессию OpenCode или окно Zed. Установленная
+копия лежит в `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`, и оба хоста
+запускают именно её venv. Проверка из панели агента:
 
 ```text
 tool_help()                        # профиль, видимые и скрытые инструменты
@@ -134,9 +136,9 @@ python scripts/rebuild_graph.py
 ## Архитектура
 
 ```text
-Zed
+MCP-хост: OpenCode (основной) или Zed
  │
- ├── встроенный LSP (автодополнение, диагностика)
+ ├── встроенный LSP хоста (автодополнение, диагностика)
  │
  └── MCP-клиент
       │
@@ -235,13 +237,22 @@ python scripts/smoke_e2e.py --project .
 | Документ | О чём |
 |---|---|
 | [docs/FACTS.md](../FACTS.md) | Все публичные числа и команды перевывода |
-| [docs/en/ARCHITECTURE.md](../en/ARCHITECTURE.md) | Слои, DI, границы модулей, профиль инструментов |
-| [docs/en/SEARCH_PIPELINE.md](../en/SEARCH_PIPELINE.md) | Retrieval, ранжирование, docs-роутинг, fan-out `investigate` |
-| [docs/ru/INSTALL.md](INSTALL.md) | Установка и платформенные заметки |
-| [docs/en/CHANGELOG.md](../en/CHANGELOG.md) | История версий |
+| [docs/ru/ARCHITECTURE.md](ARCHITECTURE.md) | Слои, DI, границы модулей, профиль инструментов |
+| [docs/ru/SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) | Retrieval, ранжирование, docs-роутинг, fan-out `investigate` |
+| [docs/ru/INSTALL.md](INSTALL.md) | Установка, цикл sync+restart, диагностика |
+| [docs/ru/CONFIGURATION.md](CONFIGURATION.md) | Все переменные окружения и их значения по умолчанию |
+| [docs/ru/CLIENTS.md](CLIENTS.md) | OpenCode, Zed, Claude Code, VS Code, CLI, Docker |
+| [docs/ru/HOOKS_AND_GATES.md](HOOKS_AND_GATES.md) | Хук OpenCode, 12 гейтов pre-commit, джобы CI |
+| [docs/ru/FAQ.md](FAQ.md) | Короткие ответы на первые вопросы |
+| [docs/ru/SECURITY.md](SECURITY.md) | Модель угроз локального MCP-сервера |
+| [docs/ru/GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) | Поведение при недоступных провайдерах |
+| [docs/ru/ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) | Windows-поведение, общее для обоих хостов |
+| [docs/ru/CHANGELOG.md](CHANGELOG.md) | История версий |
 | [AGENTS.md](../../AGENTS.md) | Правила для ИИ-агентов в этом репозитории |
 | [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | Открытый техдолг и наблюдения |
 | [EXPERIMENTS_LOG.md](../../EXPERIMENTS_LOG.md) | Гипотезы и сырые результаты экспериментов |
+
+Английские оригиналы — в `docs/en/`, китайские переводы — в `docs/zh/` с теми же именами файлов.
 
 Исторические материалы (блоги, research-заметки, архивные дневники) сохранены для провенанса и помечены баннерами; это не описание сегодняшнего состояния.
 

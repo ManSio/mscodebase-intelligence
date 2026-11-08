@@ -1,117 +1,147 @@
-# 安装 AI 模型 — 3 种方法
+# 安装模型（可选）
 
-> 选择您的方法：**自动**（install.py）、**手动**（ONNX + GGUF）或 **LM Studio**（旧版回退 fallback）
+[English](../en/INSTALL_MODELS.md) · [Русский](../ru/INSTALL_MODELS.md) · [中文](INSTALL_MODELS.md)
 
-> **提供者（provider）现状（2026-08-16）：** **嵌入器（embedder）通过 llama.cpp GGUF**（`llama-server.exe`，
-> 首选；ONNX INT8 进程内为 llama.cpp 启动前的回退）。
-> `install.py` 自动下载它。**重排序器（reranker）** 是独立的 `llama-server.exe` 进程，提供 `bge-reranker-v2-m3`
-> GGUF 模型。`LM Studio` 仅是可选回退（fallback），当本地提供者不可用时。
+> 翻译：2026-11-08，来源 docs/en/INSTALL_MODELS.md。英文版为准。
+
+> 版本 3.5.0。**默认运行时不需要任何模型。** 文本优先检索
+> （`MSCODEBASE_DENSE_OFF=true`）从 SQLite FTS5 与 PropertyGraph 读取块，因此在任何
+> 模型存在之前，全新安装就已可用。只有当你想要实时 embedding/reranking 质量或本地
+> 聊天模型时，才安装模型。
 
 ---
 
-## 方法 1: 自动 — install.py（推荐）
+## 1. 可以安装什么，以及为什么
 
-> **最适合：** 所有用户。自动安装 llama.cpp + ONNX + GGUF 模型。
+| 产物 | 角色 | 大小（代码中声明） |
+|---|---|---|
+| `multilingual-e5-small-int8`（ONNX） | 进程内 embedder，384 维 | ~113 MB |
+| `reranker-bge-reranker-v2-m3`（ONNX） | 进程内/HTTP reranker | ~544 MB |
+| `multilingual-e5-small-Q8_0.gguf` | llama.cpp embedder，384 维 | ~126 MB |
+| `bge-reranker-v2-m3` GGUF（`Bge-M3-568M-Q4_K_M`） | llama.cpp reranker | ~418 MB |
+| `llama-server.exe`（llama.cpp 构建 `b11476`） | GGUF 模型的宿主 | 取决于构建 |
+| `qwen3-embedding-0.6b-q4_k_m.gguf`（可选） | 备选 embedder，1024 维 | ~379 MB |
+| `bge-m3-Q4_K_M.gguf`（可选） | 备选 embedder，1024 维 | ~417 MB |
+| `embeddinggemma-2-Q8_0.gguf`（可选） | 备选 embedder，768 维 | ~296 MB |
+
+GGUF 表（`src/providers/reranker/llama_install.py` 中的 `GGUF_MODELS`）还载有每个
+模型产出的 embedding 维度——如果你要存储向量，该维度必须与 `EMBEDDING_DIMENSION`
+匹配。部分条目录有 SHA-256 值（qwen3-embedding、bge-m3、bge-reranker-v2-m3）并在
+下载时写入日志；下载路径并不比对它们，所以这里的哈希是参考值，不是已验证的固定值。
+（llama.cpp **二进制**归档在解压前*确实*会做哈希校验。）
+
+## 2. 方法一 —— `install.py`（交互式）
 
 ```bash
 python install.py
 ```
 
-**发生了什么：**
-1. 检测 Windows/macOS/Linux、AVX2/AVX512、Vulkan GPU
-2. 下载 `llama-server.exe`（或您的平台二进制）— 用于 **重排序器（reranker）**
-3. 下载 **multilingual-e5-small-int8**（~113 MB）— **嵌入模型（进程内）**
-4. 下载 **bge-reranker-v2-m3 GGUF**（`BAAI/bge-reranker-v2-m3`，~544 MB）— **重排序器（reranker）模型**
-5. 在端口 `:8081` 启动重排序器（reranker）的 llama-server 进程
+12 个步骤。涉及网络的步骤在执行前会询问：
 
-**安装后磁盘占用：** ~900 MB（llama 二进制 + ONNX 嵌入器（embedder）+ GGUF 重排序器（reranker））
+- ONNX 模型：*"Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)"*；
+- GGUF + llama.cpp：GGUF 步骤下载 `multilingual-e5-small` 与
+  `bge-reranker-v2-m3`，以及所选后端的 llama.cpp 二进制；
+- 每一步在失败时都提供 `[r]etry / [s]kip / [c]ancel`。
 
-### 系统行为
+有用的标志：
 
-| 场景 | 运行内容 | 内存 |
-|----------|-----------|--------|
-| ONNX/OpenVINO E5-base（默认） | 进程内嵌入器（embedder）+ 1× llama-server（重排序） | ~1.0 GB |
-| 有 Vulkan GPU | llama-server 带 `-ngl 99`（GPU offload，仅重排序） | ~1.0 GB |
-| 仅 CPU（无 Vulkan） | llama-server 带 `-ngl 0`（仅 CPU，重排序） | ~700 MB |
-| LM Studio 回退（fallback） | `:1234` 上的外部 API（若启用） | ~3-6 GB |
+| 标志 | 作用 |
+|---|---|
+| `--sync-only` / `--sync` | 把代码复制进扩展目录，不碰其它任何东西（修改 `src/` 之后用这个） |
+| `--skip-models` / `--no-models` | 完全跳过模型步骤 |
+| `--yes` / `-y` | 直接回答 yes，而不是提示 |
+| `--verbose` / `-v` | 输出完整步骤内容，而不是紧凑视图 |
 
----
+安装目标是扩展目录 `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`：
 
-## 方法 2: 手动 — ONNX + GGUF 下载
+- ONNX → `<ext>/.codebase_models/onnx/<slug>/model_quantized.onnx`
+  （其专用 reranker 子目录使用 `model.onnx`）；
+- GGUF → `<ext>/models/<file>.gguf`；
+- 已存在的副本会从扩展目录、然后是 `~/.cache/mscodebase/models`、然后是项目根复用，
+  被复制而不是重新下载。
 
-> **最适合：** 想手动下载模型的用户。
+运行结束后重启宿主。没有任何东西是热重载的。
 
-**嵌入模型（E5-base v2 ONNX，必需 — 进程内）：**
+## 3. 方法二 —— 手动
+
+模型就是已知位置上的普通文件；没有注册步骤。
+
 ```bash
-python scripts/download_model.py --model intfloat/multilingual-e5-small-int8
-# → .codebase_models/onnx/e5-base-v2/model_quantized.onnx (INT8)
+# ONNX (embedder + reranker)
+mkdir -p .codebase_models/onnx/multilingual-e5-small-int8
+# place model_quantized.onnx there (repo: keisuke-miyako/multilingual-e5-small-onnx-int8)
+
+# GGUF copies are looked up by exact filename
+ls models/            # multilingual-e5-small-Q8_0.gguf, Bge-M3-568M-Q4_K_M.gguf
 ```
 
-**重排序模型（bge-reranker-v2-m3 GGUF，必需）：**
-```bash
-# 从 HuggingFace
-huggingface-cli download lm-kit/bge-reranker-v2-m3-gguf \
-  Bge-M3-reranker-2-3-568M-Q4_K_M.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
+GGUF 的查找顺序是扩展的 `models/` 目录，然后是 `~/.cache/mscodebase/models`
+（见 `_get_models_dir`）。把文件放在其中任一处；同时复制进扩展目录可避免升级后的
+意外。
+
+## 4. 端口与进程
+
+| 进程 | 默认端口 | 环境变量 |
+|---|---|---|
+| llama.cpp embedder（`llama-server.exe`） | `8080` | `LLAMA_CPP_PORT`、`LLAMA_CPP_HOST` |
+| llama.cpp reranker | `8081` | `LLAMA_CPP_RERANK_PORT` |
+| ONNX server（子进程） | `1235` | `ONNX_SERVER_PORT`、`ONNX_SERVER_HOST` |
+| LM Studio（外部） | `1234` | `LM_STUDIO_PORT` |
+| Ollama（外部） | `11434` | `OLLAMA_PORT` |
+
+llama.cpp 的后端默认是 `msvc`（CPU）；`LLAMA_BACKEND=vulkan` 切到 GPU 二进制并从
+`LLAMA_NGL`（默认 99）设置 `-ngl`。端口在启动前会被校验为落在 `8080-8090` 内；
+超出该范围的端口会被跳过并给出警告。
+
+两个模型上下文分别调优：`LLAMA_EMBED_MAX_TOKENS`（默认 480，由客户端截断）与
+`LLAMA_RERANK_MAX_TOKENS`（默认 1000，一个查询+段落对）。物理批次按角色推导
+（`resolve_ubatch`）：embed → 512，rerank → 1024。
+
+## 5. 命名默认值 —— 一处真实的不一致
+
+代码中存在两个不同的默认值：
+
+- `src/config/settings.py`：`EMBEDDING_MODEL` 默认为 `qwen3-embedding`；
+- `src/providers/reranker/llama_install.py`：`DEFAULT_EMBEDDING_MODEL` 默认为
+  `embeddinggemma-2`（环境变量 `EMBEDDING_MODEL` 会覆盖它）。
+
+无论这两个默认值是什么，`install.py` 的 GGUF 步骤都会为 embedder 下载
+`multilingual-e5-small`。如果这个选择对你重要，在 `.env` 中显式固定模型
+（`EMBEDDING_MODEL=...`）；不要指望各模块的默认值彼此一致。
+
+## 6. 验证
+
+```powershell
+curl http://127.0.0.1:8080/health     # llama.cpp embedder
+curl http://127.0.0.1:8081/health     # llama.cpp reranker
+curl http://127.0.0.1:1235/health     # ONNX server
 ```
 
-> ONNX 嵌入器（embedder）是 **默认且主要** 的路径。GGUF 重排序器（reranker）作为独立的 `llama-server.exe` 进程运行。
-> 搜索不需要 GGUF *嵌入* 模型。
+在宿主内：`intel_get_telemetry()` 显示实时的 `provider`、`model`、`ping_ms` 与
+`tokens_per_sec`；`llm.error` 表示 ping 失败，而不是被跳过。`get_health_report()`
+包含 provider 块。
+
+## 7. 移除模型
+
+删除文件即可；没有任何注册项在它们之后存活：
+
+```powershell
+Remove-Item .codebase_models\onnx\<slug> -Recurse -Force
+Remove-Item models\<file>.gguf -Force
+```
+
+如果曾启用稠密路径且已存在向量，还要执行
+`python scripts/reindex_text_only.py --project .`（或 `intel_reset_index()`），否则
+已存的向量会保留旧维度。模型目录在 git 忽略之列（`.codebase_models/`、`models/`），
+因此 `git status` 中不会出现任何内容。
 
 ---
 
-## 方法 3: LM Studio（旧版回退 Fallback）
-
-> **最适合：** 已安装 LM Studio 并希望作为回退（fallback）的用户。
-
-LM Studio 仍可用作回退（fallback）嵌入提供者（provider）。如果本地 ONNX 模型不可用，MSCodeBase 可切换到
-LM Studio（设置 `EMBEDDING_PROVIDER=lm_studio`）。
-
-| 模型 | 大小 | 用途 |
-|-------|:----:|---------|
-| `text-embedding-bge-m3` | ~2.2 GB | 嵌入回退（embedding fallback）（向量搜索） |
-| `bge-reranker-v2-m3` | ~1.1 GB | 重排序（交叉编码器） |
-| `phi-4-mini-instruct` | ~2.8 GB | `mode=ask` RAG 生成（可选） |
-
-详见 [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md)。
-
----
-
-## 比较表
-
-| 标准 | 方法 1（自动） | 方法 2（手动） | 方法 3（LM Studio） |
-|-----------|:---------------:|:-----------------:|:--------------------:|
-| **嵌入器（embedder）** | ONNX E5-base INT8（进程内） | ONNX E5-base INT8 | LM Studio（bge-m3） |
-| **重排序器（reranker）** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
-| **GPU** | Vulkan（仅重排序） | Vulkan（仅重排序） | 任意（CUDA/Metal） |
-| **RAM（总计）** | **~1.0 GB** | **~1.0 GB** | ~3-6 GB |
-| **磁盘** | **~900 MB** | **~900 MB** | ~6 GB |
-| **安装时间** | **3 分钟** | 5 分钟 | 20 分钟 |
-| **mode=ask** | ❌ 否（需要 LLM profile） | ❌ 否 | ✅ 是 |
-
----
-
-## 模型配置
-
-### `.env` 变量
-
-```ini
-# 嵌入提供者：e5_onnx（默认，进程内）| openvino | lm_studio
-EMBEDDING_PROVIDER=e5_onnx
-
-# ONNX 模型 slug（由 install.py 下载）
-#   multilingual-e5-small-int8  → intfloat/multilingual-e5-small-int8（384 维，INT8）
-ONNX_MODEL=multilingual-e5-small-int8
-
-# 由 llama-server 在 :8081 提供服务的重排序器（reranker）GGUF 模型
-RERANKER_MODEL=bge-reranker-v2-m3
-
-# 重排序器（reranker）的 llama.cpp 后端：auto, msvc, 或 vulkan
-LLAMA_BACKEND=auto
-
-# 重排序器（reranker）的 GPU 层数（0 = 仅 CPU，99 = 所有层在 GPU）
-LLAMA_NGL=99
-
-# 重排序器（reranker）的上下文大小（1024 对 bge-reranker-v2-m3 足够）
-LLAMA_CTX_SIZE=1024
-```
+**Verified against:** `install.py` (`STEPS`, `step_models`, `step_gguf`,
+`--sync-only`, `--skip-models`, `--yes`, prompt strings),
+`src/providers/reranker/llama_install.py` (`GGUF_MODELS` sizes/dims/SHA-256,
+`LLAMA_VERSION`, `LLAMA_PORT`, `DEFAULT_EMBEDDING_MODEL`, `resolve_ubatch`,
+`_patch_dll_imports`), `src/providers/reranker/llama_runner.py`
+(`RERANK_PORT`, port range check, `LLAMA_BACKEND`/`LLAMA_NGL`),
+`src/config/settings.py` (provider ports, `EMBEDDING_MODEL`),
+`.env.example`, `.gitignore`.

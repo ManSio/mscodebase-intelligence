@@ -1,4 +1,4 @@
-# Installing MSCodebase Intelligence for Zed IDE
+# Installing MSCodebase Intelligence
 
 <p align="center">
   <img src="../../logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
@@ -6,241 +6,138 @@
 
 [🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
 
-> **MSCodebase Intelligence** — MCP server for local code intelligence in Zed IDE.
-> Runs as a Zed extension. Development in `<repo-root>`.
-
-> **Phase 3 note (2026-10-25):** the default install is text-first
-> (SQLite FTS5/BM25 + PropertyGraph). Model downloads and the vector path are
-> optional; LanceDB is legacy/optional, not the default retrieval store.
+> Rewritten 2026-11-08. The server is a local MCP server. **OpenCode is the primary
+> host**; the Zed extension is still supported. Model downloads are optional — the
+> default install is text-first and needs no embeddings, GPU or network.
 
 ---
 
-## 🔧 System Requirements
+## 1. Requirements
 
 | Component | Requirement |
-|-----------|-----------|
-| **OS** | Windows 10+ (primary support), macOS 12+, Linux |
-| **Python** | 3.14+ |
-| **RAM** | 4 GB (8+ GB recommended) |
-| **Disk** | 500 MB (with model — up to 2 GB) |
-| **Zed IDE** | latest version |
-| **LM Studio** (optional) | for vector search via embeddings |
-| **llama.cpp** (auto-installed) | built-in embedder/reranker via GGUF models |
+|---|---|
+| OS | Windows 10+ (validated platform), Linux (CI), macOS |
+| Python | **3.14+** (only 3.14 is tested) |
+| RAM | 4 GB; 8 GB+ if you enable local models |
+| Disk | ~500 MB without models; up to ~2 GB with GGUF models |
+| Host | OpenCode (primary) or Zed, or any MCP client |
+| Optional | LM Studio / Ollama / llama.cpp for rerank and the legacy dense path |
 
----
+Docker and WSL are not required on the development machine. The container build is a
+deployment option (`deploy/docker/`).
 
-## 📥 Quick Installation
-
-### Step 1: Install the Extension
-
-Open a terminal in the **root of your project** (where `install.py` is located) and run:
+## 2. Full install
 
 ```bash
-python install.py
+cd <repo-root>
+python install.py          # interactive: venv, pip, optional llama.cpp + models
 ```
 
-> **Linux/macOS:** You can also use `./install.sh` for a guided install.
-> **Windows:** You can also use `install.bat` (double-click or run in cmd).
+Windows also has `install.bat`; Linux/macOS have `install.sh`. The installer:
 
-The installer will:
-1. ✅ Check Python and compatibility
-2. ✅ Create a virtual environment and install dependencies
-3. ✅ Download and install **llama.cpp** + GGUF models (`bge-m3` + `bge-reranker-v2-m3`)
-4. ✅ Configure the MCP server in Zed's `settings.json`
-5. ✅ Copy source files into the installed extension
-6. ✅ Create `uninstall.bat`
+1. checks Python and the environment;
+2. creates/updates the virtual environment and installs dependencies;
+3. optionally downloads llama.cpp and GGUF models;
+4. copies the code into the installed extension directory;
+5. writes `uninstall.bat`.
 
-> **Important:** The installer copies files from the current directory into the extension.
-> All source changes take effect only after `python install.py`.
+Without models the server still answers code questions — search falls back to
+SQLite FTS5/BM25 plus the graph.
 
-**Available flags:**
+## 3. Update loop (the part people get wrong)
 
-| Flag | What it does |
-|------|-------------|
-| *(no flags)* | Full install: copy files + dependencies + models (compact UI) |
-| `--sync` | **Quick sync** — copy changed files only, no other steps |
-| `--yes` / `-y` | **CI mode** — skip all prompts, fail fast on error |
-| `--skip-models` | Install without downloading models (already have them) |
-| `--verbose` / `-v` | Full box UI (instead of compact single-line) |
-| `--quiet` / `-q` | Errors only, no progress bars |
+The installed copy lives outside the repository:
+
+```
+%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+```
+
+The directory name is historical; OpenCode launches the same venv
+(`…\venv\Scripts\mscodebase-mcp.exe -u -m src.main`). Therefore:
 
 ```bash
-# Quick code sync (daily dev)
-python install.py --sync
-
-# Full install, no questions (CI/CD)
-python install.py --yes
+python install.py --sync-only    # copy code, drop __pycache__, no pip/models
+# then restart the host: the OpenCode session (or the Zed window)
 ```
 
-### Automatic Installation
+`--sync-only` (alias `--sync`) is the fast path after every source change. Skipping
+the restart leaves the old process running; skipping the sync leaves old code in the
+installed location. Both are required.
 
-Starting from v2.7.0, `install.py` automatically:
+## 4. Connect a host
 
-1. **Downloads llama-server.exe** for your platform (Windows/macOS/Linux, x64/ARM64)
-2. **Downloads GGUF models**: `bge-m3-Q4_K_M` (417 MB) for embeddings and `bge-reranker-v2-m3-Q4_K_M` (418 MB) for reranking
-3. **Starts llama-server** on MCP startup — no external services required
-4. **Frees up to 5.3× RAM** compared to LM Studio (227 MB vs 1200 MB)
+**OpenCode** — declare a local MCP server pointing at the installed venv:
 
-The entire process is fully automatic. No additional user action required.
-
-### Step 2: Restart Zed
-
-**File → Quit**, then reopen the project.
-A simple `window: reload` is **insufficient** — the MCP server must fully restart.
-
-### Step 3: Verification
-
-Open the **Agent Panel** (`Ctrl+Shift+P` → `Agent Panel: Toggle`) and run:
-
-```
-get_index_status()
+```jsonc
+"mcp": {
+  "mscodebase-intelligence": {
+    "type": "local",
+    "command": ["<ext-dir>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+    "environment": {
+      "PYTHONPATH": "<ext-dir>",
+      "PROJECT_PATH": "${workspaceRoot}",
+      "PYTHONUTF8": "1"
+    }
+  }
+}
 ```
 
-You should see:
+**Zed** — the extension reads the same directory; no extra configuration beyond the
+extension itself.
+
+**Claude Code / VS Code / Cursor** — copy the shape from `adapters/clients/` and fill
+in the venv path, repo path and project path. See
+[CLIENTS.md](CLIENTS.md) for the full matrix.
+
+## 5. Verify
+
+From the agent panel, in this order:
 
 ```
-📂 <your-project-root>
-🟢 **MSCodeBase** — active
-📦 **Chunks:** `2985` | **Files:** `170` | **Symbols:** `1357`
-🧠 **Embedder:** 🦙 llama.cpp
+tool_help()                                   # profile + visible/hidden tools
+get_health_report()                           # index, providers, resources
+codebase(action="index", path="status")       # chunks > 0?
 ```
 
-If the project is detected incorrectly (showing a different project instead of yours) — close
-all Zed windows and open only the desired project.
-
----
-
-## 🧠 Windows Specifics
-
-On Windows there are **critical specifics** you need to know:
-
-| Issue | Symptom | Solution |
-|-------|---------|----------|
-| **Restricted Mode** | LSP doesn't start, MCP doesn't see the project | Press "Trust and Continue" when opening the project |
-| **CWD = Zed directory** | MCP server starts from the folder where Zed is installed, not from the project | Fixed via SQLite fallback (project is taken from Zed's database, not from CWD) |
-| **MCP doesn't restart** | After killing the process, tools don't work | Only a full Zed restart (File → Quit) |
-| **Project resolves incorrectly** | Shows gemma_agent instead of MSCodeBase | Close all Zed windows, open only the desired project |
-
-Details: **[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md)**
-
-### How the project is determined (without LSP)
-
-The MCP server determines the current project in this order:
-
-1. **Explicit `project_root`** from tool arguments
-2. **SQLite `active_workspace_id`** (NEW, primary!) — reads `scoped_kv_store`
-   in Zed's database, which stores `active_workspace_id` — the ONLY mechanism
-   working on Windows. Instantly switches when changing projects.
-3. **SQLite `workspaces`** (old fallback) — selects the most recent project
-   from the `workspaces` table if `active_workspace_id` is not found.
-4. **LSP Bridge** (JSON file from LSP — **doesn't work on Windows**, LSP doesn't start)
-5. **`PROJECT_PATH`** from environment
-6. **CWD** — **always rejected** by self-indexing guard
-7. **ext_root** (extension directory) — fallback
-
-> On Windows, steps 1, 4-5 are typically unavailable, so the project is determined
-> via SQLite `active_workspace_id` (step 2). This mechanism automatically
-> switches the project when the active window changes in Zed. If the determination
-> is still incorrect — close extra Zed windows.
-
----
-
-## 🚀 Optional: LM Studio
-
-LM Studio provides higher quality search through vector embeddings.
-
-1. Install [LM Studio](https://lmstudio.ai/)
-2. Download an embedding model (e.g., `BAAI/bge-m3`)
-3. Start the local server on port `1234`
-4. The MCP server will connect automatically
-
-Verification:
-```
-intel_get_runtime_status()
-```
-The response should include `"embedding_provider": "lm_studio"` and `"lm_studio_at_1234": "online"`.
-
----
-
-## 📄 Uninstallation
-
-```cmd
-:: Run the uninstaller
-uninstall.bat
-```
-
-Or manually:
-1. Remove the `mscodebase-intelligence` section from `%APPDATA%\Zed\settings.json`
-2. Delete the extension folder:
-   ```
-   %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
-   ```
-3. Delete the extension folder:
-   ```
-   %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
-   ```
-4. (Optional) Delete the artifact data root (индексы, память проектов):
-   ```
-   %LOCALAPPDATA%\mscodebase\     (или ~/.cache/mscodebase — см. MSCODEBASE_DATA_DIR)
-   ```
-
-> Задача 4/5: артефакты MCP больше НЕ пишутся в проект —
-> удалять `.codebase_indices` из корня проекта больше не нужно.
-
----
-
-## ❗ Troubleshooting
-
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| **Tools not responding** | MCP server not running | File → Quit → reopen the project. Logs: `%LOCALAPPDATA%\mscodebase\logs\` (data_root) |
-| **Wrong project** | SQLite selected another workspace | Close all Zed windows, open only the desired project |
-| **0 chunks** | Index is empty | `intel_trigger_reindex()` — wait 1-5 minutes |
-| **llama.cpp offline** | Embedder not started | Check `intel_get_runtime_status()`. Logs: `data_root\logs\` |
-| **LM Studio offline** | Only if using LM Studio | Start LM Studio, check port 1234 |
-| **settings.json warning** | Outdated keys (`lsp`, `mscodebase`) | Run `python install.py` — it will clean up |
-| **ModuleNotFoundError** | PYTHONPATH doesn't point to the extension | `python install.py` — fixes automatically |
-
-**Where data is stored** (Задача 4/5 — ВНЕ проекта):
-- **Index (LanceDB):** `<data_root>/projects/<hash>/lancedb_v2/` — vector DB with code chunks
-- **Project Memory (ADR, known_issues):** `<data_root>/projects/<hash>/intelligence/`
-- **PropertyGraph:** `<data_root>/projects/<hash>/graph.db`
-- **Logs:** `%LOCALAPPDATA%\mscodebase\logs\` (data_root)
-- `data_root` = `%LOCALAPPDATA%\mscodebase\` (Windows) / `~/.cache/mscodebase` (Unix);
-  `<hash>` = md5(путь проекта)[:8]
-
----
-
-## 👨‍💻 Development (contributors)
+If the text index is missing or stale:
 
 ```bash
-# Clone
-git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd mscodebase-intelligence
-
-# Install in development mode
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# Install in Zed (after changes)
-python install.py
+python scripts/reindex_text_only.py --project .   # chunks + graph, no embeddings
+python scripts/rebuild_graph.py                   # graph only
 ```
 
-Details: **[CONTRIBUTING.md](CONTRIBUTING.md)**
+Then restart the server so the new process opens the rebuilt stores. Measured numbers
+for this repository are in [FACTS.md](../FACTS.md).
 
----
+## 6. Optional providers
 
-## 🔗 Related Documents
+| Provider | Why | Where |
+|---|---|---|
+| llama.cpp (GGUF) | on-demand rerank, legacy dense path | `LLAMA_CPP_PORT` (8080), reranker 8081 |
+| LM Studio | embeddings/rerank over HTTP | `LM_STUDIO_HOST:1234` |
+| Ollama | embeddings/rerank over HTTP | `OLLAMA_HOST:11434` |
+| basedpyright | the six `lsp_*` tools | PATH or extension venv |
 
-| Document | Description |
-|----------|-------------|
-| [README.md](../../README.md) | Main documentation, map of all docs, tool list |
-| [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) | **Windows specifics:** Restricted Mode, CWD, MCP restart |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Project architecture, DI, layers |
-| [TELEMETRY.md](TELEMETRY.md) | Metrics, ETA, data collection |
-| [LSP_WONTFIX.md](investigations/LSP_WONTFIX.md) | Why LSP doesn't work on Windows |
-| [CHANGELOG.md](CHANGELOG.md) | Version history |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Development, tests, PRs |
-ts, PRs |
+None of them is needed for the default text-first answer. Provider settings:
+[CONFIGURATION.md](CONFIGURATION.md).
+
+## 7. Uninstall
+
+```bash
+./uninstall.bat             # Windows
+python install.py --uninstall
+```
+
+This removes the installed extension copy. Project data under
+`%LOCALAPPDATA%/mscodebase/` and the project's `.mscodebase/chunks.db` are separate;
+delete them manually if you want a clean slate.
+
+## 8. Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Tool you expect is missing | `core` profile — run `tool_help()`, switch to `full` |
+| "Nothing found" for any query | empty index — check `codebase(action="index", path="status")` |
+| New code has no effect | no `--sync-only` and/or no host restart |
+| Server starts, tools time out | provider or LSP hanging — see [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) |
+| Windows console windows flashing | subprocess without `CREATE_NO_WINDOW` — see [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) |

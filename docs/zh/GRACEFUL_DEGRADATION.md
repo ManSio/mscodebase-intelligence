@@ -1,239 +1,149 @@
-# 优雅降级（Graceful Degradation）— 系统弹性指南
+# 优雅降级
 
-> **MSCodeBase Intelligence 的一部分** | v3.5.0
+[English](../en/GRACEFUL_DEGRADATION.md) · [Русский](../ru/GRACEFUL_DEGRADATION.md) · [中文](GRACEFUL_DEGRADATION.md)
 
-## 概述
+> 翻译：2026-11-08，来源 docs/en/GRACEFUL_DEGRADATION.md。英文版为准。
 
-MSCodeBase 永远不会完全崩溃。相反，它通过 **6 个级别优雅降级**，
-即使外部服务失败也能保持基本功能。
+> 版本 3.5.0。当某个组件缺失时，代码如何行为。本代码库中没有编号的"降级等级"
+> 模型——只有下面这些回退。
 
-> **提供者（provider）现状（2026-07-12）：** 嵌入提供者（provider）通过 **ONNX INT8 / OpenVINO INT8**
-> **进程内** 运行（`multilingual-e5-small-int8`，384 维，Windows CPU 上 ~37 ch/s）。
-> 这是 **默认且主要** 的路径 — 语义搜索不需要外部服务器。`LM Studio` 仅是
-> **可选的回退（fallback）**，当本地 ONNX/OpenVINO 模型不可用时。**重排序器（reranker）** 作为独立
-> `llama-server.exe` 进程运行，提供 `bge-reranker-v2-m3` GGUF 模型（端口 `:8081`）。
+## 1. 三种结果
 
-```mermaid
-stateDiagram-v2
-    [*] --> L1_ONNX: 默认启动（进程内）
+| 结果 | 你如何看到它 |
+|---|---|
+| **完整回答** | 正常结果 |
+| **带洞的回答** | 结果加上 `degraded: [...]` 列表（在 `investigate` 中）或一行警告 |
+| **失败** | Markdown 错误块：`🟡 **Warning:** …` / `🔴 **Error:** …`，带 `Detail`、`Hint`、latency。`ToolError` 携带 `status`（`error`/`warning`/`timeout`）与 `recoverable` |
 
-    state L1_ONNX[级别 1: ONNX/OpenVINO INT8（进程内）]
-        L1_ONNX: E5-small 嵌入器（384 维）
-        L1_ONNX: BM25 + Dense + Reranker（llama.cpp）
-        L1_ONNX: ~300ms-3s 延迟
-    end
+规则：*次要*通道可以静默失败（它不得把回答搞垮）；*主要*能力要大声失败，并给出
+调用方可据以分支的状态。
 
-    L1_ONNX --> L2_GGUF: 有 GPU，偏好 llama.cpp 嵌入
-    L1_ONNX --> L3_LM: ONNX 模型缺失 → LM Studio 回退（fallback）
+## 2. 检索阶梯（默认的文本优先配置）
 
-    state L2_GGUF[级别 2: llama.cpp GGUF（GPU）]
-        L2_GGUF: GGUF 嵌入 + 重排序（Vulkan GPU）
-        L2_GGUF: BM25 + Dense + Reranker
-        L2_GGUF: ~286ms-3s 延迟
-    end
+`MSCODEBASE_DENSE_OFF=true` 与 `MSCODEBASE_SQLITE_CHUNKS=true` 是默认值：
 
-    L2_GGUF --> L1_ONNX: llama.cpp 不可用
-
-    state L3_LM[级别 3: LM Studio（远程，可选）]
-        L3_LM: 外部 API（端口 1234）
-        L3_LM: BM25 + Dense + Reranker
-        L3_LM: ~300ms-5s 延迟（网络）
-    end
-
-    L3_LM --> L4_BM25: 所有外部离线
-
-    state L4_BM25[级别 4: 仅 BM25]
-        L4_BM25: 仅关键词搜索
-        L4_BM25: SymbolIndex + FTS5 回退（fallback）
-        L4_BM25: 无向量搜索
-    end
-
-    L4_BM25 --> L5_SYMBOL: BM25 不可用
-
-    state L5_SYMBOL[级别 5: 仅 SymbolIndex]
-        L5_SYMBOL: 纯 AST 符号索引
-        L5_SYMBOL: Tree-sitter 定义 + 引用
-        L5_SYMBOL: 无语义搜索
-    end
+```
+SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
+                   → exact-name boost → dedupe
 ```
 
-### 横切层（始终可用）
+| 缺失的组件 | 行为 | 位置 |
+|---|---|---|
+| Embedder | 候选仍来自 FTS5 + 图；按需 rerank 抛异常、被捕获，融合结果池原样返回 | `engine.py::_apply_ondemand_reranker_async` |
+| Reranker（BGE / 多 provider） | 按 RRF 顺序原样返回；`is_available == False` 在任何调用之前就短路 | `engine.py::_apply_multi_reranker_async` |
+| 图数据库 | 图桶不产出任何内容；文本结果不受影响 | `_sqlite_hybrid_search_async`（图阶段被 try/except 包裹） |
+| SQLite 块存储（初始化失败） | 记录警告，`_chunk_store = None`；跳过 FTS5 层，调用落到图 / BM25（以及启用时的稠密层） | `Searcher.__init__`、`hybrid_search_async` |
+| 正在重建索引 | 同步路径**立即返回空结果**，而不是在数据库锁上阻塞；异步路径抛出"几秒后重试" | `_reindex_fast_fail()`、`hybrid_search_async` |
 
-以下各层 **独立于** 上述搜索级别：
+重建索引期间的空回答是有意为之，但看起来像"无匹配"，所以在断定查询很差之前先检查
+`codebase(action="index", path="progress")`。
 
-```mermaid
-stateDiagram-v2
-    [*] --> LSP_ACTIVE: basedpyright 可用
+## 3. 遗留的稠密路径（`dense_off=false`）
 
-    state LSP_ACTIVE[LSP: basedpyright]
-        LSP_ACTIVE: 跨文件重命名精度
-        LSP_ACTIVE: 完整语义 WorkspaceEdit
-        LSP_ACTIVE: ~105ms warm 延迟
-    end
+`fast` 会对查询做 embedding；若 embedder 抛错，`query_vector` 变为 `None`，调用
+继续走 FTS5 + 图（E24：未加守卫的 embed 过去会 10/10 失败，而 `quality` 则降级）。
+`quality` 增加了 reranker 阶段，在没有 provider 应答时跳过。稠密检索是增强，永远
+不是前提条件。
 
-    LSP_ACTIVE --> LSP_FALLBACK: 超时（5s）或不可用
+## 4. `investigate` —— 按通道降级
 
-    state LSP_FALLBACK[LSP: SymbolIndex]
-        LSP_FALLBACK: Tree-sitter 基于文本的重命名
-        LSP_FALLBACK: 可能遗漏动态导入
-        LSP_FALLBACK: 始终工作，零基础设施
-    end
+两轮共七条通道，按通道超时（12 s，grep 为 15 s；整个工具 30 s）。第一轮：`search`、
+`symbols`、`grep`。第二轮：`impact`、`graph`、`tests`、`memory`。超时追加
+`name:timeout`；异常追加 `name:<ExceptionType>`。合并后的回答仍会返回，并按
+`(channel count, rank)` 排序，但你总能看到哪些通道是沉默的：
+
+```
+🧭 investigate: `who calls ack_impact`
+   identifiers: ack_impact
+   results: 6 | degraded: tests:TimeoutError
 ```
 
-```mermaid
-stateDiagram-v2
-    [*] --> DEFAULT_TOOLS: 正常操作
+## 5. 工具级失败与超时
 
-    state DEFAULT_TOOLS[可见: 12 个工具]
-        DEFAULT_TOOLS: search_code, get_symbol_info, impact_analysis
-        DEFAULT_TOOLS: notify_change, get_index_status
-        DEFAULT_TOOLS: intel_get_runtime_status
-        DEFAULT_TOOLS: rename_symbol, replace_symbol
-    end
+`@error_boundary(name, timeout_ms=...)` 是唯一的包装器：
 
-    DEFAULT_TOOLS --> ALL_TOOLS: MSCODEBASE_MCP_TOOLS=""
-    DEFAULT_TOOLS --> CUSTOM_TOOLS: MSCODEBASE_MCP_TOOLS="a,b,c"
+- 超时是真正的 `asyncio.wait_for`——挂起的协程会被取消；
+- **只有超时才重试**（间隔 1 s）。`ToolError` 是确定性的，立即返回；意外异常会带
+  回溯记录到日志，并作为 `🔴 **Error:**` 返回，消息经过净化（绝对路径被替换，
+  上限 200 字符）；
+- 预算：`write` 与 `investigate` 为 30 s，`get_health_report` 为 45 s，
+  `dual_arm_health_check` 为 300 s；
+- 每次调用都为 `intel_tool_health` / `get_tool_metrics_summary` 记录，包括失败，
+  因此总是失败的通道会以统计数字的形式可见。
 
-    state ALL_TOOLS[可见: 61 个工具]
-        ALL_TOOLS: 全部 61 个 MCP 工具可用（28 core + 16 intel + 13 inline + 4 dev）
-    end
+`src/core/error_envelope.py` 定义了一种更丰富的机器可读格式，带代码
+（`INDEX_NOT_READY`、`REINDEX_IN_PROGRESS`，……）与 `next_action`。今天它**只被
+自己的单元测试**导入，所以没有工具返回那些代码——那是一份计划中的契约，不是当前
+行为。
 
-    state CUSTOM_TOOLS[自定义选择]
-        CUSTOM_TOOLS: 用户指定的工具子集
-    end
-```
+## 6. 索引
 
-## 级别详情
+- **纯文本（默认）** —— `index_project()` 路由到
+  `_index_text_only_project()`：解析、切块、写入 SQLite、更新图。不接触任何
+  embedder。
+- **稠密（`dense_off=false`）** —— embedder 是必需的。`is_ready()` 为假时以
+  "Embedder not ready. Indexing aborted." 中止；provider 返回的向量数量不对时
+  中止整批，而不是写一个半成品索引。
 
-### 级别 1: ONNX/OpenVINO INT8（默认，进程内）
+缺失某个 Tree-sitter 语法只降级一种语言，而不是整次运行：`parser.py` 在自己的
+`try/except ImportError` 中导入每个语法。
 
-```python
-# 默认提供者路径（EMBEDDING_PROVIDER=e5_onnx）
-class RemoteEmbedder:
-    def _init_provider_async(self):
-        _provider = os.getenv("EMBEDDING_PROVIDER", "e5_onnx")
-        if _provider in ("e5_onnx", "auto", ""):
-            self._init_onnx()
-            # OpenVINO INT8 优先（Windows CPU 上 ~37 ch/s）
-            if getattr(self, "_ov_compiled", None) is not None:
-                self.mode = "onnx"
-```
+## 7. Providers
 
-| 组件 | 状态 |
-|-----------|:------:|
-| ONNX/OpenVINO E5-small | ✅ 进程内（384 维，INT8） |
-| BM25 索引 | ✅ 已构建 |
-| 重排序器（reranker）（llama.cpp） | ✅ 可用（`:8081`） |
-| mode=ask | ⚠️ 可选（需要 LLM profile） |
-| **延迟** | **300ms-3s** |
-| **质量** | **最佳**（无外部依赖） |
+`RemoteEmbedder.mode` ∈ `onnx`、`onnx_server`、`lm_studio`、`ollama`、
+`llama_cpp`、`fallback`、`unknown`。启动时若无任何东西应答则设为 `fallback`
+（"safe default — don't pretend ONNX works"）；一个扫描器以退避重试（基准 30 s，
+上限 300 s）。llama.cpp embed 做 3 次批量重试（带退避），然后是逐块重试，之后抛错
+——它不会捏造零向量。Reranker（LM Studio、Ollama、llama.cpp、HTTP ONNX）在初始化
+时探测；全部不可达意味着 `is_available == False` 与 RRF 顺序。可选的 ONNX server
+是 `127.0.0.1:1235` 上的子进程（`DISABLE_ONNX_FALLBACK=true` 会移除它）。
 
-**触发：** 默认启动。不需要外部服务器。
+## 8. LSP 与网络
 
-### 级别 2: llama.cpp GGUF（GPU，可选）
+`lsp_*` 工具需要 `PATH` 中有 `basedpyright-langserver`。没有它时每个调用都返回
+"LSP недоступен (basedpyright не найден). …" 并指向符号索引；启动失败会带 TTL 缓存
+并重新探测，因此之后安装 basedpyright 不需要永久重启。LSP→MCP 桥本身已于
+2026-07-20 移除，没有工具依赖它。
 
-如果用户有 Vulkan GPU 并偏好 GGUF 嵌入，`llama-server.exe` 可提供嵌入器（embedder）。这是加速路径，非默认。
+默认路径中没有任何东西使用网络。例外是可选的：`install.py` 中的下载（总会提示）与
+可选的 `tree-sitter-language-pack`，其额外解析器在首次使用时下载。
 
-| 组件 | 状态 |
-|-----------|:------:|
-| llama.cpp 嵌入（GPU） | ✅ 可用 |
-| BM25 索引 | ✅ 已构建 |
-| 重排序器（reranker） | ✅ 可用 |
-| mode=ask | ⚠️ 可选 |
-| **延迟** | **286ms-3s** |
-| **质量** | **最佳** |
+## 9. 哪些**不**降级
 
-### 级别 3: LM Studio（远程，可选回退 fallback）
+这里的"优雅"会意味着"静默地错误"：
 
-```python
-# 仅当本地 ONNX/OpenVINO 模型不可用时到达
-class RemoteEmbedder:
-    def _check_lm_studio(self) -> bool:
-        """通过 CircuitBreaker 路由，防止级联失败。"""
-        if self._breaker is not None:
-            return bool(self._breaker.call(self._check_lm_studio_raw, fallback=True))
-        return self._check_lm_studio_raw()
-```
+| 情形 | 响应 |
+|---|---|
+| 空索引（`total_chunks == 0`） | `IndexNotReadyError` → `🟡 Warning: Index is not ready`，不是"无结果" |
+| 未确认就写入承重文件 | 来自 `modification_guard` 的 `denied`，附带影响令牌 |
+| 写入时符号有歧义 | `denied`、候选列表，不静默挑选 |
+| 可信根之外的破坏性操作 | 按 `trust_boundary` 策略拒绝 |
+| 未启用时的 `execute_script` | 工具根本未被注册 |
+| `execute_script` 中的沙箱违规 | 执行前的 `SandboxViolation` |
 
-| 组件 | 状态 |
-|-----------|:------:|
-| LM Studio | ✅ 在线（若运行） |
-| ONNX 模型 | ❌ 缺失 |
-| 重排序器（reranker） | ✅ 可用（通过 LM Studio） |
-| mode=ask | ✅ 可用 |
-| **延迟** | **300ms-5s**（网络） |
-| **质量** | **良好** |
+## 10. 如何观察降级
 
-**触发：** `EMBEDDING_PROVIDER=lm_studio` 或本地 ONNX 模型缺失。
+1. `get_health_report()` —— 索引、provider、资源、内存警告。
+2. `codebase(action="index", path="status")` —— `total_chunks`、文件数。
+3. `get_runtime_counters()` —— `verdict_blocked_*` 原因；`blocked > 5%` 的检查数
+   是文档中给出的"该看看架构了"的信号。
+4. `intel_tool_health()`（完整 profile）—— 成功率、P50/P95、重复率。
+5. `investigate` 的 `degraded[]` —— 每次调用的通道失败。
+6. `get_logs()` —— 近期 warnings/errors；载荷留在日志里，不进入响应。
 
-### 级别 4: 仅 BM25（最小）
+---
 
-```python
-# BM25 builder 中的优雅降级
-class Searcher:
-    def _build_bm25_index(self) -> None:
-        if self.indexer.table is None:
-            self._bm25 = {}  # 空 BM25 = 降级模式
-            return
-        try:
-            if self.indexer.table.count_rows() == 0:
-                self._bm25 = {}
-                return
-        except Exception:
-            self._bm25 = {}  # 表损坏 → 降级
-            return
-```
-
-| 组件 | 状态 |
-|-----------|:------:|
-| ONNX 模型 | ❌ 缺失 |
-| LM Studio | ❌ 离线 |
-| BM25 索引 | ✅ 可用 |
-| 重排序器（reranker） | ❌ 不可用 |
-| mode=ask | ❌ 不可用 |
-| **延迟** | **50ms-300ms** |
-| **质量** | **基础**（仅关键词） |
-
-### 级别 5: 仅 SymbolIndex（最后手段）
-
-| 组件 | 状态 |
-|-----------|:------:|
-| ONNX 模型 | ❌ 缺失 |
-| BM25 索引 | ❌ 不可用 |
-| SymbolIndex | ✅ 可用 |
-| 重排序器（reranker） | ❌ 不可用 |
-| mode=ask | ❌ 不可用 |
-| **延迟** | **<50ms** |
-| **质量** | **仅 AST 符号**（无语义搜索） |
-
-### 级别 6: 回退（Fallback）（首次运行）
-
-| 组件 | 状态 |
-|-----------|:------:|
-| ONNX 模型 | ❌ 不可用 |
-| BM25 索引 | ❌ 空 |
-| 重排序器（reranker） | ❌ 不可用 |
-| mode=ask | ❌ 不可用 |
-| **延迟** | N/A |
-| **质量** | **无**（等待索引） |
-
-## 自动恢复
-
-```mermaid
-sequenceDiagram
-    participant EM as RemoteEmbedder
-    participant ONNX as ONNX/OpenVINO（进程内）
-    participant LM as LM Studio（可选）
-    participant BM25 as BM25 Index
-
-    Note over EM: 级别 1（ONNX，默认）
-    EM->>ONNX: embed query（进程内）
-    ONNX-->>EM: vector（768 维）
-
-    par 每 30s — scanner loop
-        EM->>LM: GET /v1/models（若启用）
-        LM-->>EM: 200 OK
-        EM->>EM: 切换到 LM Studio（可选）
-        Note over EM: 级别 3 恢复（可选）
-    end
-```
+**Verified against:** `src/core/search/engine.py` (tier order, rerank fallbacks,
+`_reindex_fast_fail`), `src/core/error_handler.py` (`error_boundary`, retry
+policy, `_format_error_response`, `IndexNotReadyError`, message sanitising),
+`src/mcp/tools/base.py` (`require_index` → `IndexNotReadyError`),
+`src/mcp/tools/investigate_tool.py` (7 channels, timeouts, `degraded`),
+`src/core/indexing/indexer.py` (`index_project` → text-only),
+`src/core/indexing/index_project_runner.py` (abort on embedder failure),
+`src/core/indexing/index_pipeline.py`, `src/core/indexing/parser.py`,
+`src/providers/embedder/remote_embedder.py`,
+`src/providers/reranker/multi_provider.py`,
+`src/providers/reranker/llama_runner.py`, `src/mcp/tools/lsp_tools.py`,
+`src/core/lsp_client.py`, `src/mcp/tools/system_tools.py`,
+`src/core/runtime_coordinator.py`, `src/config/settings.py`,
+`src/core/error_envelope.py`.

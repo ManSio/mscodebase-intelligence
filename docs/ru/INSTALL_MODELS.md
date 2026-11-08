@@ -1,119 +1,156 @@
-# Установка AI-моделей — 3 способа
+# Установка моделей (опционально)
 
-> Выберите свой способ: **Авто** (install.py), **Вручную** (ONNX + GGUF) или **LM Studio** (legacy fallback)
+> Перевод: 2026-11-08, источник — docs/en/INSTALL_MODELS.md. Английская версия — канон.
 
-> **Реальность провайдеров (2026-08-16):** **Эмбеддер работает через llama.cpp GGUF** (`llama-server.exe`,
-> предпочтительно; ONNX INT8 in-process — fallback, пока llama.cpp поднимается).
-> `install.py` скачивает его автоматически. **Реранкер** — отдельный процесс
-> `llama-server.exe`, обслуживающий GGUF-модель `bge-reranker-v2-m3`. `LM Studio` — лишь
-> опциональный fallback, если локальные провайдеры недоступны.
+[English](../en/INSTALL_MODELS.md) · [Русский](INSTALL_MODELS.md) · [中文](../zh/INSTALL_MODELS.md)
+
+> Версия 3.5.0. **Для дефолтного runtime никакая модель не требуется.** Text-first
+> поиск (`MSCODEBASE_DENSE_OFF=true`) читает чанки из SQLite FTS5 и
+> PropertyGraph, поэтому свежая установка работоспособна ещё до появления любой
+> модели. Ставьте модели только если вам нужно живое качество
+> эмбеддинга/реранка или локальная chat-модель.
 
 ---
 
-## СПОСОБ 1: Авто — install.py (Рекомендуется)
+## 1. Что можно установить и зачем
 
-> **Лучше всего для:** Всех пользователей. Устанавливает llama.cpp + ONNX + GGUF модели автоматически.
+| Артефакт | Роль | Размер (объявлен в коде) |
+|---|---|---|
+| `multilingual-e5-small-int8` (ONNX) | in-process эмбеддер, 384-dim | ~113 MB |
+| `reranker-bge-reranker-v2-m3` (ONNX) | in-process/HTTP реранкер | ~544 MB |
+| `multilingual-e5-small-Q8_0.gguf` | эмбеддер llama.cpp, 384-dim | ~126 MB |
+| `bge-reranker-v2-m3` GGUF (`Bge-M3-568M-Q4_K_M`) | реранкер llama.cpp | ~418 MB |
+| `llama-server.exe` (сборка llama.cpp `b11476`) | хост для моделей GGUF | зависит от сборки |
+| `qwen3-embedding-0.6b-q4_k_m.gguf` (опционально) | альтернативный эмбеддер, 1024-dim | ~379 MB |
+| `bge-m3-Q4_K_M.gguf` (опционально) | альтернативный эмбеддер, 1024-dim | ~417 MB |
+| `embeddinggemma-2-Q8_0.gguf` (опционально) | альтернативный эмбеддер, 768-dim | ~296 MB |
+
+Таблица GGUF (`GGUF_MODELS` в `src/providers/reranker/llama_install.py`) также
+несёт размерность эмбеддинга, которую выдаёт каждая модель — эта размерность
+должна совпадать с `EMBEDDING_DIMENSION`, если вы храните векторы. Значения
+SHA-256 записаны для части записей (qwen3-embedding, bge-m3, bge-reranker-v2-m3) и
+логируются при скачивании; путь скачивания их не сравнивает, поэтому хэш здесь —
+справочное значение, а не проверенный пин. (Архив **бинарника** llama.cpp,
+наоборот, проверяется по хэшу перед распаковкой.)
+
+## 2. Способ 1 — `install.py` (интерактивный)
 
 ```bash
 python install.py
 ```
 
-**Что происходит:**
-1. Определяет Windows/macOS/Linux, AVX2/AVX512, Vulkan GPU
-2. Скачивает `llama-server.exe` (или бинарник для вашей платформы) — используется для **реранкера**
-3. Скачивает **multilingual-e5-small-int8** (~113 МБ) — **модель эмбеддинга (in-process)**
-4. Скачивает **bge-reranker-v2-m3 GGUF** (`BAAI/bge-reranker-v2-m3`, ~544 МБ) — **модель реранкера**
-5. Запускает процесс реранкера llama-server на порту `:8081`
+12 шагов. Сетевые шаги спрашивают перед действием:
 
-**Использование диска после установки:** ~900 МБ (llama бинарник + ONNX эмбеддер + GGUF реранкер)
+- ONNX-модели: *«Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)»*;
+- GGUF + llama.cpp: шаг GGUF скачивает `multilingual-e5-small` и
+  `bge-reranker-v2-m3`, а также бинарник llama.cpp для выбранного бэкенда;
+- каждый шаг при сбое предлагает `[r]etry / [s]kip / [c]ancel`.
 
-### Поведение системы
+Полезные флаги:
 
-| Сценарий | Что запускается | Память |
-|----------|-----------------|--------|
-| ONNX/OpenVINO E5-base (дефолт) | in-process эмбеддер + 1× llama-server (rerank) | ~1.0 ГБ |
-| Vulkan GPU доступен | llama-server с `-ngl 99` (GPU offload, только реранкер) | ~1.0 ГБ |
-| Только CPU (без Vulkan) | llama-server с `-ngl 0` (только CPU, реранкер) | ~700 МБ |
-| LM Studio fallback | внешний API на `:1234` (если включён) | ~3-6 ГБ |
+| Флаг | Эффект |
+|---|---|
+| `--sync-only` / `--sync` | скопировать код в каталог расширения, больше ничего не трогать (используйте после правки `src/`) |
+| `--skip-models` / `--no-models` | полностью пропустить шаги с моделями |
+| `--yes` / `-y` | отвечать «да» вместо вопроса |
+| `--verbose` / `-v` | полный вывод шагов вместо компактного вида |
 
----
+Установка целенаправленно пишет в каталог расширения
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`:
 
-## СПОСОБ 2: Вручную — ONNX + GGUF
+- ONNX → `<ext>/.codebase_models/onnx/<slug>/model_quantized.onnx`
+  (его специализированная подпапка реранкера использует `model.onnx`);
+- GGUF → `<ext>/models/<file>.gguf`;
+- существующие копии переиспользуются из каталога расширения, затем из
+  `~/.cache/mscodebase/models`, затем из корня проекта, и копируются вместо
+  повторного скачивания.
 
-> **Лучше всего для:** Пользователей, желающих скачать модели вручную.
+После прогона перезапустите хост. Ничего не перезагружается на лету.
 
-**Модель эмбеддинга (E5-base v2 ONNX, обязательно — in-process):**
+## 3. Способ 2 — вручную
+
+Модели — это обычные файлы в известных местах; шага регистрации нет.
+
 ```bash
-python scripts/download_model.py --model intfloat/multilingual-e5-small-int8
-# → .codebase_models/onnx/e5-base-v2/model_quantized.onnx (INT8)
+# ONNX (embedder + reranker)
+mkdir -p .codebase_models/onnx/multilingual-e5-small-int8
+# place model_quantized.onnx there (repo: keisuke-miyako/multilingual-e5-small-onnx-int8)
+
+# GGUF copies are looked up by exact filename
+ls models/            # multilingual-e5-small-Q8_0.gguf, Bge-M3-568M-Q4_K_M.gguf
 ```
 
-**Модель реранкера (bge-reranker-v2-m3 GGUF, обязательно):**
-```bash
-# Из HuggingFace
-huggingface-cli download lm-kit/bge-reranker-v2-m3-gguf \
-  Bge-M3-reranker-2-3-568M-Q4_K_M.gguf \
-  --local-dir extensions/mscodebase-intelligence/models/
+Порядок поиска для GGUF — каталог `models/` расширения, затем
+`~/.cache/mscodebase/models` (см. `_get_models_dir`). Положите файл в любой из
+них; дублирование в каталог расширения избавит от сюрпризов после обновления.
+
+## 4. Порты и процессы
+
+| Процесс | Порт по умолчанию | Env |
+|---|---|---|
+| эмбеддер llama.cpp (`llama-server.exe`) | `8080` | `LLAMA_CPP_PORT`, `LLAMA_CPP_HOST` |
+| реранкер llama.cpp | `8081` | `LLAMA_CPP_RERANK_PORT` |
+| ONNX-сервер (подпроцесс) | `1235` | `ONNX_SERVER_PORT`, `ONNX_SERVER_HOST` |
+| LM Studio (внешний) | `1234` | `LM_STUDIO_PORT` |
+| Ollama (внешний) | `11434` | `OLLAMA_PORT` |
+
+Бэкенд llama.cpp по умолчанию `msvc` (CPU); `LLAMA_BACKEND=vulkan` переключает на
+GPU-бинарник и задаёт `-ngl` из `LLAMA_NGL` (по умолчанию 99). Порты проверяются
+на попадание в диапазон `8080-8090` перед запуском; порт вне этого диапазона
+пропускается с предупреждением.
+
+Два контекста моделей настраиваются отдельно: `LLAMA_EMBED_MAX_TOKENS` (по
+умолчанию 480, обрезается клиентом) и `LLAMA_RERANK_MAX_TOKENS` (по умолчанию
+1000, пара запрос+пассаж). Физический батч выводится по роли (`resolve_ubatch`):
+embed → 512, rerank → 1024.
+
+## 5. Дефолтные имена — реальная несогласованность
+
+В коде существуют два разных значения по умолчанию:
+
+- `src/config/settings.py`: `EMBEDDING_MODEL` по умолчанию `qwen3-embedding`;
+- `src/providers/reranker/llama_install.py`: `DEFAULT_EMBEDDING_MODEL` по
+  умолчанию `embeddinggemma-2` (env `EMBEDDING_MODEL` его переопределяет).
+
+Шаг GGUF в `install.py` скачивает `multilingual-e5-small` для эмбеддера
+независимо от обоих дефолтов. Если выбор для вас важен, закрепите модель явно в
+`.env` (`EMBEDDING_MODEL=...`); не полагайтесь на то, что дефолты в разных
+модулях совпадают.
+
+## 6. Проверка
+
+```powershell
+curl http://127.0.0.1:8080/health     # llama.cpp embedder
+curl http://127.0.0.1:8081/health     # llama.cpp reranker
+curl http://127.0.0.1:1235/health     # ONNX server
 ```
 
-> ONNX-эмбеддер — **дефолтный и основной** путь. GGUF-реранкер работает как отдельный
-> процесс `llama-server.exe`. Вам НЕ нужна GGUF-*эмбеддинг*-модель для поиска.
+Внутри хоста: `intel_get_telemetry()` показывает живые `provider`, `model`,
+`ping_ms` и `tokens_per_sec`; `llm.error` означает, что пинг упал, а не был
+пропущен. `get_health_report()` включает блок провайдера.
+
+## 7. Удаление моделей
+
+Удалите файлы; никакая запись в реестре их не переживает:
+
+```powershell
+Remove-Item .codebase_models\onnx\<slug> -Recurse -Force
+Remove-Item models\<file>.gguf -Force
+```
+
+Если dense-путь был включён и векторы существуют, дополнительно выполните
+`python scripts/reindex_text_only.py --project .` (или `intel_reset_index()`),
+иначе сохранённые векторы останутся старой размерности. Каталоги моделей в
+git-ignore (`.codebase_models/`, `models/`), поэтому в `git status` ничего не
+появится.
 
 ---
 
-## СПОСОБ 3: LM Studio (Legacy Fallback)
-
-> **Лучше всего для:** Пользователей с уже установленной LM Studio, желающих использовать её как fallback.
-
-LM Studio всё ещё можно использовать как fallback-провайдер эмбеддинга. Если локальная
-ONNX-модель недоступна, MSCodeBase может переключиться на LM Studio (установите
-`EMBEDDING_PROVIDER=lm_studio`).
-
-| Модель | Размер | Назначение |
-|--------|:------:|------------|
-| `text-embedding-bge-m3` | ~2.2 ГБ | Эмбеддинг fallback (векторный поиск) |
-| `bge-reranker-v2-m3` | ~1.1 ГБ | Реранкинг (cross-encoder) |
-| `phi-4-mini-instruct` | ~2.8 ГБ | `mode=ask` RAG-генерация (опционально) |
-
-См. [`LM_STUDIO_SETUP.md`](LM_STUDIO_SETUP.md) для деталей.
-
----
-
-## Таблица сравнения
-
-| Критерий | Способ 1 (Авто) | Способ 2 (Вручную) | Способ 3 (LM Studio) |
-|----------|:---------------:|:------------------:|:--------------------:|
-| **Эмбеддер** | ONNX E5-base INT8 (in-process) | ONNX E5-base INT8 | LM Studio (bge-m3) |
-| **Реранкер** | llama.cpp GGUF | llama.cpp GGUF | LM Studio |
-| **GPU** | Vulkan (только реранкер) | Vulkan (только реранкер) | Любой (CUDA/Metal) |
-| **RAM (всего)** | **~1.0 ГБ** | **~1.0 ГБ** | ~3-6 ГБ |
-| **Диск** | **~900 МБ** | **~900 МБ** | ~6 ГБ |
-| **Время установки** | **3 мин** | 5 мин | 20 мин |
-| **mode=ask** | ❌ Нет (нужен LLM profile) | ❌ Нет | ✅ Да |
-
----
-
-## Конфигурация моделей
-
-### Переменные `.env`
-
-```ini
-# Провайдер эмбеддинга: e5_onnx (дефолт, in-process) | openvino | lm_studio
-EMBEDDING_PROVIDER=e5_onnx
-
-# ONNX model slug (скачивается install.py)
-#   multilingual-e5-small-int8  → intfloat/multilingual-e5-small-int8 (384-dim, INT8)
-ONNX_MODEL=multilingual-e5-small-int8
-
-# Reranker GGUF модель, обслуживаемая llama-server на :8081
-RERANKER_MODEL=bge-reranker-v2-m3
-
-# llama.cpp backend для реранкера: auto, msvc, или vulkan
-LLAMA_BACKEND=auto
-
-# GPU layers для реранкера (0 = только CPU, 99 = все слои на GPU)
-LLAMA_NGL=99
-
-# Context size для реранкера (1024 достаточно для bge-reranker-v2-m3)
-LLAMA_CTX_SIZE=1024
-```
+**Verified against:** `install.py` (`STEPS`, `step_models`, `step_gguf`,
+`--sync-only`, `--skip-models`, `--yes`, prompt strings),
+`src/providers/reranker/llama_install.py` (`GGUF_MODELS` sizes/dims/SHA-256,
+`LLAMA_VERSION`, `LLAMA_PORT`, `DEFAULT_EMBEDDING_MODEL`, `resolve_ubatch`,
+`_patch_dll_imports`), `src/providers/reranker/llama_runner.py`
+(`RERANK_PORT`, port range check, `LLAMA_BACKEND`/`LLAMA_NGL`),
+`src/config/settings.py` (provider ports, `EMBEDDING_MODEL`),
+`.env.example`, `.gitignore`.

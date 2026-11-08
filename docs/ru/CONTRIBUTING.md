@@ -1,360 +1,165 @@
-<img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
+# Участие в разработке — MSCodeBase Intelligence
 
-[🇬🇧 English](../en/CONTRIBUTING.md) • [🇷🇺 Русский](CONTRIBUTING.md) • [🇨🇳 中文](../zh/CONTRIBUTING.md)
+> Перевод: 2026-11-08, источник — docs/en/CONTRIBUTING.md. Английская версия — канон.
 
-# Контрибьюция — MSCodeBase Intelligence
+[English](../en/CONTRIBUTING.md) · [Русский](CONTRIBUTING.md) · [中文](../zh/CONTRIBUTING.md)
 
-> **Версия:** 3.5.0
+> Версия 3.5.0 · Python >= 3.14 · MIT
 
----
+Локальный MCP-сервер: он индексирует репозиторий через Tree-sitter, хранит текст
+чанков в SQLite FTS5 плюс PropertyGraph и отвечает на вопросы о коде по MCP.
+Прочитайте `AGENTS.md` (в корне репозитория) перед первой правкой — там правила
+работы и контракт гигиены корня (§0.6: разрешённый набор корня).
 
-## 1. Настройка
+## 1. Структура
+
+```
+src/core/        индекс, поиск, граф, intelligence, guards (никогда не импортирует mcp)
+src/mcp/         сервер, классы инструментов, транспорты (зависит от core, не наоборот)
+src/providers/   реализации эмбеддера / реранкера (llama.cpp, LM Studio, ONNX)
+src/config/      settings.py — каждая настройка это env-переменная со значением по умолчанию
+scripts/         операционные и гейтовые скрипты (reindex, verify_clean_state, lint)
+tools/           инструментарий разработчика (гейты проверки, проверки знаний, пайплайны)
+experiments/     пробы и замороженные входы; исключены из индексации и из pytest
+tests/           ~240 тестовых модулей верхнего уровня плюс tests/e2e и tests/fixtures
+docs/            каноническая документация; docs/FACTS.md владеет всеми цитируемыми числами
+```
+
+Слоистость проверяется принудительно: `scripts/check_layer_boundaries.py` падает
+на импортах `core → mcp` и на зависимостях слоя инструментов в обход core.
+
+## 2. Настройка
 
 ```powershell
 git clone https://github.com/ManSio/mscodebase-intelligence.git
-cd MSCodeBase
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-pip install -e "."
+cd mscodebase-intelligence
+python -m venv venv; venv\Scripts\activate; pip install -e ".[dev]"
 ```
 
-Требования: Python 3.14+, Windows (основная) или Linux (экспериментально).
+`pip install -e .` достаточно для text-first runtime. Модели опциональны и
+никогда не скачиваются молча: `python install.py` спрашивает перед каждым
+скачиванием и принимает `--skip-models`; `--sync-only` копирует код в каталог
+расширения, не трогая pip и модели.
 
----
+## 3. Тесты и линт
 
-## 2. Архитектура (Clean Architecture)
-
-```
-src/
-├── main.py              # Точка входа (минимальная)
-├── mcp/
-│   ├── server.py        # Регистрация MCP-сервера (~220 строк)
-│   ├── server_factory.py # Фабрика сервера + DI setup
-│   ├── server_tools.py  # Регистрация инструментов (всего 58)
-│   └── tools/           # 15 файлов, 28 core + 16 intel + 13 inline + 4 dev
-│       ├── base.py          # MCPTool ABC
-│       ├── search_tools.py  # search_code, get_symbol_info, impact_analysis
-│       ├── codebase_tool.py # codebase(action={rename,move,delete,...})
-│       ├── write_tools.py   # write(action={rename,move,delete,replace,insert,impact})
-│       ├── graph_tools.py   # graph_query, cross_repo_search, cross_project_deps
-│       ├── indexing_tools.py# управление индексом
-│       ├── git_tools.py     # git(action={log,history,branch})
-│       ├── doc_tools.py     # generate_docs, bump_version, auto_update_docs, install_git_hooks
-│       ├── dev_tools.py     # dev-инструменты
-│       ├── system_tools.py  # system/health инструменты
-│       ├── analysis_tools.py# structural_search, scan_changes и др.
-│       ├── investigation_tools.py # bug_correlation, hotspots и др.
-│       ├── lifecycle_tools.py# фоновые задачи, верификация
-│       └── meta_tools.py    # статус индекса, health-отчёты
-├── core/                # Чистая бизнес-логика (БЕЗ импортов MCP)
-│   ├── di_container.py  # ServiceCollection (15+ сервисов)
-│   ├── error_handler.py # error_boundary + ToolError
-│   ├── rate_limiter.py  # SlidingWindowRateLimiter + CircuitBreaker
-│   ├── runtime_coordinator.py # ExecutionVerdict + can_execute()
-│   ├── graph.py         # PropertyGraph (SQLite WAL) — nodes/edges
-│   ├── doc_sync_engine.py # Авто-синхронизация доков с кодом (rename hook)
-│   ├── search/
-│   │   ├── engine.py    # Гибридный поиск (BM25 + Dense + FTS5 + RRF)
-│   │   ├── fts5_mixin.py# FTS5 полнотекстовый поиск
-│   │   ├── graph_adapter.py # PropertyGraph → SymbolIndex
-│   │   ├── cypher_engine.py # Cypher→SQL
-│   │   └── scoring.py   # RRF + MMR diversity
-│   ├── indexing/
-│   │   ├── indexer.py   # LanceDB векторное хранилище
-│   │   ├── db_manager.py# Жизненный цикл LanceDB (PID-lock)
-│   │   ├── parser.py    # Tree-sitter AST (16 языков)
-│   │   ├── file_guard.py# .gitignore + фильтр расширений
-│   │   ├── symbol_index.py # Граф вызовов (BFS, PageRank)
-│   │   └── watchdog.py  # Вотчер изменений файлов
-│   └── intelligence/
-│       ├── layer.py     # 16 intel_* инструментов
-│       ├── project_context.py # Снэпшот состояния проекта
-│       ├── health.py    # Проверки здоровья системы
-│       └── tools_reg.py # Регистрация Intel-инструментов
-├── providers/
-│   ├── embedder/
-│   │   └── remote_embedder.py # ONNX E5-small + LM Studio/Ollama
-│   └── reranker/
-│       ├── llama_runner.py   # Жизненный цикл llama-server.exe
-│       ├── multi_provider.py # Мульти-провайдерный реранкинг
-│       └── search_result_reranker.py # Реранкинг результатов
-└── utils/
-    ├── i18n.py          # Интернационализация
-    ├── paths.py         # SafePathManager
-    └── zed_config.py    # Управление настройками Zed
-```
-
-**Ключевые принципы:**
-1. Все инструменты — отдельные классы с Constructor Injection (через `MCPTool`)
-2. Каждый инструмент задекорирован `@error_boundary` (JSON + таймаут)
-3. Единый DI-контейнер — `create_service_collection()` в `di_container.py`
-4. Слой Core имеет НОЛЬ импортов MCP
-
----
-
-## 3. Стиль кода
-
-- **Форматтер**: Black (длина строки 88)
-- **Порядок импортов**: isort
-- **Type hints**: обязательны для всех публичных API
-- **Логирование**: `logging.getLogger(__name__)` — никогда `print()` в production-коде
-- **Async**: используйте `async/await` для I/O; тяжёлые дисковые операции → `asyncio.to_thread()`
-
-```powershell
-# Проверка форматирования
-black --check src/
-isort --check-only src/
-
-# Авто-форматирование
-black src/
-isort src/
-```
-
----
-
-## 4. Запуск тестов
-
-В проекте **1180 тестов** в `tests/` (1086 собираются по умолчанию + 94 отсеяны как slow/integration/benchmark).
-
-```powershell
-# Полный набор
-pytest tests/ -v
-
-# Только быстрые тесты (без slow/integration/benchmark)
-pytest tests/ -v -m "not slow and not integration and not benchmark"
-
-# По маркеру
-pytest tests/ -v -m slow
-pytest tests/ -v -m integration
-pytest tests/ -v -m benchmark
-
-# По модулю
-pytest tests/test_engine.py -v
-pytest tests/test_parser.py -v
-
-# С покрытием
-pytest tests/ --cov=src --cov-report=term-missing
-```
-
-**Маркеры** (определены в `pyproject.toml`):
-- `slow` — медленные тесты
-- `integration` — интеграционные тесты (требуют LanceDB)
-- `benchmark` — бенчмарки производительности
-- `asyncio` — async-тесты
-
-### Категории тестов
-
-| Категория | Количество | Описание |
-|----------|-------|-------------|
-| Unit | 550+ | Без внешних сервисов, <5с каждый |
-| Integration | 3 | Требуют LanceDB, маркированы `@pytest.mark.integration` |
-| Benchmark | 6 | Замеры latency/throughput |
-
-### CI-пайплайн
+`pyproject.toml` задаёт `addopts = "-v --tb=short -m 'not slow and not benchmark'"`.
+Этот дефолт важен:
 
 ```bash
-# Минимальный (каждый коммит)
-pytest tests/ -m "not integration and not benchmark" --tb=short -q
-
-# Полный (ночной прогон)
-pytest tests/ --tb=long -v
+python -m pytest tests/ -q                    # slow + benchmark исключены (addopts)
+python -m pytest tests/ -m "not benchmark"     # включает slow-тесты
+python -m pytest tests/ -q -n auto --cov=src   # то, что делает CI (порог покрытия: 38%)
 ```
 
----
+Зелёный `pytest tests/ -q` **не** означает, что slow-тесты проходят. CI прогоняет
+выборку `not slow and not benchmark` с `--cov=src --cov-fail-under=38` на
+ubuntu-latest и windows-latest, только Python 3.14. Линт: `ruff check src/ tests/`
+(CI) или `python scripts/ruff_gate.py` (pre-commit).
 
-## 5. Добавление новых MCP-инструментов
+## 4. Добавление инструмента
 
-Инструменты регистрируются в `src/mcp/server_tools.py` через `register_all_tools()`.
-Каждый инструмент — класс в `src/mcp/tools/*.py`, наследующий от `MCPTool`.
-
-### Категории инструментов (всего 58):
-
-| Категория | Количество | Ключевые инструменты |
-|----------|-------|-----------|
-| **Search** | 3 | `search_code`, `get_symbol_info`, `impact_analysis` |
-| **LSP** | 6 | `lsp_find_references`, `lsp_find_definition`, `lsp_document_symbols`, `lsp_get_type_info`, `lsp_get_diagnostics`, `lsp_get_code_actions` |
-| **Codebase hub** | 1 | `codebase(action=index/git/rename/move/delete/replace/insert)` |
-| **Analysis** | 5 | `structural_search`, `get_repo_map`, `get_repo_rank`, `scan_changes`, `generate_chunk_summaries` |
-| **Graph** | 4 | `graph_query`, `cross_repo_search`, `cross_project_deps`, `detect_communities` |
-| **Investigation** | 3 | `get_bug_correlation`, `get_hotspots`, `find_similar_bugs` |
-| **Duplication** | 1 | `find_duplicates` |
-| **Context** | 1 | `get_context` |
-| **Lifecycle** | 3 | `submit_background_task`, `get_task_status`, `verify_action` |
-| **Docs** | 1 | `stale_detector` |
-| **Intelligence** | 14 | `intel_get_runtime_status`, `intel_trigger_reindex`, `intel_retract_memory_node` и др. |
-| **Dev** | 4 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` |
-| **Diagnostic inline** | 12 | `debug_runtime_passport`, `intel_get_project_context`, `intel_explain_project_state`, `get_runtime_counters`, `intel_tool_health`, `intel_execution_timeline`, `refresh_db_connection`, `notify_change`, `read_live_file`, `get_logs`, `get_health_report`, `ack_impact` |
-
-### Шаги для добавления нового инструмента:
-
-1. **Создайте класс** в `src/mcp/tools/<category>.py`:
+Инструмент — это класс, запись регистрации и решение о профиле.
 
 ```python
-from src.core.di_container import ServiceCollection
-from src.mcp.tools.base import MCPTool
-from src.core.error_handler import error_boundary
+class MyTool(MCPTool):
+    def __init__(self, services):
+        super().__init__(services, tool_name="my_tool")
 
-
-class MyNewTool(MCPTool):
-    """Описание для AI-агента.
-
-    ИСПОЛЬЗУЙ ЭТОТ ИНСТРУМЕНТ КОГДА:
-    - Сценарий использования 1
-    - Сценарий использования 2
-
-    Args:
-        param: Описание параметра
-    """
-
-    def __init__(self, services: ServiceCollection):
-        super().__init__(services, tool_name="my_new_tool")
-
-    @error_boundary("my_new_tool", timeout_ms=15000)
-    async def execute(self, param: str, **kwargs) -> dict:
-        # Реализация
-        return {"status": "ok", "result": param}
-```
-
-2. **Зарегистрируйте** в `src/mcp/server_tools.py`:
-
-```python
-from src.mcp.tools.my_module import MyNewTool
-
-def register_all_tools(mcp, services):
-    tool_classes = [
-        ...
-        MyNewTool,
-    ]
-    for cls in tool_classes:
-        tool = cls(services)
-        mcp.tool()(tool.execute)
-```
-
-3. **Добавьте тесты** в `tests/test_<module>.py`.
-
-4. **Обновите документацию**:
-   - `README.md` — секция Tools
-   - `ARCHITECTURE.md` — если изменилась архитектура
-   - `CHANGELOG.md` — добавьте запись
-
-5. **Запустите проверку**:
-
-```powershell
-python -m pytest tests/ -q --tb=short
-auto_update_docs(action="verify")
-```
-
----
-
-## 6. Добавление новых модулей ядра
-
-Модули ядра находятся в `src/core/`. Импорты MCP запрещены.
-
-### Шаги:
-
-1. **Создайте файл** в соответствующей поддиректории `src/core/`:
-
-```python
-"""Модуль для ..."""
-import logging
-from typing import Any
-
-logger = logging.getLogger(__name__)
-
-
-class MyModule:
-    def __init__(self, ...):
-        ...
-
-    def do_something(self) -> Any:
-        """Что делает метод."""
+    async def execute(self, query: str) -> str | dict:
+        indexer = self.resolve_indexer()   # per-project, not a global singleton
         ...
 ```
 
-2. **Зарегистрируйте в DI** в `src/core/di_container.py`:
+1. **Класс** — наследник `MCPTool` в `src/mcp/tools/<area>.py`. Правила,
+   проверяемые ревью и гейтами: зависимости через `self._services` (DI), никаких
+   глобальных переменных уровня модуля; готовность из `RuntimeCoordinator` /
+   `require_index()`, а не собственной проверкой; возвращайте `str` или
+   JSON-сериализуемый `dict`; на сбоях выбрасывайте `ToolError` (или
+   `IndexNotReadyError` / `RateLimitError`), чтобы вызывающий получил `status`
+   (`error`/`warning`/`timeout`) и флаг `recoverable`; декорируйте `execute`
+   через `@error_boundary("<tool>", timeout_ms=...)`.
+2. **Записи** — идут через `WriteTool.execute` (`src/mcp/tools/write_tools.py`),
+   декорированный `@modification_guard(pagerank_min=0.05, blast_min=10, ack_ttl=600)`.
+   Гейт запрещает записи в несущие файлы, пока `ack_impact` не предъявит
+   валидный impact-токен; не добавляйте второй, недекорированный путь записи.
+3. **Регистрация** — добавьте класс в `tool_classes` в
+   `src/mcp/server_tools.py::register_all_tools()`. Не регистрируйте его напрямую
+   в MCP-приложении где-либо ещё: фильтр профилей срабатывает после регистрации
+   всех групп.
+4. **Профиль** — поместите его в `CORE_PROFILE` (дефолтная поверхность из 17
+   инструментов, одна запись на намерение) или оставьте видимым только при
+   `MSCODEBASE_MCP_PROFILE=full`. Счётчики зафиксированы в docstring модуля:
+   36 core + 16 intel + 13 inline + 4 dev = 69.
+5. **Тест и документация** — добавьте unit-тест в `tests/`; всё, что касается
+   поиска или индекса, нуждается в кейсе, который упал бы, если бы инструмент
+   молча вернул пусто. Если поверхность изменилась, обновите текст, видимый в
+   `tool_help`, и любой документ, перечисляющий инструменты.
 
-```python
-services.add_singleton(MyModule, MyModule(...))
+## 5. Коммиты и pull request
+
+Conventional Commits, императив, атомарно:
+
+```
+feat(search): add code-aware BM25 term field
+
+Restate the diff, not the intent. Explain why when the why is not obvious.
 ```
 
-3. **Добавьте тесты** в `tests/test_my_module.py`.
+- Subject <= 72 символов, без точки в конце, пустая строка перед телом; breaking
+  change — как `type(scope)!:` плюс футер `BREAKING CHANGE:`.
+- Индексируйте файлы явно (`git add src/core/x.py tests/test_x.py`). `git add -A`,
+  `git add .` и `git commit -a` запрещены — checkout может быть общим с другим
+  агентом или worktree, и массовый add затянет их незавершённую работу. Сначала
+  выполните `git worktree list` и `git status`; файл, изменённый в другом месте,
+  блокируется `scripts/check_parallel_sessions.py`.
+- Никаких сгенерированных артефактов и одноразовых файлов:
+  `docs/generated/MODULE_INDEX.md` не трекается, `experiments/**/results` не
+  индексируется, а набор корня зафиксирован в `AGENTS.md` §0.6. Одна тема на PR;
+  перед запросом ревью проведите self-review диффа: каждая удалённая строка
+  намеренная, описание не богаче диффа.
 
-4. **Обновите ARCHITECTURE.md**.
+## 6. Гейты
 
-5. **Запустите DocSync** для проверки соответствия документации:
+`core.hooksPath = .githooks`; `.githooks/pre-commit` запускает следующее (бюджет
+900 s на гейт, `MSCB_PRECOMMIT_GATE_TIMEOUT`):
 
-```python
-from src.core.doc_sync_engine import DocSyncEngine
-engine = DocSyncEngine(project_root)
-report = engine.sync_all()
-```
+| Гейт | Скрипт |
+|---|---|
+| gate-zero + дневник | `scripts/verify_diary.py` (полный `pytest tests/`; пропускается для коммитов только с документацией или при `--skip-gate-zero`) |
+| дрейф версий | `scripts/stale_detector.py --staged` |
+| имена инструментов | `scripts/check_tool_names.py` |
+| негативные контроли | `scripts/negative_controls_runner.py` |
+| границы слоёв | `scripts/check_layer_boundaries.py` |
+| архитектурные инварианты | `scripts/architecture_linter.py` |
+| git-локи (advisory) | `scripts/lock_guard.py` |
+| размер known-issues | `scripts/check_known_issues.py` |
+| сторонние данные | `scripts/check_third_party_data.py` |
+| параллельные сессии | `scripts/check_parallel_sessions.py` |
+| линт | `scripts/ruff_gate.py` |
 
----
+CI добавляет `bump_version.py --check`, `disk_guard.py --check`, `pip-audit`,
+`verify_clean_state.sh --no-clone`, `manifest_parity.py` и e2e-задачу проверки
+эквивалентности транспортов. Проверяйте CI через `gh run list --branch <branch>` и
+`gh run view <id> --log-failed`, а не по предположению.
 
-## 7. Commit Messages
+## 7. Документация и реестры
 
-Conventional Commits: `type(scope): description`
+- Числа (чанки, файлы, узлы, рёбра, качество, тайминги) живут **только** в
+  `docs/FACTS.md`, вместе с командой, которая их пересоздаёт.
+- Канонические страницы существуют на трёх языках (`docs/en`, `docs/ru`,
+  `docs/zh`); изменение одной — это изменение трёх файлов. Исторический материал в
+  `docs/blog`, `docs/research`, `docs/archive` сохраняет свой баннер и дату — не
+  переписывайте его. Ссылайтесь на факт как `(file, commit SHA, record ID)`, а не
+  `file:line`: номера строк гниют.
+- Реестры: `AGENT_DIARY.md` (один дневник; `DEV_DIARY.md` — редирект),
+  `KNOWN_ISSUES.md` (<= 300 строк, старые записи уезжают в
+  `docs/archive/KNOWN_ISSUES_YYYY_MM.md`), `EXPERIMENTS_LOG.md`, `WISDOM.md`.
+  Обновляйте их в том же коммите; второй дневник или второй `KNOWN_ISSUES.md` —
+  дефект, а не вариант.
 
-**Типы:** `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `chore`
-
-**Scopes:** `search`, `indexer`, `parser`, `mcp`, `core`, `tests`, `docs`, `doc_sync`
-
-**Примеры:**
-```
-feat(search): add FTS5 full-text search to hybrid pipeline
-fix(indexer): handle LanceDB Not found during reindex
-docs: update ARCHITECTURE.md with DocSync engine
-refactor(doc_sync): clean up suggestion logic
-```
-
----
-
-## 8. Процесс PR
-
-### Чек-лист:
-
-- [ ] Ветка создана от `development` (не `main`)
-- [ ] `pytest tests/ -v` — все тесты проходят
-- [ ] `black --check src/` — форматирование OK
-- [ ] Type hints на всех публичных функциях
-- [ ] Нет `print()` в production-коде (используйте `logging`)
-- [ ] Новые инструменты/модули покрыты тестами
-- [ ] `CHANGELOG.md` обновлён
-- [ ] `README.md` обновлён (если изменился публичный API)
-- [ ] `ARCHITECTURE.md` обновлён (если изменилась архитектура)
-- [ ] DocSync проверка: `auto_update_docs(action="verify")`
-
-### Описание PR должно содержать:
-
-1. **Что изменено** — конкретные файлы и функции
-2. **Зачем** — какую проблему решает
-3. **Как протестировано** — какие тесты добавлены/прогнаны
-4. **Breaking changes** — если есть, явно указать
-
----
-
-## 9. Версионирование
-
-SemVer: MAJOR.MINOR.PATCH
-
-- **MAJOR** — несовместимые изменения API
-- **MINOR** — новые инструменты/функции (обратно совместимые)
-- **PATCH** — багфиксы
-
-Текущая версия в `pyproject.toml`: `3.5.0`
-
----
-
-## 10. Troubleshooting
-
-| Проблема | Решение |
-|---------|----------|
-| `ModuleNotFoundError: No module named 'src'` | Запускайте из корня проекта |
-| Тесты падают с ошибкой эмбеддинга | Нормально для fallback-режима; запустите с LM Studio для полного тестирования |
-| MCP-сервер таймаутит при первом вызове | Холодный старт реранкера — второй вызов работает |
-| DocSync сообщает о ложных расхождениях | Запустите `auto_update_docs(action="verify")` для текущего состояния |
-
----
-
-*Последнее обновление: 2026-07-21 | DocSync Edition*
+**Verified against:** `pyproject.toml`, `.github/workflows/ci.yml`,
+`.githooks/pre-commit`, `src/mcp/server_tools.py`, `src/mcp/tools/base.py`,
+`src/core/modification_guard.py`, `src/core/error_handler.py`, `install.py`,
+`AGENTS.md` (§0.6), directory listing of `src/`, `tests/`, `scripts/`, `tools/`,
+`experiments/`.

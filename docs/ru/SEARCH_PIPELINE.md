@@ -1,224 +1,136 @@
-# Поисковый пайплайн — текущий контракт
+# Конвейер поиска
 
-> **Актуально на 2026-10-25.** Дефолтный runtime — Phase 3 text-first:
-> SQLite FTS5/BM25 плюс PropertyGraph. Dense, LanceDB и reranker-стадии
-> опциональны и выключены без конфигурации. Документ описывает реальный
-> дефолтный путь, а не старый pipeline как будто он всё ещё основной.
+> Перевод: 2026-11-08, источник — docs/en/SEARCH_PIPELINE.md. Английская версия — канон.
 
----
+> Переписано 2026-11-08. Дефолтный runtime — **Phase 3 text-first**:
+> SQLite FTS5/BM25 по разобранным чанкам плюс Tree-sitter/PropertyGraph.
+> Dense-, LanceDB- и реранкер-стадии существуют, но опциональны и помечены.
+> Числа: [FACTS.md](../FACTS.md).
 
-## 1. Контракт
-
-Вход:
-
-- natural-language или identifier query;
-- `mode`: `fast`, `quality`, `deep`, `context`, `ask`, `auto`;
-- опционально `layer`, `intent`, `limit`, `explain`.
-
-Выход:
-
-- ранжированные chunks/files с metadata (`file`, `chunk_index`, `symbol_name`,
-  `symbol_kind`, `layer`, line range, source);
-- stale-index banner, если freshness check не прошёл;
-- опциональные security metadata для недоверенного контента.
-
-Агент может передать `intent="docs"` или `intent="code"`. Если `intent` пуст,
-tool сравнивает лучший docs-only BM25 score с лучшим code score и уходит в
-docs-канал, когда разрыв больше `MSCODEBASE_DOCS_MARGIN` (default `4.0`).
-LLM в этом решении нет.
-
-## 2. Дефолтный Phase 3 путь
+## 1. Что проходит запрос
 
 ```text
-query
+запрос
   │
-  ├─ normalize / optional RU synonyms
+  ├─ 1. Защита запроса      пустой? >512 символов? → отказ с причиной
   │
-  ├─ SQLiteChunkStore.search(query, limit=20..50)
-  │     └─ FTS5/BM25 по chunk text, symbol_name, docstring, file_path
+  ├─ 2. Свежесть (троттлинг) изменённые/новые файлы → переиндексация в фоне
   │
-  ├─ если query похож на identifier/path:
-  │     └─ PropertyGraph stage добавляет exact symbol/file candidates
+  ├─ 3. Получение кандидатов
+  │       похоже на идентификатор?  → графовая стадия (точное место, ~мс)
+  │       иначе                     → SQLite FTS5/BM25 по chunks.db
   │
-  ├─ optional on-demand rerank (только если настроен)
+  ├─ 4. Обогащение          сигналы символов/путей, фильтр слоя, дедупликация
   │
-  ├─ exact-name boost
-  ├─ symbol deduplication
+  ├─ 5. Реранк (опционально) живые эмбеддинги по верхней части пула
   │
-  └─ return top-N
+  ├─ 6. Маршрутизация документов  счёт docs − счёт кода > порога → документы
+  │
+  └─ 7. Формат              file:line, символ, счёт, предупреждения
 ```
 
-SQLite path намеренно короче исторического LanceDB pipeline. В частности, по
-умолчанию он **не** запускает RRF над BM25+dense+graph, MMR, co-change boosts
-или P3 module-head anchors. Эти стадии живут в опциональном dense/LanceDB path
-или в старых путях.
+## 2. Путь Phase 3 (по умолчанию)
 
-## 3. Источники candidates
+`Searcher._sqlite_hybrid_search_async`:
 
-### 3.1 SQLite FTS5/BM25
+1. **Кандидаты** — `SQLiteChunkStore.search(query, raw_limit)`, где
+   `raw_limit = min(max(limit × 4, 20), 50)`. Хранилище отвечает через FTS5
+   BM25 по тексту чанка (FILE/SYMBOLS/DOC дописываются в начало текста, когда
+   `MSCODEBASE_AUGMENT_CHUNKS=true`).
+2. **Фильтр** — опциональный `layer` (core/mcp/utils/tests/...) применяется к
+   набору кандидатов.
+3. **Реранк (опционально)** — при `MSCODEBASE_ONDEMAND_RERANK=true` (по умолчанию)
+   верхние `MSCODEBASE_ONDEMAND_RERANK_TOP_N` кандидатов переоцениваются живыми
+   эмбеддингами; текст обрезается до `..._MAX_CHARS` перед эмбеддингом.
+   Без провайдера стадия пропускается, а не падает.
+4. **Форма** — результаты несут `file_path`, `line`, `symbol_name`, `text`,
+   `score`, `source` (`sqlite_fts5`).
 
-`SQLiteChunkStore.search` строит FTS5 `MATCH` из терминов запроса (OR, quoted),
-ранжирует через SQLite `bm25()` и возвращает:
+Этот путь никогда не обращается к LanceDB, поэтому работает вообще без таблицы
+векторов.
 
-- chunk text и full text;
-- file path, chunk index, symbol name/kind, docstring, layer;
-- start/end line;
-- `final_score` из BM25 rank.
+## 3. Короткое замыкание по идентификатору
 
-Таблица content-linked (`content='chunks'`) с insert/update/delete triggers:
-удаление файла удаляет и его FTS rows.
+Запросы, похожие на идентификатор (`_IDENTIFIER_QUERY_RE`), пропускают retrieval
+и идут в графовую стадию, которая разрешает определение и его непосредственных
+соседей. В комментариях кода замерено: ~6.8 мс против векторного поиска в секунды.
+Вопросы не про идентификаторы не дают графовых попаданий и проваливаются в обычный
+путь.
 
-### 3.2 Symbol и path signals
+## 4. Маршрутизация документов (E57)
 
-Identifier-shaped запросы (`snake_case`, `CamelCase`, paths, `::`) получают
-детерминированный graph stage. Граф возвращает exact definition/reference rows,
-которые FTS может поставить ниже generic text matches. Дубликаты убираются по
-`file + chunk_index`.
+`Searcher.prefers_docs(query)` выполняет один дополнительный FTS-запрос по `docs/**`
+и сравнивает лучший счёт документов с лучшим счётом кода:
 
-### 3.3 Канал документации
-
-`Searcher.search_docs()` использует тот же FTS5 store и оставляет только
-`docs/**`. Он схлопывает языковые варианты (`docs/en/X`, `docs/ru/X`,
-`docs/zh/X`) в один ключ, предпочитая язык запроса. Это отдельный канал, а не
-изменение ranking кода.
-
-### 3.4 Опциональный dense/vector path
-
-При `MSCODEBASE_DENSE_OFF=false` и доступном provider vector search идёт через
-LanceDB или настроенный backend. Этот путь может добавлять candidates, но не
-требуется для дефолтного контракта.
-
-## 4. Ranking и fusion
-
-Дефолтный Phase 3:
-
-1. BM25 order из SQLite.
-2. Graph candidates добавляются для identifier queries.
-3. Опциональный on-demand rerank top pool.
-4. Exact-name boost для identifier queries.
-5. Deduplicate by symbol.
-
-Опциональный/исторический path:
-
-- reciprocal rank fusion BM25, dense и FTS5;
-- bucket weighting по intent и типу файла;
-- co-change и exact-symbol boosts;
-- non-code demotion (`tests/`, `docs/`, `experiments/`, `fixtures/`);
-- MMR diversification;
-- identifier anchors и P3 module-head anchors;
-- multi-provider reranking.
-
-Эти стадии конфигурируемы и применяются не к каждому запросу. Не используйте
-старое описание pipeline, чтобы предсказать дефолтный порядок результатов.
-
-## 5. Маршрутизация документации
-
-Это одно дешёвое сравнение:
-
-```text
-docs_max = лучший BM25 score среди docs/**
-code_max = лучший BM25 score среди src/**, tools/**, scripts/**, tests/**
-if docs_max - code_max > MSCODEBASE_DOCS_MARGIN:
-    use search_docs()
-else:
-    use code search
+```
+docs_max − code_max > MSCODEBASE_DOCS_MARGIN (по умолчанию 4.0)  → канал документов
 ```
 
-Свойства:
+- На этом шаге нет LLM; это один запрос и одно вычитание.
+- Явные `intent="docs"` или `intent="code"` перекрывают автоматический выбор.
+- `search_docs` дедуплицирует переводы (ru/en/zh) и предпочитает язык запроса,
+  поэтому `docs/ru/X.md` и `docs/en/X.md` считаются одним документом.
+- Замеренный эффект на замороженной панели: попадание hit@1 по одинаковому имени
+  файла 0.688 → 0.792 при нуле ложных срабатываний на коде при пороге 4.0.
 
-- один дополнительный FTS-запрос; без вызова модели;
-- explicit `intent` важнее эвристики;
-- threshold настраивается и подобран на панели 48 запросов;
-- code-запрос с сильной docs-лексикой всё ещё может уйти в docs;
-  `intent="code"` — escape hatch.
+## 5. `investigate` — один вопрос, много каналов
 
-На панели margin `4.0` дал 0 code false positives, docs top-1 в 5/8 docs-вопросов
-и 0.792 same-basename hit@1 overall. Это результат панели, не универсальная
-константа.
+`investigate(query, limit=8)` — дефолтная точка входа и причина, по которой модели
+больше не нужно выбирать инструмент.
 
-## 6. Режимы
+**Проход 1 (параллельно, по 12 с):**
 
-| Mode | Путь | Для чего |
+| Канал | Что запускает | Вес |
+|---|---|---:|
+| `search` | гибрид SQLite FTS5/BM25, маршрутизация документов | 0.6 |
+| `symbols` | `symbol_index.search_symbols` по каждому идентификатору | 1.0 |
+| `grep` | regex по двум самым «кодоподобным» идентификаторам, в области AST, 15 с | 0.3 |
+
+**Проход 2 (параллельно, только если проход 1 дал файлы/идентификаторы):**
+
+| Канал | Что выясняет | Вес |
+|---|---|---:|
+| `impact` | blast radius верхних идентификаторов | 1.2 |
+| `graph` | непосредственные вызывающие верхних идентификаторов | 1.0 |
+| `tests` | какие тесты покрывают верхние файлы (пропускается для тестовых файлов) | 0.1 |
+| `memory` | узлы ADR/инцидентов, делящие токен с вопросом | 0.4 |
+
+**Слияние:** ключ `(file, line)`; каналы объединяются (`[search+graph]`), ранг —
+`score + weight`, строки сортируются сначала по числу каналов, затем по рангу.
+Вывод ограничен (8 строк, 180 символов на строку).
+
+**Отказ:** канал, который бросил исключение или превысил свой бюджет, попадает в
+`degraded[]` (`grep:timeout`, `impact:AttributeError`); остальная часть ответа
+всё равно возвращается. Запрос без попаданий возвращает «ничего не найдено» —
+никогда не правдоподобную догадку.
+
+## 6. Бюджеты и защиты
+
+| Слой | Бюджет | При таймауте |
 |---|---|---|
-| `fast` | FTS5 + optional dense; без reranker | Exact names, известные пути, latency |
-| `quality` | Дефолтный hybrid path + optional rerank | Обычные code/doc вопросы |
-| `deep` | Quality + graph context expansion | Cross-module investigation |
-| `context` | Similar-code search по фрагменту | Поиск похожих реализаций |
-| `ask` | Retrieval + optional local LLM generation | Только при настроенном LLM profile |
-| `auto` | Выбор режима по форме запроса | Дефолтный вход tool |
+| `search_code` | 15 с (1 повтор) | структурированная ошибка таймаута |
+| `investigate` | 30 с внешних, 12 с на канал, 15 с на grep | `degraded[]`, частичный ответ |
+| `grep_code` | 45 с | структурированная ошибка таймаута |
+| `get_symbol_info` / `impact_analysis` | 15–20 с | структурированная ошибка |
+| Длина запроса | 512 символов | отказ с указанием длины |
+| Сканируемые файлы (grep) | 4 000; 1 МБ на файл | пропускаются и подсчитываются |
+| Длина шаблона (grep) | 512 символов | отказ |
 
-`fast` заметно менее точен на смешанных natural-language вопросах, чем
-`quality`, на внутренней панели (0.542 vs 0.688 hit@1). Используйте осознанно.
+## 7. Чего конвейер не делает
 
-## 7. Опциональные слои
+- **Эмбеддинги не нужны.** Дефолтный путь отвечает через FTS5 и граф.
+- **Нет LLM-роутера.** Маршрутизация документов — сравнение счётов, а не вызов модели.
+- **Нет RRF/MMR по BM25+dense+graph в дефолтном пути.** Они есть только в legacy
+  dense-пути; смешивание их в каждый запрос не было измерено как лучшее.
+- **Нет заявки на 95%.** Замеренный снапшот и харнесс, который его даёт, — в
+  [FACTS.md](../FACTS.md).
 
-| Слой | Флаг / условие | Эффект |
-|---|---|---|
-| Dense retrieval | `MSCODEBASE_DENSE_OFF=false` + provider | Добавляет vector candidates |
-| On-demand rerank | `MSCODEBASE_ONDEMAND_RERANK=true` + provider | Re-score top candidates |
-| P3 module-head anchors | `MSCODEBASE_P3_ANCHOR=true` | Добавляет module-head chunks |
-| RU synonyms | `MSCODEBASE_RU_SYNONYMS=true` | Расширяет Russian query variants |
-| Non-code demotion | `MSCODEBASE_DEMOTE_NON_CODE=true` | Понижает tests/docs/experiments |
-| Intent-aware demotion | `MSCODEBASE_DEMOTE_INTENT_AWARE=true` | Оставляет docs для docs intent |
-| Docs auto-route | `MSCODEBASE_DOCS_MARGIN` | Выбор docs/code канала |
+## 8. Как диагностировать плохой результат
 
-## 8. Контракт выдачи
-
-Каждый результат несёт достаточно metadata для объяснения:
-
-- `file`, `chunk_index`, `start_line`, `end_line`;
-- `symbol_name`, `symbol_kind`, `layer`;
-- `final_score` и `source` (`sqlite_fts5`, `graph`, `docs_fts`, ...);
-- опционально `docstring`, callers/callees, security flags.
-
-Ответ tool может содержать stale-index warning. Warning — не ошибка поиска; он
-означает, что агенту стоит обновить индекс до того, как доверять свежести.
-
-## 9. Измеренное поведение
-
-Внутренняя панель: 48 реальных запросов, clean index, `experiments/**`
-исключён, граф присутствует.
-
-| Путь | hit@1 | hit@5 |
-|---|---:|---:|
-| Code, quality | 0.825 | 0.900 |
-| Docs, exact path | 0.000 | 0.125 |
-| Docs, same basename | 0.750 | 0.750 |
-| Overall quality | 0.688 | 0.750 |
-| Overall auto docs route | 0.792 | 0.875 |
-| Fast | 0.542 | 0.729 |
-
-Границы:
-
-- это внутренняя, не универсальная панель;
-- docs exact-path занижает корректные переводы;
-- ни одна статическая конфигурация и ни один протестированный локальный
-  reranker не дали 95% hit@1;
-- two-channel repo map дал около 40/62/73% gold-file coverage на 1k/2k/4k
-  токенов при идеальном routing; PageRank отдельно — ниже.
-
-## 10. Отладка поиска
-
-```text
-debug_runtime_passport()
-intel_get_runtime_status()
-codebase(action="index", path="status")
-search_code(query="...", explain=true)
-```
-
-Полезные проверки:
-
-1. `chunks.db` не пуст? Если пуст — `scripts/reindex_text_only.py`.
-2. `graph.db` пуст? — `scripts/rebuild_graph.py`.
-3. Запрос похож на docs? Попробуйте `intent="docs"` / `intent="code"`.
-4. Сравните exact-path и same-basename, прежде чем называть docs-результат
-   промахом.
-5. Для `fast` vs `quality` прогоните один запрос в обоих режимах.
-
-## 11. Non-goals
-
-- LLM-router на каждый запрос. Routing лексический и дешёвый.
-- Статическая repo map вместо итеративного поиска. Это context selection, не
-  оракул.
-- Заявлять 95% retrieval accuracy по маленькой внутренней панели.
-- Прятать пустой граф или stale index за уверенным ответом.
+1. `tool_help()` → вы на `core` и виден ли инструмент, который вы ожидали?
+2. `codebase(action="index", path="status")` → chunks > 0, files > 0?
+3. Повторите тот же запрос через `search_code(..., mode="quality")` и через
+   `grep_code(..., scope="all")` → retrieval промахнулся или ранжирование
+   переставило?
+4. `investigate(...)` → какие каналы нашли файл (`[search]`, `[grep]`)?
+5. Проверьте хвост лога: `%LOCALAPPDATA%/mscodebase/logs/mcp_global.log`.

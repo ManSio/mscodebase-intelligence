@@ -1,331 +1,155 @@
-# Zed on Windows: Pitfalls and Architectural Decisions
+# Windows Quirks (and the Host Situation)
 
-[🇬🇧 English](ZED_WINDOWS_QUIRKS.md) • [🇷🇺 Русский](../ru/ZED_WINDOWS_QUIRKS.md) • [🇨🇳 中文](../zh/ZED_WINDOWS_QUIRKS.md)
+[English](ZED_WINDOWS_QUIRKS.md) · [Русский](../ru/ZED_WINDOWS_QUIRKS.md) · [中文](../zh/ZED_WINDOWS_QUIRKS.md)
 
-> Version: 1.2 (2026-07-11) — updated for llama.cpp + Vulkan
-> Applies to: MSCodeBase Intelligence v2.7.0+
-> Detailed report: `investigations/LSP_WONTFIX.md`
+> Version 3.5.0. The filename is kept for link stability. **OpenCode is the
+> primary host now; the Zed extension is still supported.** Zed-only incidents
+> are marked as history at the end and are not current behaviour.
 
-## ⚠️ Critical: Restricted Mode
+## 1. Hosts
 
-When opening a **new** project in Zed (one that hasn't been opened before), the editor
-shows a **"Restricted Mode"** security dialog. This is NOT a bug — it's a built-in
-Zed protection mechanism.
+| Host | Launch line | Status |
+|---|---|---|
+| OpenCode | `…\Zed\extensions\mscodebase-intelligence\venv\Scripts\mscodebase-mcp.exe -u -m src.main`, `PYTHONPATH` = extension dir | primary |
+| Zed extension | `extension.toml` → `venv\Scripts\pythonw.exe -u -m src.main`, `PROJECT_PATH = $ZED_WORKTREE_ROOT`, `PYTHONUTF8=1` | supported |
 
-### What Restricted Mode blocks
+Both run the code copied into `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`.
+Editing `src/` changes nothing until `python install.py --sync-only` plus a host
+restart. This is the most common "my fix did not apply" cause.
 
-| Mechanism | Status | Consequence |
-|-----------|--------|-------------|
-| Language servers (LSP) | 🔴 Fully blocked | `lsp_main.py` doesn't start → bridge doesn't write the bridge file |
-| Local `settings.json` (`.zed/settings.json`) | 🔴 Ignored | `current_dir` and `env` from settings aren't applied |
-| MCP servers | 🔴 Not installed | Context servers are not registered |
+## 2. No console windows: `CREATE_NO_WINDOW` everywhere
 
-### How to fix
+Windows spawns a console for every console-subsystem child. The server starts
+many (`git`, `llama-server.exe`, `basedpyright`, idle probes), so the flag is
+applied in two layers:
 
-1. **Press "Trust and Continue"** (or `Enter`)
-2. **Check "Trust all projects in <repos-root>"** — so you won't
-   see this dialog again for the entire workspace directory
-3. **Without this checkbox**, every new project from `<repos-root>` will
-   show the dialog again
+1. **Globally** — `src/core/silent_subprocess.py`, imported first by
+   `src/main.py`, patches `subprocess.Popen/run/check_output/check_call` on win32
+   to OR in `CREATE_NO_WINDOW` and set `STARTUPINFO(wShowWindow=SW_HIDE)`. Any
+   library that shells out is covered without knowing about it.
+2. **Locally** — dozens of call sites pass `creationflags=CREATE_NO_WINDOW`
+   explicitly (`git_tools`, `commit_memory`, `execution_contract`,
+   `resource_monitor`, `verify_on_read`, `graph`, `sandbox/executor`, …). The
+   flag is OR-ed, never assigned over an existing set.
 
-### Why MSCodeBase needs to know this
+Long-lived model servers add `DETACHED_PROCESS | CREATE_NO_WINDOW`
+(`llama_runner._popen_with_job`), so they survive the parent and do not flash a
+window on each restart. This is not cosmetic: a console flashing every ~30 s (the
+idle probe) was a recorded incident, read by users as malware.
 
-If the project is in Restricted Mode:
-- `LSP Bridge` doesn't write JSON files → `resolve_project_root()` doesn't get
-  the project from LSP
-- `SQLite DB fallback` STILL WORKS (reads `workspaces` from Zed's database)
-- But `settings.json` is ignored → `current_dir` doesn't change → CWD
-  always points to the Zed installation directory (e.g., `D:\AI\Zed`
-  or `C:\Program Files\Zed\`)
+## 3. `pythonw.exe` vs `python.exe`, and process names
+
+`pythonw.exe` is the GUI-subsystem interpreter: no console, but stdio still works
+over the pipes the host provides. `install.py` therefore uses
+`venv\Scripts\pythonw.exe` as `MCP_PYTHON` and creates a one-time NTFS hardlink
+`mscodebase-mcp.exe → pythonw.exe` (`process_titles.ensure_mcp_hardlink`), falling
+back to plain `pythonw.exe` if linking fails.
+
+The hardlink exists because `pythonw.exe` has no console and cannot set a window
+title — Task Manager would show a bare `python.exe`. With it, the process is
+identifiable. `apply_mcp_process_title()` builds `mscodebase-mcp:<project>-<hash8>`;
+`start_server.bat` runs `python.exe` with `PYTHONUTF8=1` and sets the title from
+the batch file. `llama-server` children get `llama-embed.exe` / `llama-rerank.exe`
+hardlinks for the same reason.
+
+## 4. `Popen` + `communicate`, never `capture_output`
+
+`capture_output=True` and `check_output()` are forbidden inside the MCP process:
+when stdout is already redirected into a pipe (as it is under an MCP host) they
+can deadlock the pipe in a worker thread and the call never returns. House
+pattern:
+
+```python
+proc = subprocess.Popen([...], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL, encoding="utf-8", errors="replace",
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+try:
+    out, _ = proc.communicate(timeout=...)
+except subprocess.TimeoutExpired:
+    proc.kill()
+    proc.communicate()   # reap; never leave a zombie
+```
+
+`stdin=DEVNULL` stops a child that reads stdin from blocking forever.
+`.githooks/pre-commit` uses the same pattern and treats a timeout as a verdict
+("gate did not answer"), not as a crash.
+
+## 5. Encoding
+
+- `PYTHONUTF8=1` is set in both host configs (`extension.toml`, the OpenCode MCP
+  block), so the interpreter does not fall back to the OEM code page.
+- Scripts that print emoji reconfigure stdout
+  (`sys.stdout.reconfigure(encoding="utf-8", errors="replace")`); otherwise a
+  cp1251/cp866 console raises `UnicodeEncodeError` and a gate fails for the wrong
+  reason.
+- In PowerShell set it per session before reading logs:
+  `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8`.
+- Never `print()` to stdout from library code — stdout is the JSON-RPC channel.
+  Diagnostics go to the logger, which writes to `<data_root>/logs/`.
+
+## 6. Paths
+
+- MCP arguments accept native Windows paths (`C:\work\app\src\main.py`); use
+  relative paths from the project root for `notify_change`, absolute for
+  `project_root`.
+- Internal comparison keys are canonical POSIX (`Path.resolve().as_posix()`),
+  lower-cased on `win32` because the filesystem is case-insensitive
+  (`modification_guard._normalize_path`).
+- Paths beyond `MAX_PATH` go through `to_win_long_path()` (`\\?\` prefix; no-op on
+  POSIX).
+- Comparing `git worktree list` output with `pathlib` paths without normalising
+  separators makes a gate see its own tree as foreign — hence the dedicated
+  normaliser in `scripts/check_parallel_sessions.py`.
+
+## 7. Git, locks, and Insider builds
+
+Git can block on the graphical Credential Manager from a windowless process, so
+every call uses `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=echo`, `GIT_PAGER=cat`, plus
+`CREATE_NO_WINDOW` and a timeout (`git_tools._git_run`, 15 s).
+
+Windows keeps memory-mapped DB files locked while a handle is open.
+`intel_reset_index()` therefore closes the handle, releases the PID lock, deletes,
+and re-acquires — `rmtree` over a held lock used to leave a half-deleted index. If
+deletion still hits `PermissionError`, the manager switches to a fresh DB path, and
+`artifact_gc` skips locked files and reports them instead of force-deleting. A
+folder that refuses to delete usually means another MCP process still holds it.
+
+On Windows Insider builds the UCRT API-set DLLs (`api-ms-win-crt-*`) are absent and
+the upstream `llama-server.exe` fails to load; `_patch_dll_imports` rewrites those
+imports to `ucrtbase.dll` before first run. Machine-class workaround, not a
+requirement.
+
+## 8. History (context only)
+
+- **LSP server for Zed** — a standalone `mscodebase-lsp` process was removed (Zed
+  needs a Rust/WASM adapter for custom language servers). The internal LSP
+  *client* (basedpyright) survived; the LSP→MCP bridge was removed 2026-07-20 and
+  `lsp_*` tools need no bridge.
+- **"MCP does not restart"** — Zed had no auto-restart for context servers, so
+  every code change needed a full quit. Under OpenCode the equivalent is
+  restarting the session; the rule (the process keeps old modules) is unchanged.
+- **Restricted Mode / workspace trust** — a Zed first-open dialog. Not a property
+  of this server and not verifiable in code (host behaviour).
+- **Project resolution** — the Zed SQLite state is still consulted, no longer
+  first: explicit argument → CWD → `PROJECT_PATH` → multi-workspace SQLite → Zed
+  `workspaces` DB → `ZED_WORKTREE_ROOT` → extension root
+  (`project_resolution.resolve_project_root`). CWD precedes the databases because
+  it is the only per-process signal with several windows open; see
+  `investigations/ACTIVE_WORKSPACE_RESOLUTION.md`.
+- **Console flashing** — fixed by §2; kept here because it explains why the
+  global patch exists.
 
 ---
 
-## 🪟 Windows Specifics: ZED_WORKTREE_ROOT
-
-**Status:** ⚠️ Always `<unset>` on Windows (Zed bug #36019)
-
-The `ZED_WORKTREE_ROOT` environment variable is NOT set on Windows.
-This is a known Zed bug, closed without a fix.
-
-### What this means
-
-- In `settings.json` for `context_servers`, you cannot use `$ZED_WORKTREE_ROOT`
-  in `current_dir` or `env`
-- Any attempt to rely on this variable will result in `None`
-- On Linux/macOS this variable is set correctly
-
-### Solution in MSCodeBase
-
-A fallback chain is used (see below) that works without
-`ZED_WORKTREE_ROOT`:
-
-1. ~~`LSP Bridge` — LSP gets `root_uri` through the LSP protocol~~
-   **DOESN'T WORK on Windows** — LSP server doesn't start (see
-   [`LSP_WONTFIX.md`](investigations/LSP_WONTFIX.md)).
-2. `SQLite DB` — reads `workspaces` from Zed's database (primary working path)
-3. `PROJECT_PATH` from `.env` — manual project specification
-
----
-
-## 🔧 The resolve_project_root Chain (Priority)
-
-The MCP server determines the current project in the following order:
-
-```
-[Request from tool]
-    │
-    ▼
-1. Explicit project_root passed? ──(Yes)──> Use it
-    │ (No)
-    ▼
-2. LSP Bridge file exists? ──(NO on Windows — LSP doesn't start)──> Step 3
-3. SQLite Zed DB accessible? ──(Yes)──> Read workspaces,
-    │                                  filter self-indexing,
-    │                                  sort by .git + timestamp
-    │ (No / DB locked)
-    ▼
-4. PROJECT_PATH from .env? ──(Yes)──> Use it
-    │ (No)
-    ▼
-5. CWD (always Zed install dir, e.g. `D:\AI\Zed`) ──> self-indexing guard
-    │                       ──> fallback to ext_root
-    ▼
-                ⚠️ Self-diagnosis mode
-```
-
-### Multi-window: MCP doesn't distinguish windows
-
-**Problem:** All MCP tools (except `intel_*`) work with **a single project** —
-the one that `resolve_project_root()` selected as default. If you have several
-windows open with different projects, `intel_get_runtime_status()` will show the default project's index,
-not the window you're currently in.
-
-**Why:** The MCP server is a single process for all Zed windows.
-It doesn't know which window the request came from.
-On macOS/Linux, `ZED_WORKTREE_ROOT` solves this problem,
-on Windows it's always `<unset>`.
-
-**Workaround:**
-- For `intel_*` tools: they find the first non-self-indexing project on their own
-- For `intel_get_runtime_status`: close extra windows, keep only the desired project
-- For `search_code`: pass an explicit `project_root` (if the tool supports it)
-
----
-
-### Step 3: SQLite DB (Zed's database) — how it works
-
-**This is NOT our database.** It's Zed's own database that stores
-open projects (workspaces). We only read from it (read-only).
-```
-%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite
-```
-
-It reads the `workspaces` table:
-```sql
-SELECT paths, timestamp FROM workspaces ORDER BY timestamp DESC
-```
-
-**Important:** the column is named `paths`, not `absolute_path`.
-The most recent workspace (by `timestamp`) is selected, which is not
-self-indexing (rejected if the path matches the extension or Zed directory).
-
-**Our database (LanceDB)** — vector code index, stored in the system data root (file-contract, Задача 4/5):
-
-| Project | Path to index |
-|---------|---------------|
-| `MSCodeBase` | `<data_root>\projects\<hash8>\lancedb_v2\` (data_root = `%LOCALAPPDATA%\mscodebase`, `<hash8>` = md5(normalized path)[:8]) |
-
-Each project has **its own isolated index**. When the extension is removed,
-the index stays in data_root. When the project is deleted — the index is cleaned by ArtifactGC.
-
-**What else is stored in `<data_root>\projects\<hash8>\`:**
-
-| Directory | Purpose |
-|-----------|---------|
-| `lancedb_v2/` | LanceDB vector DB (code index: chunks + embeddings) |
-| `intelligence/` | Project memory (ADR, known_issues, tech_debt) + verify_cache.json |
-| `graph.db` | PropertyGraph (typed dependency edges) |
-| `progress.json` | Indexing progress (file-contract) |
-
-**Logs** (after v2.4.6, centralized in data_root, NOT in the project):
-```
-%LOCALAPPDATA%\mscodebase\logs\
-```
-
-**Zed's database itself** (we only read):
-```
-%LOCALAPPDATA%\Zed\db\0-stable\db.sqlite
-```
-
-**Self-indexing filtering:** paths matching `ext_root`, `Zed install dir`,
-or system directories are discarded.
-
-**Multi-window:** with multiple open windows, the project with the highest
-score is selected (2 = has `.git`, 1 = no `.git`), then by most recent `updated_at`.
-
-### Step 2: LSP Bridge — why it may be empty
-
-```
-🌉 BRIDGE: NO JSON FILES — LSP DIDN'T WRITE project_root!
-  Reasons:
-  1. Restricted Mode (didn't press "Trust and Continue")
-  2. LSP crashes on startup (check: intel_get_runtime_status)
-  3. Python files aren't open — LSP starts ONLY when
-     a .py/.rs/... file is opened in the editor
-```
-
----
-
-## 📁 CWD = where Zed was launched from
-
-**Important:** The CWD (working directory) of the MCP process is inherited from Zed itself.
-On Windows, `current_dir` in `settings.json` doesn't resolve `$ZED_WORKTREE_ROOT`,
-so the MCP server's CWD = Zed process's CWD.
-
-If Zed was launched from:
-- `cmd` or `powershell` → CWD will be the folder you launched from
-- Shortcut / Start menu → CWD is typically the directory with `zed.exe`
-- `D:\AI\Zed` (like yours) → CWD = `D:\AI\Zed`
-
----
-
-## 🔒 Additional Zed Mechanisms
-
-### Dynamic Sandbox
-
-Zed launches MCP servers with restricted Windows permissions. If the process
-requires elevated privileges (Win32 API, protected system folders),
-the OS will return `Access Denied`.
-
-**Solution:** The entire index is stored in the system data root (`%LOCALAPPDATA%\mscodebase`, outside the project) — no project-directory write permissions needed.
-
-### LSP Init Timeout (~10-15 seconds)
-
-If `lsp_main.py` doesn't respond to `initialize` within 10-15 seconds, Zed
-kills the LSP process and WILL NOT TRY TO RESTART IT until the window is reloaded.
-
-**Solution:** LSP must return `READY` instantly (< 2 seconds).
-Heavy work goes into a background thread.
-
-### File Watcher Sensitivity
-
-Zed locks open files with an exclusive lock. If a third-party process
-(indexer, telemetry collector) modifies files in the workspace root too
-aggressively, Zed may temporarily freeze its watchers.
-
-**Solution:** Connection caching. Index files strictly in the data root (`%LOCALAPPDATA%\mscodebase`), not in the project.
-
-### Windows UNC Path Normalization
-
-Windows paths may have a `\\?\` prefix (UNC). When comparing paths,
-`<repos-root>` and `\\?\<repos-root>` are considered DIFFERENT strings, but
-they point to the same directory.
-
-**Solution:** Always use `Path(p).resolve()` when comparing paths.
-This strips UNC prefixes.
-
----
-
-## 📋 Setup Checklist on a New PC
-
-1. ✅ Install the extension via `install.py`
-2. ✅ Open ANY `.py` file in the project
-3. ✅ Press "Trust and Continue" when the dialog appears
-4. ✅ Check "Trust all projects in ..."
-5. ✅ Check `intel_get_runtime_status` — project_path should be
-   the path to the project, NOT to `ext_root`
-6. If `project_path` shows ext_root — open a file and check step 3
-7. ✅ Run `intel_get_telemetry` — verify data is being collected
-
----
-
-## 📊 Troubleshooting
-
-| Symptom | Look at | Command |
-|---------|---------|---------|
-| MCP doesn't know the project | Logs: `resolve_project_root: fallback to ext_root` | `intel_get_runtime_status` |
-| LSP doesn't start | Logs: `BRIDGE: NO JSON FILES` | See "LSP doesn't start in Zed 1.9.0" section below |
-| Index is empty | Status: 0 chunks | `intel_get_runtime_status` |
-| Tools not ready | Status: UNINITIALIZED | Open a file in the project |
-| Database is locked | Logs: `database is locked` | Close other windows with the project |
-
----
-
-## 🚫 LSP doesn't start in Zed 1.9.0 (WONTFIX)
-
-**Status:** ⚠️ Known limitation of Zed 1.9.0 on Windows. Detailed report
-with source code quotes: [`LSP_WONTFIX.md`](investigations/LSP_WONTFIX.md).
-
-### What doesn't work
-
-The LSP server `mscodebase-lsp` (Python, `src/lsp_main.py`, pygls-based) **cannot
-be registered** through `settings.json`. Regardless of what
-we write in `lsp.<id>.binary.path` or `languages.<lang>.language_servers`,
-Zed cannot find an adapter named `mscodebase-lsp` in its `LanguageRegistry`
-and crashes in `lsp_store.rs:start_language_server` with a panic
-`expect("To find LSP adapter")`.
-
-### The real reason (from Zed's source code)
-
-From `crates/project/src/lsp_store.rs`:
-
-```rust
-let adapter = self.languages
-    .lsp_adapters(language_name)
-    .into_iter()
-    .find(|adapter| adapter.name() == disposition.server_name)
-    .expect("To find LSP adapter");
-```
-
-`lsp_adapters(name)` returns adapters only from:
-1. **Built-in languages** — `crates/languages/src/*.rs` (Python, Rust, Go)
-   with hardcoded LSP adapters.
-2. **Loaded WASM extensions** — `extension.toml` + compiled
-   `extension.wasm` with `impl zed::Extension::language_server_command`.
-
-`lsp.<id>.binary.path` in `settings.json` is a **path override** for an already
-registered adapter, not a registration of a new one. **This is by design, not a bug.**
-
-### What this means for MSCodeBase
-
-- **LSP features in the editor (inlay-hints, code-actions, autocomplete via
-  mscodebase-lsp) are impossible on Zed 1.9.0 Windows.**
-**All semantics and search continue to work through MCP** — 61 tools,
-- **The LSP bridge (project_root from LSP)** remains empty, but `resolve_project_root()`
-  compensates for this via the SQLite fallback.
-
-### Why settings.json shows a Serde error
-
-From `crates/settings_content/src/language.rs`:
-
-```rust
-#[schemars(range(min = 1, max = 128))]
-pub tab_size: Option<NonZeroU32>,
-```
-
-The error `expected a nonzero u32` is **not about `language_servers`**, but about
-`tab_size` (or another field with `NonZeroU32`) in the same struct. The parser
-with `with_failible_options` resets this field to `None` and shows a
-`Invalid user settings file` warning in the UI. **LSP doesn't crash because of this — it
-doesn't even try to start because the adapter name isn't in the registry.**
-
-### What to do
-
-#### Now (release v2.4.4+)
-
-1. **Don't register `mscodebase-lsp` in `settings.json`** — this creates
-   false errors in the UI and provides nothing useful.
-2. **Use MCP** for all operations — it doesn't depend on LSP.
-3. **Check LSP state** via `scripts/check_lsp_health.py` —
-   the script will write a clear report "LSP not registered / not starting"
-   instead of uninformative Serde errors.
-
-#### Future (v3.0+)
-
-- **Write a Rust wrapper** (WASM via `wasm32-wasip2`) with
-  `impl zed::Extension::language_server_command`, that calls
-  `python -m src.lsp_main`. Install via `zed: install dev extension`.
-  This is the only way to get LSP working in Zed.
-- **Or replace `pyright`** via `lsp.pyright.binary.path` — minimal
-  effort, but our LSP will masquerade as someone else's. Works for
-  scenarios where in-editor highlighting is important, not adapter uniqueness.
+**Verified against:** `src/main.py` (silent_subprocess import, console title),
+`src/core/silent_subprocess.py`, `src/core/process_titles.py`,
+`src/providers/reranker/llama_runner.py` (`_popen_with_job`, DETACHED_PROCESS),
+`src/mcp/tools/git_tools.py` (`GIT_TERMINAL_PROMPT`/`GIT_ASKPASS`/`GIT_PAGER`),
+`src/core/modification_guard.py` (`_normalize_path`),
+`src/sources/local_fs/windows.py` (`to_win_long_path`),
+`src/core/sandbox/executor.py` (Popen + communicate), `src/core/artifact_gc.py`,
+`src/core/intelligence/tools_reg.py` (`intel_reset_index`), `install.py`
+(`MCP_EXE`, `_ensure_mcp_hardlink`), `start_server.bat`, `extension.toml`,
+`.githooks/pre-commit`, `src/providers/reranker/llama_install.py`
+(`_patch_dll_imports`), `src/core/project_resolution.py`,
+`src/core/lsp_client.py`, `src/mcp/tools/lsp_tools.py`.
