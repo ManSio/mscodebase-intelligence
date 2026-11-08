@@ -58,6 +58,33 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
    results: 6 | degraded: tests:TimeoutError
 ```
 
+### 证据，而不是自信
+
+`grep` 是唯一能说“这个标识符出现在这个文件里”的通道。其它通道永远返回邻近结果，
+因此标题里会给出每个标识符的精确命中数——当主体本身在代码中不存在时也会明说：
+
+```
+🧭 investigate: `where is build_call_graph defined`
+   identifiers: build_call_graph, defined
+   results: 8
+   exact: build_call_graph=30, defined=20
+```
+
+```
+🧭 investigate: `where is missing_widget implemented`
+   identifiers: missing_widget, implemented
+   results: 8
+   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
+   in the indexed code; the results below are neighbours, not matches.
+```
+
+必须始终成立的四条规则（守卫：`tests/test_no_silent_success.py`）：
+
+1. 空总体是拒绝（`exit 2`，原因写入 stderr），而不是一行“0 %”；
+2. 失败的通道会出现在 `degraded` 里，它的沉默永远不会变成“0 次命中”——沉默不是测量；
+3. `latency_ms` 来自时钟：60 ms 的调用至少报 50，两种不同开销给出两个不同数字；
+4. 两个非精确通道指向同一位置只是相关性，不是证明：`exact:` 行不会因“一致”而改变。
+
 ## 5. 工具级失败与超时
 
 `@error_boundary(name, timeout_ms=...)` 是唯一的包装器：

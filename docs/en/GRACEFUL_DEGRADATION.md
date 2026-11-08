@@ -58,6 +58,37 @@ tool 30 s). Pass 1: `search`, `symbols`, `grep`. Pass 2: `impact`, `graph`,
    results: 6 | degraded: tests:TimeoutError
 ```
 
+### Evidence, not confidence
+
+`grep` is the only channel that can say *this identifier occurs in this file*.
+The other channels always answer with neighbours, so the header carries the exact
+count per identifier — and says so when the subject itself occurs nowhere:
+
+```
+🧭 investigate: `where is build_call_graph defined`
+   identifiers: build_call_graph, defined
+   results: 8
+   exact: build_call_graph=30, defined=20
+```
+
+```
+🧭 investigate: `where is missing_widget implemented`
+   identifiers: missing_widget, implemented
+   results: 8
+   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
+   in the indexed code; the results below are neighbours, not matches.
+```
+
+Four rules that must stay true (guard: `tests/test_no_silent_success.py`):
+
+1. an empty population is a refusal (`exit 2`, stderr reason), never a "0 %" line;
+2. a channel that failed is named in `degraded`, and its silence never turns into
+   "0 hits" — silence is not a measurement;
+3. `latency_ms` comes from a clock: a 60 ms call reports at least 50, and two
+   different costs produce two different numbers;
+4. two non-exact channels naming the same place is correlation, not proof — the
+   `exact:` line is not raised by agreement.
+
 ## 5. Tool-level failure and timeouts
 
 `@error_boundary(name, timeout_ms=...)` is the single wrapper:

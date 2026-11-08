@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
@@ -134,6 +134,12 @@ class InvestigateTool(MCPTool):
         degraded: List[str] = []
         items: List[Dict[str, Any]] = []
         symbol_lines: List[str] = []
+        # Exact-string evidence (2026-11-08). The grep channel is the only one
+        # that can say "this identifier occurs in this file". The semantic and
+        # symbol channels always answer with neighbours, so without this count
+        # an unanswerable question ("where is X implemented", X absent) looks
+        # the same as a real answer — the class XERJ ships as a defect (#3021).
+        exact: Dict[str, Any] = {"per": {}}
 
         async def _search() -> None:
             raw = await searcher.hybrid_search_async(query, limit=limit * 2) or []
@@ -181,7 +187,14 @@ class InvestigateTool(MCPTool):
                 except re.error:
                     continue
                 res = tool._search(root, None, regex, "code", limit, 0)  # noqa: SLF001
-                for match in res.get("matches", []):
+                matches = res.get("matches", [])
+                # `total` (not the truncated list) is the honest count: `limit`
+                # would make "3 hits" mean "at most 3". Counted PER identifier:
+                # a query like "where is missing_widget implemented" carries
+                # the noise word "implemented", and a single sum would hide that
+                # the subject itself occurs nowhere.
+                exact["per"][ident] = int(res.get("total", len(matches)) or 0)
+                for match in matches:
                     items.append(
                         {
                             "file": match["file"],
@@ -297,7 +310,7 @@ class InvestigateTool(MCPTool):
         )
 
         merged = _merge(items, limit)
-        return self._format(query, identifiers, merged, symbol_lines, degraded)
+        return self._format(query, identifiers, merged, symbol_lines, degraded, exact)
 
     def _format(
         self,
@@ -306,6 +319,7 @@ class InvestigateTool(MCPTool):
         merged: List[Dict[str, Any]],
         symbol_lines: List[str],
         degraded: List[str],
+        exact: Optional[Dict[str, Any]] = None,
     ) -> str:
         lines = [f"🧭 investigate: `{query}`"]
         if identifiers:
@@ -314,6 +328,21 @@ class InvestigateTool(MCPTool):
             f"   results: {len(merged)}"
             + (f" | degraded: {', '.join(degraded)}" if degraded else "")
         )
+        per = {
+            str(k): int(v or 0)
+            for k, v in ((exact or {}).get("per") or {}).items()
+        }
+        if per:
+            counts = ", ".join(f"{k}={v}" for k, v in list(per.items())[:3])
+            subject = next(iter(per))
+            if per[subject] == 0 and merged:
+                lines.append(
+                    f"   ⚠️ exact: {counts} — the first identifier does not occur "
+                    "in the indexed code; the results below are neighbours, not "
+                    "matches."
+                )
+            else:
+                lines.append(f"   exact: {counts}")
         lines.append("")
 
         if not merged:

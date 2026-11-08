@@ -62,6 +62,39 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
    results: 6 | degraded: tests:TimeoutError
 ```
 
+### Доказательство, а не уверенность
+
+`grep` — единственный канал, который может сказать «этот идентификатор встречается
+в этом файле». Остальные всегда отвечают соседями, поэтому в шапке стоит точное
+число совпадений по каждому идентификатору — и отдельное предупреждение, когда
+самого субъекта в коде нет:
+
+```
+🧭 investigate: `where is build_call_graph defined`
+   identifiers: build_call_graph, defined
+   results: 8
+   exact: build_call_graph=30, defined=20
+```
+
+```
+🧭 investigate: `where is missing_widget implemented`
+   identifiers: missing_widget, implemented
+   results: 8
+   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
+   in the indexed code; the results below are neighbours, not matches.
+```
+
+Четыре правила, которые обязаны оставаться верными (guard:
+`tests/test_no_silent_success.py`):
+
+1. пустая популяция — это отказ (`exit 2`, причина в stderr), а не строка «0 %»;
+2. упавший канал назван в `degraded`, и его молчание никогда не превращается в
+   «0 совпадений» — молчание не является измерением;
+3. `latency_ms` берётся с часов: вызов на 60 ms отдаёт не меньше 50, а две разные
+   стоимости дают два разных числа;
+4. совпадение двух неточных каналов на одном месте — корреляция, а не
+   доказательство: строка `exact:` от согласия не меняется.
+
 ## 5. Отказы и таймауты на уровне инструмента
 
 `@error_boundary(name, timeout_ms=...)` — единственная обёртка:
