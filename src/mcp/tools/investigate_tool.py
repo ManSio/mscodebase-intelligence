@@ -24,8 +24,14 @@ from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
 from src.mcp.tools.base import MCPTool
 
-_MAX_IDS = 3
-_CHANNEL_TIMEOUT = 8.0
+_MAX_IDS = 4
+_CHANNEL_TIMEOUT = 12.0
+_GREP_TIMEOUT = 15.0
+_STOPWORDS = {
+    "the", "and", "for", "how", "why", "what", "does", "used", "use", "where",
+    "when", "which", "with", "from", "into", "that", "this", "files", "file",
+    "changed", "change", "checker", "calls", "call", "work", "works", "after",
+}
 
 
 def _memory_hits(nodes: Iterable[Dict[str, Any]], query: str) -> List[str]:
@@ -55,17 +61,21 @@ def _identifiers(query: str) -> List[str]:
     found: List[str] = []
     for token in re.findall(r"[A-Za-z_][A-Za-z0-9_.]{2,}", query):
         token = token.strip(".")
-        if not token or token.lower() in {"the", "and", "how", "why", "what", "does"}:
+        if not token or token.lower() in _STOPWORDS:
             continue
         if token not in found:
             found.append(token)
-    # CamelCase / snake_case first — they are the likeliest symbol names.
-    found.sort(key=lambda t: (not ("_" in t or any(c.isupper() for c in t[1:])), t))
+
+    def _score(token: str) -> tuple:
+        code_shape = "_" in token or any(c.isupper() for c in token[1:])
+        return (1 if code_shape else 0, len(token))
+
+    found.sort(key=_score, reverse=True)
     return found[:_MAX_IDS]
 
 
 def _merge(items: Iterable[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
-    """Dedup by (file, line); keep the best score and all channels."""
+    """Dedup by (file, line); keep the best rank and all channels."""
     merged: Dict[Tuple[str, int], Dict[str, Any]] = {}
     for item in items:
         file = str(item.get("file") or item.get("file_path") or "")
@@ -73,6 +83,7 @@ def _merge(items: Iterable[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
             continue
         line = int(item.get("line") or 0)
         key = (file, line)
+        rank = float(item.get("score") or 0.0) + float(item.get("weight") or 0.0)
         current = merged.get(key)
         channels = set(item.get("channels") or [])
         if current is None:
@@ -80,17 +91,17 @@ def _merge(items: Iterable[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
                 "file": file,
                 "line": line,
                 "text": str(item.get("text") or item.get("content") or "")[:200],
-                "score": float(item.get("score") or 0.0),
+                "rank": rank,
                 "channels": channels,
             }
         else:
             current["channels"] |= channels
-            current["score"] = max(current["score"], float(item.get("score") or 0.0))
+            current["rank"] = max(current["rank"], rank)
             if not current["text"] and item.get("text"):
-                current["text"] = str(item.get("text"))[:200]
+                current["text"] = str(item["text"])[:200]
     ranked = sorted(
         merged.values(),
-        key=lambda r: (len(r["channels"]), r["score"]),
+        key=lambda r: (len(r["channels"]), r["rank"]),
         reverse=True,
     )
     return ranked[:limit]
@@ -125,32 +136,36 @@ class InvestigateTool(MCPTool):
         symbol_lines: List[str] = []
 
         async def _search() -> None:
-            raw = await searcher.hybrid_search_async(query, limit=limit * 2)
-            for row in raw or []:
+            raw = await searcher.hybrid_search_async(query, limit=limit * 2) or []
+            for idx, row in enumerate(raw):
                 items.append(
                     {
                         "file": row.get("file_path") or row.get("file"),
                         "line": row.get("line") or row.get("start_line") or 0,
                         "text": row.get("text") or row.get("content") or "",
-                        "score": row.get("score") or row.get("final_score") or 0.0,
+                        "score": row.get("score") or row.get("final_score") or (0.5 - idx * 0.01),
+                        "weight": 0.6,
                         "channels": {"search"},
                     }
                 )
 
         def _symbols() -> None:
             for ident in identifiers:
-                refs = symbol_index.search_symbols(ident, top_k=3) or []
-                for ref in refs:
-                    symbol_lines.append(
-                        f"• {ref.name} ({getattr(ref, 'kind', '?')}) — "
-                        f"{ref.file}:{getattr(ref, 'line', 0)}"
-                    )
+                for ref in (symbol_index.search_symbols(ident, top_k=3) or []):
+                    name = getattr(ref, "symbol", "") or getattr(ref, "name", "")
+                    file_path = getattr(ref, "file_path", "") or getattr(ref, "file", "")
+                    line = int(getattr(ref, "line", 0) or 0)
+                    kind = getattr(ref, "kind", "symbol")
+                    if not name or not file_path:
+                        continue
+                    symbol_lines.append(f"• {name} ({kind}) — {file_path}:{line}")
                     items.append(
                         {
-                            "file": ref.file,
-                            "line": getattr(ref, "line", 0),
-                            "text": f"{ref.name} — {getattr(ref, 'kind', 'symbol')}",
-                            "score": 1.0,
+                            "file": file_path,
+                            "line": line,
+                            "text": f"{name} — {kind}",
+                            "score": 0.0,
+                            "weight": 1.0,
                             "channels": {"symbol"},
                         }
                     )
@@ -160,7 +175,7 @@ class InvestigateTool(MCPTool):
 
             tool = GrepCodeTool(self._services)
             root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
-            for ident in identifiers:
+            for ident in identifiers[:2]:
                 try:
                     regex = re.compile(re.escape(ident).encode("utf-8"))
                 except re.error:
@@ -172,19 +187,18 @@ class InvestigateTool(MCPTool):
                             "file": match["file"],
                             "line": match["line"],
                             "text": match["text"],
-                            "score": 0.5,
+                            "score": 0.0,
+                            "weight": 0.3,
                             "channels": {"grep"},
                         }
                     )
 
-        async def _run(name: str, func, is_async: bool) -> None:
+        async def _run(name: str, func, is_async: bool, timeout: float = _CHANNEL_TIMEOUT) -> None:
             try:
                 if is_async:
-                    await asyncio.wait_for(func(), timeout=_CHANNEL_TIMEOUT)
+                    await asyncio.wait_for(func(), timeout=timeout)
                 else:
-                    await asyncio.wait_for(
-                        asyncio.to_thread(func), timeout=_CHANNEL_TIMEOUT
-                    )
+                    await asyncio.wait_for(asyncio.to_thread(func), timeout=timeout)
             except asyncio.TimeoutError:
                 degraded.append(f"{name}:timeout")
             except Exception as exc:  # noqa: BLE001 — канал не валит ответ
@@ -193,7 +207,7 @@ class InvestigateTool(MCPTool):
         await asyncio.gather(
             _run("search", _search, True),
             _run("symbols", _symbols, False),
-            _run("grep", _grep, False),
+            _run("grep", _grep, False, _GREP_TIMEOUT),
         )
 
         # ─── Pass 2: channels that need a symbol/file from pass 1 ───
@@ -206,18 +220,22 @@ class InvestigateTool(MCPTool):
             for name in top_names:
                 res = symbol_index.get_impact_analysis(name, 2) or {}
                 cg = res.get("call_graph") or {}
-                definition = cg.get("definition") or {}
-                if not definition:
+                defs = cg.get("definition") or []
+                if isinstance(defs, dict):
+                    defs = [defs]
+                if not defs:
                     continue
+                first = defs[0] if isinstance(defs[0], dict) else {}
                 items.append(
                     {
-                        "file": definition.get("file") or "",
-                        "line": definition.get("line") or 0,
+                        "file": first.get("file") or "",
+                        "line": first.get("line") or 0,
                         "text": (
                             f"impact {name}: risk={res.get('risk_level', '?')}, "
                             f"affected={len(res.get('affected_files') or [])}"
                         ),
-                        "score": 1.0,
+                        "score": 0.0,
+                        "weight": 1.2,
                         "channels": {"impact"},
                     }
                 )
@@ -227,10 +245,11 @@ class InvestigateTool(MCPTool):
                 for caller in (symbol_index.get_callers(name) or [])[:3]:
                     items.append(
                         {
-                            "file": getattr(caller, "file", ""),
-                            "line": getattr(caller, "line", 0),
+                            "file": getattr(caller, "file_path", "") or getattr(caller, "file", ""),
+                            "line": int(getattr(caller, "line", 0) or 0),
                             "text": f"caller of {name}",
-                            "score": 1.0,
+                            "score": 0.0,
+                            "weight": 1.0,
                             "channels": {"graph"},
                         }
                     )
@@ -239,6 +258,8 @@ class InvestigateTool(MCPTool):
             from src.core.test_impact import predict_affected_tests
 
             for rel_file in top_files:
+                if rel_file.startswith("tests/") or rel_file == "(memory)":
+                    continue
                 pred = predict_affected_tests([rel_file], str(root)) or {}
                 for test in (pred.get("affected_tests") or [])[:3]:
                     items.append(
@@ -246,7 +267,8 @@ class InvestigateTool(MCPTool):
                             "file": test,
                             "line": 0,
                             "text": f"covers {rel_file}",
-                            "score": 0.8,
+                            "score": 0.0,
+                            "weight": 0.1,
                             "channels": {"tests"},
                         }
                     )
@@ -261,7 +283,8 @@ class InvestigateTool(MCPTool):
                         "file": "(memory)",
                         "line": 0,
                         "text": node,
-                        "score": 0.9,
+                        "score": 0.0,
+                        "weight": 0.4,
                         "channels": {"memory"},
                     }
                 )

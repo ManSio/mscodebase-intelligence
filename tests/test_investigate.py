@@ -24,9 +24,9 @@ def test_identifiers_prefer_code_shapes():
 def test_merge_dedups_and_keeps_channels():
     merged = _merge(
         [
-            {"file": "a.py", "line": 10, "text": "from search", "score": 0.4, "channels": {"search"}},
-            {"file": "a.py", "line": 10, "text": "", "score": 1.0, "channels": {"symbol"}},
-            {"file": "b.py", "line": 5, "text": "grep only", "score": 0.5, "channels": {"grep"}},
+            {"file": "a.py", "line": 10, "text": "from search", "score": 0.4, "weight": 0.6, "channels": {"search"}},
+            {"file": "a.py", "line": 10, "text": "", "score": 0.0, "weight": 1.0, "channels": {"symbol"}},
+            {"file": "b.py", "line": 5, "text": "grep only", "score": 0.0, "weight": 0.3, "channels": {"grep"}},
         ],
         limit=10,
     )
@@ -34,7 +34,7 @@ def test_merge_dedups_and_keeps_channels():
     first = merged[0]
     assert first["file"] == "a.py" and first["line"] == 10
     assert first["channels"] == {"search", "symbol"}
-    assert first["score"] == 1.0
+    assert first["rank"] == 1.0
 
 
 def test_empty_result_is_not_invented():
@@ -93,3 +93,27 @@ def test_execute_returns_merged_answer(tmp_path):
     assert "investigate" in out
     assert "a.py:3" in out
     assert "[search" in out
+
+
+class _Ref:
+    """SymbolRef-совместимый объект: поля symbol/file_path, не name/file."""
+
+    symbol = "IndexStatusReporter"
+    file_path = "src/core/indexing/index_status.py"
+    line = 22
+    kind = "class"
+
+
+def test_symbol_ref_fields_are_mapped(tmp_path):
+    tool = _fake_tool(tmp_path)
+
+    class _Symbols:
+        def search_symbols(self, query, top_k=3):
+            return [_Ref()]
+
+    tool.resolve_symbol_index = lambda **kw: _Symbols()  # type: ignore[assignment]
+
+    out = asyncio.run(tool.execute("IndexStatusReporter", project_root=str(tmp_path)))
+
+    assert "IndexStatusReporter" in out
+    assert "index_status.py:22" in out
