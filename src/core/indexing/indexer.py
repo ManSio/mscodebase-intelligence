@@ -959,7 +959,9 @@ class Indexer(IndexerTableMixin):
 
         for idx, full_path in enumerate(files, 1):
             try:
-                content = full_path.read_text(encoding="utf-8", errors="replace")
+                from src.core.indexing.index_parser import decode_source_bytes
+
+                content = decode_source_bytes(full_path.read_bytes())
             except OSError:
                 continue
             if not content.strip():
@@ -971,6 +973,19 @@ class Indexer(IndexerTableMixin):
                 continue
             seen.add(rel)
             current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+            # Инкрементальность Phase 3: файл с тем же содержимым не переписываем.
+            # Без этой проверки полная индексация заново писала ВСЕ чанки на
+            # каждом вызове (index_project дважды подряд → count=4, а не 0;
+            # тест tests/test_integration.py::test_incremental_indexing).
+            if self._chunk_store is not None:
+                try:
+                    if self._chunk_store.file_hash(rel) == current_hash:
+                        _report(rel, idx, "skipped")
+                        continue
+                except Exception as _hash_err:  # noqa: BLE001 — hash-чек не роняет прогон
+                    logger.debug(f"[text-index] hash check failed for {rel}: {_hash_err}")
+
             try:
                 parsed = self._pipeline.process_file(
                     rel_path_str=rel,

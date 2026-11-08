@@ -77,11 +77,13 @@ class IndexPipeline:
         if not content.strip():
             return None
 
-        # Парсинг через IndexParser (с AST-кэшем)
+        # Парсинг через IndexParser (с AST-кэшем). content передаётся явно:
+        # иначе LSP VFS-правка (несохранённый буфер) разбиралась бы с диска.
         parsed = self._index_parser.parse_file(
             full_path=full_path,
             rel_path_str=rel_path_str,
             source=source,
+            content=content,
         )
         if parsed is None:
             return None

@@ -1095,9 +1095,13 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Candidate retrieval is done by SQLite FTS5; vectors are computed
         # on demand only for the top-N candidates (E25). This path never
         # touches self.indexer.table.
-        if (
-            self._chunk_store is not None
-            and getattr(self.indexer, "table", None) is None
+        #
+        # Условие — `dense_off`, а НЕ `table is None`: Indexer создаёт объект
+        # LanceDB-таблицы даже при dense_off=true (пустую), и старое условие
+        # молча уводило запрос в пустой dense-тир → «ничего не найдено» при
+        # 2 чанках в chunks.db (tests/test_integration.py, 2026-11-08).
+        if self._chunk_store is not None and (
+            self._dense_off or getattr(self.indexer, "table", None) is None
         ):
             try:
                 if self._chunk_store.count() > 0:
