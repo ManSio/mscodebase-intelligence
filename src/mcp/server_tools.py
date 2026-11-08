@@ -35,20 +35,18 @@ logger = logging.getLogger("mscodebase_server.tools")
 # зарегистрированным, но не отдаётся клиенту, пока не задан
 # MSCODEBASE_MCP_PROFILE=full. `tool_help` показывает спрятанное.
 CORE_PROFILE = {
+    "investigate",           # ОДИН вход: параллельный fan-out всех каналов
     "codebase",              # хаб: индекс/git/write
-    "search_code",           # ранжированный поиск (код + доки)
-    "grep_code",             # regex с AST-скоупом
+    "search_code",           # точный ранжированный поиск (уточнение)
+    "grep_code",             # regex с AST-скоупом (уточнение)
     "get_symbol_info",       # defs / callers / callees
     "impact_analysis",       # blast radius
     "graph_query",           # граф: related/flow/cypher
     "read_live_file",
     "notify_change",
-    "get_logs",
     "get_health_report",
-    "intel_get_runtime_status",
     "intel_get_project_memory",
     "predict_change",
-    "stale_detector",
     "tool_help",
 }
 
@@ -130,6 +128,7 @@ def register_all_tools(mcp, services):
     from src.mcp.tools.grep_tool import GrepCodeTool
     from src.mcp.tools.help_tool import ToolHelpTool
     from src.mcp.tools.indexing_tools import SetProjectTool
+    from src.mcp.tools.investigate_tool import InvestigateTool
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
         GetBugCorrelationTool,
@@ -170,6 +169,8 @@ def register_all_tools(mcp, services):
         GrepCodeTool,
         # Discoverability for the hidden part of the surface
         ToolHelpTool,
+        # One query → parallel fan-out (search + symbols + grep merged)
+        InvestigateTool,
         # LSP (6) — точный AST через basedpyright (вариант C+D+E, 2026-08-06/07)
         LspFindReferencesTool,
         LspFindDefinitionTool,
@@ -250,6 +251,7 @@ def register_all_tools(mcp, services):
             "search_code",
             "plan_search",
             "grep_code",
+            "investigate",
             "tool_help",
             "get_symbol_info",
             "impact_analysis",
