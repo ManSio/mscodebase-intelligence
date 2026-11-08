@@ -27,6 +27,67 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger("mscodebase_server.tools")
 
 # ══════════════════════════════════════════════════════════
+# Профиль поверхности инструментов (2026-11-08)
+# ══════════════════════════════════════════════════════════
+# 68 зарегистрированных инструментов — это проблема выбора для модели, а не
+# фича: у многих пересекаются описания (6 LSP-тулов, 3 поиска, 16 intel_*).
+# Профиль `core` оставляет ОДИН вход на намерение; всё остальное остаётся
+# зарегистрированным, но не отдаётся клиенту, пока не задан
+# MSCODEBASE_MCP_PROFILE=full. `tool_help` показывает спрятанное.
+CORE_PROFILE = {
+    "codebase",              # хаб: индекс/git/write
+    "search_code",           # ранжированный поиск (код + доки)
+    "grep_code",             # regex с AST-скоупом
+    "get_symbol_info",       # defs / callers / callees
+    "impact_analysis",       # blast radius
+    "graph_query",           # граф: related/flow/cypher
+    "read_live_file",
+    "notify_change",
+    "get_logs",
+    "get_health_report",
+    "intel_get_runtime_status",
+    "intel_get_project_memory",
+    "predict_change",
+    "stale_detector",
+    "tool_help",
+}
+
+# Полный каталог (имя → первая строка описания), заполняется до фильтрации.
+_FULL_CATALOG: Dict[str, str] = {}
+
+
+def _apply_tool_profile(mcp) -> None:
+    """Оставить в клиентской поверхности только CORE_PROFILE (или всё)."""
+    profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
+    manager = getattr(mcp, "_tool_manager", None)
+    tools = getattr(manager, "_tools", None)
+    if not isinstance(tools, dict):
+        logger.warning("🧰 Tool profile: не удалось перечислить инструменты — поверхность полная")
+        return
+
+    _FULL_CATALOG.clear()
+    for name, tool in tools.items():
+        desc = (getattr(tool, "description", "") or "").strip().split("\n")[0]
+        _FULL_CATALOG[name] = desc[:120]
+
+    if profile == "full":
+        logger.info(f"🧰 Tool profile=full: {len(tools)} видимых инструментов")
+        return
+
+    hidden = [name for name in tools if name not in CORE_PROFILE]
+    for name in hidden:
+        try:
+            mcp.remove_tool(name)
+        except Exception as exc:  # noqa: BLE001 — один тул не роняет старт
+            logger.debug("remove_tool(%s) failed: %s", name, exc)
+    logger.info(
+        f"🧰 Tool profile=core: {len(tools) - len(hidden)} видимых, "
+        f"{len(hidden)} скрыто (MSCODEBASE_MCP_PROFILE=full — показать все; "
+        f"tool_help — что есть)"
+    )
+
+
+# ══════════════════════════════════════════════════════════
 # Регистрация core-инструментов (18 шт + execute_script optional)
 # ══════════════════════════════════════════════════════════
 
@@ -67,6 +128,7 @@ def register_all_tools(mcp, services):
         GraphQueryTool,
     )
     from src.mcp.tools.grep_tool import GrepCodeTool
+    from src.mcp.tools.help_tool import ToolHelpTool
     from src.mcp.tools.indexing_tools import SetProjectTool
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
@@ -106,6 +168,8 @@ def register_all_tools(mcp, services):
         ImpactAnalysisTool,
         # AST-aware regex grep (adapted from coderlm, MIT)
         GrepCodeTool,
+        # Discoverability for the hidden part of the surface
+        ToolHelpTool,
         # LSP (6) — точный AST через basedpyright (вариант C+D+E, 2026-08-06/07)
         LspFindReferencesTool,
         LspFindDefinitionTool,
@@ -162,7 +226,12 @@ def register_all_tools(mcp, services):
     # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
     _raw_allowlist_env = os.environ.get("MSCODEBASE_MCP_TOOLS")
     _raw_allowlist = (_raw_allowlist_env or "").strip()
-    if _raw_allowlist_env is not None and not _raw_allowlist:
+    _profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
+    if _profile == "full":
+        # Полный профиль: регистрируем всё, пост-фильтр не режет.
+        _show_all = True
+        _allowed_names = set()
+    elif _raw_allowlist_env is not None and not _raw_allowlist:
         _show_all = True
         _allowed_names = set()
     elif _raw_allowlist:
@@ -181,6 +250,7 @@ def register_all_tools(mcp, services):
             "search_code",
             "plan_search",
             "grep_code",
+            "tool_help",
             "get_symbol_info",
             "impact_analysis",
             "lsp_find_references",
@@ -868,6 +938,9 @@ def _register_inline_tools(mcp, services):
         return _ack_impact(file_path, impact_token)
 
     logger.info("  🔧 Inline diagnostic tools registered (12 tools)")
+
+    # ─── Профиль поверхности: один вход на намерение ───
+    _apply_tool_profile(mcp)
 
 
 # ══════════════════════════════════════════════════════════
