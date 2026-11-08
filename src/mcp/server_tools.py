@@ -66,6 +66,7 @@ def register_all_tools(mcp, services):
         DetectCommunitiesTool,
         GraphQueryTool,
     )
+    from src.mcp.tools.grep_tool import GrepCodeTool
     from src.mcp.tools.indexing_tools import SetProjectTool
     from src.mcp.tools.investigation_tools import (
         FindSimilarBugsTool,
@@ -103,6 +104,8 @@ def register_all_tools(mcp, services):
         PlanSearchTool,
         GetSymbolInfoTool,
         ImpactAnalysisTool,
+        # AST-aware regex grep (adapted from coderlm, MIT)
+        GrepCodeTool,
         # LSP (6) — точный AST через basedpyright (вариант C+D+E, 2026-08-06/07)
         LspFindReferencesTool,
         LspFindDefinitionTool,
@@ -177,6 +180,7 @@ def register_all_tools(mcp, services):
             # ML-native (не заменяются E2B)
             "search_code",
             "plan_search",
+            "grep_code",
             "get_symbol_info",
             "impact_analysis",
             "lsp_find_references",
