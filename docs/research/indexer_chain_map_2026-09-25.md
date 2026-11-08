@@ -14,32 +14,42 @@ Source: `index_project_runner.run()` (255-630), `layer._run_reindex_job` (730-80
 | 0 | path safety check | no | — | is_safe_to_process |
 | 1 | `begin_write()` lock | yes (waits) | — | soft-wait on live holder |
 | 2 | `os.walk` scan | slow only | progress "scanning" 0/total | none |
-| 3 | `_verify_and_repair_table_integrity` | **yes (native)** | no heartbeat | none |
-| 4 | known_hashes `to_lance().to_pandas` | **yes (native)** | no | none |
+| 3 | `_verify_and_repair_table_integrity` | **yes (native)** | no heartbeat | **bounded** (`_bounded_link "verify_integrity"`) |
+| 4 | known_hashes `to_lance().to_pandas` | **yes (native)** | no | **bounded** (`"known_hashes_load"`, default `None`) |
 | 5 | Phase 1 parse (ThreadPoolExecutor) | was yes | heartbeat `parse:{name}` + progress "parsing" | **bounded** (run_bounded 60s/file) |
-| 6 | embed `embedder.embed_batch` | **yes (llama.cpp)** | heartbeat `embed:done/total` + progress "embedding" | **none** (no per-batch bound) |
-| 7 | per-file `bulk_write` (LanceDB) | **yes (native)** | heartbeat `write:{name}` | **none** |
-| 8 | `_safe_prune` | **yes** | no | none |
-| 9 | BM25 reindex (`searcher`) | **yes** | no | none |
+| 6 | embed `embedder.embed_batch` | **yes (llama.cpp)** | heartbeat `embed:done/total` + progress "embedding" | **bounded** (`"embed_batch"`, fatal=True) |
+| 7 | per-file `bulk_write` (LanceDB) | **yes (native)** | heartbeat `write:{name}` | **bounded** (`"bulk_write"`, fatal=True) |
+| 8 | `_safe_prune` | **yes** | no | **bounded** (`"prune"`) |
+| 9 | BM25 reindex (`searcher`) | **yes** | no | **bounded** (`"bm25_reindex"`) |
 | 10 | `_safe_ivf_index` (optimize/create_index) | was yes | progress "finalizing" 0.95 | **bounded** (run_bounded) |
-| 11 | `summarizer.save_cache` | yes | no | none |
-| 12 | `save_symbol_index` | **yes (native)** | no | none |
+| 11 | `summarizer.save_cache` | yes | no | **bounded** (`"summarizer_save"`) |
+| 12 | `save_symbol_index` | **yes (native)** | no | **bounded** (`"save_symbol_index"`) |
 | 13 | post-run: symbol index / auto-doc (`layer`) | yes | job.progress 0.8->1.0 | auto-doc: to_thread + wait_for(300) |
 | S | search: `hybrid_search_async` (dense/FTS5/BM25/rerank/graph) | yes | intel_tool_health/latency | embedded bounds (some run_bounded now) |
 
-## Findings from the chain — status re-checked 2026-11-08
+## Findings from the chain — status re-checked 2026-11-08 (CORRECTED)
 
-> Commands used: `grep -c run_bounded src/` (14), `grep watchdog_heartbeat src/`
-> (parse/write/embed/text-index), `grep wait_reason src/` (0),
-> `layer.py:2025 _REINDEX_STALL_SEC`.
+> **Correction.** An earlier revision of this section claimed that prune, BM25,
+> `save_symbol_index` and `summarizer.save_cache` were still unbounded. That was wrong:
+> every link except `os.walk` goes through `_bounded_link` → `run_bounded`
+> (`MSCODEBASE_LINK_TIMEOUT_SEC`, default 300 s). The claim was never re-verified before
+> being written down; the table above is now the source of truth.
 
-- **Unbounded native calls (#3,#4,#6,#7,#8,#9,#11,#12) — partially fixed.** 14
-  `run_bounded` call sites now cover parse, IVF and the link pass; prune, BM25
-  reindex, `save_symbol_index` and `summarizer.save_cache` still call native code
-  without a bound.
-- **Heartbeat coverage — still partial (unchanged).** Only parse/embed/write and the
-  text-only index emit `watchdog_heartbeat`; prune/BM25/IVF/symbol/docs stay dark.
-- **No `wait_reason` — open.** Zero hits in `src/`.
+> Verified with: `git grep -n "_bounded_link\|run_bounded(" src/core/indexing/index_project_runner.py`
+> → `verify_integrity:362`, `known_hashes_load:375`, `bulk_write:512`, `prune:464/678`,
+> `bm25_reindex:468/687`, `embed_batch:555`, `summarizer_save:712`, `save_symbol_index:715`,
+> `ivf-*:773`.
+
+- **Unbounded native calls — CLOSED.** Every non-cancellable link of the chain is bounded.
+  A native stall now aborts that link in ≤300 s (fatal links raise a resume-safe error,
+  non-fatal ones are skipped and the index stays usable) instead of freezing the phase.
+- **Observability of those links — still partial.** `watchdog_heartbeat` is emitted only at
+  `parse:{name}` (:448), `write:{name}` (:526, :614), `embed:{done}/{total}` (:650) and
+  `text-index:{n}/{total}` (indexer.py:1006). verify/prune/BM25/save are silent for up to
+  300 s — bounded, but blind.
+- **No `wait_reason` — open.** Zero hits in `src/`. When the job looks idle during a bounded
+  link, nothing says *what* it waits on (write lock / IO / native). Deferred by the owner
+  (2026-11-08): diagnostics, not correctness; no observed case requires it.
 - **Stall detection — DONE (2026-10/11).** `_REINDEX_STALL_SEC` (default 900 s) plus
   `_finalize_stalled_*` in `src/core/intelligence/layer.py:2025+` marks a silent
   reindex as failed and writes a ledger row, instead of leaving "95 % Finalizing".
