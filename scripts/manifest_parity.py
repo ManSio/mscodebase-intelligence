@@ -41,6 +41,10 @@ if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    # `python scripts/manifest_parity.py` кладёт в sys.path папку scripts/:
+    # локальный запуск падал на `No module named 'src'` (CI спасал `pip install -e .`).
+    sys.path.insert(0, str(ROOT))
 DEFAULT_FIXTURES = ROOT / "experiments" / "universal-engine" / "e-s1-polygon" / "fixtures"
 OSV_VERSION = "2.5.1"
 
@@ -112,7 +116,14 @@ def _canon_ours(entries) -> set[str]:
     return out
 
 
-def _osv_packages(osv_bin: Path, dir_path: Path) -> set[str]:
+def _osv_packages(osv_bin: Path, dir_path: Path) -> tuple[set[str], bool]:
+    """Пакеты по версии osv-scanner. Второе значение — сканер реально отработал.
+
+    Битый/незапускаемый бинарь (CI: `curl` без `-f` записал HTML 404 и
+    `chmod +x` сделал его «исполняемым» → `Exec format error`) возвращал
+    пустое множество, и это выглядело как «osv ничего не нашёл» — паритет
+    печатал 10 ложных расхождений вместо ошибки инфраструктуры.
+    """
     cmd = [str(osv_bin), "scan", "--format", "json", "--all-packages", str(dir_path)]
     try:
         proc = subprocess.run(
@@ -121,18 +132,25 @@ def _osv_packages(osv_bin: Path, dir_path: Path) -> set[str]:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         print(f"   ⚠️  osv-scanner сбой на {dir_path.name}: {exc}")
-        return set()
+        return set(), False
+    if proc.returncode != 0:
+        print(
+            f"   ⚠️  osv-scanner exit {proc.returncode} на {dir_path.name}: "
+            f"{(proc.stderr or '').strip()[:120]}"
+        )
+        return set(), False
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        return set()
+        print(f"   ⚠️  osv-scanner вернул не JSON на {dir_path.name}")
+        return set(), False
     out: set[str] = set()
     for res in data.get("results", []):
         for p in res.get("packages", []):
             pkg = p.get("package") or {}
             if pkg.get("name"):
                 out.add(_canon_osv(pkg["name"], pkg.get("ecosystem", "")))
-    return out
+    return out, True
 
 
 def _is_skipped(fname: str) -> bool:
@@ -183,6 +201,7 @@ def main() -> int:
     from src.sources.manifest import extract_manifest_entries
 
     checked, skipped, diffs = [], [], []
+    osv_failures = 0
     for src_dir in sorted(d for d in args.fixtures.iterdir() if d.is_dir()):
         if src_dir.name in SKIP_DIRS:
             skipped.append((src_dir.name, SKIP_DIRS[src_dir.name]))
@@ -197,7 +216,10 @@ def main() -> int:
             tmpdir = Path(tmp)
             _map_dir(tmpdir, src_dir)
             ours = _canon_ours(extract_manifest_entries(tmpdir))
-            osv_names = _osv_packages(Path(args.osv), tmpdir) if args.osv else set()
+            osv_names, osv_ok = _osv_packages(Path(args.osv), tmpdir) if args.osv else (set(), False)
+        if not osv_ok:
+            osv_failures += 1
+            continue
         checked.append(src_dir.name)
         if ours != osv_names:
             ours_d, osv_d = _apply_allowed(src_dir.name, ours, osv_names)
@@ -212,6 +234,14 @@ def main() -> int:
     print(f"   проверено каталогов: {len(checked)}, skip (вне поддержки osv): {len(skipped)}")
     for name, why in skipped:
         print(f"   ⏭️  {name}: {why}")
+    if osv_failures and not checked:
+        print(
+            f"\n❌ osv-scanner не отработал ни на одном каталоге ({osv_failures}) — "
+            "паритет НЕ проверен (инфраструктура, не расхождение)."
+        )
+        return 2
+    if osv_failures:
+        print(f"   ⚠️  osv-scanner не отработал на {osv_failures} каталог(ах) — они не проверены")
     if diffs:
         print(f"\n❌ {len(diffs)} расхождение(й):")
         for name, only_ours, only_osv in diffs:

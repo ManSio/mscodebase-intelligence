@@ -137,8 +137,13 @@ jobs:
       - name: Download osv-scanner
         run: |
           mkdir -p "$HOME/bin"
-          curl -sL -o "$HOME/bin/osv-scanner" https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
+          # -f: иначе 404/HTML-страница сохраняется как «бинарь», chmod +x делает
+          # её исполняемой, и паритет печатает 10 ложных расхождений
+          # (инцидент CI 2026-11-08: Exec format error).
+          curl -fsSL --retry 3 --retry-delay 2 -o "$HOME/bin/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.5.1/osv-scanner_linux_amd64
           chmod +x "$HOME/bin/osv-scanner"
+          "$HOME/bin/osv-scanner" --version
       - name: Manifest parity
         run: python scripts/manifest_parity.py --osv "$HOME/bin/osv-scanner"
         timeout-minutes: 5
