@@ -133,7 +133,17 @@ class GrepCodeTool(MCPTool):
         scope: str,
         max_matches: int,
         context_lines: int,
+        cancel: Optional[Any] = None,
     ) -> Dict[str, Any]:
+        """Search `root`. `cancel` is a `threading.Event` checked between files.
+
+        A thread cannot be cancelled from outside (measured: `asyncio.wait_for`
+        around `to_thread` returns but the thread keeps parsing). `investigate`
+        hits that on every channel timeout, and the abandoned parsers then
+        compete for the GIL with the next query - the benchmark after a timeout
+        is not a measurement any more. Cooperative cancellation is the only
+        mechanism that actually stops the work, so the long loop checks it.
+        """
         from src.core.indexing.file_guard import FileGuard
 
         guard = FileGuard(root)
@@ -170,7 +180,9 @@ class GrepCodeTool(MCPTool):
         skipped_big = 0
         skipped_binary = 0
 
-        for path in files:
+        for index, path in enumerate(files):
+            if cancel is not None and index % 16 == 0 and cancel.is_set():
+                break
             if guard.should_skip_file(path):
                 continue
             try:
@@ -241,6 +253,7 @@ class GrepCodeTool(MCPTool):
             "skipped_big": skipped_big,
             "skipped_binary": skipped_binary,
             "elapsed_ms": int((time.perf_counter() - started) * 1000),
+            "cancelled": bool(cancel is not None and cancel.is_set()),
         }
 
     def _format(self, root: Path, pattern: str, scope: str, result: Dict[str, Any]) -> str:

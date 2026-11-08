@@ -20,7 +20,7 @@
    "docs/ru/GRACEFUL_DEGRADATION.md"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.08,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "symbol_index.py",
    "run_experiment_pagerank.py",
@@ -43,11 +43,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 8.09,
-  "degraded": "impact:IndexError",
+  "b_elapsed_s": 3.76,
+  "degraded": "",
   "exact": "build_call_graph=39",
   "answered": false,
-  "b_text": "🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`\n   identifiers: build_call_graph\n   results: 8 | degraded: impact:IndexError\n   exact: build_call_graph=39\n\n1. src/core/indexing/symbol_index.py:548  [definition+search+symbol]\n   SymbolIndex.build_call_graph — function_definition\n2. scripts/run_experiment_pagerank.py:41  [definition]\n   build_call_graph — function_definition\n3. src/core/search/graph_adapter.py:597  [definition]\n   SymbolIndexAdapter.build_call_graph — function_definition\n4. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n5. src/core/search/graph_adapter.py:698  [symbol]\n   SymbolIndexAdapter._hybrid_build_call_graph — function_definition\n6. tools/knowledge/REDTEAM-protocol.md:51  [search]\n   FILE: tools/knowledge/REDTEAM-protocol.md\nSYMBOLS: candidates\nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpoxda7qkf.md\nFrom C:\\Users\\misha\\AppD\n7. src/core/indexing/symbol_index.py:707  [graph]\n   caller of build_call_graph\n8. src/core/indexing/symbol_index.py:856  [graph]\n   caller of build_call_graph\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  "b_text": "🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=39\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]\n   SymbolIndex.build_call_graph — function_definition\n2. scripts/run_experiment_pagerank.py:41  [definition+grep]\n   build_call_graph — function_definition\n3. src/core/search/graph_adapter.py:597  [definition+grep]\n   SymbolIndexAdapter.build_call_graph — function_definition\n4. src/core/search/graph_adapter.py:612  [grep+symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n5. src/core/search/graph_adapter.py:698  [grep+symbol]\n   SymbolIndexAdapter._hybrid_build_call_graph — function_definition\n6. tools/knowledge/REDTEAM-protocol.md:51  [search]\n   FILE: tools/knowledge/REDTEAM-protocol.md\nSYMBOLS: candidates\nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpoxda7qkf.md\nFrom C:\\Users\\misha\\AppD\n7. src/core/indexing/symbol_index.py:707  [graph+grep]\n   call_graph = self.build_call_graph(symbol, depth=depth)\n8. src/core/indexing/symbol_index.py:856  [graph+grep]\n   graph = self.build_call_graph(symbol, depth=1)\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
  },
  {
   "run": 1,
@@ -65,16 +65,17 @@
    "src/core/modification_guard.py",
    "src/core/indexing/symbol_index.py",
    "src/core/search/graph_adapter.py",
+   "src/core/search/graph_adapter_pure.py",
    "src/mcp/tools/investigate_tool.py",
    "src/mcp/tools/search_tools.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.07,
+  "a_elapsed_s": 0.7,
   "b_files": [
    "graph_rag.py",
-   "symbol_index.py",
-   "graph_adapter.py",
    "modification_guard.py",
+   "investigate_tool.py",
+   "search_tools.py",
    "engine.py",
    "test_impact_confidence.py",
    "symbol_index.py",
@@ -82,9 +83,9 @@
   ],
   "b_full_files": [
    "src/core/graph_rag.py",
-   "src/core/indexing/symbol_index.py",
-   "src/core/search/graph_adapter.py",
    "src/core/modification_guard.py",
+   "src/mcp/tools/investigate_tool.py",
+   "src/mcp/tools/search_tools.py",
    "src/core/search/engine.py",
    "tests/test_impact_confidence.py",
    "src/core/indexing/symbol_index.py",
@@ -92,11 +93,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 7.45,
+  "b_elapsed_s": 3.82,
   "degraded": "",
   "exact": "get_impact_analysis=6",
   "answered": false,
-  "b_text": "🧭 investigate: `Кто вызывает `get_impact_analysis`?`\n   identifiers: get_impact_analysis\n   results: 8\n   exact: get_impact_analysis=6\n\n1. src/core/graph_rag.py:93  [definition+graph+grep+symbol]\n   get_impact_analysis — function\n2. src/core/indexing/symbol_index.py:684  [definition+grep+impact+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n3. src/core/search/graph_adapter.py:797  [definition+grep+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n4. src/core/modification_guard.py:166  [graph+grep]\n   impact = si.get_impact_analysis(symbol, depth=2)\n5. src/core/search/engine.py:2143  [search]\n   FILE: src/core/search/engine.py\nSYMBOLS: _cache_key _is_doc_chunk _exact_name_match _boost_exact_name_matches _extract_identifier_tokens _identifier_norm _pick_rare_identifier _ide\n6. tests/test_impact_confidence.py:91  [graph]\n   caller of get_impact_analysis\n7. src/core/indexing/symbol_index.py:353  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n8. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n\nСимволы:\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"get_impact_analysis\") | impact_analysis | read_live_file(\"src/core/graph_rag.py\")"
+  "b_text": "🧭 investigate: `Кто вызывает `get_impact_analysis`?`\n   identifiers: get_impact_analysis\n   results: 8\n   exact: get_impact_analysis=6\n\n1. src/core/graph_rag.py:93  [graph+grep+symbol]\n   get_impact_analysis — function\n2. src/core/modification_guard.py:166  [graph+grep]\n   impact = si.get_impact_analysis(symbol, depth=2)\n3. src/mcp/tools/investigate_tool.py:423  [grep]\n   res = symbol_index.get_impact_analysis(name, 2) or {}\n4. src/mcp/tools/search_tools.py:800  [grep]\n   self.resolve_symbol_index(explicit_project_root=_pr or None).get_impact_analysis,\n5. src/core/search/engine.py:2143  [search]\n   FILE: src/core/search/engine.py\nSYMBOLS: _cache_key _is_doc_chunk _exact_name_match _boost_exact_name_matches _extract_identifier_tokens _identifier_norm _pick_rare_identifier _ide\n6. tests/test_impact_confidence.py:91  [graph]\n   caller of get_impact_analysis\n7. src/core/indexing/symbol_index.py:353  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n8. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"get_impact_analysis\") | impact_analysis | read_live_file(\"src/core/graph_rag.py\")"
  },
  {
   "run": 1,
@@ -109,34 +110,16 @@
   ],
   "a_files": [],
   "a_ok": false,
-  "a_elapsed_s": 1.07,
-  "b_files": [
-   "test_modification_guard.py",
-   "test_modification_guard.py",
-   "test_modification_guard.py",
-   "graph_rag.py",
-   "graph_rag.py",
-   "graph_rag.py",
-   "graph_rag.py",
-   "graph_rag.py"
-  ],
-  "b_full_files": [
-   "tests/test_modification_guard.py",
-   "tests/test_modification_guard.py",
-   "tests/test_modification_guard.py",
-   "src/core/graph_rag.py",
-   "src/core/graph_rag.py",
-   "src/core/graph_rag.py",
-   "src/core/graph_rag.py",
-   "src/core/graph_rag.py"
-  ],
+  "a_elapsed_s": 0.7,
+  "b_files": [],
+  "b_full_files": [],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 4.33,
+  "b_elapsed_s": 2.02,
   "degraded": "",
-  "exact": "ModificationGuard=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.",
+  "exact": "ModificationGuard=0",
   "answered": true,
-  "b_text": "🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`\n   identifiers: ModificationGuard\n   results: 8\n   ⚠️ exact: ModificationGuard=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.\n\n1. tests/test_modification_guard.py:119  [definition+symbol]\n   TestModificationGuard — class_definition\n2. tests/test_modification_guard.py:465  [definition+symbol]\n   TestModificationGuard.TestTool — class_definition\n3. tests/test_modification_guard.py:470  [definition+symbol]\n   TestModificationGuard.TestTool.my_write — function_definition\n4. src/core/graph_rag.py:78  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n5. src/core/graph_rag.py:227  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n6. src/core/graph_rag.py:1  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/graph_rag.py:216  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n8. src/core/graph_rag.py:183  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n\nСимволы:\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n\nДальше: get_symbol_info(\"ModificationGuard\") | impact_analysis | read_live_file(\"tests/test_modification_guard.py\")"
+  "b_text": "🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`\n   identifiers: ModificationGuard\n   results: 0\n   exact: ModificationGuard=0\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
  },
  {
   "run": 1,
@@ -159,7 +142,7 @@
    "src/core/intelligence/project_context.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.12,
+  "a_elapsed_s": 0.78,
   "b_files": [
    "README.md",
    "README.md",
@@ -182,7 +165,7 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 11.19,
+  "b_elapsed_s": 3.63,
   "degraded": "",
   "exact": "",
   "answered": false,
@@ -208,7 +191,7 @@
    "scripts/monitor.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.84,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "artifact_paths.py",
    "install.py",
@@ -231,7 +214,7 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 17.82,
+  "b_elapsed_s": 4.16,
   "degraded": "",
   "exact": "progress.json=17",
   "answered": false,
@@ -258,34 +241,34 @@
    "src/core/error_handler.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.12,
+  "a_elapsed_s": 0.74,
   "b_files": [
-   "KNOWN_ISSUES_2026_07.md",
-   "KNOWN_ISSUES_2026_08.md",
-   "task_queue.py",
    "AGENT_DIARY_2026_08.md",
+   "task_queue.py",
    "KNOWN_ISSUES_2026_07.md",
+   "EXPERIMENTS_LOG.md",
+   "KNOWN_ISSUES_2026_08.md",
    "workspace_source.py",
-   "bootstrap_trace_plugin.py",
-   "EXPERIMENTS_LOG.md"
+   "parser.py",
+   "task_queue.py"
   ],
   "b_full_files": [
-   "docs/archive/KNOWN_ISSUES_2026_07.md",
-   "docs/archive/KNOWN_ISSUES_2026_08.md",
-   "src/core/task_queue.py",
    "docs/archive/AGENT_DIARY_2026_08.md",
+   "src/core/task_queue.py",
    "docs/archive/KNOWN_ISSUES_2026_07.md",
+   "EXPERIMENTS_LOG.md",
+   "docs/archive/KNOWN_ISSUES_2026_08.md",
    "src/core/interfaces/workspace_source.py",
-   "src/core/bootstrap_trace_plugin.py",
-   "EXPERIMENTS_LOG.md"
+   "src/core/indexing/parser.py",
+   "src/core/task_queue.py"
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 18.97,
+  "b_elapsed_s": 6.68,
   "degraded": "",
   "exact": "",
   "answered": false,
-  "b_text": "🧭 investigate: `Какая функция возвращает путь прогресса?`\n   results: 8\n\n1. docs/archive/KNOWN_ISSUES_2026_07.md:1907  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_07.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp386npih8.md\nFrom C:\\Users\\misha\\AppData\\Local\n2. docs/archive/KNOWN_ISSUES_2026_08.md:1211  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpdkusbajt.md\nFrom C:\\Users\\misha\\AppData\\Local\n3. src/core/task_queue.py:300  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n4. docs/archive/AGENT_DIARY_2026_08.md:1198  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n5. docs/archive/KNOWN_ISSUES_2026_07.md:948  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_07.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp386npih8.md\nFrom C:\\Users\\misha\\AppData\\Local\n6. src/core/interfaces/workspace_source.py:33  [search]\n   FILE: src/core/interfaces/workspace_source.py\nSYMBOLS: FileChangeEvent WorkspaceSource\nDOC: WorkspaceSource — интерфейс источника кода (ТЗ §2.1 Universal Engine). Core объявляет ин\n7. src/core/bootstrap_trace_plugin.py:1  [search]\n   FILE: src/core/bootstrap_trace_plugin.py\nSYMBOLS: _trace pytest_runtest_call pytest_runtest_teardown pytest_sessionfinish\nDOC: \n// Scope: module | module_docstring | c:.users.misha\n8. EXPERIMENTS_LOG.md:2799  [search]\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpv58nv6qj.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmpv5\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"docs/archive/KNOWN_ISSUES_2026_07.md\")"
+  "b_text": "🧭 investigate: `Какая функция возвращает путь прогресса?`\n   results: 8\n\n1. docs/archive/AGENT_DIARY_2026_08.md:1198  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n2. src/core/task_queue.py:300  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n3. docs/archive/KNOWN_ISSUES_2026_07.md:1907  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_07.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp386npih8.md\nFrom C:\\Users\\misha\\AppData\\Local\n4. EXPERIMENTS_LOG.md:2799  [search]\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpv58nv6qj.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmpv5\n5. docs/archive/KNOWN_ISSUES_2026_08.md:1211  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpdkusbajt.md\nFrom C:\\Users\\misha\\AppData\\Local\n6. src/core/interfaces/workspace_source.py:33  [search]\n   FILE: src/core/interfaces/workspace_source.py\nSYMBOLS: FileChangeEvent WorkspaceSource\nDOC: WorkspaceSource — интерфейс источника кода (ТЗ §2.1 Universal Engine). Core объявляет ин\n7. src/core/indexing/parser.py:1875  [search]\n   FILE: src/core/indexing/parser.py\nSYMBOLS: CodeParser\nDOC:  Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback. \n// Scope: function_part | giant_function_pa\n8. src/core/task_queue.py:131  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"docs/archive/AGENT_DIARY_2026_08.md\")"
  },
  {
   "run": 1,
@@ -315,9 +298,9 @@
    "search_tools.py",
    "modification_guard.py",
    "modification_guard.py",
-   "modification_guard.py",
-   "CONSOLIDATION.md",
-   "modification_guard.py"
+   "search_tools.py",
+   "CONTRIBUTING.md",
+   "CONSOLIDATION.md"
   ],
   "b_full_files": [
    "src/core/search/cross_project_deps.py",
@@ -325,17 +308,17 @@
    "src/mcp/tools/search_tools.py",
    "src/core/modification_guard.py",
    "src/core/modification_guard.py",
-   "src/core/modification_guard.py",
-   "tools/knowledge/CONSOLIDATION.md",
-   "src/core/modification_guard.py"
+   "src/mcp/tools/search_tools.py",
+   "docs/ru/CONTRIBUTING.md",
+   "tools/knowledge/CONSOLIDATION.md"
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 16.96,
+  "b_elapsed_s": 5.77,
   "degraded": "",
   "exact": "impact=264",
   "answered": false,
-  "b_text": "🧭 investigate: `Где выдаётся и проверяется impact-токен?`\n   identifiers: impact\n   results: 8\n   exact: impact=264\n\n1. src/core/search/cross_project_deps.py:325  [definition+symbol]\n   CrossProjectDependencyGraph.analyze_impact — function_definition\n2. src/core/graph_rag.py:78  [definition+symbol]\n   GraphRAGQueryEngine.query_impact — function_definition\n3. src/mcp/tools/search_tools.py:778  [definition+symbol]\n   ImpactAnalysisTool — class_definition\n4. src/core/modification_guard.py:57  [search]\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n5. src/core/modification_guard.py:166  [impact]\n   impact impact: risk=low, affected=1\n6. src/core/modification_guard.py:49  [search]\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n7. tools/knowledge/CONSOLIDATION.md:0  [search]\n   FILE: tools/knowledge/CONSOLIDATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp7kynkf2h.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n8. src/core/modification_guard.py:39  [search]\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n\nСимволы:\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778\n\nДальше: get_symbol_info(\"impact\") | impact_analysis | read_live_file(\"src/core/search/cross_project_deps.py\")"
+  "b_text": "🧭 investigate: `Где выдаётся и проверяется impact-токен?`\n   identifiers: impact\n   results: 8\n   exact: impact=264\n\n1. src/core/search/cross_project_deps.py:325  [definition+symbol]\n   CrossProjectDependencyGraph.analyze_impact — function_definition\n2. src/core/graph_rag.py:78  [definition+symbol]\n   GraphRAGQueryEngine.query_impact — function_definition\n3. src/mcp/tools/search_tools.py:778  [definition+symbol]\n   ImpactAnalysisTool — class_definition\n4. src/core/modification_guard.py:57  [search]\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n5. src/core/modification_guard.py:166  [impact]\n   impact impact: risk=low, affected=1\n6. src/mcp/tools/search_tools.py:1  [search]\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchTool\nDOC: Поисков\n7. docs/ru/CONTRIBUTING.md:59  [search]\n   FILE: docs/ru/CONTRIBUTING.md\nSYMBOLS: MyTool\nDOC: \n// Scope: section | markdown_section | ru.contributing\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CONTRIBUTING.md, section '## 4. Добавл\n8. tools/knowledge/CONSOLIDATION.md:0  [search]\n   FILE: tools/knowledge/CONSOLIDATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp7kynkf2h.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n\nСимволы:\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778\n\nДальше: get_symbol_info(\"impact\") | impact_analysis | read_live_file(\"src/core/search/cross_project_deps.py\")"
  },
  {
   "run": 1,
@@ -358,7 +341,7 @@
    "src/mcp/tools/system_tools.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.16,
+  "a_elapsed_s": 0.72,
   "b_files": [
    "investigate_tool.py",
    "investigate_tool.py",
@@ -381,11 +364,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 17.17,
+  "b_elapsed_s": 6.74,
   "degraded": "risk=low, affected=1",
-  "exact": "investigate=93, degraded=73",
+  "exact": "investigate=98, degraded=75",
   "answered": false,
-  "b_text": "🧭 investigate: `Где в `investigate` появляется строка `degraded`?`\n   identifiers: investigate, degraded\n   results: 8\n   exact: investigate=93, degraded=73\n\n1. src/mcp/tools/investigate_tool.py:302  [definition+search+symbol]\n   InvestigateTool._format — function_definition\n2. src/mcp/tools/investigate_tool.py:110  [definition+symbol]\n   InvestigateTool — class_definition\n3. src/mcp/tools/investigate_tool.py:113  [definition+symbol]\n   InvestigateTool.__init__ — function_definition\n4. tests/test_health_report.py:425  [definition+symbol]\n   TestSearchQuality.test_search_quality_degraded — function_definition\n5. scripts/o1_holdout_gate.py:164  [definition+symbol]\n   degraded — variable\n6. scripts/p2_holdout_gate.py:140  [definition+symbol]\n   degraded — variable\n7. docs/ru/README.md:42  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Как отвечается вопрос':\n## Как от\n8. src/providers/embedder/remote_embedder.py:359  [impact]\n   impact degraded: risk=low, affected=1\n\nСимволы:\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302\n\nДальше: get_symbol_info(\"investigate\") | impact_analysis | read_live_file(\"src/mcp/tools/investigate_tool.py\")"
+  "b_text": "🧭 investigate: `Где в `investigate` появляется строка `degraded`?`\n   identifiers: investigate, degraded\n   results: 8\n   exact: investigate=98, degraded=75\n\n1. src/mcp/tools/investigate_tool.py:302  [definition+search+symbol]\n   InvestigateTool._format — function_definition\n2. src/mcp/tools/investigate_tool.py:110  [definition+symbol]\n   InvestigateTool — class_definition\n3. src/mcp/tools/investigate_tool.py:113  [definition+symbol]\n   InvestigateTool.__init__ — function_definition\n4. tests/test_health_report.py:425  [definition+symbol]\n   TestSearchQuality.test_search_quality_degraded — function_definition\n5. scripts/o1_holdout_gate.py:164  [definition+symbol]\n   degraded — variable\n6. scripts/p2_holdout_gate.py:140  [definition+symbol]\n   degraded — variable\n7. docs/ru/README.md:42  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Как отвечается вопрос':\n## Как от\n8. src/providers/embedder/remote_embedder.py:359  [impact]\n   impact degraded: risk=low, affected=1\n\nСимволы:\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302\n\nДальше: get_symbol_info(\"investigate\") | impact_analysis | read_live_file(\"src/mcp/tools/investigate_tool.py\")"
  },
  {
   "run": 1,
@@ -408,7 +391,7 @@
    "src/mcp/tools/base.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.17,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "cli.py",
    "server_tools.py",
@@ -431,11 +414,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 20.54,
-  "degraded": "symbols:timeout, grep:timeout",
+  "b_elapsed_s": 6.97,
+  "degraded": "",
   "exact": "allowlist=90",
   "answered": false,
-  "b_text": "🧭 investigate: `Где определяется allowlist/профиль инструментов?`\n   identifiers: allowlist\n   results: 8 | degraded: symbols:timeout, grep:timeout\n   exact: allowlist=90\n\n1. src/cli.py:111  [definition+impact+symbol]\n   allowlist — variable\n2. src/mcp/server_tools.py:229  [definition+symbol]\n   _raw_allowlist — variable\n3. docs/ru/FAQ.md:59  [search]\n   FILE: docs/ru/FAQ.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.faq\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\FAQ.md, section '## Как увидеть остальные инструменты?':\n## Ка\n4. AGENTS.md:146  [search]\n   FILE: AGENTS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agents.md\nFrom D:\\Project\\MSCodeBase\\AGENTS.md, section '### §1.3. Профиль инструментов\n5. docs/ru/ARCHITECTURE.md:42  [search]\n   FILE: docs/ru/ARCHITECTURE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmppb__iujc.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmppb__\n6. docs/ru/README.md:120  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Инструменты и профиль':\n## Инстру\n7. docs/ru/CONFIGURATION.md:23  [search]\n   FILE: docs/ru/CONFIGURATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.configuration\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CONFIGURATION.md, section '## 2. Сервер, п\n8. docs/ru/ARCHITECTURE.md:112  [search]\n   FILE: docs/ru/ARCHITECTURE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmppb__iujc.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmppb__\n\nСимволы:\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n\nДальше: get_symbol_info(\"allowlist\") | impact_analysis | read_live_file(\"src/cli.py\")"
+  "b_text": "🧭 investigate: `Где определяется allowlist/профиль инструментов?`\n   identifiers: allowlist\n   results: 8\n   exact: allowlist=90\n\n1. src/cli.py:111  [definition+impact+symbol]\n   allowlist — variable\n2. src/mcp/server_tools.py:229  [definition+symbol]\n   _raw_allowlist — variable\n3. docs/ru/FAQ.md:59  [search]\n   FILE: docs/ru/FAQ.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.faq\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\FAQ.md, section '## Как увидеть остальные инструменты?':\n## Ка\n4. AGENTS.md:146  [search]\n   FILE: AGENTS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agents.md\nFrom D:\\Project\\MSCodeBase\\AGENTS.md, section '### §1.3. Профиль инструментов\n5. docs/ru/ARCHITECTURE.md:42  [search]\n   FILE: docs/ru/ARCHITECTURE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmppb__iujc.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmppb__\n6. docs/ru/README.md:120  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Инструменты и профиль':\n## Инстру\n7. docs/ru/CONFIGURATION.md:23  [search]\n   FILE: docs/ru/CONFIGURATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.configuration\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CONFIGURATION.md, section '## 2. Сервер, п\n8. docs/ru/ARCHITECTURE.md:112  [search]\n   FILE: docs/ru/ARCHITECTURE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmppb__iujc.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmppb__\n\nСимволы:\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n\nДальше: get_symbol_info(\"allowlist\") | impact_analysis | read_live_file(\"src/cli.py\")"
  },
  {
   "run": 1,
@@ -452,13 +435,13 @@
    "src/core/modification_guard.py",
    "src/core/indexing/symbol_index.py",
    "src/core/search/graph_adapter.py",
+   "src/core/search/graph_adapter_pure.py",
    "src/mcp/server_tools.py",
    "src/mcp/tools/context_tool.py",
-   "src/mcp/tools/graph_tools.py",
-   "src/mcp/tools/help_tool.py"
+   "src/mcp/tools/graph_tools.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.13,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "symbol_index.py",
    "graph_adapter.py",
@@ -481,11 +464,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 19.15,
-  "degraded": "symbols:timeout, grep:timeout",
+  "b_elapsed_s": 7.13,
+  "degraded": "",
   "exact": "impact_analysis=66, ETA=76",
   "answered": false,
-  "b_text": "🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`\n   identifiers: impact_analysis, ETA\n   results: 8 | degraded: symbols:timeout, grep:timeout\n   exact: impact_analysis=66, ETA=76\n\n1. src/core/indexing/symbol_index.py:684  [definition+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n2. src/core/search/graph_adapter.py:797  [definition+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n3. src/core/graph_rag.py:93  [definition+symbol]\n   get_impact_analysis — function\n4. src/core/indexing/parser.py:823  [definition+symbol]\n   CodeParser._build_chunk_metadata — function_definition\n5. src/core/eta_predictor.py:43  [definition+symbol]\n   ETAPredictor — class_definition\n6. src/core/eta_predictor.py:46  [definition+symbol]\n   ETAPredictor.__init__ — function_definition\n7. docs/archive/KNOWN_ISSUES_2026_09.md:652  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_09.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmph1u0j75o.md\nFrom C:\\Users\\misha\\AppData\\Local\n8. src/core/intelligence/tools_reg.py:575  [impact]\n   impact ETA: risk=low, affected=1\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"impact_analysis\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  "b_text": "🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`\n   identifiers: impact_analysis, ETA\n   results: 8\n   exact: impact_analysis=66, ETA=76\n\n1. src/core/indexing/symbol_index.py:684  [definition+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n2. src/core/search/graph_adapter.py:797  [definition+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n3. src/core/graph_rag.py:93  [definition+symbol]\n   get_impact_analysis — function\n4. src/core/indexing/parser.py:823  [definition+symbol]\n   CodeParser._build_chunk_metadata — function_definition\n5. src/core/eta_predictor.py:43  [definition+symbol]\n   ETAPredictor — class_definition\n6. src/core/eta_predictor.py:46  [definition+symbol]\n   ETAPredictor.__init__ — function_definition\n7. docs/archive/KNOWN_ISSUES_2026_09.md:652  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_09.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmph1u0j75o.md\nFrom C:\\Users\\misha\\AppData\\Local\n8. src/core/intelligence/tools_reg.py:575  [impact]\n   impact ETA: risk=low, affected=1\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"impact_analysis\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
  },
  {
   "run": 1,
@@ -508,7 +491,7 @@
    "docs/archive/AGENT_DIARY_2026_07.md"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.1,
+  "a_elapsed_s": 0.7,
   "b_files": [
    "graph_adapter.py",
    "graph_adapter.py",
@@ -531,11 +514,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 15.54,
+  "b_elapsed_s": 6.04,
   "degraded": "",
   "exact": "SymbolIndexAdapter=36",
   "answered": false,
-  "b_text": "🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`\n   identifiers: SymbolIndexAdapter\n   results: 8\n   exact: SymbolIndexAdapter=36\n\n1. src/core/search/graph_adapter.py:41  [definition+impact+symbol]\n   SymbolIndexAdapter — class_definition\n2. src/core/search/graph_adapter.py:56  [symbol]\n   SymbolIndexAdapter.__init__ — function_definition\n3. src/core/search/graph_adapter.py:783  [symbol]\n   SymbolIndexAdapter._call_confidence — function_definition\n4. src/core/search/graph_adapter_pure.py:295  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/core/search/graph_adapter_pure.py:1  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/mcp/tools/context_tool.py:94  [graph]\n   caller of SymbolIndexAdapter\n7. src/mcp/tools/graph_tools.py:470  [graph]\n   caller of SymbolIndexAdapter\n8. src/mcp/tools/graph_tools.py:729  [graph]\n   caller of SymbolIndexAdapter\n\nСимволы:\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56\n• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783\n\nДальше: get_symbol_info(\"SymbolIndexAdapter\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter.py\")"
+  "b_text": "🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`\n   identifiers: SymbolIndexAdapter\n   results: 8\n   exact: SymbolIndexAdapter=36\n\n1. src/core/search/graph_adapter.py:41  [definition+grep+impact+symbol]\n   SymbolIndexAdapter — class_definition\n2. src/core/search/graph_adapter.py:56  [symbol]\n   SymbolIndexAdapter.__init__ — function_definition\n3. src/core/search/graph_adapter.py:783  [symbol]\n   SymbolIndexAdapter._call_confidence — function_definition\n4. src/core/search/graph_adapter_pure.py:295  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/core/search/graph_adapter_pure.py:1  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/mcp/tools/context_tool.py:94  [graph+grep]\n   self._flow_adapter = SymbolIndexAdapter(pg)\n7. src/mcp/tools/graph_tools.py:470  [graph+grep]\n   adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)\n8. src/mcp/tools/graph_tools.py:729  [graph]\n   caller of SymbolIndexAdapter\n\nСимволы:\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56\n• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783\n\nДальше: get_symbol_info(\"SymbolIndexAdapter\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter.py\")"
  },
  {
   "run": 1,
@@ -558,7 +541,7 @@
    "src/core/indexing/parser.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.22,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "dataflow_experiment.py",
    "test_database_lock_selfhealing.py",
@@ -581,11 +564,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 19.62,
-  "degraded": "symbols:timeout, grep:timeout",
+  "b_elapsed_s": 6.73,
+  "degraded": "",
   "exact": "chain=114",
   "answered": false,
-  "b_text": "🧭 investigate: `Где считается call chain?`\n   identifiers: chain\n   results: 8 | degraded: symbols:timeout, grep:timeout\n   exact: chain=114\n\n1. scripts/dataflow_experiment.py:415  [definition+symbol]\n   Analyzer._provenance_chains — function_definition\n2. tests/test_database_lock_selfhealing.py:69  [definition+symbol]\n   FakeInspector.parent_chain — function_definition\n3. src/core/indexing/database_lock.py:115  [definition+symbol]\n   ProcessInspector.parent_chain — function_definition\n4. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/mcp/server_factory.py:382  [impact]\n   impact chain: risk=low, affected=1\n6. src/core/search/graph_adapter.py:432  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n7. src/core/indexing/symbol_index.py:548  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n8. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n\nСимволы:\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n\nДальше: get_symbol_info(\"chain\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  "b_text": "🧭 investigate: `Где считается call chain?`\n   identifiers: chain\n   results: 8\n   exact: chain=114\n\n1. scripts/dataflow_experiment.py:415  [definition+symbol]\n   Analyzer._provenance_chains — function_definition\n2. tests/test_database_lock_selfhealing.py:69  [definition+symbol]\n   FakeInspector.parent_chain — function_definition\n3. src/core/indexing/database_lock.py:115  [definition+symbol]\n   ProcessInspector.parent_chain — function_definition\n4. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/mcp/server_factory.py:382  [impact]\n   impact chain: risk=low, affected=1\n6. src/core/search/graph_adapter.py:432  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n7. src/core/indexing/symbol_index.py:548  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n8. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n\nСимволы:\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n\nДальше: get_symbol_info(\"chain\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
  },
  {
   "run": 1,
@@ -608,7 +591,7 @@
    "src/core/indexing/indexer.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.23,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "chunk_store.py",
    "index_guard.py",
@@ -631,11 +614,11 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 20.12,
-  "degraded": "symbols:timeout, grep:timeout",
+  "b_elapsed_s": 7.86,
+  "degraded": "",
   "exact": "file_mtime_ns=7, file_hash=23",
   "answered": false,
-  "b_text": "🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`\n   identifiers: file_mtime_ns, file_hash\n   results: 8 | degraded: symbols:timeout, grep:timeout\n   exact: file_mtime_ns=7, file_hash=23\n\n1. src/core/indexing/chunk_store.py:238  [definition+grep+impact+symbol]\n   SQLiteChunkStore.file_hash — function_definition\n2. src/core/indexing/index_guard.py:627  [symbol]\n   IndexGuard._compute_file_hash — function_definition\n3. src/core/indexing/indexer.py:324  [symbol]\n   Indexer._calculate_file_hash — function_definition\n4. docs/archive/i18n/ru/HANDFOFF.md:107  [search]\n   FILE: docs/archive/i18n/ru/HANDFOFF.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp5z_192xo.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n5. src/core/indexing/freshness.py:144  [search]\n   FILE: src/core/indexing/freshness.py\nSYMBOLS: FreshnessChecker\nDOC: FreshnessChecker — проверка актуальности индекса (Incremental Hot-Reload). Фаза 1 (2026-09-18): переписана на st\n6. src/core/indexing/indexer.py:412  [graph]\n   caller of file_hash\n7. src/core/indexing/indexer.py:557  [graph]\n   caller of file_hash\n8. src/core/indexing/indexer.py:983  [graph]\n   caller of file_hash\n\nСимволы:\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627\n• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:324\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n\nДальше: get_symbol_info(\"file_mtime_ns\") | impact_analysis | read_live_file(\"src/core/indexing/chunk_store.py\")"
+  "b_text": "🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`\n   identifiers: file_mtime_ns, file_hash\n   results: 8\n   exact: file_mtime_ns=7, file_hash=23\n\n1. src/core/indexing/chunk_store.py:238  [definition+grep+impact+symbol]\n   SQLiteChunkStore.file_hash — function_definition\n2. src/core/indexing/index_guard.py:627  [grep+symbol]\n   IndexGuard._compute_file_hash — function_definition\n3. src/core/indexing/indexer.py:324  [symbol]\n   Indexer._calculate_file_hash — function_definition\n4. docs/archive/i18n/ru/HANDFOFF.md:107  [search]\n   FILE: docs/archive/i18n/ru/HANDFOFF.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp5z_192xo.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n5. src/core/indexing/freshness.py:144  [search]\n   FILE: src/core/indexing/freshness.py\nSYMBOLS: FreshnessChecker\nDOC: FreshnessChecker — проверка актуальности индекса (Incremental Hot-Reload). Фаза 1 (2026-09-18): переписана на st\n6. src/core/indexing/indexer.py:412  [graph]\n   caller of file_hash\n7. src/core/indexing/indexer.py:557  [graph]\n   caller of file_hash\n8. src/core/indexing/indexer.py:983  [graph]\n   caller of file_hash\n\nСимволы:\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627\n• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:324\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n\nДальше: get_symbol_info(\"file_mtime_ns\") | impact_analysis | read_live_file(\"src/core/indexing/chunk_store.py\")"
  },
  {
   "run": 1,
@@ -658,7 +641,7 @@
    "src/core/platform_utils.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.11,
+  "a_elapsed_s": 0.73,
   "b_files": [
    "WISDOM.md",
    "PENDING_LEDGER.md",
@@ -681,7 +664,7 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 16.32,
+  "b_elapsed_s": 7.19,
   "degraded": "",
   "exact": "",
   "answered": false,
@@ -708,7 +691,7 @@
    "docs/RESEARCH_SUBAGENTS_OPENCODE.md"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.18,
+  "a_elapsed_s": 0.78,
   "b_files": [
    "lsp_client.py",
    "lsp_client.py",
@@ -731,11 +714,11 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 16.97,
-  "degraded": "symbols:timeout",
+  "b_elapsed_s": 6.54,
+  "degraded": "",
   "exact": "LSP=394",
   "answered": false,
-  "b_text": "🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`\n   identifiers: LSP\n   results: 8 | degraded: symbols:timeout\n   exact: LSP=394\n\n1. src/core/lsp_client.py:291  [definition+symbol]\n   LspClient — class_definition\n2. src/core/lsp_client.py:303  [definition+symbol]\n   LspClient.__init__ — function_definition\n3. src/core/lsp_client.py:368  [definition+symbol]\n   LspClient._ensure_started — function_definition\n4. docs/ru/GRACEFUL_DEGRADATION.md:107  [search]\n   FILE: docs/ru/GRACEFUL_DEGRADATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.graceful_degradation\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\GRACEFUL_DEGRADATION.md, sec\n5. src/mcp/tools/write_tools.py:866  [impact]\n   impact LSP: risk=low, affected=1\n6. docs/RESEARCH_SUBAGENTS_OPENCODE.md:232  [search]\n   FILE: docs/RESEARCH_SUBAGENTS_OPENCODE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | research_subagents_opencode\nFrom D:\\Project\\MSCodeBase\\docs\\RESEARCH_SUBAGENTS_OPEN\n7. docs/ru/INSTALL.md:113  [search]\n   FILE: docs/ru/INSTALL.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.install\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\INSTALL.md, section '## 6. Опциональные провайдеры':\n#\n8. docs/ru/LM_STUDIO_SETUP.md:112  [search]\n   FILE: docs/ru/LM_STUDIO_SETUP.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.lm_studio_setup\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\LM_STUDIO_SETUP.md, section '## 6. `mo\n\nСимволы:\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n\nДальше: get_symbol_info(\"LSP\") | impact_analysis | read_live_file(\"src/core/lsp_client.py\")"
+  "b_text": "🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`\n   identifiers: LSP\n   results: 8\n   exact: LSP=394\n\n1. src/core/lsp_client.py:291  [definition+symbol]\n   LspClient — class_definition\n2. src/core/lsp_client.py:303  [definition+symbol]\n   LspClient.__init__ — function_definition\n3. src/core/lsp_client.py:368  [definition+symbol]\n   LspClient._ensure_started — function_definition\n4. docs/ru/GRACEFUL_DEGRADATION.md:107  [search]\n   FILE: docs/ru/GRACEFUL_DEGRADATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.graceful_degradation\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\GRACEFUL_DEGRADATION.md, sec\n5. src/mcp/tools/write_tools.py:866  [impact]\n   impact LSP: risk=low, affected=1\n6. docs/RESEARCH_SUBAGENTS_OPENCODE.md:232  [search]\n   FILE: docs/RESEARCH_SUBAGENTS_OPENCODE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | research_subagents_opencode\nFrom D:\\Project\\MSCodeBase\\docs\\RESEARCH_SUBAGENTS_OPEN\n7. docs/ru/INSTALL.md:113  [search]\n   FILE: docs/ru/INSTALL.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.install\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\INSTALL.md, section '## 6. Опциональные провайдеры':\n#\n8. docs/ru/LM_STUDIO_SETUP.md:112  [search]\n   FILE: docs/ru/LM_STUDIO_SETUP.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.lm_studio_setup\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\LM_STUDIO_SETUP.md, section '## 6. `mo\n\nСимволы:\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n\nДальше: get_symbol_info(\"LSP\") | impact_analysis | read_live_file(\"src/core/lsp_client.py\")"
  },
  {
   "run": 1,
@@ -758,7 +741,7 @@
    "src/core/deps/manifest/extract.py"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.24,
+  "a_elapsed_s": 0.72,
   "b_files": [
    "HANDFOFF.md",
    "artifact_paths.py",
@@ -781,7 +764,7 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 21.23,
+  "b_elapsed_s": 7.09,
   "degraded": "",
   "exact": "",
   "answered": false,
@@ -809,7 +792,7 @@
    "docs/ru/GRACEFUL_DEGRADATION.md"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.06,
+  "a_elapsed_s": 0.7,
   "b_files": [
    "symbol_index.py",
    "graph_adapter.py",
@@ -832,11 +815,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 17.74,
-  "degraded": "symbols:timeout",
+  "b_elapsed_s": 6.38,
+  "degraded": "",
   "exact": "build_call_graph=39",
   "answered": false,
-  "b_text": "🧭 investigate: `Где реализован `build_call_graph`?`\n   identifiers: build_call_graph\n   results: 8 | degraded: symbols:timeout\n   exact: build_call_graph=39\n\n1. src/core/indexing/symbol_index.py:548  [definition+impact+search+symbol]\n   SymbolIndex.build_call_graph — function_definition\n2. src/core/search/graph_adapter.py:597  [definition+search]\n   SymbolIndexAdapter.build_call_graph — function_definition\n3. scripts/run_experiment_pagerank.py:41  [definition]\n   build_call_graph — function_definition\n4. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n5. src/core/search/graph_adapter.py:698  [symbol]\n   SymbolIndexAdapter._hybrid_build_call_graph — function_definition\n6. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n7. src/core/indexing/symbol_index.py:707  [graph]\n   caller of build_call_graph\n8. src/core/indexing/symbol_index.py:856  [graph]\n   caller of build_call_graph\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  "b_text": "🧭 investigate: `Где реализован `build_call_graph`?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=39\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]\n   SymbolIndex.build_call_graph — function_definition\n2. src/core/search/graph_adapter.py:597  [definition+grep+search]\n   SymbolIndexAdapter.build_call_graph — function_definition\n3. scripts/run_experiment_pagerank.py:41  [definition+grep]\n   build_call_graph — function_definition\n4. src/core/search/graph_adapter.py:612  [grep+symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n5. src/core/search/graph_adapter.py:698  [grep+symbol]\n   SymbolIndexAdapter._hybrid_build_call_graph — function_definition\n6. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n7. src/core/indexing/symbol_index.py:707  [graph+grep]\n   call_graph = self.build_call_graph(symbol, depth=depth)\n8. src/core/indexing/symbol_index.py:856  [graph+grep]\n   graph = self.build_call_graph(symbol, depth=1)\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
  },
  {
   "run": 1,
@@ -856,11 +839,11 @@
    "docs/archive/AGENT_DIARY_2026_08.md"
   ],
   "a_ok": true,
-  "a_elapsed_s": 1.12,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "graph_adapter_pure.py",
-   "graph_rag.py",
    "symbol_index.py",
+   "graph_rag.py",
    "2026-07-09-provider-benchmark.md",
    "AGENT_DIARY_2026_08.md",
    "graph_rag.py",
@@ -869,8 +852,8 @@
   ],
   "b_full_files": [
    "src/core/search/graph_adapter_pure.py",
-   "src/core/graph_rag.py",
    "src/core/indexing/symbol_index.py",
+   "src/core/graph_rag.py",
    "docs/archive/research/2026-07-09-provider-benchmark.md",
    "docs/archive/AGENT_DIARY_2026_08.md",
    "src/core/graph_rag.py",
@@ -879,11 +862,11 @@
   ],
   "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 16.35,
-  "degraded": "symbols:timeout",
+  "b_elapsed_s": 5.91,
+  "degraded": "",
   "exact": "get_call_chain=7",
   "answered": false,
-  "b_text": "🧭 investigate: `Где реализован `get_call_chain`?`\n   identifiers: get_call_chain\n   results: 8 | degraded: symbols:timeout\n   exact: get_call_chain=7\n\n1. src/core/search/graph_adapter_pure.py:477  [definition+grep+impact+symbol]\n   PureGraphMixin.get_call_chain — function_definition\n2. src/core/graph_rag.py:163  [definition+grep+symbol]\n   get_call_chain — function\n3. src/core/indexing/symbol_index.py:353  [definition+grep+symbol]\n   SymbolIndex.get_call_chain — function_definition\n4. docs/archive/research/2026-07-09-provider-benchmark.md:262  [search]\n   FILE: docs/archive/research/2026-07-09-provider-benchmark.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp7qj_kvkj.md\nFrom C:\\Users\\m\n5. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n6. src/core/graph_rag.py:175  [graph+grep]\n   call_chain = self.symbol_index.get_call_chain(sym, direction=\"up\")\n7. tests/test_graph_center.py:159  [graph]\n   caller of get_call_chain\n8. tests/test_symbol_index_call_graph.py:204  [graph]\n   caller of get_call_chain\n\nСимволы:\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n\nДальше: get_symbol_info(\"get_call_chain\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter_pure.py\")"
+  "b_text": "🧭 investigate: `Где реализован `get_call_chain`?`\n   identifiers: get_call_chain\n   results: 8\n   exact: get_call_chain=7\n\n1. src/core/search/graph_adapter_pure.py:477  [definition+grep+impact+symbol]\n   PureGraphMixin.get_call_chain — function_definition\n2. src/core/indexing/symbol_index.py:353  [definition+grep+symbol]\n   SymbolIndex.get_call_chain — function_definition\n3. src/core/graph_rag.py:163  [grep+symbol]\n   get_call_chain — function\n4. docs/archive/research/2026-07-09-provider-benchmark.md:262  [search]\n   FILE: docs/archive/research/2026-07-09-provider-benchmark.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp7qj_kvkj.md\nFrom C:\\Users\\m\n5. docs/archive/AGENT_DIARY_2026_08.md:788  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n6. src/core/graph_rag.py:175  [graph+grep]\n   call_chain = self.symbol_index.get_call_chain(sym, direction=\"up\")\n7. tests/test_graph_center.py:159  [graph]\n   caller of get_call_chain\n8. tests/test_symbol_index_call_graph.py:204  [graph]\n   caller of get_call_chain\n\nСимволы:\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n\nДальше: get_symbol_info(\"get_call_chain\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter_pure.py\")"
  },
  {
   "run": 1,
@@ -907,7 +890,7 @@
    "src/core/intelligence/store.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.25,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "auto_doc_updater.py",
    "store.py",
@@ -930,11 +913,11 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 19.24,
-  "degraded": "symbols:timeout, grep:timeout",
+  "b_elapsed_s": 6.31,
+  "degraded": "",
   "exact": "staleness=26",
   "answered": false,
-  "b_text": "🧭 investigate: `Где считается «устаревание» (staleness)?`\n   identifiers: staleness\n   results: 8 | degraded: symbols:timeout, grep:timeout\n   exact: staleness=26\n\n1. src/core/auto_doc_updater.py:149  [definition+symbol]\n   AutoDocUpdater.check_staleness — function_definition\n2. src/core/intelligence/store.py:191  [definition+symbol]\n   IntelligenceStore.check_staleness — function_definition\n3. tests/test_stale_after.py:145  [definition+symbol]\n   TestCLI.test_cli_check_staleness — function_definition\n4. docs/archive/AGENT_DIARY_2026_08.md:1316  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n5. src/core/intelligence/store.py:210  [impact]\n   impact staleness: risk=low, affected=1\n6. docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md:2  [search]\n   FILE: docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpayq1wj38.md\nFrom C:\\\n7. docs/archive/KNOWN_ISSUES_2026_09.md:652  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_09.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmph1u0j75o.md\nFrom C:\\Users\\misha\\AppData\\Local\n8. docs/archive/research/2026-07-11-telemetry-and-metrics.md:163  [search]\n   FILE: docs/archive/research/2026-07-11-telemetry-and-metrics.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpdtr2xgt0.md\nFrom C:\\User\n\nСимволы:\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n\nДальше: get_symbol_info(\"staleness\") | impact_analysis | read_live_file(\"src/core/auto_doc_updater.py\")"
+  "b_text": "🧭 investigate: `Где считается «устаревание» (staleness)?`\n   identifiers: staleness\n   results: 8\n   exact: staleness=26\n\n1. src/core/auto_doc_updater.py:149  [definition+grep+symbol]\n   AutoDocUpdater.check_staleness — function_definition\n2. src/core/intelligence/store.py:191  [definition+grep+symbol]\n   IntelligenceStore.check_staleness — function_definition\n3. tests/test_stale_after.py:145  [definition+symbol]\n   TestCLI.test_cli_check_staleness — function_definition\n4. docs/archive/AGENT_DIARY_2026_08.md:1316  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_08.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpr0qwnk7m.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n5. src/core/intelligence/store.py:210  [grep+impact]\n   staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n6. docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md:2  [search]\n   FILE: docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpayq1wj38.md\nFrom C:\\\n7. docs/archive/KNOWN_ISSUES_2026_09.md:652  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_09.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmph1u0j75o.md\nFrom C:\\Users\\misha\\AppData\\Local\n8. docs/archive/research/2026-07-11-telemetry-and-metrics.md:163  [search]\n   FILE: docs/archive/research/2026-07-11-telemetry-and-metrics.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpdtr2xgt0.md\nFrom C:\\User\n\nСимволы:\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n\nДальше: get_symbol_info(\"staleness\") | impact_analysis | read_live_file(\"src/core/auto_doc_updater.py\")"
  },
  {
   "run": 1,
@@ -958,7 +941,7 @@
    "src/core/indexing/index_parser.py"
   ],
   "a_ok": false,
-  "a_elapsed_s": 1.17,
+  "a_elapsed_s": 0.7,
   "b_files": [
    "indexer.py",
    "diag_quality_hang.py",
@@ -981,7 +964,7 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 14.74,
+  "b_elapsed_s": 4.91,
   "degraded": "",
   "exact": "Indexer=214",
   "answered": false,
@@ -995,34 +978,16 @@
   "gold": [],
   "a_files": [],
   "a_ok": true,
-  "a_elapsed_s": 1.23,
-  "b_files": [
-   "PENDING_LEDGER.md",
-   "AGENT_DIARY.md",
-   "AGENT_DIARY.md",
-   "AGENTS.md_before_48_and_audit_20260722_215808.md",
-   "RESEARCH-protocol-landscape.md",
-   "AGENT_DIARY.md",
-   "KNOWN_ISSUES_2026_10.md",
-   "KNOWN_ISSUES_2026_07.md"
-  ],
-  "b_full_files": [
-   "tools/knowledge/PENDING_LEDGER.md",
-   "AGENT_DIARY.md",
-   "AGENT_DIARY.md",
-   "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
-   "tools/knowledge/RESEARCH-protocol-landscape.md",
-   "AGENT_DIARY.md",
-   "docs/archive/KNOWN_ISSUES_2026_10.md",
-   "docs/archive/KNOWN_ISSUES_2026_07.md"
-  ],
-  "b_ok": false,
+  "a_elapsed_s": 0.71,
+  "b_files": [],
+  "b_full_files": [],
+  "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 16.29,
-  "degraded": "symbols:timeout",
-  "exact": "partner_agreement=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.",
+  "b_elapsed_s": 6.41,
+  "degraded": "",
+  "exact": "partner_agreement=0",
   "answered": true,
-  "b_text": "🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`\n   identifiers: partner_agreement\n   results: 8 | degraded: symbols:timeout\n   ⚠️ exact: partner_agreement=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.\n\n1. tools/knowledge/PENDING_LEDGER.md:77  [search]\n   FILE: tools/knowledge/PENDING_LEDGER.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpuyqirye2.md\nFrom C:\\Users\\misha\\AppData\\Local\\Te\n2. AGENT_DIARY.md:1384  [search]\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp69c33ayk.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmp69c33ayk.md, \n3. AGENT_DIARY.md:358  [search]\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp69c33ayk.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmp69c33ayk.md, \n4. docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md:551  [search]\n   FILE: docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpayq1wj38.md\nFrom C:\\\n5. tools/knowledge/RESEARCH-protocol-landscape.md:19  [search]\n   FILE: tools/knowledge/RESEARCH-protocol-landscape.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpwy0lo4hv.md\nFrom C:\\Users\\misha\\App\n6. AGENT_DIARY.md:369  [search]\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp69c33ayk.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmp69c33ayk.md, \n7. docs/archive/KNOWN_ISSUES_2026_10.md:199  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_10.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmprc8rsnib.md\nFrom C:\\Users\\misha\\AppData\\Local\n8. docs/archive/KNOWN_ISSUES_2026_07.md:1087  [search]\n   FILE: docs/archive/KNOWN_ISSUES_2026_07.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp386npih8.md\nFrom C:\\Users\\misha\\AppData\\Local\n\nДальше: get_symbol_info(\"partner_agreement\") | impact_analysis | read_live_file(\"tools/knowledge/PENDING_LEDGER.md\")"
+  "b_text": "🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`\n   identifiers: partner_agreement\n   results: 0\n   exact: partner_agreement=0\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
  },
  {
   "run": 1,
@@ -1032,34 +997,16 @@
   "gold": [],
   "a_files": [],
   "a_ok": true,
-  "a_elapsed_s": 1.12,
-  "b_files": [
-   "HANDFOFF.md",
-   "run_1L_live_arm.py",
-   "CONFIGURATION.md",
-   "run_1L_live_arm.py",
-   "SYSTEM_REQUIREMENTS.md",
-   "RESEARCH-protocol-landscape.md",
-   "SECURITY.md",
-   "AGENT_DIARY_2026_07.md"
-  ],
-  "b_full_files": [
-   "docs/archive/i18n/ru/HANDFOFF.md",
-   "scripts/run_1L_live_arm.py",
-   "docs/ru/CONFIGURATION.md",
-   "scripts/run_1L_live_arm.py",
-   "docs/ru/SYSTEM_REQUIREMENTS.md",
-   "tools/knowledge/RESEARCH-protocol-landscape.md",
-   "docs/ru/SECURITY.md",
-   "docs/archive/AGENT_DIARY_2026_07.md"
-  ],
-  "b_ok": false,
+  "a_elapsed_s": 0.71,
+  "b_files": [],
+  "b_full_files": [],
+  "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 18.36,
-  "degraded": "symbols:timeout",
-  "exact": "XERJ_FACTS_MODEL_DIR=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.",
+  "b_elapsed_s": 7.34,
+  "degraded": "",
+  "exact": "XERJ_FACTS_MODEL_DIR=0",
   "answered": true,
-  "b_text": "🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`\n   identifiers: XERJ_FACTS_MODEL_DIR\n   results: 8 | degraded: symbols:timeout\n   ⚠️ exact: XERJ_FACTS_MODEL_DIR=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.\n\n1. docs/archive/i18n/ru/HANDFOFF.md:107  [search]\n   FILE: docs/archive/i18n/ru/HANDFOFF.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp5z_192xo.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n2. scripts/run_1L_live_arm.py:321  [search]\n   FILE: scripts/run_1L_live_arm.py\nSYMBOLS: _api_key _provider_endpoint _prompt _load_graph_contexts _graph_context_for _src_index _best_file_for_token _first_line _resolve_snippet _\n3. docs/ru/CONFIGURATION.md:9  [search]\n   FILE: docs/ru/CONFIGURATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.configuration\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CONFIGURATION.md, section '## 1. Откуда бе\n4. scripts/run_1L_live_arm.py:1  [search]\n   FILE: scripts/run_1L_live_arm.py\nSYMBOLS: _api_key _provider_endpoint _prompt _load_graph_contexts _graph_context_for _src_index _best_file_for_token _first_line _resolve_snippet _\n5. docs/ru/SYSTEM_REQUIREMENTS.md:0  [search]\n   FILE: docs/ru/SYSTEM_REQUIREMENTS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.system_requirements\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\SYSTEM_REQUIREMENTS.md, sectio\n6. tools/knowledge/RESEARCH-protocol-landscape.md:0  [search]\n   FILE: tools/knowledge/RESEARCH-protocol-landscape.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpwy0lo4hv.md\nFrom C:\\Users\\misha\\App\n7. docs/ru/SECURITY.md:90  [search]\n   FILE: docs/ru/SECURITY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.security\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\SECURITY.md, section '## 5. Пути, чтения и индекс':\n\n8. docs/archive/AGENT_DIARY_2026_07.md:466  [search]\n   FILE: docs/archive/AGENT_DIARY_2026_07.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp3440989f.md\nFrom C:\\Users\\misha\\AppData\\Local\\\n\nДальше: get_symbol_info(\"XERJ_FACTS_MODEL_DIR\") | impact_analysis | read_live_file(\"docs/archive/i18n/ru/HANDFOFF.md\")"
+  "b_text": "🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`\n   identifiers: XERJ_FACTS_MODEL_DIR\n   results: 0\n   exact: XERJ_FACTS_MODEL_DIR=0\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
  },
  {
   "run": 1,
@@ -1069,7 +1016,7 @@
   "gold": [],
   "a_files": [],
   "a_ok": true,
-  "a_elapsed_s": 1.2,
+  "a_elapsed_s": 0.71,
   "b_files": [
    "check_knowledge.py",
    "live_smoke.py",
@@ -1092,11 +1039,11 @@
   ],
   "b_ok": false,
   "b_invalid": false,
-  "b_elapsed_s": 15.76,
-  "degraded": "symbols:timeout",
+  "b_elapsed_s": 6.01,
+  "degraded": "",
   "exact": "Corpus=2, Hub=42",
   "answered": false,
-  "b_text": "🧭 investigate: `Где ключ подписи Corpus Hub?`\n   identifiers: Corpus, Hub\n   results: 8 | degraded: symbols:timeout\n   exact: Corpus=2, Hub=42\n\n1. tools/knowledge/check_knowledge.py:73  [definition+impact+symbol]\n   corpus — variable\n2. tools/microtask_pipeline/live_smoke.py:31  [definition+symbol]\n   corpus_tasks — module\n3. tests/test_codebase_hub.py:46  [definition]\n   hub — function_definition\n4. tests/test_codebase_hub.py:30  [symbol]\n   FakeWriteTool — class_definition\n5. tests/test_codebase_hub.py:36  [symbol]\n   FakeWriteTool.__init__ — function_definition\n6. tests/test_codebase_hub.py:39  [symbol]\n   FakeWriteTool.execute — function_definition\n7. docs/adr/0006-lsp-graph-enrichment.md:83  [search]\n   FILE: docs/adr/0006-lsp-graph-enrichment.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpicvy_za1.md\nFrom C:\\Users\\misha\\AppData\\Loca\n8. src/mcp/tools/graph_tools.py:640  [impact]\n   impact Hub: risk=low, affected=3\n\nСимволы:\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• hub (function_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:46\n• FakeWriteTool (class_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:30\n\nДальше: get_symbol_info(\"Corpus\") | impact_analysis | read_live_file(\"tools/knowledge/check_knowledge.py\")"
+  "b_text": "🧭 investigate: `Где ключ подписи Corpus Hub?`\n   identifiers: Corpus, Hub\n   results: 8\n   exact: Corpus=2, Hub=42\n\n1. tools/knowledge/check_knowledge.py:73  [definition+impact+symbol]\n   corpus — variable\n2. tools/microtask_pipeline/live_smoke.py:31  [definition+symbol]\n   corpus_tasks — module\n3. tests/test_codebase_hub.py:46  [definition]\n   hub — function_definition\n4. tests/test_codebase_hub.py:30  [symbol]\n   FakeWriteTool — class_definition\n5. tests/test_codebase_hub.py:36  [symbol]\n   FakeWriteTool.__init__ — function_definition\n6. tests/test_codebase_hub.py:39  [symbol]\n   FakeWriteTool.execute — function_definition\n7. docs/adr/0006-lsp-graph-enrichment.md:83  [search]\n   FILE: docs/adr/0006-lsp-graph-enrichment.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpicvy_za1.md\nFrom C:\\Users\\misha\\AppData\\Loca\n8. src/mcp/tools/graph_tools.py:640  [impact]\n   impact Hub: risk=low, affected=3\n\nСимволы:\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• hub (function_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:46\n• FakeWriteTool (class_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:30\n\nДальше: get_symbol_info(\"Corpus\") | impact_analysis | read_live_file(\"tools/knowledge/check_knowledge.py\")"
  },
  {
   "run": 1,
@@ -1106,33 +1053,15 @@
   "gold": [],
   "a_files": [],
   "a_ok": true,
-  "a_elapsed_s": 1.15,
-  "b_files": [
-   "HANDFOFF.md",
-   "FAQ.md",
-   "RESEARCH-protocol-landscape.md",
-   "passport.py",
-   "AGENT_DIARY.md",
-   "SYSTEM_REQUIREMENTS.md",
-   "code_health.py",
-   "symbol_index.py"
-  ],
-  "b_full_files": [
-   "docs/archive/i18n/ru/HANDFOFF.md",
-   "docs/ru/FAQ.md",
-   "tools/knowledge/RESEARCH-protocol-landscape.md",
-   "src/core/passport.py",
-   "AGENT_DIARY.md",
-   "docs/ru/SYSTEM_REQUIREMENTS.md",
-   "src/core/code_health.py",
-   "src/core/indexing/symbol_index.py"
-  ],
-  "b_ok": false,
+  "a_elapsed_s": 0.71,
+  "b_files": [],
+  "b_full_files": [],
+  "b_ok": true,
   "b_invalid": false,
-  "b_elapsed_s": 11.32,
+  "b_elapsed_s": 6.06,
   "degraded": "",
-  "exact": "consensus_partner_agreement=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.",
+  "exact": "consensus_partner_agreement=0",
   "answered": true,
-  "b_text": "🧭 investigate: `Где `consensus_partner_agreement`?`\n   identifiers: consensus_partner_agreement\n   results: 8\n   ⚠️ exact: consensus_partner_agreement=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.\n\n1. docs/archive/i18n/ru/HANDFOFF.md:107  [search]\n   FILE: docs/archive/i18n/ru/HANDFOFF.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp5z_192xo.md\nFrom C:\\Users\\misha\\AppData\\Local\\Tem\n2. docs/ru/FAQ.md:40  [search]\n   FILE: docs/ru/FAQ.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.faq\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\FAQ.md, section '## Где живут данные?':\n## Где живут данные?\n\n\n3. tools/knowledge/RESEARCH-protocol-landscape.md:0  [search]\n   FILE: tools/knowledge/RESEARCH-protocol-landscape.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpwy0lo4hv.md\nFrom C:\\Users\\misha\\App\n4. src/core/passport.py:1  [search]\n   FILE: src/core/passport.py\nSYMBOLS: get_uptime to_dict\nDOC:  Passport — Runtime Process Passport (RUN_ID, BUILD_ID, PID, started_at). ЕТО ЕДИНСТВЕННОЕ МЕСТО, где определены runtime\n5. AGENT_DIARY.md:305  [search]\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmp69c33ayk.md\nFrom C:\\Users\\misha\\AppData\\Local\\Temp\\tmp69c33ayk.md, \n6. docs/ru/SYSTEM_REQUIREMENTS.md:0  [search]\n   FILE: docs/ru/SYSTEM_REQUIREMENTS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.system_requirements\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\SYSTEM_REQUIREMENTS.md, sectio\n7. src/core/code_health.py:1  [search]\n   FILE: src/core/code_health.py\nSYMBOLS: score_file _count_lines _max_nesting_depth _count_cyclomatic_complexity _count_bare_excepts\nDOC:  Code Health Score — детерминированная оценк\n8. src/core/indexing/symbol_index.py:294  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n\nДальше: get_symbol_info(\"consensus_partner_agreement\") | impact_analysis | read_live_file(\"docs/archive/i18n/ru/HANDFOFF.md\")"
+  "b_text": "🧭 investigate: `Где `consensus_partner_agreement`?`\n   identifiers: consensus_partner_agreement\n   results: 0\n   exact: consensus_partner_agreement=0\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
  }
 ]

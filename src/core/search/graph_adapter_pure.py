@@ -499,8 +499,20 @@ class PureGraphMixin:
         # Пробуем через PropertyGraph
         nodes = self._find_nodes_flexible(symbol, limit=20)
         if nodes:
+            # Call-site nodes (a qualified call `x.method(...)`) land in the
+            # graph as FUNCTION nodes WITHOUT a `kind` property; real
+            # definitions carry `kind="function_definition"` / "class_definition".
+            # Measured 2026-11-08 on 60 symbols: 6 first hits (10%) were such
+            # call-site nodes (e.g. graph_rag.py:93 for `get_impact_analysis`),
+            # and investigating them as definitions promoted a call site with
+            # the full definition weight. Prefer typed nodes, keep the rest only
+            # when nothing typed exists (other languages may not set `kind`).
+            typed = [
+                n for n in nodes
+                if str((n.properties or {}).get("kind", "")).endswith("_definition")
+            ]
             result = []
-            for n in nodes:
+            for n in (typed or nodes):
                 if n.label in (NodeLabel.FUNCTION, NodeLabel.CLASS, NodeLabel.METHOD):
                     result.append(SymbolRef(
                         symbol=n.name,

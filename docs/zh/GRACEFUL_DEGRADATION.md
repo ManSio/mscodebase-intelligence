@@ -85,6 +85,20 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 3. `latency_ms` 来自时钟：60 ms 的调用至少报 50，两种不同开销给出两个不同数字；
 4. 两个非精确通道指向同一位置只是相关性，不是证明：`exact:` 行不会因“一致”而改变。
 
+当第一个标识符在代码中**完全不存在**、且图也不知道该符号时，回答是拒绝，而不是邻居列表：
+
+```
+🧭 investigate: `where is corpus_hub_signing_key defined`
+   identifiers: corpus_hub_signing_key
+   results: 0
+   exact: corpus_hub_signing_key=0
+   ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+   Neighbours withheld: 8. Pass include_neighbours=true to see them anyway.
+```
+
+`include_neighbours=true` 会把它们返回。两种情况不会拒绝：未完成的通道（它的沉默是
+“未知”，不是“没有”），以及图里已知的符号（名字是真实的，即使精确通道漏掉了它）。
+
 ## 5. 工具级失败与超时
 
 `@error_boundary(name, timeout_ms=...)` 是唯一的包装器：

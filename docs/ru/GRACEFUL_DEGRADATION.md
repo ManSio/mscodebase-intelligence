@@ -95,6 +95,22 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 4. совпадение двух неточных каналов на одном месте — корреляция, а не
    доказательство: строка `exact:` от согласия не меняется.
 
+Если первый идентификатор не встречается **нигде** и граф не знает такой символ,
+ответ — отказ, а не список соседей:
+
+```
+🧭 investigate: `where is corpus_hub_signing_key defined`
+   identifiers: corpus_hub_signing_key
+   results: 0
+   exact: corpus_hub_signing_key=0
+   ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+   Neighbours withheld: 8. Pass include_neighbours=true to see them anyway.
+```
+
+`include_neighbours=true` возвращает их. Два случая отказа не дают: канал, который
+не завершился (его молчание — «неизвестно», а не «нет»), и символ, известный графу
+(имя реально, даже если точный канал его пропустил).
+
 ## 5. Отказы и таймауты на уровне инструмента
 
 `@error_boundary(name, timeout_ms=...)` — единственная обёртка:

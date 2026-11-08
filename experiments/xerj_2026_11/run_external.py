@@ -29,7 +29,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT))
 
-GOLD = json.loads((HERE / "frozen" / "gold_external.json").read_text(encoding="utf-8"))
+DEFAULT_GOLD = HERE / "frozen" / "gold_external.json"
+GOLD_FILE = DEFAULT_GOLD
 RAW_FILE = HERE / "external_raw.txt"
 JSON_FILE = HERE / "external.json"
 MAX_TOP = 10
@@ -72,9 +73,20 @@ def arm_a(project: Path, tokens: list[str]) -> dict:
 
 
 def main() -> int:
+    global GOLD, GOLD_FILE, RAW_FILE, JSON_FILE
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-index", action="store_true")
+    parser.add_argument("--gold", default=str(DEFAULT_GOLD),
+                        help="frozen gold set (default: gold_external.json)")
+    parser.add_argument("--tag", default="",
+                        help="suffix for the output files (e.g. v2)")
     args = parser.parse_args()
+    GOLD_FILE = Path(args.gold)
+    GOLD = json.loads(GOLD_FILE.read_text(encoding="utf-8"))
+    if args.tag:
+        RAW_FILE = HERE / f"external_{args.tag}_raw.txt"
+        JSON_FILE = HERE / f"external_{args.tag}.json"
+    print(f"gold: {GOLD_FILE.name} -> {JSON_FILE.name}")
 
     from src.core.di_container import (  # noqa: E402
         IndexerFactoryKey, ProjectIndexerRegistry, create_service_collection,

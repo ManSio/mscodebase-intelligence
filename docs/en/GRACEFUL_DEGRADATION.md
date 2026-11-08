@@ -89,6 +89,22 @@ Four rules that must stay true (guard: `tests/test_no_silent_success.py`):
 4. two non-exact channels naming the same place is correlation, not proof — the
    `exact:` line is not raised by agreement.
 
+When the first identifier occurs **nowhere** and the graph does not know the
+symbol either, the answer is a refusal, not a neighbour list:
+
+```
+🧭 investigate: `where is corpus_hub_signing_key defined`
+   identifiers: corpus_hub_signing_key
+   results: 0
+   exact: corpus_hub_signing_key=0
+   ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+   Neighbours withheld: 8. Pass include_neighbours=true to see them anyway.
+```
+
+`include_neighbours=true` returns them. Two cases never refuse: a channel that
+did not finish (its silence means "unknown", not "absent"), and a symbol the
+graph knows (the name is real even when the exact channel missed it).
+
 ## 5. Tool-level failure and timeouts
 
 `@error_boundary(name, timeout_ms=...)` is the single wrapper:

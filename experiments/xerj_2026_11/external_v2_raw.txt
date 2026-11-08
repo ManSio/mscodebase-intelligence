@@ -1,0 +1,102 @@
+### itsdangerous X07 Who calls `want_bytes`?
+A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
+B(2.04s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'signer.py']
+gold: ['src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
+--- B raw ---
+🧭 investigate: `Who calls `want_bytes`?`
+   identifiers: want_bytes
+   results: 8
+   exact: want_bytes=29
+
+1. src/itsdangerous/encoding.py:24  [graph+grep]
+   string = want_bytes(string)
+2. src/itsdangerous/encoding.py:32  [graph+grep]
+   string = want_bytes(string, encoding="ascii", errors="ignore")
+3. src/itsdangerous/serializer.py:211  [graph+grep]
+   salt = want_bytes(salt)
+4. src/itsdangerous/serializer.py:7  [grep]
+   from .encoding import want_bytes
+5. src/itsdangerous/serializer.py:276  [grep]
+   return want_bytes(self.serializer.dumps(obj, **self.serializer_kwargs))
+6. src/itsdangerous/serializer.py:314  [grep]
+   payload = want_bytes(self.dump_payload(obj))
+7. src/itsdangerous/serializer.py:334  [grep]
+   s = want_bytes(s)
+8. src/itsdangerous/signer.py:11  [grep]
+   from .encoding import want_bytes
+
+Символы:
+• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11
+• test_want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:12
+• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11
+
+Дальше: get_symbol_info("want_bytes") | impact_analysis | read_live_file("src/itsdangerous/encoding.py")
+
+### itsdangerous X08 Who raises `BadSignature`?
+A(0.11s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py']
+B(1.93s, ok=True, degraded=-): ['signer.py', 'serializer.py', 'signer.py', 'timed.py', 'exc.py', 'exc.py', 'serializer.py', 'serializer.py']
+gold: ['src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
+--- B raw ---
+🧭 investigate: `Who raises `BadSignature`?`
+   identifiers: BadSignature
+   results: 8
+   exact: BadSignature=27
+
+1. src/itsdangerous/signer.py:256  [graph+grep]
+   raise BadSignature(f"Signature {sig!r} does not match", payload=value)
+2. src/itsdangerous/serializer.py:343  [grep]
+   raise t.cast(BadSignature, last_exception)
+3. src/itsdangerous/signer.py:249  [grep]
+   raise BadSignature(f"No {self.sep!r} found in value")
+4. src/itsdangerous/timed.py:220  [grep]
+   raise t.cast(BadSignature, last_exception)
+5. src/itsdangerous/exc.py:36  [grep]
+   class BadTimeSignature(BadSignature):
+6. src/itsdangerous/exc.py:66  [grep]
+   class BadHeader(BadSignature):
+7. src/itsdangerous/serializer.py:9  [grep]
+   from .exc import BadSignature
+8. src/itsdangerous/serializer.py:340  [grep]
+   except BadSignature as err:
+
+Символы:
+• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22
+• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22
+• BadSignature.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:25
+
+Дальше: get_symbol_info("BadSignature") | impact_analysis | read_live_file("src/itsdangerous/signer.py")
+
+### iniconfig Y04 Who raises `ParseError`?
+A(0.0s, ok=True): ['src/iniconfig/__init__.py', 'src/iniconfig/_parse.py', 'src/iniconfig/exceptions.py', 'testing/test_iniconfig.py']
+B(1.95s, ok=True, degraded=-): ['_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', '_parse.py', 'testing/test_iniconfig.py', '_parse.py']
+gold: ['src/iniconfig/_parse.py']
+--- B raw ---
+🧭 investigate: `Who raises `ParseError`?`
+   identifiers: ParseError
+   results: 8
+   exact: ParseError=17
+
+1. src/iniconfig/_parse.py:61  [graph+grep]
+   raise ParseError(path, lineno, f"duplicate name {name!r}")
+2. src/iniconfig/_parse.py:94  [graph+grep]
+   raise ParseError(path, lineno, "unexpected value continuation")
+3. src/iniconfig/_parse.py:135  [graph+grep]
+   raise ParseError(path, lineno, f"unexpected line: {line!r}") from None
+4. src/iniconfig/_parse.py:53  [grep]
+   raise ParseError(path, lineno, "no section header defined")
+5. src/iniconfig/_parse.py:57  [grep]
+   raise ParseError(path, lineno, f"duplicate section {section!r}")
+6. src/iniconfig/_parse.py:87  [grep]
+   raise ParseError(path, lineno, "empty section name")
+7. testing/test_iniconfig.py:78  [grep+search]
+   def parse_a_error(input: str) -> ParseError:
+8. src/iniconfig/_parse.py:5  [grep]
+   from .exceptions import ParseError
+
+Символы:
+• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4
+• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4
+• ParseError.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:9
+• ParseError.__str__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:15
+
+Дальше: get_symbol_info("ParseError") | impact_analysis | read_live_file("src/iniconfig/_parse.py")

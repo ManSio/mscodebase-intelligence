@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import threading
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -101,21 +102,37 @@ def _relpath(path: Any, root: Any) -> str:
     return text
 
 
-def _asks_for_callers(query: str) -> bool:
-    """Does the question ask *who uses X* rather than *where is X defined*?
+def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> bool:
+    """True when the answer must be "not found" instead of a neighbour list.
 
-    The definition is the answer to the second question and the wrong answer to
-    the first, but it used to outrank the callers (impact weight 1.2 vs caller
-    weight 1.0). Measured 2026-11-08: on `Who calls want_bytes?` the top hit was
-    `def want_bytes` in all three caller tasks of the external corpus.
+    `per` maps identifier -> exact hit count and exists only when the grep
+    channel COMPLETED; a degraded channel means "unknown", so an empty/absent
+    `per` never abstains. A symbol the graph knows keeps its neighbours: the
+    name is real even if the exact channel missed it.
+    """
+    if include_neighbours or not per:
+        return False
+    subject = next(iter(per))
+    return per.get(subject) == 0 and not known
+
+
+def _asks_for_callers(query: str) -> bool:
+    """Does the question ask for references (callers / raises / uses), not the definition?
+
+    The definition is the answer to "where is X defined" and the wrong answer to
+    "who uses X". Measured 2026-11-08: on `Who calls want_bytes?` the top hit was
+    `def want_bytes`; on `Who raises ParseError?` the call graph has no CALLS
+    edge at all (a `raise` is a reference, not a call), so the exact grep hits
+    are the evidence there and must outrank semantic neighbours.
     """
     lowered = (query or "").lower()
     return any(
         marker in lowered
         for marker in (
-            "who calls", "who uses", "who invokes", "callers", "call sites",
-            "usages", "references to", "used by", "who imports",
+            "who calls", "who uses", "who invokes", "who raises", "who imports",
+            "callers", "call sites", "usages", "references to", "used by",
             "кто вызывает", "кто использует", "кто обращается", "где вызывается",
+            "кто поднимает", "кто бросает",
         )
     )
 
@@ -176,8 +193,6 @@ def _merge(
         key = (file, line)
         rank = float(item.get("score") or 0.0) + float(item.get("weight") or 0.0)
         defines = bool(item.get("defines"))
-        if demote_definitions and defines:
-            rank = min(rank, 0.5)
         current = merged.get(key)
         channels = set(item.get("channels") or [])
         if current is None:
@@ -195,6 +210,14 @@ def _merge(
             current["defines"] = current.get("defines") or defines
             if not current["text"] and item.get("text"):
                 current["text"] = str(item["text"])[:200]
+    # Demotion happens on the MERGED row, not per item: one row can carry both
+    # a demoted definition item and a full-weight search item, and the merge
+    # keeps the maximum - which silently undid the demotion.
+    if demote_definitions:
+        for entry in merged.values():
+            if entry.get("defines"):
+                entry["rank"] = min(entry["rank"], 0.5)
+
     ranked = sorted(
         merged.values(),
         key=lambda r: (r["rank"], len(r["channels"])),
@@ -215,6 +238,7 @@ class InvestigateTool(MCPTool):
         query: str,
         limit: int = 8,
         project_root: str = "",
+        include_neighbours: bool = False,
     ) -> str:
         query = (query or "").strip()
         if not query:
@@ -234,6 +258,16 @@ class InvestigateTool(MCPTool):
         w_symbol = 0.6 if intent_callers else 1.8
         w_impact = 0.7 if intent_callers else 1.3
         w_graph = 1.6 if intent_callers else 1.0
+        # For a reference question the exact matches are the answer, not
+        # corroboration: "who raises ParseError" has no CALLS edge, so without
+        # this the semantic neighbours (1.6) beat the actual `raise` lines (0.3).
+        w_grep = 1.7 if intent_callers else 0.3
+        # "who raises X" is a statement-kind question: plain grep returns the
+        # subclass lines (`class BadTimeSignature(BadSignature)`) and imports
+        # first. Measured 2026-11-08 on itsdangerous: the raise sites were rows
+        # 3-5 while a subclass declaration was row 1. The matched line says
+        # which is which, so the raise statements get the evidence bonus.
+        asks_raises = "raise" in query.lower()
         root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
 
         identifiers = _identifiers(query)
@@ -306,6 +340,10 @@ class InvestigateTool(MCPTool):
                         }
                     )
 
+        # Cooperative cancellation for the one CPU-bound channel: when its
+        # timeout fires, the thread is told to stop instead of parsing on.
+        grep_cancel = threading.Event()
+
         def _grep() -> None:
             from src.mcp.tools.grep_tool import GrepCodeTool
 
@@ -316,33 +354,61 @@ class InvestigateTool(MCPTool):
                     regex = re.compile(re.escape(ident).encode("utf-8"))
                 except re.error:
                     continue
-                res = tool._search(root, None, regex, "code", limit, 0)  # noqa: SLF001
+                # Collect MORE than the page size: `_search` truncates in walk
+                # order, so `limit` matches meant "the first 8 by filename" and
+                # files late in the tree never entered the answer (measured:
+                # `who raises BadSignature` never saw signer.py, `lsp_tools.py`
+                # lost to `lsp_client.py`). The channel is evidence, the page
+                # size is the renderer's job.
+                res = tool._search(  # noqa: SLF001
+                    root, None, regex, "code", max(limit * 4, 32), 0,
+                    cancel=grep_cancel,
+                )
                 matches = res.get("matches", [])
-                # `total` (not the truncated list) is the honest count: `limit`
-                # would make "3 hits" mean "at most 3". Counted PER identifier:
-                # a query like "where is missing_widget implemented" carries
-                # the noise word "implemented", and a single sum would hide that
-                # the subject itself occurs nowhere.
+                # A cancelled scan saw only part of the tree: its count is not
+                # "zero occurrences", it is "not finished". Publishing 0 would
+                # let the abstention rule hide a real answer (red-team attack
+                # 2026-11-08: cancel after one file, symbol lives on disk).
+                if res.get("cancelled"):
+                    break
+                # `total` (not the truncated list) is the honest count: the page
+                # size would make "3 hits" mean "at most 3". Counted PER
+                # identifier: a query like "where is missing_widget implemented"
+                # carries the noise word "implemented", and a single sum would
+                # hide that the subject itself occurs nowhere.
                 exact["per"][ident] = int(res.get("total", len(matches)) or 0)
                 for match in matches:
+                    is_raise = asks_raises and bool(
+                        re.search(r"\braise\b", str(match.get("text") or ""))
+                    )
                     items.append(
                         {
                             "file": match["file"],
                             "line": match["line"],
                             "text": match["text"],
-                            "score": 0.0,
-                            "weight": 0.3,
+                            "score": 0.5 if is_raise else 0.0,
+                            "weight": w_grep,
                             "channels": {"grep"},
                         }
                     )
 
-        async def _run(name: str, func, is_async: bool, timeout: float = _CHANNEL_TIMEOUT) -> None:
+        async def _run(
+            name: str,
+            func,
+            is_async: bool,
+            timeout: float = _CHANNEL_TIMEOUT,
+            cancel_event: "threading.Event | None" = None,
+        ) -> None:
             try:
                 if is_async:
                     await asyncio.wait_for(func(), timeout=timeout)
                 else:
                     await asyncio.wait_for(asyncio.to_thread(func), timeout=timeout)
             except asyncio.TimeoutError:
+                # wait_for cannot stop a thread; ask the work to stop itself,
+                # otherwise the abandoned parser competes with the next query.
+                if cancel_event is not None:
+                    cancel_event.set()
                 degraded.append(f"{name}:timeout")
             except Exception as exc:  # noqa: BLE001 — канал не валит ответ
                 degraded.append(f"{name}:{type(exc).__name__}")
@@ -350,7 +416,7 @@ class InvestigateTool(MCPTool):
         await asyncio.gather(
             _run("search", _search, True),
             _run("symbols", _symbols, False),
-            _run("grep", _grep, False, _GREP_TIMEOUT),
+            _run("grep", _grep, False, _GREP_TIMEOUT, cancel_event=grep_cancel),
         )
 
         # ─── Pass 2: channels that need a symbol/file from pass 1 ───
@@ -439,7 +505,45 @@ class InvestigateTool(MCPTool):
         )
 
         merged = _merge(items, limit, root, intent_callers)
-        return self._format(query, identifiers, merged, symbol_lines, degraded, exact)
+
+        # Abstain on insufficient evidence (2026-11-08). The semantic channel
+        # always returns neighbours, so an unanswerable question used to produce
+        # eight confident-looking `file:line` rows - the "success-shaped failure"
+        # class (#3021/#3015). When no identifier occurs in the code AND the
+        # symbol is unknown to the graph, the neighbours are not evidence: say
+        # "not found" and stop. Two guards against hiding a real answer:
+        #   * `per` exists only when the grep channel COMPLETED - a degraded
+        #     channel means "unknown", and unknown must never become "absent";
+        #   * a symbol known to the graph suppresses nothing: the name is real,
+        #     so its neighbours are worth showing.
+        withheld = 0
+        per = exact.get("per") or {}
+        # The SUBJECT is what was asked about. A trailing capitalised word
+        # ("Corpus Hub") may occur in prose while the subject does not; counting
+        # it as evidence kept the neighbours for a question that has no answer.
+        subject = next(iter(per)) if per else ""
+        # Fail OPEN: only an explicit "no such symbol" allows abstention. An
+        # index that cannot answer (older shim, test double, exception) means
+        # "unknown", and unknown must not hide the answer.
+        known = True
+        if subject and per.get(subject) == 0:
+            has_symbol = getattr(symbol_index, "has_symbol", None)
+            if callable(has_symbol):
+                try:
+                    known = bool(has_symbol(subject))
+                except Exception:  # noqa: BLE001 — cannot answer means unknown
+                    known = True
+        if _abstains(per, known, include_neighbours):
+            withheld = len(merged)
+            merged = []
+
+        text = self._format(query, identifiers, merged, symbol_lines, degraded, exact)
+        if withheld:
+            text += (
+                f"\nNeighbours withheld: {withheld}. "
+                "Pass include_neighbours=true to see them anyway."
+            )
+        return text
 
     def _format(
         self,

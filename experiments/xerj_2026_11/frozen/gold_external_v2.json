@@ -1,0 +1,28 @@
+{
+ "_why": "Second frozen set for the SAME pinned repos, created 2026-11-08 AFTER the first run showed a gold-definition problem. Rule fixed here, before this run: a call site is a caller wherever it lives, including the file that defines the symbol (the LSP `references` request includes declarations and intra-file uses by default; `includeDeclaration` is the client's choice). Only the declaration line itself is excluded.",
+ "_diff_vs_v1": "v1 excluded the whole definition FILE from the caller gold, so `get_callers` returning encoding.py:24 (want_bytes calling itself) scored 0 even though it is a call site. v1 is kept unchanged: the frozen rule is not edited after seeing results.",
+ "_rule": "callers tasks: at least one gold file in the arm's top-10 and, for rank-1, the first row must be a gold file.",
+ "repos": [
+  {
+   "slug": "itsdangerous",
+   "pin": "672971d66a2e",
+   "path": "C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d",
+   "tasks": [
+    {"id": "X07", "kind": "callers", "question": "Who calls `want_bytes`?",
+     "gold": ["src/itsdangerous/encoding.py", "src/itsdangerous/serializer.py",
+              "src/itsdangerous/signer.py", "src/itsdangerous/timed.py"]},
+    {"id": "X08", "kind": "callers", "question": "Who raises `BadSignature`?",
+     "gold": ["src/itsdangerous/signer.py", "src/itsdangerous/timed.py"]}
+   ]
+  },
+  {
+   "slug": "iniconfig",
+   "pin": "a9e0ad14bcd0",
+   "path": "C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1",
+   "tasks": [
+    {"id": "Y04", "kind": "callers", "question": "Who raises `ParseError`?",
+     "gold": ["src/iniconfig/_parse.py"]}
+   ]
+  }
+ ]
+}
