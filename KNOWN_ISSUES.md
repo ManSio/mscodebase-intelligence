@@ -4,6 +4,29 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-11-08 — Аудит планов: что реализовано, что осталось — 🟡
+
+Проверены все планы (`ISSUE.md`, `docs/research/*PLAN|patterns|chain*`, `docs/ISSUES/*`).
+Реализовано и подтверждено кодом: Universal Engine Ф1–Ф4 (sources, plugins, transport-e2e,
+manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind_partial`),
+`run_bounded`/IVF-guard, `blocked`-пути индексатора.
+
+Открыто (каждое — отдельная задача, не «шум»):
+- `src/core/error_envelope.py` не вшит в прод: 0 импортов вне теста; S1 в
+  `ideal_system_patterns` помечен `[done]` преждевременно.
+- `wait_reason` для звеньев индексатора отсутствует (heartbeat только на 4 из 13).
+- docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
+  открытый пользовательский дефект поиска.
+- Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.
+- `scripts/audit_protocol_guards.py` не в CI; `--cov-fail-under=38`; mypy/bandit нет.
+- ADR-0006: `call_hierarchy`/`semantic_tokens` без потребителей (0 вызовов в `src/`).
+
+Архивировано 2026-11-08 (не удалено): `docs/ISSUES/*`, `docs/research/2026-07-*`,
+`docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
+`docs/archive/README.md`. `pyproject.toml` метаданные (57 tools, classifiers 3.10–3.12)
+исправлены там же.
+
+---
 ## 2026-10-25 — README rewritten; RU/ZH synchronized — 🟢
 
 - Root `README.md`, `docs/ru/README.md`, `docs/zh/README.md` now describe the
