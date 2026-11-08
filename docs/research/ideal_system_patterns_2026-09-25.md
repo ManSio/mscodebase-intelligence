@@ -76,7 +76,8 @@ cosine).
   (`IndexNotReadyError` → `INDEX_NOT_READY`, `RateLimitError` → `RATE_LIMIT`,
   timeout → `TIMEOUT`).
 - S2 **[done 2026-11-08, breaking]** wire envelope into MCP error paths (P-D).
-  All 21 `@error_boundary` tools return the JSON envelope instead of a Markdown
+  All 55 `@error_boundary` decorations (20 files, `git grep -c "@error_boundary" src/`)
+  return the JSON envelope instead of a Markdown
   block; dictionary results with an error-like `status` go through the same path
   (this also fixed a "green while broken" bug — those dicts were rendered as
   "✅ Completed"). Owner decision: breaking format change.
