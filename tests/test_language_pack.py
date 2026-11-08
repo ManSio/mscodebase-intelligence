@@ -49,8 +49,12 @@ def enabled(monkeypatch):
 class TestEnabled:
     def test_registers_parsers_and_tags(self, enabled):
         assert enabled["enabled"] is True
+        # 53 языка из LANG_EXT_MAP получают парсер в 1.25.0.
         assert enabled["languages"] >= 50
-        assert enabled["tags_queries"] >= 50
+        # tags.scm в 1.25.0 есть для 49 языков: queries для cuda/sflog/soql/sosl
+        # пакет больше не поставляет (в 1.14.3 было 51). Порог 45 держит guard
+        # живым, не завязываясь на точный номер версии пакета.
+        assert enabled["tags_queries"] >= 45
         assert ".lua" in enabled["extensions"]
 
     def test_lua_scm_symbols(self, enabled, tmp_path):

@@ -125,7 +125,7 @@ community = [
     "igraph>=1.0.0,<2",       # Graph backend (GPL-2.0-or-later)
 ]
 
-# Опциональный слой +56 языков с tags.scm (symbol extraction).
+# Опциональный слой: до 53 языков, 49 с tags.scm (symbol extraction).
 # Парсеры скачиваются при первом использовании (нужна сеть) — см. src/core/language_pack.py.
 # Включение: MSCODEBASE_LANGUAGE_PACK=true в .env
 language-pack = [
