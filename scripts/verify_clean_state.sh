@@ -152,6 +152,11 @@ echo "Exit code: $EXIT_CODE"
 echo "Passed: $PASSED"
 echo "Failed: $FAILED"
 echo "$RESULT" | tail -5
+# The suite is captured into a variable and only the tail is printed, so
+# `--durations` output was computed and thrown away. Print it: when this job
+# takes 13 minutes instead of 2 (measured twice: 13m29s, 13m31s, 13m14s), the
+# numbers say whether the time is in tests or somewhere else.
+echo "$RESULT" | grep -A 20 "slowest durations" || true
 
 if [ "$EXIT_CODE" -eq 0 ]; then
     echo -e "${GREEN}CLEAN STATE VERIFICATION: PASSED${NC}"
