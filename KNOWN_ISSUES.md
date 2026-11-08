@@ -1,7 +1,39 @@
-﻿# KNOWN ISSUES — MSCodeBase Intelligence
+# KNOWN ISSUES — MSCodeBase Intelligence
 
 > Синхронизируется из `AGENT_DIARY.md` при каждом [🏁 ИТОГ].
 > Формат: дата | что было | статус | fix
+
+---
+## 2026-11-08 — XERJ-пакет: run по протоколу (research / эксперимент / внедрение) — 🟡
+
+Пакет `experiments/xerj_2026_11/`: добавлены `DECISION.md`, `RESEARCH.md`,
+`baseline_raw.txt` + `run_baseline.py`, `tests/test_no_silent_success.py`.
+P0-5 (`pyproject.toml`) проверен командой — уже исправлен ранее (`check_metadata.py`, 6/6).
+
+Закрыто в этом прогоне:
+- `investigate` терял grep-канал на своём же репозитории: `_search` парсил tree-sitter'ом
+  каждый файл даже при нуле совпадений → 23.0 s и `degraded: grep:timeout` на каждом
+  запросе. Добавлен prefilter по regex до парсинга (`grep_tool.py`); набор совпадений не
+  изменился (P01: 30 matches до и после). In-process: 7.2–8.1 s, канал живой.
+- `investigate` больше не выдаёт «соседей» за ответ: в шапке `exact: <ident>=N`, а при
+  нуле совпадений по субъекту — предупреждение «results below are neighbours, not
+  matches». Guard: `tests/test_no_silent_success.py` (5 из 8 падали на коде до правки).
+
+Открыто (новое, из этого прогона):
+- **Таймаут канала не отменяет поток.** `asyncio.wait_for(asyncio.to_thread(...))`
+  снимает ожидание, но работа продолжается. В долгоживущем процессе (MCP-хост) каждый
+  таймаут оставляет живой парсер: следующие вызовы идут медленнее, и замер после
+  нескольких таймаутов недействителен. Наблюдено: 24 задачи в одном процессе,
+  `grep:timeout` → 22–30 s на последующих. Нужен либо cooperative-cancel в каналах,
+  либо отдельный executor с учётом зомби. 🟡
+- **CLI-мост не умеет project-scoped инструменты.** `python -m src.cli investigate …`
+  всегда отдаёт `project_not_ready (state=UNINITIALIZED)` за ~5 s: реестр проектов
+  инициализируется только в MCP-хосте. Поэтому бенчмарк гоняется in-process с
+  примированием реестра; `investigate` в allowlist не добавлен, чтобы не публиковать
+  заведомо нерабочий путь. 🟡
+- **E1 вердикт отрицательный:** plain grep 0.667 vs investigate 0.500 на 24 frozen
+  задачах (N=1, in-process, valid-rate указан в `baseline.json`). Фальсификатор из
+  `PLAN.md` сработал: заявлять «investigate лучше» нельзя. 🟡
 
 ---
 ## 2026-11-08 — Аудит планов: что реализовано, что осталось — 🟡

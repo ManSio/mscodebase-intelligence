@@ -1,0 +1,616 @@
+### run1 P01 [positive] Где определяется `build_call_graph` и что оно возвращает?
+A(0.85s, ok=True): ['src/core/indexing/symbol_index.py', 'src/core/intelligence/layer.py', 'src/core/search/agentic_search.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter_pure.py', 'src/mcp/tools/search_tools.py', 'docs/archive/AGENT_DIARY_2026_08.md', 'docs/archive/KNOWN_ISSUES_2026_07.md', 'tests/benchmark_agentic_search.py', 'scripts/run_experiment_pagerank.py']
+B(6.73s, ok=True, degraded=-): ['src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter.py', 'src/core/indexing/symbol_index.py', 'src/core/indexing/symbol_index.py', 'src/core/intelligence/layer.py', 'EXPERIMENTS_LOG.md', 'EXPERIMENTS_LOG.md']
+gold: ['src/core/indexing/symbol_index.py']
+--- B raw ---
+🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`
+   identifiers: build_call_graph
+   results: 8
+   exact: build_call_graph=30
+
+1. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548  [impact+symbol]
+   SymbolIndex.build_call_graph — function_definition
+2. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612  [symbol]
+   SymbolIndexAdapter._graph_build_call_graph — function_definition
+3. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698  [symbol]
+   SymbolIndexAdapter._hybrid_build_call_graph — function_definition
+4. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:707  [graph]
+   caller of build_call_graph
+5. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:856  [graph]
+   caller of build_call_graph
+6. D:/Project/MSCodeBase/src/core/intelligence/layer.py:237  [graph]
+   caller of build_call_graph
+7. EXPERIMENTS_LOG.md:1994  [grep]
+   2. get_symbol_info для build_call_graph вернул НЕВЕРНОЕ определение (experiments/misc_probes/run_experiment_pagerank.py:40 вместо src/core/indexing/symbol_index.py:480) — символ-те
+8. EXPERIMENTS_LOG.md:2003  [grep]
+   **Гипотеза (v2):** (1) выигрыш агрегатора — в round-trips и agent-facing latency, НЕ в серверной работе (compose ≈ тем же операциям + overhead); (2) полнота (recall) C ≥ A при прав
+
+Символы:
+• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548
+• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612
+• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698
+
+Дальше: get_symbol_info("build_call_graph") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/indexing/symbol_index.py")
+
+### run1 P02 [positive] Кто вызывает `get_impact_analysis`?
+A(0.76s, ok=True): ['src/core/graph_rag.py', 'src/core/modification_guard.py', 'src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/mcp/tools/investigate_tool.py', 'src/mcp/tools/search_tools.py']
+B(7.29s, ok=True, degraded=-): ['src/core/indexing/symbol_index.py', 'src/core/graph_rag.py', 'src/core/search/graph_adapter.py', 'src/core/modification_guard.py', 'tests/test_impact_confidence.py', 'src/core/graph_rag.py', 'src/core/modification_guard.py', 'src/core/indexing/symbol_index.py']
+gold: ['src/core/graph_rag.py', 'src/core/modification_guard.py', 'src/mcp/tools/investigate_tool.py', 'src/mcp/tools/search_tools.py']
+--- B raw ---
+🧭 investigate: `Кто вызывает `get_impact_analysis`?`
+   identifiers: get_impact_analysis
+   results: 8
+   exact: get_impact_analysis=6
+
+1. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684  [impact+symbol]
+   SymbolIndex.get_impact_analysis — function_definition
+2. D:/Project/MSCodeBase/src/core/graph_rag.py:93  [graph+symbol]
+   get_impact_analysis — function
+3. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797  [symbol]
+   SymbolIndexAdapter.get_impact_analysis — function_definition
+4. D:/Project/MSCodeBase/src/core/modification_guard.py:166  [graph]
+   caller of get_impact_analysis
+5. D:/Project/MSCodeBase/tests/test_impact_confidence.py:91  [graph]
+   caller of get_impact_analysis
+6. src/core/graph_rag.py:93  [grep]
+   impact = self.symbol_index.get_impact_analysis(symbol_name, depth=depth)
+7. src/core/modification_guard.py:166  [grep]
+   impact = si.get_impact_analysis(symbol, depth=2)
+8. src/core/indexing/symbol_index.py:684  [grep]
+   def get_impact_analysis(self, symbol: str, depth: int = 3) -> Dict:
+
+Символы:
+• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684
+• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797
+• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93
+
+Дальше: get_symbol_info("get_impact_analysis") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/indexing/symbol_index.py")
+
+### run1 P03 [positive] Что сломается, если изменить сигнатуру `ModificationGuard`?
+A(0.83s, ok=False): []
+B(8.99s, ok=False, degraded=-): ['tests/test_modification_guard.py', 'tests/test_modification_guard.py', 'tests/test_modification_guard.py']
+gold: ['src/mcp/server_tools.py', 'src/mcp/tools/write_tools.py']
+--- B raw ---
+🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`
+   identifiers: ModificationGuard
+   results: 3
+   ⚠️ exact: ModificationGuard=0 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.
+
+1. D:/Project/MSCodeBase/tests/test_modification_guard.py:119  [symbol]
+   TestModificationGuard — class_definition
+2. D:/Project/MSCodeBase/tests/test_modification_guard.py:465  [symbol]
+   TestModificationGuard.TestTool — class_definition
+3. D:/Project/MSCodeBase/tests/test_modification_guard.py:470  [symbol]
+   TestModificationGuard.TestTool.my_write — function_definition
+
+Символы:
+• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119
+• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465
+• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470
+
+Дальше: get_symbol_info("ModificationGuard") | impact_analysis | read_live_file("D:/Project/MSCodeBase/tests/test_modification_guard.py")
+
+### run1 P04 [positive] Где решается, нужно ли переиндексировать файл?
+A(2.68s, ok=False): ['src/core/artifact_paths.py', 'src/core/auto_doc_updater.py', 'src/core/di_container.py', 'src/core/doc_sync_engine.py', 'src/core/lsp_project_bridge.py', 'src/core/indexing/file_guard.py', 'src/core/indexing/index_project_runner.py', 'src/core/indexing/project_indexer_registry.py', 'src/core/indexing/symbol_index.py', 'src/core/intelligence/project_context.py']
+B(18.84s, ok=False, degraded=-): []
+gold: ['src/core/indexing/freshness.py']
+--- B raw ---
+🧭 investigate: `Где решается, нужно ли переиндексировать файл?`
+   results: 0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 P05 [positive] Где вычисляется путь `progress.json` вне проекта?
+A(1.94s, ok=True): ['src/core/artifact_paths.py', 'src/core/notification_broker.py', 'docs/RESEARCH_SUBAGENTS_OPENCODE.md', 'docs/archive/AGENT_DIARY_2026_08.md', 'docs/archive/ARCHITECTURE_2026-07-20.md', 'docs/archive/KNOWN_ISSUES_2026_07.md', 'docs/archive/KNOWN_ISSUES_2026_08.md', 'docs/archive/i18n/en/HANDFOFF.md', 'scripts/monitor.py']
+B(26.18s, ok=False, degraded=grep:timeout): ['install.py', 'src/core/doc_llm_verifier.py', 'src/core/doc_llm_verifier.py', 'src/core/search/agentic_search.py', 'AGENT_DIARY.md', 'docs/RESEARCH_SUBAGENTS_OPENCODE.md', 'docs/RESEARCH_SUBAGENTS_OPENCODE.md', 'docs/archive/AGENT_DIARY_2026_08.md']
+gold: ['src/core/artifact_paths.py']
+--- B raw ---
+🧭 investigate: `Где вычисляется путь `progress.json` вне проекта?`
+   identifiers: progress.json
+   results: 8 | degraded: grep:timeout
+   exact: progress.json=17
+
+1. D:/Project/MSCodeBase/install.py:35  [impact]
+   impact progress.json: risk=critical, affected=10
+2. D:/Project/MSCodeBase/src/core/doc_llm_verifier.py:208  [graph]
+   caller of progress.json
+3. D:/Project/MSCodeBase/src/core/doc_llm_verifier.py:269  [graph]
+   caller of progress.json
+4. D:/Project/MSCodeBase/src/core/search/agentic_search.py:341  [graph]
+   caller of progress.json
+5. AGENT_DIARY.md:612  [grep]
+   - **Артефакты:** progress.json вне проекта, системная папка (Задача 4/5) — 2026-08-03
+6. docs/RESEARCH_SUBAGENTS_OPENCODE.md:362  [grep]
+   "docstring": "progress.json — file-contract для агента (см. AGENTS.md §0)."
+7. docs/RESEARCH_SUBAGENTS_OPENCODE.md:364  [grep]
+   "source": "def get_progress_file(project_path: Path) -> Path:\n    \"\"\"progress.json ...\"\"\"\n    return get_project_dir(project_path) / \"progress.json\"",
+8. docs/archive/AGENT_DIARY_2026_08.md:284  [grep]
+   ## [2026-08-18] — monitor.py: не показывал живую переиндексацию (читал лог, а не progress.json) (FIXED)
+
+Дальше: get_symbol_info("progress.json") | impact_analysis | read_live_file("D:/Project/MSCodeBase/install.py")
+
+### run1 P06 [positive] Какая функция возвращает путь прогресса?
+A(0.85s, ok=False): ['src/main.py', 'src/remote_main.py', 'src/core/autonomous_fix.py', 'src/core/bootstrap_entities.py', 'src/core/bootstrap_pipeline.py', 'src/core/bootstrap_tests.py', 'src/core/bootstrap_trace_plugin.py', 'src/core/change_preview.py', 'src/core/community_detection.py', 'src/core/error_handler.py']
+B(18.09s, ok=False, degraded=-): []
+gold: ['src/core/artifact_paths.py']
+--- B raw ---
+🧭 investigate: `Какая функция возвращает путь прогресса?`
+   results: 0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 P07 [positive] Где выдаётся и проверяется impact-токен?
+A(1.01s, ok=False): ['src/core/indexing/parser.py', 'src/core/intelligence/verify_on_read.py', 'src/core/search/agentic_search.py', 'src/mcp/server_tools.py', 'src/sources/git_url/__init__.py', 'docs/adr/0003-verify-on-read.md', 'docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md', 'docs/archive/AGENT_DIARY_2026_08.md', 'docs/archive/ARCHITECTURE_2026-07-20.md', 'docs/archive/KNOWN_ISSUES_2026_09.md']
+B(20.76s, ok=True, degraded=grep:timeout): ['src/core/modification_guard.py', 'src/core/search/cross_project_deps.py', 'src/core/graph_rag.py', 'src/mcp/tools/search_tools.py', 'AGENTS.md', 'AGENTS.md', 'AGENTS.md']
+gold: ['src/core/modification_guard.py']
+--- B raw ---
+🧭 investigate: `Где выдаётся и проверяется impact-токен?`
+   identifiers: impact
+   results: 8 | degraded: grep:timeout
+   exact: impact=262
+
+1. D:/Project/MSCodeBase/src/core/modification_guard.py:166  [impact]
+   impact impact: risk=low, affected=1
+2. D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325  [symbol]
+   CrossProjectDependencyGraph.analyze_impact — function_definition
+3. D:/Project/MSCodeBase/src/core/graph_rag.py:78  [symbol]
+   GraphRAGQueryEngine.query_impact — function_definition
+4. D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778  [symbol]
+   ImpactAnalysisTool — class_definition
+5. [memory] feat(investigate): second pass — impact, callers, tests, project memory  [memory]
+6. AGENTS.md:9  [grep]
+   SQLite FTS5/BM25 + PropertyGraph), отвечает на вопросы о коде, даёт impact/граф/память
+7. AGENTS.md:58  [grep]
+   | Вопрос по смыслу, один вход | `search_code` вручную + grep | `investigate(query)` — search + symbols + grep + impact/callers/tests/память |
+8. AGENTS.md:62  [grep]
+   | Что сломается при правке | чтение файлов | `impact_analysis` |
+
+Символы:
+• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325
+• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78
+• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:778
+
+Дальше: get_symbol_info("impact") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/modification_guard.py")
+
+### run1 P08 [positive] Где в `investigate` появляется строка `degraded`?
+A(0.78s, ok=True): ['src/core/project_resolution.py', 'src/core/intelligence/health.py', 'src/core/search/bm25.py', 'src/core/search/engine.py', 'src/core/search/fts5_mixin.py', 'src/mcp/server_tools.py', 'src/mcp/tools/context_tool.py', 'src/mcp/tools/grep_tool.py', 'src/mcp/tools/investigate_tool.py', 'src/mcp/tools/system_tools.py']
+B(21.93s, ok=True, degraded=grep:timeout): ['src/providers/embedder/remote_embedder.py', 'src/mcp/tools/investigate_tool.py', 'src/mcp/tools/investigate_tool.py', 'src/mcp/tools/investigate_tool.py', 'tests/test_health_report.py', 'scripts/o1_holdout_gate.py', 'scripts/p2_holdout_gate.py']
+gold: ['src/mcp/tools/investigate_tool.py']
+--- B raw ---
+🧭 investigate: `Где в `investigate` появляется строка `degraded`?`
+   identifiers: investigate, degraded
+   results: 8 | degraded: grep:timeout
+   exact: investigate=77, degraded=68
+
+1. D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py:359  [impact]
+   impact degraded: risk=low, affected=1
+2. D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110  [symbol]
+   InvestigateTool — class_definition
+3. D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113  [symbol]
+   InvestigateTool.__init__ — function_definition
+4. D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302  [symbol]
+   InvestigateTool._format — function_definition
+5. D:/Project/MSCodeBase/tests/test_health_report.py:425  [symbol]
+   TestSearchQuality.test_search_quality_degraded — function_definition
+6. D:/Project/MSCodeBase/scripts/o1_holdout_gate.py:164  [symbol]
+   degraded — variable
+7. D:/Project/MSCodeBase/scripts/p2_holdout_gate.py:140  [symbol]
+   degraded — variable
+8. [memory] feat(investigate): one query, parallel channels, one merged answer  [memory]
+
+Символы:
+• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:110
+• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:113
+• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:302
+• TestSearchQuality.test_search_quality_degraded (function_definition) — D:/Project/MSCodeBase/tests/test_health_report.py:425
+• degraded (variable) — D:/Project/MSCodeBase/scripts/o1_holdout_gate.py:164
+• degraded (variable) — D:/Project/MSCodeBase/scripts/p2_holdout_gate.py:140
+
+Дальше: get_symbol_info("investigate") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/providers/embedder/remote_embedder.py")
+
+### run1 P09 [positive] Где определяется allowlist/профиль инструментов?
+A(0.81s, ok=True): ['src/cli.py', 'src/core/bootstrap_entities.py', 'src/core/eta_predictor.py', 'src/core/trust_boundary.py', 'src/core/indexing/project_indexer_registry.py', 'src/core/intelligence/tools_reg.py', 'src/core/sandbox/__init__.py', 'src/core/sandbox/executor.py', 'src/mcp/server_tools.py', 'src/mcp/tools/base.py']
+B(24.09s, ok=True, degraded=grep:timeout): ['src/cli.py', 'src/mcp/server_tools.py', 'AGENTS.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md']
+gold: ['src/mcp/server_tools.py']
+--- B raw ---
+🧭 investigate: `Где определяется allowlist/профиль инструментов?`
+   identifiers: allowlist
+   results: 8 | degraded: grep:timeout
+   exact: allowlist=89
+
+1. D:/Project/MSCodeBase/src/cli.py:111  [impact+symbol]
+   allowlist — variable
+2. D:/Project/MSCodeBase/src/mcp/server_tools.py:229  [symbol]
+   _raw_allowlist — variable
+3. AGENTS.md:158  [grep]
+   `MSCODEBASE_MCP_TOOLS=a,b,c` — явный allowlist, перекрывает профиль. Что скрыто и
+4. AGENT_DIARY.md:595  [grep]
+   - **Doc number sync (2026-09-23):** авторитетный состав из кода = **65 (32 core + 16 intel + 13 inline + 4 dev)** (скрипт по server_tools.py/tools_reg.py/dev_tools.py). Синхронизир
+5. AGENT_DIARY.md:596  [grep]
+   - **README semantic audit (2026-09-23):** проверка утверждений README против кода (не на глаз). ИСПРАВЛЕНО: badge tests 1856→**1889** (`_count_tests`); дата 2026-08-16→09-23; «DI C
+6. AGENT_DIARY.md:597  [grep]
+   - **AGENTS semantic audit (2026-09-23):** ИСПРАВЛЕНО: §0.1 «источник правды `src/core/intelligence_layer.py`» (файл НЕ существует) → `src/core/intelligence/layer.py`; §7 CI-matrix 
+7. AGENT_DIARY.md:598  [grep]
+   - **"Not registered" resolved + server_tools log fix (2026-09-23):** механизм: только core-тулы из `MSCODEBASE_MCP_TOOLS`-allowlist регистрируются через `mcp.tool(...)`; intel(16)/
+8. AGENT_DIARY.md:613  [grep]
+   - **Hub & Spoke:** codebase(action) + DEFAULT-allowlist MSCODEBASE_MCP_TOOLS (скрытые инструменты — через hub) — 2026-07-22
+
+Символы:
+• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229
+• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:229
+• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111
+
+Дальше: get_symbol_info("allowlist") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/cli.py")
+
+### run1 P10 [positive] Где задан профиль ETA для `impact_analysis`?
+A(0.78s, ok=True): ['src/core/error_handler.py', 'src/core/eta_predictor.py', 'src/core/graph_rag.py', 'src/core/modification_guard.py', 'src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/mcp/server_tools.py', 'src/mcp/tools/context_tool.py', 'src/mcp/tools/graph_tools.py', 'src/mcp/tools/help_tool.py']
+B(29.08s, ok=True, degraded=grep:timeout): ['src/core/intelligence/tools_reg.py', 'src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/core/graph_rag.py', 'src/core/indexing/parser.py', 'src/core/eta_predictor.py', 'src/core/eta_predictor.py', 'AGENTS.md']
+gold: ['src/core/eta_predictor.py']
+--- B raw ---
+🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`
+   identifiers: impact_analysis, ETA
+   results: 8 | degraded: grep:timeout
+   exact: impact_analysis=66, ETA=76
+
+1. D:/Project/MSCodeBase/src/core/intelligence/tools_reg.py:575  [impact]
+   impact ETA: risk=low, affected=1
+2. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684  [symbol]
+   SymbolIndex.get_impact_analysis — function_definition
+3. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797  [symbol]
+   SymbolIndexAdapter.get_impact_analysis — function_definition
+4. D:/Project/MSCodeBase/src/core/graph_rag.py:93  [symbol]
+   get_impact_analysis — function
+5. D:/Project/MSCodeBase/src/core/indexing/parser.py:823  [symbol]
+   CodeParser._build_chunk_metadata — function_definition
+6. D:/Project/MSCodeBase/src/core/eta_predictor.py:43  [symbol]
+   ETAPredictor — class_definition
+7. D:/Project/MSCodeBase/src/core/eta_predictor.py:46  [symbol]
+   ETAPredictor.__init__ — function_definition
+8. AGENTS.md:62  [grep]
+   | Что сломается при правке | чтение файлов | `impact_analysis` |
+
+Символы:
+• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684
+• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797
+• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93
+• CodeParser._build_chunk_metadata (function_definition) — D:/Project/MSCodeBase/src/core/indexing/parser.py:823
+• ETAPredictor (class_definition) — D:/Project/MSCodeBase/src/core/eta_predictor.py:43
+• ETAPredictor.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/eta_predictor.py:46
+
+Дальше: get_symbol_info("impact_analysis") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/intelligence/tools_reg.py")
+
+### run1 P11 [positive] Где объявлен `SymbolIndexAdapter`?
+A(0.92s, ok=True): ['src/core/di_container.py', 'src/core/graph.py', 'src/core/indexing/index_guard.py', 'src/core/indexing/indexer.py', 'src/core/search/engine.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter_pure.py', 'src/mcp/tools/context_tool.py', 'src/mcp/tools/graph_tools.py', 'docs/archive/AGENT_DIARY_2026_07.md']
+B(20.45s, ok=True, degraded=grep:timeout): ['src/core/search/graph_adapter.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter.py', 'src/mcp/tools/context_tool.py', 'src/mcp/tools/graph_tools.py', 'src/mcp/tools/graph_tools.py', 'CHANGELOG.md', 'EXPERIMENTS_LOG.md']
+gold: ['src/core/search/graph_adapter.py']
+--- B raw ---
+🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`
+   identifiers: SymbolIndexAdapter
+   results: 8 | degraded: grep:timeout
+   exact: SymbolIndexAdapter=36
+
+1. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41  [impact+symbol]
+   SymbolIndexAdapter — class_definition
+2. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56  [symbol]
+   SymbolIndexAdapter.__init__ — function_definition
+3. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783  [symbol]
+   SymbolIndexAdapter._call_confidence — function_definition
+4. D:/Project/MSCodeBase/src/mcp/tools/context_tool.py:94  [graph]
+   caller of SymbolIndexAdapter
+5. D:/Project/MSCodeBase/src/mcp/tools/graph_tools.py:470  [graph]
+   caller of SymbolIndexAdapter
+6. D:/Project/MSCodeBase/src/mcp/tools/graph_tools.py:729  [graph]
+   caller of SymbolIndexAdapter
+7. CHANGELOG.md:59  [grep]
+   - `SymbolIndexAdapter.get_tests_for_symbol()`: Resolves incoming `TESTS` edges for a function
+8. EXPERIMENTS_LOG.md:2527  [grep]
+   **Ожидание:** граф-стадия (SymbolIndexAdapter над graph.db, cold-start) поднимает 4 провальных класса (find_test/find_impact/modify/verify) выше search-only потолка; цель recall≥0.
+
+Символы:
+• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41
+• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56
+• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783
+
+Дальше: get_symbol_info("SymbolIndexAdapter") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/search/graph_adapter.py")
+
+### run1 P12 [positive] Где считается call chain?
+A(0.78s, ok=False): ['src/config/settings.py', 'src/core/bootstrap_pipeline.py', 'src/core/doc_reference_l1.py', 'src/core/graph.py', 'src/core/graph_rag.py', 'src/core/lsp_project_bridge.py', 'src/core/system_artifacts.py', 'src/core/indexing/database_lock.py', 'src/core/indexing/index_project_runner.py', 'src/core/indexing/parser.py']
+B(25.08s, ok=False, degraded=grep:timeout): ['src/mcp/server_factory.py', 'scripts/dataflow_experiment.py', 'tests/test_database_lock_selfhealing.py', 'src/core/indexing/database_lock.py', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'EXPERIMENTS_LOG.md']
+gold: ['src/core/indexing/symbol_index.py']
+--- B raw ---
+🧭 investigate: `Где считается call chain?`
+   identifiers: chain
+   results: 8 | degraded: grep:timeout
+   exact: chain=114
+
+1. D:/Project/MSCodeBase/src/mcp/server_factory.py:382  [impact]
+   impact chain: risk=low, affected=1
+2. D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415  [symbol]
+   Analyzer._provenance_chains — function_definition
+3. D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69  [symbol]
+   FakeInspector.parent_chain — function_definition
+4. D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115  [symbol]
+   ProcessInspector.parent_chain — function_definition
+5. AGENT_DIARY.md:46  [grep]
+   ## [2026-10-25] E55/E56 — chain modes + docs: gold-language, не ranking
+6. AGENT_DIARY.md:153  [grep]
+   ## [2026-10-25] E41–E43 chain audit — experiments pollution, docs intent, concept tags
+7. AGENT_DIARY.md:905  [grep]
+   ## [2026-09-05 09:15] — Process leak: hung git cat-file leaks git+git.exe+conhost chains (RAM 81%, ~200 procs)
+8. EXPERIMENTS_LOG.md:21  [grep]
+   ## [2026-10-25] — E55/E56: chain modes + docs channel; gold-language bottleneck
+
+Символы:
+• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415
+• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69
+• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115
+
+Дальше: get_symbol_info("chain") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/mcp/server_factory.py")
+
+### run1 P13 [positive] Где хранится схема `file_hash` / `file_mtime_ns`?
+A(0.77s, ok=True): ['src/core/indexing/chunk_store.py', 'src/core/indexing/db_manager.py', 'src/core/indexing/db_writer.py', 'src/core/indexing/file_move_manager.py', 'src/core/indexing/freshness.py', 'src/core/indexing/index_guard.py', 'src/core/indexing/index_pipeline.py', 'src/core/indexing/index_project_runner.py', 'src/core/indexing/index_status.py', 'src/core/indexing/indexer.py']
+B(25.86s, ok=False, degraded=grep:timeout): ['src/core/indexing/chunk_store.py', 'src/core/indexing/index_guard.py', 'src/core/indexing/indexer.py', 'src/core/indexing/indexer.py', 'src/core/indexing/indexer.py', 'src/core/indexing/indexer.py', 'AGENT_DIARY.md', 'AGENT_DIARY.md']
+gold: ['src/core/indexing/db_manager.py']
+--- B raw ---
+🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`
+   identifiers: file_mtime_ns, file_hash
+   results: 8 | degraded: grep:timeout
+   exact: file_mtime_ns=7, file_hash=23
+
+1. D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238  [impact+symbol]
+   SQLiteChunkStore.file_hash — function_definition
+2. D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627  [symbol]
+   IndexGuard._compute_file_hash — function_definition
+3. D:/Project/MSCodeBase/src/core/indexing/indexer.py:324  [symbol]
+   Indexer._calculate_file_hash — function_definition
+4. D:/Project/MSCodeBase/src/core/indexing/indexer.py:412  [graph]
+   caller of file_hash
+5. D:/Project/MSCodeBase/src/core/indexing/indexer.py:557  [graph]
+   caller of file_hash
+6. D:/Project/MSCodeBase/src/core/indexing/indexer.py:983  [graph]
+   caller of file_hash
+7. AGENT_DIARY.md:797  [grep]
+   **Fix:** (1) schema + `file_mtime_ns`/`file_size` (db_manager/indexer_table/db_writer/process_file/_parse_file_only); (2) FreshnessChecker.verify переписан: stat-first (mtime+size 
+8. AGENT_DIARY.md:1173  [grep]
+   **Fix:** локальные `_migrate_text_full_inplace(table)` / `_migrate_add_metadata_columns(existing_fields, table)` с `pa.field(name, field.type)` из `self.schema`; `is_table_missing`
+
+Символы:
+• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627
+• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:324
+• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238
+
+Дальше: get_symbol_info("file_mtime_ns") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/indexing/chunk_store.py")
+
+### run1 P14 [positive] Какой документ является каноном публичных чисел?
+A(0.81s, ok=False): ['src/main.py', 'src/core/auto_doc_updater.py', 'src/core/bug_correlation.py', 'src/core/di_container.py', 'src/core/doc_generator.py', 'src/core/doc_llm_verifier.py', 'src/core/doc_reference_l1.py', 'src/core/doc_sync_engine.py', 'src/core/graph_rag.py', 'src/core/platform_utils.py']
+B(25.63s, ok=False, degraded=-): []
+gold: ['docs/FACTS.md']
+--- B raw ---
+🧭 investigate: `Какой документ является каноном публичных чисел?`
+   results: 0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 P15 [positive] Где LSP-инструмент отправляет за ссылками?
+A(0.87s, ok=True): ['src/remote_main.py', 'src/core/auto_doc_updater.py', 'src/core/doc_llm_verifier.py', 'src/core/notification_broker.py', 'src/core/indexing/db_writer.py', 'src/core/indexing/indexer.py', 'src/core/indexing/indexer_table.py', 'src/core/intelligence/tools_reg.py', 'src/mcp/tools/lsp_tools.py', 'docs/RESEARCH_SUBAGENTS_OPENCODE.md']
+B(23.39s, ok=False, degraded=grep:timeout): ['src/mcp/tools/write_tools.py', 'src/core/lsp_client.py', 'src/core/lsp_client.py', 'src/core/lsp_client.py', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'AGENT_DIARY.md', 'EXPERIMENTS_LOG.md']
+gold: ['src/mcp/tools/lsp_tools.py']
+--- B raw ---
+🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`
+   identifiers: LSP
+   results: 8 | degraded: grep:timeout
+   exact: LSP=394
+
+1. D:/Project/MSCodeBase/src/mcp/tools/write_tools.py:866  [impact]
+   impact LSP: risk=low, affected=1
+2. D:/Project/MSCodeBase/src/core/lsp_client.py:291  [symbol]
+   LspClient — class_definition
+3. D:/Project/MSCodeBase/src/core/lsp_client.py:303  [symbol]
+   LspClient.__init__ — function_definition
+4. D:/Project/MSCodeBase/src/core/lsp_client.py:368  [symbol]
+   LspClient._ensure_started — function_definition
+5. AGENT_DIARY.md:599  [grep]
+   - **ARCHITECTURE semantic audit (2026-09-23, en/ru/zh):** ИСПРАВЛЕНО — §2.0 слой **Bridge помечен deprecated** (код: `_bridge_state = "<not used — LSP server removed 2026-07-20>"`)
+6. AGENT_DIARY.md:618  [grep]
+   - **Type resolution:** query-time LSP через basedpyright (не index-time USES_TYPE) — 2026-08-06/07
+7. AGENT_DIARY.md:839  [grep]
+   **Fix:** (1) cypher_sql.py: alias левого узла резолвится в `n{path_idx*2}`, `edge_vars` + `edge_prop_map` (type/source_id/target_id → колонки, остальное → json_extract), `count(e)`
+8. EXPERIMENTS_LOG.md:900  [grep]
+   ## [2026-08-19] — Exp: LIVE vendor test — basedpyright (real pyright fork) LSP features
+
+Символы:
+• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291
+• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303
+• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368
+
+Дальше: get_symbol_info("LSP") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/mcp/tools/write_tools.py")
+
+### run1 P16 [positive] Где описан контракт «артефакты вне проекта»?
+A(0.84s, ok=True): ['src/core/action_receipt.py', 'src/core/artifact_paths.py', 'src/core/auto_doc_updater.py', 'src/core/doc_generator.py', 'src/core/execution_contract.py', 'src/core/notification_broker.py', 'src/core/runtime_coordinator.py', 'src/core/system_artifacts.py', 'src/core/deps/manifest/__init__.py', 'src/core/deps/manifest/extract.py']
+B(21.12s, ok=False, degraded=-): []
+gold: ['src/core/artifact_paths.py']
+--- B raw ---
+🧭 investigate: `Где описан контракт «артефакты вне проекта»?`
+   results: 0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 A01 [ambiguity] Где реализован `build_call_graph`?
+A(1.04s, ok=True): ['src/core/indexing/symbol_index.py', 'src/core/intelligence/layer.py', 'src/core/search/agentic_search.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter_pure.py', 'src/mcp/tools/search_tools.py', 'docs/archive/AGENT_DIARY_2026_08.md', 'docs/archive/KNOWN_ISSUES_2026_07.md', 'tests/benchmark_agentic_search.py', 'scripts/run_experiment_pagerank.py']
+B(22.34s, ok=True, degraded=grep:timeout): ['src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter.py', 'src/core/indexing/symbol_index.py', 'src/core/indexing/symbol_index.py', 'src/core/intelligence/layer.py', 'EXPERIMENTS_LOG.md', 'EXPERIMENTS_LOG.md']
+gold: ['src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py']
+--- B raw ---
+🧭 investigate: `Где реализован `build_call_graph`?`
+   identifiers: build_call_graph
+   results: 8 | degraded: grep:timeout
+   exact: build_call_graph=30
+
+1. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548  [impact+symbol]
+   SymbolIndex.build_call_graph — function_definition
+2. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612  [symbol]
+   SymbolIndexAdapter._graph_build_call_graph — function_definition
+3. D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698  [symbol]
+   SymbolIndexAdapter._hybrid_build_call_graph — function_definition
+4. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:707  [graph]
+   caller of build_call_graph
+5. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:856  [graph]
+   caller of build_call_graph
+6. D:/Project/MSCodeBase/src/core/intelligence/layer.py:237  [graph]
+   caller of build_call_graph
+7. EXPERIMENTS_LOG.md:1994  [grep]
+   2. get_symbol_info для build_call_graph вернул НЕВЕРНОЕ определение (experiments/misc_probes/run_experiment_pagerank.py:40 вместо src/core/indexing/symbol_index.py:480) — символ-те
+8. EXPERIMENTS_LOG.md:2003  [grep]
+   **Гипотеза (v2):** (1) выигрыш агрегатора — в round-trips и agent-facing latency, НЕ в серверной работе (compose ≈ тем же операциям + overhead); (2) полнота (recall) C ≥ A при прав
+
+Символы:
+• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548
+• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612
+• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698
+
+Дальше: get_symbol_info("build_call_graph") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/indexing/symbol_index.py")
+
+### run1 A02 [ambiguity] Где реализован `get_call_chain`?
+A(0.86s, ok=True): ['src/core/graph.py', 'src/core/graph_rag.py', 'src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter.py', 'src/core/search/graph_adapter_pure.py', 'docs/archive/AGENT_DIARY_2026_08.md']
+B(22.52s, ok=True, degraded=grep:timeout): ['src/core/search/graph_adapter_pure.py', 'src/core/indexing/symbol_index.py', 'src/core/graph_rag.py', 'src/core/graph_rag.py', 'tests/test_graph_center.py', 'tests/test_symbol_index_call_graph.py', 'docs/archive/AGENT_DIARY_2026_08.md', 'docs/archive/AGENT_DIARY_2026_08.md']
+gold: ['src/core/indexing/symbol_index.py', 'src/core/search/graph_adapter_pure.py']
+--- B raw ---
+🧭 investigate: `Где реализован `get_call_chain`?`
+   identifiers: get_call_chain
+   results: 8 | degraded: grep:timeout
+   exact: get_call_chain=7
+
+1. D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477  [impact+symbol]
+   PureGraphMixin.get_call_chain — function_definition
+2. D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353  [symbol]
+   SymbolIndex.get_call_chain — function_definition
+3. D:/Project/MSCodeBase/src/core/graph_rag.py:163  [symbol]
+   get_call_chain — function
+4. D:/Project/MSCodeBase/src/core/graph_rag.py:175  [graph]
+   caller of get_call_chain
+5. D:/Project/MSCodeBase/tests/test_graph_center.py:159  [graph]
+   caller of get_call_chain
+6. D:/Project/MSCodeBase/tests/test_symbol_index_call_graph.py:204  [graph]
+   caller of get_call_chain
+7. docs/archive/AGENT_DIARY_2026_08.md:10  [grep]
+   **Fix:** `graph_adapter_pure.py:410-416` — `_find_nodes_flexible` now ALSO queries `find_nodes(name_pattern=<bare last-dot component>)` and merges (dedup by qualified_name) when sy
+8. docs/archive/AGENT_DIARY_2026_08.md:794  [grep]
+   **Fix:** graph_adapter_pure.py + graph_adapter.py: _find_nodes_flexible → union (exact+suffix «%.method»); _pick_best_node (ранг: реальное определение src/ > placeholder > тень exp
+
+Символы:
+• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477
+• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353
+• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163
+
+Дальше: get_symbol_info("get_call_chain") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py")
+
+### run1 A03 [ambiguity] Где считается «устаревание» (staleness)?
+A(0.92s, ok=False): ['src/cli.py', 'src/core/auto_doc_updater.py', 'src/core/bootstrap_pipeline.py', 'src/core/doc_reference_l1.py', 'src/core/system_artifacts.py', 'src/core/task_queue.py', 'src/core/indexing/database_lock.py', 'src/core/indexing/startup_diagnostics.py', 'src/core/intelligence/staleness.py', 'src/core/intelligence/store.py']
+B(30.06s, ok=False, degraded=-): []
+gold: ['src/core/auto_doc_updater.py', 'src/core/indexing/freshness.py']
+--- B raw ---
+{"ok": false, "error": {"code": "TIMEOUT", "message": "Operation timed out after 30000ms", "next_action": "Try with fewer results or smaller scope", "details": {"status": "timeout", "recoverable": true, "tool": "investigate", "detail": "Attempts: 1/1", "latency_ms": 30005}}}
+
+### run1 A04 [ambiguity] Где определён `Indexer`?
+A(0.77s, ok=False): ['src/remote_main.py', 'src/core/artifact_gc.py', 'src/core/di_container.py', 'src/core/modification_guard.py', 'src/core/notification_broker.py', 'src/core/runtime_coordinator.py', 'src/core/indexing/db_manager.py', 'src/core/indexing/db_writer.py', 'src/core/indexing/file_move_manager.py', 'src/core/indexing/index_parser.py']
+B(15.88s, ok=False, degraded=-): ['src/core/indexing/indexer.py', 'scripts/diag_quality_hang.py', 'scripts/diag_quality_hang.py', 'scripts/diag_quality_hang.py', 'src/core/di_container.py', 'AGENT_DIARY.md', 'AGENT_DIARY.md']
+gold: ['src/core/indexing/indexer.py', 'src/core/indexing/indexer_table.py']
+--- B raw ---
+🧭 investigate: `Где определён `Indexer`?`
+   identifiers: Indexer
+   results: 8
+   exact: Indexer=214
+
+1. D:/Project/MSCodeBase/src/core/indexing/indexer.py:37  [impact]
+   impact Indexer: risk=low, affected=2
+2. D:/Project/MSCodeBase/scripts/diag_quality_hang.py:89  [symbol]
+   AsyncTableIndexer — class_definition
+3. D:/Project/MSCodeBase/scripts/diag_quality_hang.py:94  [symbol]
+   AsyncTableIndexer.__init__ — function_definition
+4. D:/Project/MSCodeBase/scripts/diag_quality_hang.py:111  [symbol]
+   AsyncTableIndexer._ensure_async_table — function_definition
+5. D:/Project/MSCodeBase/src/core/di_container.py:295  [graph]
+   caller of Indexer
+6. [memory] feat(indexer): publish wait_reason so "running" is distinguishable from "hung"  [memory]
+7. AGENT_DIARY.md:600  [grep]
+   - **ARCHITECTURE §2.4–§4.2 audit (2026-09-23):** ИСПРАВЛЕНО: `remote_embedder` описан как «ONNX E5 embedder» → **llama.cpp GGUF primary** (+ONNX/LM Studio/Ollama fallback); «15 nod
+8. AGENT_DIARY.md:1171  [grep]
+   1. `db_manager` импортировал `_migrate_text_full_inplace` / `_migrate_add_metadata_columns` как module-level функции (`from src.core.indexing.indexer_table import _migrate_text_ful
+
+Символы:
+• AsyncTableIndexer (class_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:89
+• AsyncTableIndexer.__init__ (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:94
+• AsyncTableIndexer._ensure_async_table (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:111
+
+Дальше: get_symbol_info("Indexer") | impact_analysis | read_live_file("D:/Project/MSCodeBase/src/core/indexing/indexer.py")
+
+### run1 N01 [negative] Где реализовано «согласие партнёрской модели» (`partner_agreement`)?
+A(0.76s, ok=True): []
+B(19.24s, ok=True, degraded=symbols:timeout, grep:timeout): []
+gold: []
+--- B raw ---
+🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`
+   identifiers: partner_agreement
+   results: 0 | degraded: symbols:timeout, grep:timeout
+   exact: partner_agreement=0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 N02 [negative] Где читается `XERJ_FACTS_MODEL_DIR`?
+A(0.94s, ok=True): []
+B(22.08s, ok=True, degraded=grep:timeout): []
+gold: []
+--- B raw ---
+🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`
+   identifiers: XERJ_FACTS_MODEL_DIR
+   results: 0 | degraded: grep:timeout
+   exact: XERJ_FACTS_MODEL_DIR=0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
+
+### run1 N03 [negative] Где ключ подписи Corpus Hub?
+A(1.04s, ok=True): []
+B(22.55s, ok=False, degraded=grep:timeout): ['tools/knowledge/check_knowledge.py', 'src/mcp/tools/graph_tools.py', 'tools/microtask_pipeline/live_smoke.py', 'tests/test_codebase_hub.py', 'tests/test_codebase_hub.py', 'tests/test_codebase_hub.py', 'docs/archive/KNOWN_ISSUES_2026_10.md', 'docs/research/UNIVERSAL_ENGINE_PLAN.md']
+gold: []
+--- B raw ---
+🧭 investigate: `Где ключ подписи Corpus Hub?`
+   identifiers: Corpus, Hub
+   results: 8 | degraded: grep:timeout
+   exact: Corpus=2, Hub=42
+
+1. D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73  [impact+symbol]
+   corpus — variable
+2. D:/Project/MSCodeBase/src/mcp/tools/graph_tools.py:640  [impact]
+   impact Hub: risk=low, affected=3
+3. D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31  [symbol]
+   corpus_tasks — module
+4. D:/Project/MSCodeBase/tests/test_codebase_hub.py:30  [symbol]
+   FakeWriteTool — class_definition
+5. D:/Project/MSCodeBase/tests/test_codebase_hub.py:36  [symbol]
+   FakeWriteTool.__init__ — function_definition
+6. D:/Project/MSCodeBase/tests/test_codebase_hub.py:39  [symbol]
+   FakeWriteTool.execute — function_definition
+7. docs/archive/KNOWN_ISSUES_2026_10.md:202  [grep]
+   - **Найдено:** аудит поднабора для XERJ Corpus Hub: 2 трекнутых артефакта (замороженный
+8. docs/research/UNIVERSAL_ENGINE_PLAN.md:670  [grep]
+   4. Corpus dataset: `experiments/universal-engine/e-s1-polygon/fixtures/` (30
+
+Символы:
+• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:73
+• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31
+• FakeWriteTool (class_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:30
+• FakeWriteTool.__init__ (function_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:36
+• FakeWriteTool.execute (function_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:39
+
+Дальше: get_symbol_info("Corpus") | impact_analysis | read_live_file("D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py")
+
+### run1 N04 [negative] Где `consensus_partner_agreement`?
+A(0.84s, ok=True): []
+B(15.95s, ok=True, degraded=symbols:timeout, grep:timeout): []
+gold: []
+--- B raw ---
+🧭 investigate: `Где `consensus_partner_agreement`?`
+   identifiers: consensus_partner_agreement
+   results: 0 | degraded: symbols:timeout, grep:timeout
+   exact: consensus_partner_agreement=0
+
+ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.
