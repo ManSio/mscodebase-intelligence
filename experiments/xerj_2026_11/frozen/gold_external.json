@@ -1,0 +1,32 @@
+{
+ "_why": "Frozen BEFORE the first external run (2026-11-08). Gold = the real definition file, not the re-export in __init__.py; caller tasks list files that reference the symbol. Built from gold_scan.txt + reading the source.",
+ "_rule": "positive: at least one gold file in the arm's top-10 files; definition tasks name ONE gold file on purpose (the re-export is a decoy, not an answer).",
+ "repos": [
+  {
+   "slug": "itsdangerous",
+   "pin": "672971d66a2e",
+   "path": "C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d",
+   "tasks": [
+    {"id": "X01", "kind": "definition", "question": "Where is `Signer` defined?", "gold": ["src/itsdangerous/signer.py"]},
+    {"id": "X02", "kind": "definition", "question": "Where is `TimestampSigner` defined?", "gold": ["src/itsdangerous/timed.py"]},
+    {"id": "X03", "kind": "definition", "question": "Where is `Serializer` defined?", "gold": ["src/itsdangerous/serializer.py"]},
+    {"id": "X04", "kind": "definition", "question": "Where is `URLSafeSerializer` defined?", "gold": ["src/itsdangerous/url_safe.py"]},
+    {"id": "X05", "kind": "definition", "question": "Where is `BadSignature` defined?", "gold": ["src/itsdangerous/exc.py"]},
+    {"id": "X06", "kind": "definition", "question": "Where is `want_bytes` defined?", "gold": ["src/itsdangerous/encoding.py"]},
+    {"id": "X07", "kind": "callers", "question": "Who calls `want_bytes`?", "gold": ["src/itsdangerous/serializer.py", "src/itsdangerous/signer.py", "src/itsdangerous/timed.py"]},
+    {"id": "X08", "kind": "callers", "question": "Who raises `BadSignature`?", "gold": ["src/itsdangerous/signer.py", "src/itsdangerous/timed.py"]}
+   ]
+  },
+  {
+   "slug": "iniconfig",
+   "pin": "a9e0ad14bcd0",
+   "path": "C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1",
+   "tasks": [
+    {"id": "Y01", "kind": "definition", "question": "Where is `IniConfig` defined?", "gold": ["src/iniconfig/__init__.py"]},
+    {"id": "Y02", "kind": "definition", "question": "Where is `ParseError` defined?", "gold": ["src/iniconfig/exceptions.py"]},
+    {"id": "Y03", "kind": "definition", "question": "Where is `SectionWrapper` defined?", "gold": ["src/iniconfig/__init__.py"]},
+    {"id": "Y04", "kind": "callers", "question": "Who raises `ParseError`?", "gold": ["src/iniconfig/_parse.py"]}
+   ]
+  }
+ ]
+}

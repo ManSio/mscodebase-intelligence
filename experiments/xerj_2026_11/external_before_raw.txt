@@ -1,0 +1,643 @@
+### itsdangerous X01 Where is `Signer` defined?
+A(0.13s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py', 'tests/test_itsdangerous/test_timed.py']
+B(4.78s, ok=True, degraded=-): ['serializer.py', 'serializer.py', 'signer.py', 'serializer.py', 'signer.py', 'signer.py', 'signer.py', 'timed.py']
+gold: ['src/itsdangerous/signer.py']
+--- B raw ---
+🧭 investigate: `Where is `Signer` defined?`
+   identifiers: defined, Signer
+   results: 8
+   ⚠️ exact: defined=0, Signer=56 — the first identifier does not occur in the indexed code; the results below are neighbours, not matches.
+
+1. src/itsdangerous/serializer.py:190  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+2. src/itsdangerous/serializer.py:278  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+3. src/itsdangerous/signer.py:129  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+4. src/itsdangerous/serializer.py:287  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+5. src/itsdangerous/signer.py:182  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+6. src/itsdangerous/signer.py:258  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+7. src/itsdangerous/signer.py:176  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+8. src/itsdangerous/timed.py:185  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+
+Символы:
+• HMACAlgorithm (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/signer.py:48
+• HMACAlgorithm.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/signer.py:56
+• HMACAlgorithm.get_signature (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/signer.py:62
+
+Дальше: get_symbol_info("defined") | impact_analysis | read_live_file("src/itsdangerous/serializer.py")
+
+### itsdangerous X02 Where is `TimestampSigner` defined?
+A(0.12s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_timed.py']
+B(4.88s, ok=True, degraded=-): ['timed.py', 'timed.py', 'timed.py', 'timed.py', 'timed.py', 'timed.py', 'timed.py', 'test_timed.py']
+gold: ['src/itsdangerous/timed.py']
+--- B raw ---
+🧭 investigate: `Where is `TimestampSigner` defined?`
+   identifiers: TimestampSigner, defined
+   results: 8
+   exact: TimestampSigner=9, defined=0
+
+1. src/itsdangerous/timed.py:160  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+2. src/itsdangerous/timed.py:35  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+3. src/itsdangerous/timed.py:112  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function_part | giant_function_part | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// F
+4. src/itsdangerous/timed.py:185  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+5. src/itsdangerous/timed.py:177  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+6. src/itsdangerous/timed.py:29  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+7. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/timed.py:22  [impact]
+   impact TimestampSigner: risk=low, affected=1
+8. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_timed.py:29  [symbol]
+   TestTimestampSigner — class_definition
+
+Символы:
+• TestTimestampSigner (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_timed.py:29
+• TestTimestampSigner.signer_factory (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_timed.py:31
+• TestTimestampSigner.test_future_age (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_timed.py:78
+
+Дальше: get_symbol_info("TimestampSigner") | impact_analysis | read_live_file("src/itsdangerous/timed.py")
+
+### itsdangerous X03 Where is `Serializer` defined?
+A(0.12s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/timed.py', 'src/itsdangerous/url_safe.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_timed.py', 'tests/test_itsdangerous/test_url_safe.py']
+B(4.4s, ok=True, degraded=-): ['serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py', 'serializer.py']
+gold: ['src/itsdangerous/serializer.py']
+--- B raw ---
+🧭 investigate: `Where is `Serializer` defined?`
+   identifiers: Serializer, defined
+   results: 8
+   exact: Serializer=69, defined=0
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/serializer.py:40  [impact+symbol]
+   Serializer — class_definition
+2. src/itsdangerous/serializer.py:243  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+3. src/itsdangerous/serializer.py:33  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+4. src/itsdangerous/serializer.py:190  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+5. src/itsdangerous/serializer.py:349  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+6. src/itsdangerous/serializer.py:271  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+7. src/itsdangerous/serializer.py:237  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+8. src/itsdangerous/serializer.py:29  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+
+Символы:
+• Serializer (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/serializer.py:40
+• Serializer.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/serializer.py:175
+• Serializer._loads_unsafe_impl (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/serializer.py:367
+
+Дальше: get_symbol_info("Serializer") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/serializer.py")
+
+### itsdangerous X04 Where is `URLSafeSerializer` defined?
+A(0.12s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/url_safe.py', 'tests/test_itsdangerous/test_url_safe.py']
+B(4.53s, ok=True, degraded=-): ['url_safe.py', 'README.md', 'test_url_safe.py', 'url_safe.py', '__init__.py', 'serializer.py', 'serializer.py', 'serializer.py']
+gold: ['src/itsdangerous/url_safe.py']
+--- B raw ---
+🧭 investigate: `Where is `URLSafeSerializer` defined?`
+   identifiers: URLSafeSerializer, defined
+   results: 8
+   exact: URLSafeSerializer=12, defined=0
+
+1. src/itsdangerous/url_safe.py:55  [search]
+   FILE: src/itsdangerous/url_safe.py
+SYMBOLS: URLSafeSerializerMixin URLSafeSerializer URLSafeTimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.
+2. README.md:15  [search]
+   FILE: README.md
+SYMBOLS: 
+DOC: 
+// Scope: section | markdown_section | c:.users.misha.appdata.local.temp.tmpwjnd69mm.md
+From C:\Users\misha\AppData\Local\Temp\tmpwjnd69mm.md, secti
+3. tests/test_itsdangerous/test_url_safe.py:13  [search]
+   FILE: tests/test_itsdangerous/test_url_safe.py
+SYMBOLS: TestURLSafeSerializer TestURLSafeTimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.loc
+4. src/itsdangerous/url_safe.py:23  [search]
+   FILE: src/itsdangerous/url_safe.py
+SYMBOLS: URLSafeSerializerMixin URLSafeSerializer URLSafeTimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.
+5. src/itsdangerous/__init__.py:0  [search]
+   FILE: src/itsdangerous/__init__.py
+SYMBOLS: 
+DOC: 
+// Scope: lines | fallback_lines | c:.users.misha.appdata.local.temp.tmpnrzpslu5.py
+// File: C:\Users\misha\AppData\Local\Temp\tm
+6. src/itsdangerous/serializer.py:243  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+7. src/itsdangerous/serializer.py:33  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+8. src/itsdangerous/serializer.py:190  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+
+Символы:
+• TestURLSafeSerializer (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_url_safe.py:11
+• TestURLSafeSerializer.serializer_factory (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_url_safe.py:13
+• TestURLSafeSerializer.value (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_url_safe.py:17
+
+Дальше: get_symbol_info("URLSafeSerializer") | impact_analysis | read_live_file("src/itsdangerous/url_safe.py")
+
+### itsdangerous X05 Where is `BadSignature` defined?
+A(0.13s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py']
+B(13.46s, ok=True, degraded=-): ['exc.py', 'serializer.py', 'timed.py', 'exc.py', 'serializer.py', 'exc.py', '__init__.py', 'signer.py']
+gold: ['src/itsdangerous/exc.py']
+--- B raw ---
+🧭 investigate: `Where is `BadSignature` defined?`
+   identifiers: BadSignature, defined
+   results: 8
+   exact: BadSignature=27, defined=0
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22  [impact+symbol]
+   BadSignature — class_definition
+2. src/itsdangerous/serializer.py:328  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+3. src/itsdangerous/timed.py:185  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+4. src/itsdangerous/exc.py:74  [search]
+   FILE: src/itsdangerous/exc.py
+SYMBOLS: BadData BadSignature BadTimeSignature SignatureExpired BadHeader BadPayload
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+5. src/itsdangerous/serializer.py:367  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+6. src/itsdangerous/exc.py:18  [search]
+   FILE: src/itsdangerous/exc.py
+SYMBOLS: BadData BadSignature BadTimeSignature SignatureExpired BadHeader BadPayload
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+7. src/itsdangerous/__init__.py:0  [search]
+   FILE: src/itsdangerous/__init__.py
+SYMBOLS: 
+DOC: 
+// Scope: lines | fallback_lines | c:.users.misha.appdata.local.temp.tmpnrzpslu5.py
+// File: C:\Users\misha\AppData\Local\Temp\tm
+8. src/itsdangerous/signer.py:258  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+
+Символы:
+• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22
+• BadSignature.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:25
+
+Дальше: get_symbol_info("BadSignature") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py")
+
+### itsdangerous X06 Where is `want_bytes` defined?
+A(0.13s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
+B(14.89s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'encoding.py', 'test_encoding.py', 'signer.py', 'serializer.py', 'test_encoding.py', 'encoding.py']
+gold: ['src/itsdangerous/encoding.py']
+--- B raw ---
+🧭 investigate: `Where is `want_bytes` defined?`
+   identifiers: want_bytes, defined
+   results: 8
+   exact: want_bytes=29, defined=0
+
+1. src/itsdangerous/encoding.py:11  [grep+search]
+   def want_bytes(
+2. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11  [impact+symbol]
+   want_bytes — function_definition
+3. src/itsdangerous/encoding.py:28  [search]
+   FILE: src/itsdangerous/encoding.py
+SYMBOLS: want_bytes base64_encode base64_decode int_to_bytes bytes_to_int
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata
+4. tests/test_itsdangerous/test_encoding.py:12  [search]
+   FILE: tests/test_itsdangerous/test_encoding.py
+SYMBOLS: test_want_bytes test_base64 test_base64_bad test_int_bytes
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+5. src/itsdangerous/signer.py:129  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+6. src/itsdangerous/serializer.py:271  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+7. tests/test_itsdangerous/test_encoding.py:18  [search]
+   FILE: tests/test_itsdangerous/test_encoding.py
+SYMBOLS: test_want_bytes test_base64 test_base64_bad test_int_bytes
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+8. src/itsdangerous/encoding.py:20  [search]
+   FILE: src/itsdangerous/encoding.py
+SYMBOLS: want_bytes base64_encode base64_decode int_to_bytes bytes_to_int
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata
+
+Символы:
+• test_want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:12
+• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11
+
+Дальше: get_symbol_info("want_bytes") | impact_analysis | read_live_file("src/itsdangerous/encoding.py")
+
+### itsdangerous X07 Who calls `want_bytes`?
+A(0.12s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/encoding.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_encoding.py']
+B(4.66s, ok=True, degraded=-): ['encoding.py', 'encoding.py', 'signer.py', 'test_encoding.py', 'test_encoding.py', 'encoding.py', 'timed.py', 'encoding.py']
+gold: ['src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
+--- B raw ---
+🧭 investigate: `Who calls `want_bytes`?`
+   identifiers: want_bytes, Who
+   results: 8
+   exact: want_bytes=29, Who=0
+
+1. src/itsdangerous/encoding.py:11  [grep+search]
+   def want_bytes(
+2. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11  [impact+symbol]
+   want_bytes — function_definition
+3. src/itsdangerous/signer.py:182  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+4. tests/test_itsdangerous/test_encoding.py:12  [search]
+   FILE: tests/test_itsdangerous/test_encoding.py
+SYMBOLS: test_want_bytes test_base64 test_base64_bad test_int_bytes
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+5. tests/test_itsdangerous/test_encoding.py:18  [search]
+   FILE: tests/test_itsdangerous/test_encoding.py
+SYMBOLS: test_want_bytes test_base64 test_base64_bad test_int_bytes
+DOC: 
+// Scope: function | function_definition | c:.users.misha.a
+6. src/itsdangerous/encoding.py:20  [search]
+   FILE: src/itsdangerous/encoding.py
+SYMBOLS: want_bytes base64_encode base64_decode int_to_bytes bytes_to_int
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata
+7. src/itsdangerous/timed.py:45  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+8. src/itsdangerous/encoding.py:49  [search]
+   FILE: src/itsdangerous/encoding.py
+SYMBOLS: want_bytes base64_encode base64_decode int_to_bytes bytes_to_int
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata
+
+Символы:
+• test_want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:12
+• want_bytes (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/encoding.py:11
+
+Дальше: get_symbol_info("want_bytes") | impact_analysis | read_live_file("src/itsdangerous/encoding.py")
+
+### itsdangerous X08 Who raises `BadSignature`?
+A(0.12s, ok=True): ['src/itsdangerous/__init__.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/serializer.py', 'src/itsdangerous/signer.py', 'src/itsdangerous/timed.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_signer.py']
+B(4.14s, ok=True, degraded=-): ['test_encoding.py', 'exc.py', 'serializer.py', 'timed.py', 'test_serializer.py', 'test_serializer.py', 'signer.py', 'test_serializer.py']
+gold: ['src/itsdangerous/signer.py', 'src/itsdangerous/timed.py']
+--- B raw ---
+🧭 investigate: `Who raises `BadSignature`?`
+   identifiers: BadSignature, raises, Who
+   results: 8
+   exact: BadSignature=27, raises=18
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:26  [graph+impact+symbol]
+   raises — function
+2. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22  [impact+symbol]
+   BadSignature — class_definition
+3. src/itsdangerous/serializer.py:328  [search]
+   FILE: src/itsdangerous/serializer.py
+SYMBOLS: _PDataSerializer is_text_serializer Serializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmpp
+4. src/itsdangerous/timed.py:185  [search]
+   FILE: src/itsdangerous/timed.py
+SYMBOLS: TimestampSigner TimedSerializer
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.tmp7y_4f0yg.py
+// File: 
+5. tests/test_itsdangerous/test_serializer.py:122  [search]
+   FILE: tests/test_itsdangerous/test_serializer.py
+SYMBOLS: coerce_str TestSerializer test_digests
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.
+6. tests/test_itsdangerous/test_serializer.py:71  [search]
+   FILE: tests/test_itsdangerous/test_serializer.py
+SYMBOLS: coerce_str TestSerializer test_digests
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.
+7. src/itsdangerous/signer.py:244  [search]
+   FILE: src/itsdangerous/signer.py
+SYMBOLS: SigningAlgorithm NoneAlgorithm _lazy_sha1 HMACAlgorithm _make_keys_list Signer
+DOC: 
+// Scope: function | function_definition | c:.users.m
+8. tests/test_itsdangerous/test_serializer.py:102  [search]
+   FILE: tests/test_itsdangerous/test_serializer.py
+SYMBOLS: coerce_str TestSerializer test_digests
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.temp.
+
+Символы:
+• BadSignature (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:22
+• BadSignature.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/src/itsdangerous/exc.py:25
+• raises (function) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py:26
+
+Дальше: get_symbol_info("BadSignature") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pallets__itsdangerous__HEAD-672971d/tests/test_itsdangerous/test_encoding.py")
+
+### iniconfig Y01 Where is `IniConfig` defined?
+A(0.0s, ok=True): ['src/iniconfig/__init__.py', 'testing/test_iniconfig.py']
+B(3.8s, ok=True, degraded=-): ['__init__.py', '_parse.py', 'testing/test_iniconfig.py', '_parse.py', '__init__.py', '__init__.py', 'testing/test_iniconfig.py', '__init__.py']
+gold: ['src/iniconfig/__init__.py']
+--- B raw ---
+🧭 investigate: `Where is `IniConfig` defined?`
+   identifiers: IniConfig, defined
+   results: 8
+   exact: IniConfig=30, defined=0
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:89  [impact+symbol]
+   IniConfig — class_definition
+2. src/iniconfig/_parse.py:18  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+3. testing/test_iniconfig.py:141  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+4. src/iniconfig/_parse.py:68  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+5. src/iniconfig/__init__.py:94  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+6. src/iniconfig/__init__.py:180  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+7. testing/test_iniconfig.py:375  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+8. src/iniconfig/__init__.py:222  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+
+Символы:
+• IniConfig (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:89
+• IniConfig.__contains__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:248
+• IniConfig.__getitem__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:239
+
+Дальше: get_symbol_info("IniConfig") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py")
+
+### iniconfig Y02 Where is `ParseError` defined?
+A(0.01s, ok=True): ['src/iniconfig/__init__.py', 'src/iniconfig/_parse.py', 'src/iniconfig/exceptions.py', 'testing/test_iniconfig.py']
+B(4.58s, ok=True, degraded=-): ['exceptions.py', '_parse.py', 'testing/test_iniconfig.py', '_parse.py', '__init__.py', '__init__.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py']
+gold: ['src/iniconfig/exceptions.py']
+--- B raw ---
+🧭 investigate: `Where is `ParseError` defined?`
+   identifiers: ParseError, defined
+   results: 8
+   exact: ParseError=17, defined=0
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4  [impact+symbol]
+   ParseError — class_definition
+2. src/iniconfig/_parse.py:18  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+3. testing/test_iniconfig.py:141  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+4. src/iniconfig/_parse.py:68  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+5. src/iniconfig/__init__.py:94  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+6. src/iniconfig/__init__.py:180  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+7. testing/test_iniconfig.py:375  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+8. testing/test_iniconfig.py:356  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+
+Символы:
+• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4
+• ParseError.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:9
+• ParseError.__str__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:15
+
+Дальше: get_symbol_info("ParseError") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py")
+
+### iniconfig Y03 Where is `SectionWrapper` defined?
+A(0.01s, ok=True): ['src/iniconfig/__init__.py']
+B(4.57s, ok=True, degraded=-): ['__init__.py', '_parse.py', 'testing/test_iniconfig.py', '__init__.py', '__init__.py', '__init__.py', '__init__.py', 'testing/test_iniconfig.py']
+gold: ['src/iniconfig/__init__.py']
+--- B raw ---
+🧭 investigate: `Where is `SectionWrapper` defined?`
+   identifiers: SectionWrapper, defined
+   results: 8
+   exact: SectionWrapper=5, defined=0
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:24  [impact+symbol]
+   SectionWrapper — class_definition
+2. src/iniconfig/_parse.py:18  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+3. testing/test_iniconfig.py:141  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+4. src/iniconfig/__init__.py:180  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+5. src/iniconfig/__init__.py:94  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+6. src/iniconfig/__init__.py:166  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+7. src/iniconfig/__init__.py:222  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+8. testing/test_iniconfig.py:375  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+
+Символы:
+• SectionWrapper (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:24
+• SectionWrapper.__getitem__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:73
+• SectionWrapper.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py:28
+
+Дальше: get_symbol_info("SectionWrapper") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/__init__.py")
+
+### iniconfig Y04 Who raises `ParseError`?
+A(0.01s, ok=True): ['src/iniconfig/__init__.py', 'src/iniconfig/_parse.py', 'src/iniconfig/exceptions.py', 'testing/test_iniconfig.py']
+B(4.43s, ok=True, degraded=-): ['C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/testing/test_iniconfig.py', 'exceptions.py', '__init__.py', '_parse.py', '_parse.py', '_parse.py', 'testing/test_iniconfig.py', 'testing/test_iniconfig.py']
+gold: ['src/iniconfig/_parse.py']
+--- B raw ---
+🧭 investigate: `Who raises `ParseError`?`
+   identifiers: ParseError, raises, Who
+   results: 8
+   exact: ParseError=17, raises=5
+
+1. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/testing/test_iniconfig.py:137  [graph+impact+symbol]
+   raises — function
+2. C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4  [impact+symbol]
+   ParseError — class_definition
+3. src/iniconfig/__init__.py:239  [search]
+   FILE: src/iniconfig/__init__.py
+SYMBOLS: SectionWrapper IniConfig
+DOC: brain-dead simple parser for ini-style files. (C) Ronny Pfannschmidt, Holger Krekel -- MIT licensed 
+// Scope
+4. src/iniconfig/_parse.py:18  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+5. src/iniconfig/_parse.py:68  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function | function_definition | c:.users.misha.appdata.local.
+6. src/iniconfig/_parse.py:99  [search]
+   FILE: src/iniconfig/_parse.py
+SYMBOLS: ParsedLine parse_ini_data parse_lines _parseline iscommentline
+DOC: 
+// Scope: function_part | giant_function_part | c:.users.misha.appdata.l
+7. testing/test_iniconfig.py:196  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+8. testing/test_iniconfig.py:141  [search]
+   FILE: testing/test_iniconfig.py
+SYMBOLS: input_expected input expected parse parse_a_error test_tokenize test_parse_empty test_ParseError test_continuation_needs_perceeding_token t
+
+Символы:
+• ParseError (class_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:4
+• ParseError.__init__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:9
+• ParseError.__str__ (function_definition) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/src/iniconfig/exceptions.py:15
+• raises (function) — C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/testing/test_iniconfig.py:137
+
+Дальше: get_symbol_info("ParseError") | impact_analysis | read_live_file("C:/Users/misha/AppData/Local/mscodebase/audit-cache/xerj-2026-11/pytest-dev__iniconfig__HEAD-a9e0ad1/testing/test_iniconfig.py")

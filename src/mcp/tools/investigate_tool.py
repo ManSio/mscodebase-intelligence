@@ -31,6 +31,9 @@ _STOPWORDS = {
     "the", "and", "for", "how", "why", "what", "does", "used", "use", "where",
     "when", "which", "with", "from", "into", "that", "this", "files", "file",
     "changed", "change", "checker", "calls", "call", "work", "works", "after",
+    "who", "whom", "whose", "defined", "definition", "define", "defines",
+    "implemented", "implement", "implements", "located", "sits", "lives",
+    "raises", "raise", "returns", "return", "callers", "caller", "usages",
 }
 
 
@@ -67,23 +70,114 @@ def _identifiers(query: str) -> List[str]:
             found.append(token)
 
     def _score(token: str) -> tuple:
-        code_shape = "_" in token or any(c.isupper() for c in token[1:])
+        code_shape = (
+            "_" in token
+            or any(c.isupper() for c in token[1:])
+            or (token[:1].isupper() and any(c.islower() for c in token[1:]))
+        )
         return (1 if code_shape else 0, len(token))
 
     found.sort(key=_score, reverse=True)
     return found[:_MAX_IDS]
 
 
-def _merge(items: Iterable[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
-    """Dedup by (file, line); keep the best rank and all channels."""
+def _relpath(path: Any, root: Any) -> str:
+    """Project-relative path for every channel (or "" when there is none).
+
+    Measured 2026-11-08 (external corpus, X07): the symbol/impact/graph channels
+    return absolute paths while grep/search return relative ones, so the SAME
+    location appeared twice in one answer (`src/x/encoding.py:11` and
+    `C:/.../src/x/encoding.py:11`) and `_merge` could not dedupe them. Two of
+    eight slots were spent on one line.
+    """
+    if not path:
+        return ""
+    text = str(path).replace("\\", "/")
+    if not root:
+        return text
+    base = str(root).replace("\\", "/").rstrip("/")
+    if text.lower().startswith(base.lower() + "/"):
+        return text[len(base) + 1:]
+    return text
+
+
+def _asks_for_callers(query: str) -> bool:
+    """Does the question ask *who uses X* rather than *where is X defined*?
+
+    The definition is the answer to the second question and the wrong answer to
+    the first, but it used to outrank the callers (impact weight 1.2 vs caller
+    weight 1.0). Measured 2026-11-08: on `Who calls want_bytes?` the top hit was
+    `def want_bytes` in all three caller tasks of the external corpus.
+    """
+    lowered = (query or "").lower()
+    return any(
+        marker in lowered
+        for marker in (
+            "who calls", "who uses", "who invokes", "callers", "call sites",
+            "usages", "references to", "used by", "who imports",
+            "кто вызывает", "кто использует", "кто обращается", "где вызывается",
+        )
+    )
+
+
+def _search_row_to_item(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
+    """One `hybrid_search_async` row -> one merge item.
+
+    Shape measured 2026-11-08 (`probe_search_row.py`): the searcher returns
+    `{text, metadata, final_score, source}` and the path/line live inside
+    `metadata` (`file`, `start_line`). Reading `file_path`/`file` straight off
+    the row gave None for every hit, and `_merge` silently drops items with no
+    file — so the semantic channel contributed **nothing** to any `investigate`
+    answer (E1: 0 hits from `search` vs 129 from the other channels across 24
+    questions). Both shapes are accepted, so a future searcher change that
+    flattens the row keeps working.
+    """
+    meta = row.get("metadata") or {}
+    if not isinstance(meta, dict):
+        meta = {}
+    # Scores from different channels are NOT on one scale: the searcher's
+    # `final_score` was measured at 10.32 on the external corpus while the
+    # symbol channel contributes a fixed 2.5. Summing them let a chunk that
+    # merely mentions the symbol outrank its definition by 4x (measured
+    # 2026-11-08: 10.92 vs 2.5 -> definition ranked 7th). A rank-based score is
+    # bounded by construction: 1.0 for the best hit, then 1/2, 1/3 ... (the RRF
+    # shape, minus the constant k, since we only need an ordering).
+    rank_score = 1.0 / (idx + 1)
+    return {
+        "file": row.get("file_path") or row.get("file") or meta.get("file"),
+        "line": row.get("line") or row.get("start_line") or meta.get("start_line") or 0,
+        "text": row.get("text") or row.get("content") or "",
+        "score": rank_score,
+        "weight": 0.6,
+        "channels": {"search"},
+    }
+
+
+def _merge(
+    items: Iterable[Dict[str, Any]],
+    limit: int,
+    root: Any = None,
+    demote_definitions: bool = False,
+) -> List[Dict[str, Any]]:
+    """Dedup by (file, line); keep the best rank and all channels.
+
+    `demote_definitions` is for "who calls X" questions: the definition is the
+    wrong answer there. A small subtraction (0.4) was measured to change
+    nothing — the definition still held 2.1 against a caller's 1.6 — so the
+    definition is pinned to the tail instead: it stays in the answer as context,
+    it just cannot lead a question that asked for call sites.
+    """
     merged: Dict[Tuple[str, int], Dict[str, Any]] = {}
     for item in items:
-        file = str(item.get("file") or item.get("file_path") or "")
+        file = _relpath(item.get("file") or item.get("file_path"), root)
         if not file:
             continue
         line = int(item.get("line") or 0)
         key = (file, line)
         rank = float(item.get("score") or 0.0) + float(item.get("weight") or 0.0)
+        defines = bool(item.get("defines"))
+        if demote_definitions and defines:
+            rank = min(rank, 0.5)
         current = merged.get(key)
         channels = set(item.get("channels") or [])
         if current is None:
@@ -92,16 +186,18 @@ def _merge(items: Iterable[Dict[str, Any]], limit: int) -> List[Dict[str, Any]]:
                 "line": line,
                 "text": str(item.get("text") or item.get("content") or "")[:200],
                 "rank": rank,
+                "defines": defines,
                 "channels": channels,
             }
         else:
             current["channels"] |= channels
             current["rank"] = max(current["rank"], rank)
+            current["defines"] = current.get("defines") or defines
             if not current["text"] and item.get("text"):
                 current["text"] = str(item["text"])[:200]
     ranked = sorted(
         merged.values(),
-        key=lambda r: (len(r["channels"]), r["rank"]),
+        key=lambda r: (r["rank"], len(r["channels"])),
         reverse=True,
     )
     return ranked[:limit]
@@ -126,6 +222,19 @@ class InvestigateTool(MCPTool):
         _pr = project_root or None
         await self.require_ready_project(explicit_project_root=_pr)
         limit = max(3, min(int(limit), 20))
+        # Intent decides the order of the same hits (2026-11-08): "who calls X"
+        # and "where is X defined" have the same identifiers and opposite
+        # answers. The definition used to win both.
+        intent_callers = _asks_for_callers(query)
+        # Weights are additive on top of each channel's own score. Measured
+        # 2026-11-08 on the external corpus: with the semantic channel alive, a
+        # chunk that merely MENTIONS `Signer` (search score ~0.9 + 0.6 = 1.5)
+        # outranked the exact-name symbol hit (1.0) and the answer led with
+        # serializer.py instead of signer.py. Exact name > fuzzy proximity.
+        w_symbol = 0.6 if intent_callers else 1.8
+        w_impact = 0.7 if intent_callers else 1.3
+        w_graph = 1.6 if intent_callers else 1.0
+        root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
 
         identifiers = _identifiers(query)
         searcher = self.resolve_searcher(explicit_project_root=_pr)
@@ -144,19 +253,39 @@ class InvestigateTool(MCPTool):
         async def _search() -> None:
             raw = await searcher.hybrid_search_async(query, limit=limit * 2) or []
             for idx, row in enumerate(raw):
-                items.append(
-                    {
-                        "file": row.get("file_path") or row.get("file"),
-                        "line": row.get("line") or row.get("start_line") or 0,
-                        "text": row.get("text") or row.get("content") or "",
-                        "score": row.get("score") or row.get("final_score") or (0.5 - idx * 0.01),
-                        "weight": 0.6,
-                        "channels": {"search"},
-                    }
-                )
+                items.append(_search_row_to_item(row, idx))
 
         def _symbols() -> None:
+            # Some indexes (and the test doubles) only implement search_symbols.
+            find_defs = getattr(symbol_index, "find_definitions", None)
             for ident in identifiers:
+                # Exact name lookup FIRST (2026-11-08). `search_symbols` is a
+                # fuzzy search: asked for `Signer` on itsdangerous it returned
+                # HMACAlgorithm, and the real `class Signer` never entered the
+                # answer. `find_definitions` is the exact index and returned the
+                # true definition as hit #1 for all 9 definition tasks of the
+                # external corpus — this is the "def-first" ranking that XERJ
+                # measures as correct-file@1 (`def.rs:223-237`).
+                exact = (find_defs(ident) if callable(find_defs) else None) or []
+                for ref in exact[:3]:
+                    name = getattr(ref, "symbol", "") or getattr(ref, "name", "")
+                    file_path = getattr(ref, "file_path", "") or getattr(ref, "file", "")
+                    line = int(getattr(ref, "line", 0) or 0)
+                    kind = getattr(ref, "kind", "symbol")
+                    if not name or not file_path:
+                        continue
+                    symbol_lines.append(f"• {name} ({kind}) — {file_path}:{line}")
+                    items.append(
+                        {
+                            "file": file_path,
+                            "line": line,
+                            "text": f"{name} — {kind}",
+                            "score": 0.0,
+                            "weight": 2.5,
+                            "defines": True,
+                            "channels": {"definition"},
+                        }
+                    )
                 for ref in (symbol_index.search_symbols(ident, top_k=3) or []):
                     name = getattr(ref, "symbol", "") or getattr(ref, "name", "")
                     file_path = getattr(ref, "file_path", "") or getattr(ref, "file", "")
@@ -171,7 +300,8 @@ class InvestigateTool(MCPTool):
                             "line": line,
                             "text": f"{name} — {kind}",
                             "score": 0.0,
-                            "weight": 1.0,
+                            "weight": w_symbol,
+                            "defines": "def" in str(kind).lower(),
                             "channels": {"symbol"},
                         }
                     )
@@ -224,10 +354,9 @@ class InvestigateTool(MCPTool):
         )
 
         # ─── Pass 2: channels that need a symbol/file from pass 1 ───
-        first_pass = _merge(items, 50)
+        first_pass = _merge(items, 50, root, intent_callers)
         top_files = [row["file"] for row in first_pass if row["file"]][:3]
         top_names = identifiers[:2]
-        root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
 
         def _impact() -> None:
             for name in top_names:
@@ -248,7 +377,7 @@ class InvestigateTool(MCPTool):
                             f"affected={len(res.get('affected_files') or [])}"
                         ),
                         "score": 0.0,
-                        "weight": 1.2,
+                        "weight": w_impact,
                         "channels": {"impact"},
                     }
                 )
@@ -262,7 +391,7 @@ class InvestigateTool(MCPTool):
                             "line": int(getattr(caller, "line", 0) or 0),
                             "text": f"caller of {name}",
                             "score": 0.0,
-                            "weight": 1.0,
+                            "weight": w_graph,
                             "channels": {"graph"},
                         }
                     )
@@ -309,7 +438,7 @@ class InvestigateTool(MCPTool):
             _run("memory", _memory, False),
         )
 
-        merged = _merge(items, limit)
+        merged = _merge(items, limit, root, intent_callers)
         return self._format(query, identifiers, merged, symbol_lines, degraded, exact)
 
     def _format(

@@ -1,0 +1,186 @@
+######## itsdangerous (pallets__itsdangerous__HEAD-672971d)
+
+--- Signer
+  src/itsdangerous/__init__.py: 1 hits
+      13: from .signer import Signer as Signer
+  src/itsdangerous/serializer.py: 27 hits
+      11: from .signer import Signer
+      41: """A serializer wraps a :class:`~itsdangerous.signer.Signer` to
+      63: :param signer: A ``Signer`` class to instantiate when signing data.
+      65: :class:`~itsdangerous.signer.Signer`.
+  src/itsdangerous/signer.py: 3 hits
+      76: class Signer:
+      132: salt: str | bytes | None = b"itsdangerous.Signer",
+      156: salt = b"itsdangerous.Signer"
+  src/itsdangerous/timed.py: 5 hits
+      19: from .signer import Signer
+      22: class TimestampSigner(Signer):
+      23: """Works like the regular :class:`.Signer` but also records the time
+      78: """Works like the regular :meth:`.Signer.unsign` but can also
+  tests/test_itsdangerous/test_serializer.py: 2 hits
+      17: from itsdangerous.signer import Signer
+      174: (Signer, {"digest_method": hashlib.sha256}),
+  tests/test_itsdangerous/test_signer.py: 4 hits
+      9: from itsdangerous.signer import Signer
+      21: return partial(Signer, secret_key="secret-key")
+      95: signer = Signer("a")
+      99: signer = Signer(["a", "b"])
+  tests/test_itsdangerous/test_timed.py: 3 hits
+      11: from itsdangerous.signer import Signer
+      50: other = Signer("secret-key")
+      60: other = Signer("secret-key")
+
+--- TimestampSigner
+  src/itsdangerous/__init__.py: 1 hits
+      15: from .timed import TimestampSigner as TimestampSigner
+  src/itsdangerous/timed.py: 6 hits
+      22: class TimestampSigner(Signer):
+      171: """Uses :class:`TimestampSigner` instead of the default
+      175: default_signer: type[TimestampSigner] = TimestampSigner  # pyright: ignore
+      179: ) -> cabc.Iterator[TimestampSigner]:
+  tests/test_itsdangerous/test_timed.py: 2 hits
+      13: from itsdangerous.timed import TimestampSigner
+      32: return partial(TimestampSigner, secret_key="secret-key")
+
+--- Serializer
+  src/itsdangerous/__init__.py: 1 hits
+      10: from .serializer import Serializer as Serializer
+  src/itsdangerous/serializer.py: 7 hits
+      40: class Serializer(t.Generic[_TSerialized]):
+      106: # Serializer[str] if no data serializer is provided, or if it returns str.
+      109: self: Serializer[str],
+      122: # Serializer[bytes] with a bytes data serializer positional argument.
+  src/itsdangerous/timed.py: 2 hits
+      18: from .serializer import Serializer
+      170: class TimedSerializer(Serializer[_TSerialized]):
+  src/itsdangerous/url_safe.py: 4 hits
+      11: from .serializer import Serializer
+      15: class URLSafeSerializerMixin(Serializer[str]):
+      72: class URLSafeSerializer(URLSafeSerializerMixin, Serializer[str]):
+      73: """Works like :class:`.Serializer` but dumps and loads into a URL
+  tests/test_itsdangerous/test_serializer.py: 13 hits
+      15: from itsdangerous.serializer import Serializer
+      36: @pytest.fixture(params=(Serializer, partial(Serializer, serializer=pickle)))
+      51: def test_serializer(self, serializer: Serializer, value: Any):
+      63: def test_changed_value(self, serializer: Serializer, value: Any, transform):
+
+--- URLSafeSerializer
+  src/itsdangerous/__init__.py: 1 hits
+      16: from .url_safe import URLSafeSerializer as URLSafeSerializer
+  src/itsdangerous/url_safe.py: 1 hits
+      72: class URLSafeSerializer(URLSafeSerializerMixin, Serializer[str]):
+  tests/test_itsdangerous/test_url_safe.py: 2 hits
+      5: from itsdangerous.url_safe import URLSafeSerializer
+      14: return partial(URLSafeSerializer, secret_key="secret-key")
+
+--- BadSignature
+  src/itsdangerous/__init__.py: 1 hits
+      7: from .exc import BadSignature as BadSignature
+  src/itsdangerous/exc.py: 4 hits
+      22: class BadSignature(BadData):
+      36: class BadTimeSignature(BadSignature):
+      38: of :class:`BadSignature`.
+      66: class BadHeader(BadSignature):
+  src/itsdangerous/serializer.py: 5 hits
+      9: from .exc import BadSignature
+      331: """Reverse of :meth:`dumps`. Raises :exc:`.BadSignature` if the
+      340: except BadSignature as err:
+      343: raise t.cast(BadSignature, last_exception)
+  src/itsdangerous/signer.py: 4 hits
+      12: from .exc import BadSignature
+      249: raise BadSignature(f"No {self.sep!r} found in value")
+      256: raise BadSignature(f"Signature {sig!r} does not match", payload=value)
+      265: except BadSignature:
+  src/itsdangerous/timed.py: 6 hits
+      14: from .exc import BadSignature
+      91: except BadSignature as e:
+      166: except BadSignature:
+      192: """Reverse of :meth:`dumps`, raises :exc:`.BadSignature` if the
+  tests/test_itsdangerous/test_serializer.py: 5 hits
+      14: from itsdangerous.exc import BadSignature
+      68: with pytest.raises(BadSignature):
+      74: with pytest.raises(BadSignature) as exc_info:
+      105: except BadSignature as e:
+  tests/test_itsdangerous/test_signer.py: 4 hits
+      6: from itsdangerous.exc import BadSignature
+      39: with pytest.raises(BadSignature):
+      48: with pytest.raises(BadSignature) as exc_info:
+      58: with pytest.raises(BadSignature):
+
+--- want_bytes
+  src/itsdangerous/__init__.py: 1 hits
+      3: from .encoding import want_bytes as want_bytes
+  src/itsdangerous/encoding.py: 3 hits
+      11: def want_bytes(
+      24: string = want_bytes(string)
+      32: string = want_bytes(string, encoding="ascii", errors="ignore")
+  src/itsdangerous/serializer.py: 5 hits
+      7: from .encoding import want_bytes
+      211: salt = want_bytes(salt)
+      276: return want_bytes(self.serializer.dumps(obj, **self.serializer_kwargs))
+      314: payload = want_bytes(self.dump_payload(obj))
+  src/itsdangerous/signer.py: 10 hits
+      11: from .encoding import want_bytes
+      71: return [want_bytes(secret_key)]
+      73: return [want_bytes(s) for s in secret_key]  # pyright: ignore
+      144: self.sep: bytes = want_bytes(sep)
+  src/itsdangerous/timed.py: 5 hits
+      13: from .encoding import want_bytes
+      47: value = want_bytes(value)
+      49: sep = want_bytes(self.sep)
+      95: sep = want_bytes(self.sep)
+  tests/test_itsdangerous/test_encoding.py: 3 hits
+      7: from itsdangerous.encoding import want_bytes
+      13: out = want_bytes(value)
+      22: assert dec == want_bytes(value)
+######## iniconfig (pytest-dev__iniconfig__HEAD-a9e0ad1)
+
+--- IniConfig
+  src/iniconfig/__init__.py: 9 hits
+      13: __all__ = ["COMMENTCHARS", "IniConfig", "ParseError", "iscommentline"]
+      25: config: Final["IniConfig"]
+      28: def __init__(self, config: "IniConfig", name: str) -> None:
+      89: class IniConfig:
+  testing/test_iniconfig.py: 33 hits
+      6: from iniconfig import IniConfig
+      95: ini = IniConfig("sample", "")
+      133: config = IniConfig(path=str(path))
+      135: config = IniConfig(str(path), "[diff]")
+
+--- ParseError
+  src/iniconfig/__init__.py: 2 hits
+      13: __all__ = ["COMMENTCHARS", "IniConfig", "ParseError", "iscommentline"]
+      18: from .exceptions import ParseError
+  src/iniconfig/_parse.py: 7 hits
+      5: from .exceptions import ParseError
+      53: raise ParseError(path, lineno, "no section header defined")
+      57: raise ParseError(path, lineno, f"duplicate section {section!r}")
+      61: raise ParseError(path, lineno, f"duplicate name {name!r}")
+  src/iniconfig/exceptions.py: 1 hits
+      4: class ParseError(Exception):
+  testing/test_iniconfig.py: 8 hits
+      7: from iniconfig import ParseError
+      78: def parse_a_error(input: str) -> ParseError:
+      81: except ParseError as e:
+      100: e = ParseError("filename", 0, "hello")
+
+--- Config
+
+--- SectionWrapper
+  src/iniconfig/__init__.py: 5 hits
+      24: class SectionWrapper:
+      239: def __getitem__(self, name: str) -> SectionWrapper:
+      242: return SectionWrapper(self, name)
+      244: def __iter__(self) -> Iterator[SectionWrapper]:
+
+--- parse
+  src/iniconfig/__init__.py: 5 hits
+      107: # Use provided pre-parsed data (called from parse())
+      126: def parse(
+      153: config = IniConfig.parse("setup.cfg")
+      157: config = IniConfig.parse("setup.cfg", strip_inline_comments=False)
+  testing/test_iniconfig.py: 12 hits
+      72: def parse(input: str) -> list[PL]:
+      80: parse(input)
+      88: parsed = parse(input)
+      93: parsed = parse("")
