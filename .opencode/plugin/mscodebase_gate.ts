@@ -70,6 +70,29 @@ function isolationSuppressed(out: string): boolean {
   return /deliver:\s*✗/i.test(out) || /deliver:\s*false/i.test(out)
 }
 
+// True when every staged path is documentation. The graph gate looks for orphaned
+// symbols, which docs cannot cause, and it is the expensive one (measured 2026-11-08:
+// ~11 s while the MCP process holds the DB lock, because the CLI waits 8 s for it and
+// then reports `base: cached` with an empty changed-files list). Skipping it for
+// docs-only commits keeps the cheap version gate (stale_detector) and removes the wait.
+function docsOnlyStaged(directory: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      execFile(
+        "git",
+        ["diff", "--cached", "--name-only", "-z"],
+        { cwd: directory, timeout: 10000, windowsHide: true, maxBuffer: 1024 * 1024 },
+        (_err, stdout) => {
+          const paths = (stdout ?? "").split("\0").filter((p) => p.trim().length > 0)
+          resolve(paths.length > 0 && paths.every((p) => /\.(md|txt|rst)$/i.test(p)))
+        },
+      )
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
 const stash = new Map<string, string>()
 
 export default (async ({ directory }) => {
@@ -101,15 +124,19 @@ export default (async ({ directory }) => {
       // ── Gate 2: graph isolation (advisory/block) ──
       if (ISO_MODE !== "off") {
         try {
-          const out = await cli(directory, "graph_query", ISO_ARGS)
-          const count = isolationCount(out)
-          log({ kind: "isolation", count, out: out.slice(0, 400) })
-          if (count > 0) {
-            if (ISO_MODE === "block") {
-              log({ kind: "isolation_block", count })
-              throw new Error(`GRAPH-GATE (block): this commit isolates ${count} graph node(s).\n${out.slice(0, 500)}`)
+          if (await docsOnlyStaged(directory)) {
+            log({ kind: "isolation_skipped", reason: "docs-only" })
+          } else {
+            const out = await cli(directory, "graph_query", ISO_ARGS)
+            const count = isolationCount(out)
+            log({ kind: "isolation", count, out: out.slice(0, 400) })
+            if (count > 0) {
+              if (ISO_MODE === "block") {
+                log({ kind: "isolation_block", count })
+                throw new Error(`GRAPH-GATE (block): this commit isolates ${count} graph node(s).\n${out.slice(0, 500)}`)
+              }
+              if (!isolationSuppressed(out)) stash.set(input.callID, out)
             }
-            if (!isolationSuppressed(out)) stash.set(input.callID, out)
           }
         } catch (e) {
           if (String(e).includes("GRAPH-GATE")) throw e
