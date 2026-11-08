@@ -186,6 +186,18 @@ class GrepCodeTool(MCPTool):
             scanned += 1
             rel = str(path.relative_to(root)).replace(os.sep, "/")
 
+            # Prefilter (2026-11-08): tree-sitter is used only to decide whether a
+            # match sits inside a comment/string. A file whose bytes cannot match
+            # the pattern has nothing to decide, and parsing it anyway made the
+            # whole channel CPU-bound: on this repo (523 files) `_search` parsed
+            # every file per call, took ~2.7 s alone and exceeded the 15 s channel
+            # budget inside `investigate`, which runs it next to the semantic
+            # channel under the same GIL. Result: `degraded: grep:timeout` on every
+            # query of our own repository. The match set is unchanged — a file
+            # with zero regex hits contributed zero matches either way.
+            if not regex.search(source):
+                continue
+
             ranges: List[Tuple[int, int]] = []
             starts: List[int] = []
             if scope == "code" and parser is not None:

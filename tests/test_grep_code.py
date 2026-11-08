@@ -73,3 +73,24 @@ def test_invalid_regex_is_reported(project: Path):
 def test_empty_pattern_is_rejected(project: Path):
     out = _run(project, pattern="   ", scope="all")
     assert "пустой pattern" in out
+
+
+def test_prefilter_does_not_change_the_match_set(project: Path):
+    """A file with no raw regex hit is never parsed — and never counted.
+
+    The prefilter (2026-11-08) exists because parsing every file to answer
+    "is this match inside a comment?" made the channel CPU-bound: 2.7 s per
+    call on 523 files, >15 s inside `investigate`, i.e. `degraded: grep:timeout`
+    on every query of our own repo. The decision it must not change is *which*
+    matches are reported.
+    """
+    (project / "big_no_match.py").write_text(
+        "\n".join(f"value_{i} = {i}" for i in range(4000)), encoding="utf-8"
+    )
+    out = _run(project, pattern="needle", scope="code")
+    assert "a.py:3" in out
+    assert "a.py:1" not in out
+    # the file was read and checked (files=), but contributed no match
+    assert "big_no_match.py" not in out
+    assert "files=4" in out or "files=3" in out
+
