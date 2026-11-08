@@ -120,7 +120,11 @@ jobs:
           cache: pip
       - name: Verify clean state (no self-clone)
         run: bash scripts/verify_clean_state.sh --no-clone "${{ github.repository }}"
-        timeout-minutes: 15
+        # 15 min was too close: this job took 13m29s and 13m31s on two pushes
+        # (others 2m10s) with a silent 743.7s gap inside the test step. Raising
+        # the ceiling keeps a slow runner from turning main red; --durations=15
+        # in the script names the slow tests on the next occurrence.
+        timeout-minutes: 25
 
   manifest-parity:
     # B-1 (ADR-0005 scaling): наши экстракторы манифестов vs osv-scanner на корпусе
