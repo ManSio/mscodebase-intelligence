@@ -17,6 +17,13 @@ import threading
 import time
 from pathlib import Path
 
+# Запуск как `python scripts/reindex_text_only.py` кладёт в sys.path папку
+# scripts/, а не корень репозитория → ModuleNotFoundError: No module named
+# 'src' (наблюдение 2026-11-08). Добавляем корень явно.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):

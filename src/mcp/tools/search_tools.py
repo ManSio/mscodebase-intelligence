@@ -222,6 +222,10 @@ class SearchCodeTool(MCPTool):
 
         if not query or not query.strip():
             return _("❌ Query is empty")
+        # Red-team 2026-11-08: 2000-символьный запрос занял 47.5 с и вернул 0
+        # результатов (BM25/эмбеддинг по мусору). Жёсткий потолок.
+        if len(query) > 512:
+            return _("❌ Query too long ({n} chars, max 512)", n=len(query))
 
         # P1: Adaptive search budget (CodeGraph-inspired)
         # Адаптируем limit под размер проекта если не указан явно.
