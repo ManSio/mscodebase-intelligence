@@ -2,6 +2,13 @@
 
 > Создано: 2026-07-27. Статус: активный.
 > Источник: 4 раунда протокольного аудита (graph.py, cypher-стек, indexing-стек, write_tools, search/engine, error_handler, remote_embedder, ci.yml, server_tools).
+>
+> **Сверка 2026-11-08 (по коду, не по памяти):** 58 ✅ fixed, 11 открытых (KI-R1…R11 —
+> исследовательские, не код), 5 принято как техдолг. Закрыты в этот день: P1-7
+> (FileGuard в write-путях), P1-8 (валидация идентификатора), **P1-9** (URI за пределы
+> проекта — теперь fail-closed + 3 теста), P1-10 (`* 1000`, не `- 1000`), P1-12
+> (нулевой вектор заменён на `RuntimeError`). P2-13 переведён в ACCEPTED: код живёт
+> только в legacy dense-пути и при `MSCODEBASE_DENSE_OFF=true` не исполняется.
 
 ---
 
@@ -99,23 +106,23 @@
 
 ### P1-7: `write_tools.py` — `file_path` без FileGuard (path traversal)
 - **Файл:** `src/mcp/tools/write_tools.py` (все write-операции)
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ✅ FIXED (2026-11-08 — `_validate_file_in_project()`: fail-closed при неизвестном корне, `Path.resolve().relative_to(project_root)`, `SafePathManager.is_safe_to_process`; вызовы на 4 точках входа — rename/move/insert/replace)
 - **Детали:** `file_path` от пользователя передаётся в `Path(file_path).resolve()` без проверки, что он внутри `project_path`. Можно записать файл за пределами проекта.
 
 ### P1-8: `write_tools.py` — `new_name` без валидации идентификатора
 - **Файл:** `src/mcp/tools/write_tools.py:99-126`
-- **Статус:** 🔍 IN PROGRESS
+- **Статус:** ✅ FIXED (2026-11-08 — `_validate_identifier()`: `re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*')`, вызовы для rename/move)
 - **Детали:** `new_name` и `symbol` не проверяются как идентификаторы. Пользователь может передать `new_name = "evil(); import os; os.system('rm -rf /')"` — текстовая замена через `str.replace` вставит вредоносный код.
 
 ### P1-9: `write_tools.py` — `_uri_to_path` без проверки project_path
-- **Файл:** `src/mcp/tools/write_tools.py:450-455`
-- **Статус:** 🔍 IN PROGRESS
+- **Файл:** `src/mcp/tools/write_tools.py:1058`
+- **Статус:** ✅ FIXED (2026-11-08 — `_uri_to_path` проверяет `relative_to(project_root)` и **отказывает** (None) при неразрешимом корне; `None` = правка пропускается, а не пишется. Тесты: `tests/test_write_tools.py::TestUriToPathGuard`, 3 шт.)
 - **Детали:** LSP может вернуть URI для файла за пределами проекта — запись выполнится без проверки.
 
 ### P1-10: `error_handler.py` — `elapsed = ... - 1000` вместо `* 1000`
-- **Файл:** `src/core/error_handler.py:454`
-- **Статус:** 🔍 IN PROGRESS
-- **Детали:** При timeout `elapsed = int((time.perf_counter() - start_time) - 1000)` — вычитает 1000 секунд вместо перевода в миллисекунды. Записывает отрицательную latency в метрики, ломая min_ms, avg_ms, P50/P95.
+- **Файл:** `src/core/error_handler.py:578,601`
+- **Статус:** ✅ FIXED (2026-11-08 — оба места: `int((time.perf_counter() - start_time) * 1000)`)
+- **Детали:** При timeout записывалась отрицательная latency в метрики.
 
 ### P1-11: `error_handler.py` — `future.cancel()` не вызывается при timeout
 - **Файл:** `src/core/error_handler.py:593-598`
@@ -123,9 +130,9 @@
 - **Детали:** При `TimeoutError` future остаётся в пуле, поток продолжает выполнение. 4 зависших timeout-а исчерпают `_SYNC_POOL` (max_workers=4), все последующие sync-вызовы будут ждать вечно.
 
 ### P1-12: `remote_embedder.py` — silent zero-vector fallback маскирует отказ
-- **Файл:** `src/providers/embedder/remote_embedder.py:717-718,731-732`
-- **Статус:** 🔍 IN PROGRESS
-- **Детали:** При падении провайдера возвращаются нулевые векторы. Индексация проходит «успешно», но векторный поиск возвращает случайные результаты (cosine similarity с нулевым вектором = 0 для всех). Нет маркера в БД «этот чанк имеет fallback-вектор».
+- **Файл:** `src/providers/embedder/remote_embedder.py:1047-1048`
+- **Статус:** ✅ FIXED (2026-11-08 — после ретраев `raise RuntimeError("Embedding failed for chunk …")`, нулевой вектор больше не маскирует отказ; недоступный провайдер → `RuntimeError` на 1064/1068)
+- **Детали:** При падении провайдера возвращались нулевые векторы.
 
 ### P1-13: `db_manager.py` — `_write_lock = threading.Lock`, не `RLock`
 - **Файл:** `src/core/indexing/db_manager.py:60`, `indexer.py:76`
@@ -234,8 +241,8 @@
 
 ### P2-13: `indexer_table.py` — ручное `_escape_sql_value` хрупко
 - **Файл:** `src/core/indexing/indexer_table.py:26-47`
-- **Статус:** 🔍 IN PROGRESS
-- **Детали:** Экранирование покрывает 3 вектора, но не двойные кавычки, Unicode-обходы. Зависит от того, что DataFusion не изменит escape-правила.
+- **Статус:** ⏳ ACCEPTED (2026-11-08 — код живёт только в legacy dense-пути; при `MSCODEBASE_DENSE_OFF=true` (default) фильтры LanceDB не выполняются. Переоткрывать при возврате dense; тогда — параметризованные фильтры, не ручной escape)
+- **Детали:** Экранирование покрывает 3 вектора, но не двойные кавычки, Unicode-обходы.
 
 ### P2-14: `indexer.py` — `get_status` читает кэш без `_index_lock`
 - **Файл:** `src/core/indexing/index_status.py:37-90`, `indexer.py:141-146`

@@ -386,13 +386,13 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
   /healthz exempt; circuit breaker на /mcp через ASGI-mount: 5xx→503, OPEN
   short-circuit); тесты remote_main 5→13.
 - Остаток: шаг 5 Docker image+compose; E-07 сьют эквивалентности stdio↔HTTP;
-  деплой-доки.
+  деплой-доки. — **закрыто 2026-11-08** (см. ниже); открыт только rolling-restart (§9б-7).
 - Шаг 5 ✅ (f7650184): Docker (Вариант A) — `deploy/docker/{Dockerfile, docker-compose.yml,
   .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
   /healthz, том `/data`; llama.cpp/reranker = опциональный внешний сервис (Вариант C).
-- Остаток Фазы 3: E-07 сьют эквивалентности stdio↔HTTP; live build образа на
-  CI-джобе/машине владельца (локально Docker вне песочницы не гонялся); деплой-доки
-  для rolling-restart (multi-instance) — позже (ТЗ §9б-7).
+- Остаток Фазы 3 ✅ **закрыт 2026-11-08**: E-07 идёт CI-джобой `transport-equiv-e2e`
+  (engine mode, реальный create_mcp_server), образ собирается джобой `docker-build`.
+  Открыт по дизайну только раздел rolling-restart (multi-instance, §9б-7).
 - E-07 ✅ (69d3432d): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
   + `E07_RESULTS.md`. Toy-режим (минимальный FastMCP) PASSED live 2/2 (ping-result +
   bad-args идентичны через stdio/HTTP) — гарнесс доказан. Engine-режим (реальный
@@ -415,16 +415,19 @@ shadow-canary: 5/5 атак прошли до фикса — новый код �
   (5): untrusted не-spawn/не-exec, изоляция процесса (мутация host-модуля не видна),
   runner fail-closed, drif. +.gitignore: блок one-off-скриптов с-янкорен на /
   (pattern `runner.py` скрывал легитимный src/plugins/runner.py — ловушка §9).
-- Остаток Фазы 4: MCP-proxy в сервер (wiring в DI/сервер, регистрация тулов плагина
-  как MCP-тулов движка), trust-гейт UX (промпт издателя: name/version/publisher/sha256),
-  dependencies-скан (pip-audit-стиль, §5.1).
+- Остаток Фазы 4 ✅ **закрыт 2026-11-08** для серверного wiring: `server_factory.py:256`
+  вызывает `_wire_plugins(mcp)` → `src/plugins/server.py::wire_plugins` →
+  `register_fastmcp(reg, mcp)`; при `MSCODEBASE_PLUGINS_DIR` тулы плагина реально
+  регистрируются в MCP (без env — no-op). Аудит зависимостей идёт в CI
+  (`pip-audit -r requirements-lock.txt`, ci.yml:85-86). Не закрыто: полировка UX
+  издателя и сторонний (не example) плагин.
 - MCP-proxy wiring ✅ (39d5b888): `registry.py` (PluginRegistry: discover/preauthorize/
   spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-гейт UX: trust_prompt,
   make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (валидация пинов ==),
   manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end через PoC
   verify_claim: VERIFIED/REFUTED/UNKNOWN). pytest 1379 (+11).
-- Остаток Фазы 4: интеграция PluginRegistry в ЖИВОЙ create_mcp_server (конечный
-  wiring в DI/сервер, live-проверка на idle/CI), pip-audit на инсталляторе.
+- Остаток Фазы 4 ✅ **закрыт 2026-11-08** (тот же wiring: живой `create_mcp_server` →
+  `_wire_plugins` → `register_fastmcp`; pip-audit в CI).
 
 **Фаза 5 — Адаптеры** по §4. DoD: ручная проверка на реальном VS Code/Cursor с
 реальным репо; CLI wrapper; доки для Claude Code.

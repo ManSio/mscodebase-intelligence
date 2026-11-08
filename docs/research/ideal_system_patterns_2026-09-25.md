@@ -63,10 +63,25 @@ cosine).
 - guard blind spots (optimize untested) => P-C, P-E.
 
 ## Roadmap (each slice: Phase Zero -> Experiment -> Fix -> Guard -> Record)
-- S1 [done] error_envelope core (P-D).
-- S2 wire envelope into MCP error paths (P-D).
-- S3 per-phase heartbeat + stall detection + wait_reason (P-A/P-B).
-- S4 learned per-phase ETA, UNPROVABLE allowed (P-B/P-F1/P-F4).
-- S5 incremental correctness: hash-gate delete-then-insert, FTS5 delete-before-add,
-  dedup, delete test, integrity report (P-G/P-F3).
-- S6 failure-injection lab for the indexer/watchdog; multi-axis results (P-C/P-E).
+
+> **Status audited 2026-11-08** against `main` with commands, not from memory:
+> `grep -r error_envelope src/` (0 hits), `grep -r wait_reason src/` (0),
+> `grep -r integrity_report src/` (0), `grep -c run_bounded src/**` (14 call sites),
+> `grep watchdog_heartbeat` (parse/write/embed/text-index only), stall watchdog at
+> `src/core/intelligence/layer.py:2025`.
+
+- S1 [module only, NOT wired] error_envelope core (P-D). `src/core/error_envelope.py`
+  exists but is imported only by its test; the live error path is still Markdown via
+  `error_handler._format_error_response`. Treating it as done was wrong.
+- S2 [open] wire envelope into MCP error paths (P-D) — blocked on S1.
+- S3 [partial] per-phase heartbeat + stall detection + wait_reason (P-A/P-B):
+  stall detection **done** (`_REINDEX_STALL_SEC` + finalize), heartbeat covers
+  parse/embed/write/text-index only, `wait_reason` **absent**.
+- S4 [open] learned per-phase ETA, UNPROVABLE allowed (P-B/P-F1/P-F4). Only a single
+  `reindex_eta_sec` scalar exists (layer.py:591), no per-phase learning.
+- S5 [partial] incremental correctness: hash-gate delete-then-insert **done**
+  (`_index_single_file` + `_index_text_only_project`), FTS5 delete-before-add **done**
+  (`remove_from_fts5` before `incremental_update_fts5`); dedup, delete test and
+  integrity report still missing.
+- S6 [open] failure-injection lab for the indexer/watchdog; multi-axis results (P-C/P-E).
+  No `tests/*inject*` exists.

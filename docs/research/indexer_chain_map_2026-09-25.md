@@ -27,15 +27,22 @@ Source: `index_project_runner.run()` (255-630), `layer._run_reindex_job` (730-80
 | 13 | post-run: symbol index / auto-doc (`layer`) | yes | job.progress 0.8->1.0 | auto-doc: to_thread + wait_for(300) |
 | S | search: `hybrid_search_async` (dense/FTS5/BM25/rerank/graph) | yes | intel_tool_health/latency | embedded bounds (some run_bounded now) |
 
-## Findings from the chain (not yet fixed)
-- **Unbounded native calls remain (#3,#4,#6,#7,#8,#9,#11,#12)** — the same
-  non-cancellable class as `_safe_optimize`; any native stall freezes the phase.
-- **Heartbeat coverage is partial**: only parse/embed/write emit `watchdog_heartbeat`
-  and progress. prune/BM25/IVF/symbol/docs are dark.
-- **No `wait_reason`**: when CPU is 0 and the phase "runs", nothing says what it waits
-  on (lock / IO / native). Postgres `wait_event` has this; we don't.
-- **No stall detection**: nothing turns "no heartbeat for N sec in an active phase"
-  into STALLED. The job stays "95% Finalizing" forever (P-A/P-B).
+## Findings from the chain — status re-checked 2026-11-08
+
+> Commands used: `grep -c run_bounded src/` (14), `grep watchdog_heartbeat src/`
+> (parse/write/embed/text-index), `grep wait_reason src/` (0),
+> `layer.py:2025 _REINDEX_STALL_SEC`.
+
+- **Unbounded native calls (#3,#4,#6,#7,#8,#9,#11,#12) — partially fixed.** 14
+  `run_bounded` call sites now cover parse, IVF and the link pass; prune, BM25
+  reindex, `save_symbol_index` and `summarizer.save_cache` still call native code
+  without a bound.
+- **Heartbeat coverage — still partial (unchanged).** Only parse/embed/write and the
+  text-only index emit `watchdog_heartbeat`; prune/BM25/IVF/symbol/docs stay dark.
+- **No `wait_reason` — open.** Zero hits in `src/`.
+- **Stall detection — DONE (2026-10/11).** `_REINDEX_STALL_SEC` (default 900 s) plus
+  `_finalize_stalled_*` in `src/core/intelligence/layer.py:2025+` marks a silent
+  reindex as failed and writes a ledger row, instead of leaving "95 % Finalizing".
 
 ## Experimental protocol (per slice, per §5/§7)
 Each slice ships: (a) Phase-Zero note, (b) deterministic **failure injection** of the

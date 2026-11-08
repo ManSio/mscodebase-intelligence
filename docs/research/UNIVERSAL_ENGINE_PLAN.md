@@ -374,13 +374,14 @@ attacks passed before fix — new code is systematically leaky until proven othe
   /healthz exempt; circuit breaker on /mcp via ASGI mount: 5xx→503, OPEN
   short-circuit); remote_main tests 5→13.
 - Remaining: step 5 Docker image+compose; E-07 stdio↔HTTP equivalence suite;
-  deployment docs.
+  deployment docs. — **closed 2026-11-08:** both landed (see below); the only open
+  item is rolling-restart deployment docs for multi-instance (§9б-7).
 - Step 5 ✅ (f7650184): Docker (Variant A) — `deploy/docker/{Dockerfile, docker-compose.yml,
   .env.example, README}` + `.dockerignore`; python:3.12-slim, non-root, HEALTHCHECK
   /healthz, `/data` volume; llama.cpp/reranker = optional external service (Variant C).
-- Remaining Phase 3: E-07 stdio↔HTTP equivalence suite; live image build on CI /
-  owner machine (Docker not available in sandbox, not run locally); rolling-restart
-  deployment docs (multi-instance) later (ТЗ §9б-7).
+- Remaining Phase 3 ✅ **closed 2026-11-08**: E-07 runs as CI job `transport-equiv-e2e`
+  (engine mode, real create_mcp_server), the image is built by CI job `docker-build`.
+  Still open by design: rolling-restart deployment docs (multi-instance, §9б-7).
 - E-07 ✅ (69d3432d): `experiments/universal-engine/e07_equiv.py` + `_e07_toy_server.py`
   + `E07_RESULTS.md`. Toy mode (minimal FastMCP) PASSED live 2/2 (ping-result +
   bad-args identical over stdio/HTTP) — harness proven. Engine mode (real
@@ -403,16 +404,19 @@ RCE negative-control tests, version-mismatch tests, trust-gate UX.
   (5): untrusted no-spawn/no-exec, process isolation (host-module mutation not visible),
   runner fail-closed, drift. Also .gitignore: anchored the one-off-scripts block to /
   (pattern `runner.py` silently hid src/plugins/runner.py — trap §9).
-- Remaining Phase 4: MCP proxy wiring into server (register plugin tools as engine MCP
-  tools), trust-gate UX (publisher prompt: name/version/publisher/sha256),
-  dependencies scan (pip-audit style, §5.1).
+- Remaining Phase 4 ✅ **closed 2026-11-08** for the server wiring: `server_factory.py:256`
+  calls `_wire_plugins(mcp)` → `src/plugins/server.py::wire_plugins` →
+  `register_fastmcp(reg, mcp)`, so plugin tools are real MCP tools when
+  `MSCODEBASE_PLUGINS_DIR` is set (no-op otherwise). Dependency audit runs in CI
+  (`pip-audit -r requirements-lock.txt`, ci.yml:85-86). Not closed: publisher UX
+  polish and a third-party (non-example) plugin.
 - MCP-proxy wiring ✅ (39d5b888): `registry.py` (PluginRegistry: discover/preauthorize/
   spawn/proxy-callables + register_fastmcp), `prompt.py` (trust-gate UX: trust_prompt,
   make_trust_resolver auto/decide/fail-closed, DENY_ALL), `deps.py` (== pin validation),
   manifest.dependencies. tests/test_plugins_registry.py (11, end-to-end via PoC
   verify_claim: VERIFIED/REFUTED/UNKNOWN). pytest 1379 (+11).
-- Remaining Phase 4: integrate PluginRegistry into the LIVE create_mcp_server (final
-  DI/server wiring, live check on idle/CI), pip-audit at installer.
+- Remaining Phase 4 ✅ **closed 2026-11-08** (same wiring as above: live
+  `create_mcp_server` → `_wire_plugins` → `register_fastmcp`; pip-audit in CI).
 
 **Фаза 5 — Adapters** per §4. DoD: manual verification on real VS Code/Cursor with
 a real repo; CLI wrapper; docs for Claude Code.
@@ -629,8 +633,11 @@ subprocess contract must use `Popen` + `communicate` (WISDOM §5.16), never
    grep-gates; run 1398 tests + smoke_e2e on Windows; add Linux job to CI matrix in
    the SAME PR (§9б-8).
    → **DONE locally 2026-08-18** (moves + `scripts/check_layer_boundaries.py` +
-   1300 tests green; uncommitted). Remaining Фаза 0 items: CI matrix ≥2 OS;
-   smoke_e2e re-run; commit/PR by owner.
+   1300 tests green; uncommitted). **Re-checked 2026-11-08:** CI matrix ≥2 OS is in
+   place (`test (ubuntu-latest)` + `test (windows-latest)`); smoke_e2e is a documented
+   command but has no CI job; `check_layer_boundaries.py` still reports **5**
+   transitional `core → src.sources.*` imports (target 0) and `get_zed_*` remains in
+   `src/core/platform_utils.py`. That tail is the real remaining Фаза 0 work.
 3. Meanwhile, E-03 (clone→index on 5-10 repos) and E-05 (receipt reproducibility)
    can run in `experiments/universal-engine/` without blocking Фаза 0.
 
