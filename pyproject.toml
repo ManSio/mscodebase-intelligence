@@ -5,19 +5,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mscodebase-intelligence"
 version = "3.5.0"
-description = "AI-powered semantic code search for Zed IDE via MCP. Hybrid BM25 + vector search with 57 analysis tools. Multi-window with per-project Indexer registry."
+description = "Local MCP code-intelligence server for OpenCode and Zed: SQLite FTS5/BM25 plus a Tree-sitter call graph, 69 MCP tools behind a 17-tool default profile."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "ManSio"}]
-requires-python = ">=3.14"  # Только 3.14+ (2026-08-21): CI matrix сужен до 3.14; маркеры <3.11 удалены
-keywords = ["zed", "mcp", "code-search", "embeddings", "ai", "lancedb", "semantic-search", "zed-extension"]
+requires-python = ">=3.14"  # Только 3.14+ (2026-08-21): CI matrix — единственная версия 3.14
+keywords = ["mcp", "code-search", "tree-sitter", "sqlite", "fts5", "call-graph", "opencode", "zed"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Text Processing :: Indexing",
@@ -26,10 +24,8 @@ classifiers = [
 dependencies = [
     # Политика пинов (2026-08-18, аудит unpinned-dependency): ВСЕ runtime-зависимости
     # запинены к точным версиям (==). Источник версий — requirements-lock.txt (венв
-    # расширения, Python 3.14, live-проверка) + проверка колёс PyPI на 3.10..3.14.
+    # расширения, Python 3.14, live-проверка) + проверка колёс PyPI на 3.14.
     # Бамп — только по §5.19: проверка API целевой версии + verify_clean_state.
-    # Исключение: numpy/pandas/onnxruntime на Python<3.11 (CI matrix включает 3.10,
-    # EOL 2026-10; lock-версия требует >=3.11) — там per-Python диапазон; после дропа 3.10 запинить.
     # MCP Protocol
     "mcp==1.30.0",  # 1.30.0: security fix (CVE-2026-59951); 2.x меняет транспорт — не бампить без проверки
     # PyYAML: pnpm-lock.yaml в src/sources/manifest (B-1). Единственная НЕ-stdlib

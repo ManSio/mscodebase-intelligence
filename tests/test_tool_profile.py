@@ -65,3 +65,31 @@ def test_tool_help_reports_hidden_tools(monkeypatch):
     assert "search_code" in out
     assert "lsp_find_definition" in out      # скрыт, но перечислен
     assert "MSCODEBASE_MCP_PROFILE=full" in out
+
+
+def test_core_profile_registers_full_registry_then_hides(monkeypatch):
+    """Runtime-контракт профиля: регистрируются ВСЕ, наружу — 17.
+
+    Регрессия 2026-11-08: ручной default-allowlist резал регистрацию (56 вместо
+    69), а `_apply_tool_profile` вызывался до dev-тулов — `_FULL_CATALOG`
+    снимался с неполного реестра, и tool_help показывал неверный список
+    скрытых. Тест ловит оба дефекта: количество зарегистрированных и размер
+    каталога для tool_help.
+    """
+    from unittest.mock import MagicMock
+
+    monkeypatch.delenv("MSCODEBASE_MCP_PROFILE", raising=False)
+    monkeypatch.delenv("MSCODEBASE_MCP_TOOLS", raising=False)
+
+    app = FastMCP("profile-runtime")
+    st.register_all_tools(app, MagicMock())
+
+    visible = set(app._tool_manager._tools)  # noqa: SLF001
+    assert visible == set(st.CORE_PROFILE)
+    # Каталог снимается с полного реестра: каждый скрытый тул в нём есть.
+    assert len(st._FULL_CATALOG) >= 69, len(st._FULL_CATALOG)
+    assert visible <= set(st._FULL_CATALOG)
+    assert {"investigate", "search_code", "grep_code", "tool_help"} <= visible
+    assert "debug_runtime_passport" in st._FULL_CATALOG
+    assert "generate_docs" in st._FULL_CATALOG
+

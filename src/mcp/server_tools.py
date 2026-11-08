@@ -3,13 +3,20 @@ server_tools.py — Регистрация MCP-инструментов.
 
 Выделено из server.py (Фаза 2, Шаг 1).
 Содержит:
-- register_all_tools() — регистрация core-инструментов через tool_classes (31 класс) + execute_script
+- register_all_tools() — регистрация core-инструментов через tool_classes (36 классов) + execute_script
 - _register_intelligence_tools() — 16 intel_* инструментов (intelligence/tools_reg.py)
 - _register_inline_tools() — 13 inline @mcp.tool (debug_runtime_passport, intel_get_project_context, intel_explain_project_state, get_runtime_counters, intel_tool_health, intel_execution_timeline, refresh_db_connection, notify_change, read_live_file, get_logs, get_health_report, dual_arm_health_check, ack_impact)
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
-- Всего зарегистрировано: 31 (tool_classes) + 16 (intel) + 13 (inline) + 4 (dev) = 64 MCP-инструмента (+ 1 optional execute_script = 65 при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true)
-- Default-visible (через _allowed_names): 16 tool_classes + 16 intel + 13 inline + 4 dev = 49 видимых
+- Всего регистрируется: 36 core + 16 intel + 13 inline + 4 dev = 69 MCP-инструментов
+  (+1 optional execute_script при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true → 70)
+- Профиль поверхности (MSCODEBASE_MCP_PROFILE): core оставляет 17 (CORE_PROFILE),
+  full отдаёт все 69. Регистрация от профиля НЕ зависит (2026-11-08); явный
+  MSCODEBASE_MCP_TOOLS остаётся allowlist-перекрытием.
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
+
+Проверено 2026-11-08 прогоном create_mcp_server(): core → 69 зарегистрировано,
+17 видимых; full → 69/69. Раньше в этом докстринге было "31/64/65/49" —
+числа не соответствовали ни одному режиму.
 
 Согласовано 2026-08-28: audit pass; устраняет doc↔code drift (раньше было "61", "64", "49" в разных файлах).
 """
@@ -245,60 +252,14 @@ def register_all_tools(mcp, services):
         _allowed_names = set(_raw_allowlist.split(","))
         _show_all = False
     else:
-        _allowed_names = {
-            # Hub: codebase — единый интерфейс
-            "codebase",
-            # Project switching
-            "set_project",
-            # execute_script — только если явно включён (security: RCE на хосте).
-            # Класс добавляется в tool_classes при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true
-            # (см. server_tools.py:140); без этого класс не существует и allowlist пуст.
-            # ML-native (не заменяются E2B)
-            "search_code",
-            "plan_search",
-            "grep_code",
-            "investigate",
-            "tool_help",
-            "get_symbol_info",
-            "impact_analysis",
-            "lsp_find_references",
-            "lsp_find_definition",
-            "lsp_document_symbols",
-            "lsp_get_type_info",
-            "lsp_get_diagnostics",
-            "lsp_get_code_actions",
-            "intel_get_runtime_status",
-            "intel_get_project_context",
-            "intel_get_project_memory",
-            "intel_code_topology",
-            "intel_auto_collect_adrs",
-            "graph_query",  # Фаза 2: мультиплексирует graph_query + cypher + related + flow
-            "structural_search",
-            # Diagnostic
-            "diagnostics",
-            "debug_runtime_passport",
-            "get_runtime_counters",
-            "intel_execution_timeline",
-            # Doc tools
-            "stale_detector",
-            # Prediction (2026-08-24) — «внести изменение и точно знать, что будет»
-            "predict_change",
-            # Lifecycle (2026-08-28) — submit_background_task + get_task_status +
-            # verify_action + get_action_receipt. Используется в analysis_tools и
-            # через CLI; скрытие делало их мёртвым кодом при default config.
-            "submit_background_task",
-            "get_task_status",
-            "verify_action",
-            "get_action_receipt",
-        }
-        # execute_script в default allowlist — только если класс зарегистрирован
-        # (то есть MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true). Иначе имя висит в allowlist
-        # как «мёртвая запись» (false affordance). Двухтактная проверка:
-        #   1) _exec_script_enabled уже True выше (класс в tool_classes) — добавляем имя.
-        #   2) Если False — имени тут нет, и в filter оно не пройдёт (т.к. имени нет в tool_classes).
-        if _exec_script_enabled:
-            _allowed_names.add("execute_script")
-        _show_all = False
+        # Профиль поверхности (MSCODEBASE_MCP_PROFILE) — единственный фильтр по
+        # умолчанию: регистрируем ВСЕ инструменты, наружу отдаёт CORE_PROFILE
+        # (_apply_tool_profile). До 2026-11-08 здесь лежал ручной allowlist на
+        # 39 имён: в профиле core регистрировалось 56 тулов вместо 69, а
+        # tool_help показывал скрытые неполно (52 из 69 реально существовали).
+        # Явный MSCODEBASE_MCP_TOOLS по-прежнему перекрывает профиль.
+        _allowed_names = set()
+        _show_all = True
 
     # Cache экземпляров: каждая tool-класс инстанцируется ровно один раз,
     # экземпляр переиспользуется и для фильтра по имени, и для регистрации.
@@ -377,6 +338,12 @@ def register_all_tools(mcp, services):
     # ─── Dev tools (4 шт: generate_docs, bump_version, auto_update_docs, install_git_hooks) ───
     from src.mcp.tools.dev_tools import register_dev_tools
     register_dev_tools(mcp)
+
+    # Профиль применяется ТОЛЬКО после того, как зарегистрированы ВСЕ группы.
+    # Раньше вызов стоял в конце _register_inline_tools, до dev-инструментов:
+    # _FULL_CATALOG снимался с неполного реестра (65 из 69), и tool_help
+    # показывал неверный список скрытых (наблюдение 2026-11-08).
+    _apply_tool_profile(mcp)
 
     total_core = len(tool_classes)
     total_intel = 16
@@ -945,10 +912,7 @@ def _register_inline_tools(mcp, services):
 
         return _ack_impact(file_path, impact_token)
 
-    logger.info("  🔧 Inline diagnostic tools registered (12 tools)")
-
-    # ─── Профиль поверхности: один вход на намерение ───
-    _apply_tool_profile(mcp)
+    logger.info("  🔧 Inline diagnostic tools registered (13 tools)")
 
 
 # ══════════════════════════════════════════════════════════
