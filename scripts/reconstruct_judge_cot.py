@@ -27,7 +27,9 @@ if sys.stdout is not None:
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
-WORKDIR = "D:/Project/MSCodeBase/experiments/4A_unit_of_return/results/f5judged/work"
+# Repo-relative: the old absolute path leaked the author's layout into a public script
+# (guard: tests/test_no_personal_paths.py covers docs, this file is scripts/).
+WORKDIR = str(ROOT / "experiments" / "4A_unit_of_return" / "results" / "f5judged" / "work")
 FROZEN = ROOT / "experiments" / "4A_unit_of_return" / "frozen" / "f5" / "queries.jsonl"
 
 try:  # both invocation shapes: `python scripts/x.py` and import-by-path in tests
