@@ -115,7 +115,11 @@ LANG = {
     "chk_uninst": {"en": "Uninstaller", "ru": "Деинсталлятор", "zh": "卸载程序"},
     "done_all": {"en": "Installation complete!", "ru": "Установка завершена!", "zh": "安装完成！"},
     "next": {"en": "Next steps", "ru": "Следующие шаги", "zh": "后续步骤"},
-    "restart": {"en": "Restart Zed IDE", "ru": "Перезапустите Zed IDE", "zh": "重启Zed"},
+    "restart": {
+        "en": "Restart the MCP host (OpenCode session or Zed window)",
+        "ru": "Перезапустите хост MCP (сессию OpenCode или окно Zed)",
+        "zh": "重启 MCP 宿主（OpenCode 会话或 Zed 窗口）",
+    },
     "wait_idx": {
         "en": "Open project, wait for indexing",
         "ru": "Откройте проект, дождитесь индексации",
@@ -943,7 +947,7 @@ def main() -> None:
         print("🔁 Sync-only mode: copying files...")
         step_copy([], lang)
         _record_install_meta()
-        print("✅ Sync done. Restart Zed to apply.")
+        print("✅ Sync done. Restart the MCP host (OpenCode session or Zed window) to apply.")
         return
 
     _box(
