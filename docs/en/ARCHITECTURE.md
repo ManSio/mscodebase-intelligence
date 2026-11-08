@@ -1,268 +1,147 @@
-<img src="../../logo/logo.svg" width="64" height="64" align="left" style="margin-right: 16px;">
+# Architecture
 
-[English](ARCHITECTURE.md) · [Русский](../ru/ARCHITECTURE.md) · [中文](../zh/ARCHITECTURE.md)
+> Rewritten 2026-11-08. Describes the default Phase 3 runtime (text-first:
+> SQLite FTS5/BM25 + PropertyGraph). Vector/LanceDB, embeddings, reranker and
+> LSP rename are optional layers and are marked as such.
+> Numbers live in [FACTS.md](FACTS.md); this page explains the shape, not the counts.
 
-# MSCodeBase Intelligence — Architecture Guide
-
-> **Current as of 2026-10-25.** This document describes the default Phase 3
-> runtime: SQLite FTS5/BM25 plus PropertyGraph. Embeddings, reranking and the
-> LanceDB vector path are optional and are called out explicitly.
-
----
-
-## 1. Design goals
-
-The server exists to give an AI assistant grounded, local answers about a
-codebase without making a remote service or a large model mandatory.
-
-1. **Local-first.** Core search, graph queries and project memory work without
-   network calls.
-2. **Deterministic before probabilistic.** Exact symbols, paths and BM25 are
-   tried before optional semantic layers.
-3. **Fail open, not silent.** Missing embedder, empty graph or stale index must
-   produce a diagnosis, not a fabricated answer.
-4. **One contract for humans and agents.** The same tool schema is used by the
-   Zed agent, scripts and tests.
-5. **Observable.** Runtime passport, index status, health report and logs are
-   first-class tools, not debug afterthoughts.
-
-## 2. Runtime at a glance
+## 1. Layers
 
 ```text
-Zed
- ├── built-in LSP (autocomplete, diagnostics)
- └── MCP client
-      │
-      ▼
- src/main.py (stdio) or src/remote_main.py (HTTP)
-      │
-      ▼
- server_factory.create_mcp_server()
-      ├── create_service_collection()      DI container
-      ├── register_all_tools()             69 registered tools (17 visible by default)
-      └── notification / extension hooks
-      │
-      ├── Search        core/search
-      ├── Index         core/indexing
-      ├── Graph         core/graph.py + core/search/graph_adapter.py
-      ├── Memory        core/intelligence
-      ├── Writes        core/modification_guard.py + mcp/tools/write_tools.py
-      └── Optional      providers/embedder, providers/reranker, LSP client
-      │
-      ▼
- Storage
-      ├── <project>/.mscodebase/chunks.db       SQLite + FTS5
-      ├── <data_root>/projects/<hash>/graph.db  PropertyGraph
-      ├── <data_root>/projects/<hash>/intelligence/  memory, incidents
-      └── <data_root>/logs/                     server logs
+┌──────────────────────────────────────────────────────────────┐
+│ Client: Zed MCP client (stdio, JSON-RPC)                     │
+├──────────────────────────────────────────────────────────────┤
+│ Tool layer        src/mcp/tools/*                             │
+│   investigate · search_code · grep_code · get_symbol_info     │
+│   impact_analysis · graph_query · codebase hub · lifecycle    │
+│   every tool is wrapped by @error_boundary (timeout + envelope)│
+├──────────────────────────────────────────────────────────────┤
+│ Intelligence      src/core/intelligence/*                     │
+│   project memory · incidents · health · jobs · telemetry      │
+├──────────────────────────────────────────────────────────────┤
+│ Core services     src/core/search, src/core/indexing, graph   │
+│   Searcher · SQLiteChunkStore · Indexer · PropertyGraph       │
+├──────────────────────────────────────────────────────────────┤
+│ Providers         src/providers/*   (optional)                │
+│   llama.cpp/ONNX/LM Studio/Ollama embedders · BGE-M3 reranker │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-`<data_root>` is `%LOCALAPPDATA%/mscodebase` on Windows, or the platform
-equivalent. Project artifacts live outside the repository; `chunks.db` is the
-only store that remains inside the project directory.
+Rules enforced by the architecture linter (`scripts/architecture_linter.py`)
+and the layer-boundary gate:
 
-## 3. Layers
+- `core` never imports `mcp`; tools depend on core, not the reverse.
+- `RuntimeCoordinator` decides readiness; tools do not second-guess it.
+- Each tool is one file (or one class) with one responsibility; the `codebase`
+  hub dispatches by `action` instead of growing more top-level tools.
 
-| Layer | Responsibility | Main modules |
+## 2. Composition and lifecycle
+
+`src/main.py` → `create_mcp_server()` (`src/mcp/server_factory.py`):
+
+1. Build the DI container (`src/core/di_container.py`) with data paths from
+   `src/core/artifact_paths.py`.
+2. Register core tools, then intel, inline diagnostics and dev tools
+   (`register_all_tools`).
+3. Apply the **tool profile** (`_apply_tool_profile`): the full registry is
+   built, then everything outside `CORE_PROFILE` is removed from the client
+   surface. Registration never depends on the profile.
+4. Start the stdio transport; providers and the contradiction ledger start in
+   the background so the handshake is never blocked.
+
+Per-request lifecycle: `require_ready_project()` → tool body → `error_boundary`
+wraps the result (timeout, telemetry, structured error). Search tools also
+trigger a throttled freshness check (hot-reload) before querying.
+
+## 3. Storage
+
+| What | Where | Format |
 |---|---|---|
-| Entry | Process start, project-root resolution, stdio/HTTP transport | `src/main.py`, `src/remote_main.py` |
-| Protocol | MCP server, lifecycle, notification/extension hooks | `src/mcp/server.py`, `server_factory.py` |
-| Tool | Thin adapters: validation, formatting, error boundary | `src/mcp/tools/*.py`, `server_tools.py` |
-| Core | Search, indexing, graph, memory, write guards | `src/core/*` |
-| Providers | Optional embedders, rerankers, LSP client | `src/providers/*`, `src/core/lsp_client.py` |
-| Storage | SQLite/FTS5, PropertyGraph, JSON memory, logs | `chunk_store.py`, `graph.py`, `intelligence/` |
+| Text chunks + FTS5 index | `<project>/.mscodebase/chunks.db` | SQLite |
+| Graph (symbols, edges, meta) | `<data_root>/projects/<hash>/graph.db` | SQLite (PropertyGraph) |
+| Project memory, incidents, jobs | `<data_root>/projects/<hash>/intelligence/` | JSON |
+| Commit memory | `<data_root>/projects/<hash>/commit_memory/` | JSON |
+| Logs, telemetry | `<data_root>/logs/`, `<data_root>/projects/<hash>/telemetry/` | files |
+| Vector table (optional) | `<data_root>/projects/<hash>/lancedb_v2/` | LanceDB |
 
-The tool layer never implements ranking or parsing itself. It resolves a
-project-scoped service and delegates to core.
+`<data_root>` is `MSCODEBASE_DATA_DIR`, else `%LOCALAPPDATA%/mscodebase`
+(Windows) or `~/.cache/mscodebase`. Nothing but `chunks.db` and `.mscodebase/`
+lives inside the project, and both are gitignored.
 
-## 4. Entry points and lifecycle
+## 4. Indexing
 
-- `src/main.py` starts the stdio MCP server used by the Zed extension. It
-  resolves the extension/project root, configures logging and starts the
-  server loop.
-- `src/remote_main.py` exposes the same server over an authenticated HTTP
-  transport for remote use. It is optional and off unless configured.
-- `src/mcp/server_factory.py` creates the server, builds the DI container,
-  registers tools, wires notifications and registers shutdown handlers.
-- `src/mcp/server_tools.py` owns registration and the tool allowlist.
+Two entry points, one pipeline:
 
-A second project in another Zed window is isolated by
-`ProjectIndexerRegistry`: each project gets its own indexer/searcher/graph
-handles, with an LRU bound and resource monitoring.
+- **Full text index** — `scripts/reindex_text_only.py`: walk (FileGuard
+  excludes), parse with Tree-sitter, write chunks to SQLite and symbols/edges
+  to the graph. No embeddings.
+- **Incremental** — `FreshnessChecker` compares `(mtime, size, hash)` of files
+  on disk with the SQLite store, reindexes changed/new files and prunes deleted
+  ones. Runs throttled (default 30 s) after searches, and at startup via the
+  auto-index task when the store is empty.
 
-## 5. Dependency injection
+`experiments/**` is excluded from indexing by `SystemArtifacts`
+(`src/core/indexing/file_guard.py`): frozen panels must not leak into
+retrieval.
 
-`src/core/di_container.py` provides `ServiceCollection` and
-`create_service_collection(project_root)`. Services are singletons scoped to the
-server process:
+## 5. Search stack
 
-- project root and parser;
-- indexer/searcher and optional embedder;
-- PropertyGraph and symbol index;
-- `ProjectIndexerRegistry` / `MultiProjectSearcher`;
-- rate limiter, circuit breaker and notification broker.
+`Searcher` (`src/core/search/engine.py`) owns retrieval:
 
-Tool classes receive the collection through constructor injection. They do not
-construct indexers or open databases directly. Shutdown closes registered
-resources and releases background tasks.
+- **Phase 3 path** — SQLite FTS5 candidates (limit × 4, capped), optional
+  on-demand rerank of the top pool; no LanceDB access.
+- **Identifier short-circuit** — identifier-shaped queries go straight to the
+  graph stage for an exact location.
+- **Docs routing** — one extra FTS query over `docs/**`; if the best docs score
+  exceeds the best code score by `MSCODEBASE_DOCS_MARGIN` (4.0), docs win.
+- **Legacy dense path** — only when `MSCODEBASE_DENSE_OFF=false` and a provider
+  is available.
+
+Details and stage budgets are in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
 
 ## 6. Tool layer
 
-The server registers **69 tools**:
-
-- 36 core tool classes (search, LSP, graph, analysis, write, lifecycle);
-- 16 `intel_*` tools;
-- 13 inline diagnostic tools;
-- 4 dev tools.
-
-`execute_script` is a 70th, optional tool and is registered only when
+**69 registered** tools (36 core + 16 intel + 13 inline + 4 dev); the default
+`core` profile exposes **17**. `execute_script` is an optional 70th tool behind
 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`.
 
-Visibility is a **profile**, not a hand-curated allowlist:
+The visible set is one entry per intent: `investigate`, `search_code`,
+`grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`,
+`read_live_file`, `notify_change`, `get_health_report`,
+`intel_get_project_memory`, `predict_change`, `tool_help`, plus the four dev
+tools. `MSCODEBASE_MCP_PROFILE=full` exposes everything;
+`MSCODEBASE_MCP_TOOLS` remains an explicit allowlist.
 
-- `MSCODEBASE_MCP_PROFILE=core` (default) exposes 17 tools: one entry per
-  intent (`investigate`, `search_code`, `grep_code`, `get_symbol_info`,
-  `impact_analysis`, `graph_query`, `codebase`, `read_live_file`,
-  `notify_change`, `get_health_report`, `intel_get_project_memory`,
-  `predict_change`, `tool_help`) plus the 4 dev tools.
-- `MSCODEBASE_MCP_PROFILE=full` exposes all 69.
-- `MSCODEBASE_MCP_TOOLS` is an explicit allowlist and overrides the profile.
+`investigate` is a two-pass fan-out: pass 1 runs search, symbols and grep in
+parallel; pass 2 runs impact, callers, tests and project memory for what pass 1
+found. Results merge by `(file, line)` and carry the set of channels that found
+each item; a channel that times out appears in `degraded[]`.
 
-`tool_help()` reports the active profile and the hidden names. Registration
-never depends on the profile; only the client-facing surface does.
+`codebase(action=…)` is a hub: `index` (status/progress/health/timeline),
+`git` (log/history/branch), and the write actions (rename/move/safe_delete/
+replace/insert) with preview and impact guards.
 
-`investigate(query)` is the default entry for questions: it runs search,
-symbols and grep in parallel, then impact, callers, tests and project memory
-for what pass 1 found, and merges the results by `(file, line)` with the set of
-channels that found each item. A channel that fails or exceeds its timeout is
-reported in `degraded[]`; the answer is still returned.
+## 7. Safety and failure behaviour
 
-`codebase(action=...)` is a hub over index, git and write operations. Search
-has a dedicated `search_code` tool and a `plan_search` helper that returns a
-deterministic plan (primary query, exact tokens, symbols, concepts, intent).
+- Every tool has a timeout; a hung provider degrades the answer, it does not
+  freeze the server.
+- Search/write tools refuse to run on an empty index instead of returning "no
+  results" (empty and broken must look different).
+- Writes are previewed; destructive actions require the impact acknowledgement
+  token.
+- Subprocesses are spawned with `Popen(stdin=DEVNULL, stdout=PIPE,
+  stderr=DEVNULL) + communicate`; `capture_output=True` deadlocks when the
+  server's stdout is the JSON-RPC pipe (AGENTS.md §5.16).
+- The contradiction ledger (startup, cached 6 h) verifies `✅` claims in
+  `AGENT_DIARY.md` against the code; its own failures are reported, never
+  silently ignored.
 
-All tools are wrapped by `error_boundary`, which applies a timeout, records
-telemetry and returns a structured error instead of hanging the MCP loop.
+## 8. Optional layers
 
-## 7. Indexing pipeline
+- **Embeddings/reranker:** llama.cpp GGUF, ONNX, LM Studio or Ollama; used by
+  the on-demand rerank and the legacy dense path.
+- **LSP:** basedpyright-backed references/definition/diagnostics, with a hard
+  start budget and a 30 s failure cache.
+- **Vector store:** LanceDB, only when dense retrieval is enabled.
 
-```text
-discover files
-  → FileGuard (extensions, size, binaries, system dirs, .gitignore)
-  → parser (Tree-sitter; language-specific extractors)
-  → chunks + symbols + calls/imports/assignments/decorators/overrides
-  → SQLiteChunkStore (text + FTS5) and PropertyGraph
-```
-
-Key rules:
-
-- `experiments/**` is **excluded from the index**. It contains frozen panels and
-  run artifacts; indexing them caused BM25 to return the panel itself instead of
-  code. The files remain tracked in git.
-- Incremental indexing updates a file's chunks and graph rows in one
-  transaction.
-- Full vector reindex is intentionally blocked when `MSCODEBASE_DENSE_OFF=true`.
-  Use `scripts/reindex_text_only.py` for text chunks and
-  `scripts/rebuild_graph.py` for a graph-only rebuild.
-- A `build_head` marker is written only after a full successful index, so
-  freshness can be checked against git HEAD.
-- `FileGuard` and `SafePathManager` reject paths outside the project and system
-  directories before parsing.
-
-## 8. Storage
-
-| Store | Path | Purpose |
-|---|---|---|
-| Chunk store | `<project>/.mscodebase/chunks.db` | Chunk text, metadata, FTS5 index |
-| Graph | `<data_root>/projects/<hash>/graph.db` | Symbols, files and typed edges |
-| Memory | `<data_root>/projects/<hash>/intelligence/` | Project memory, incidents, jobs |
-| Logs | `<data_root>/logs/` | Server and tool diagnostics |
-
-LanceDB is a legacy/optional vector store. It is not required by the default
-text-first path and is not the primary source of candidates when
-`MSCODEBASE_SQLITE_CHUNKS=true`.
-
-## 9. Search integration
-
-Search is the largest core subsystem. The default path is:
-
-1. SQLite FTS5/BM25 candidates;
-2. optional symbol/graph stage for identifier-shaped queries;
-3. optional on-demand rerank;
-4. exact-name boost and symbol deduplication;
-5. docs routing at the tool level when the BM25 margin is strong.
-
-The full RRF/MMR/anchor pipeline in `core/search/engine.py` belongs to the
-optional dense/LanceDB path or to older code paths. It is not silently applied
-to every Phase 3 query. See [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) for the
-exact split.
-
-## 10. Intelligence and memory
-
-`core/intelligence/` implements project memory and incident handling:
-
-- ADRs and known issues are stored as records with status and evidence;
-- incidents can be logged, searched and predicted from runtime data;
-- `verify-on-read` can mark memory facts as verified, refuted or superseded;
-- retraction/supersede preserve history instead of deleting it.
-
-Memory is local and project-scoped. It is not a general-purpose chat log.
-
-## 11. Writes and safety
-
-Write tools (`rename`, `move`, `safe_delete`, `replace`, `insert_before/after`)
-operate on symbols, not raw text replacements. The pipeline is:
-
-1. resolve the symbol and its references;
-2. compute an impact summary;
-3. require `ack_impact` when the file is load-bearing;
-4. preview the change;
-5. apply only with `apply=true`, then refresh chunks/graph.
-
-Cross-file rename may use the basedpyright LSP client; on timeout it falls back
-to the SymbolIndex. `execute_script` is disabled by default and, when enabled,
-uses AST validation, an import wrapper and a subprocess sandbox.
-
-## 12. Concurrency and multi-window behavior
-
-- One indexer/searcher per project, resolved through the registry.
-- SQLite writes are serialized by the chunk store lock; reads are safe across
-  threads.
-- Background indexing uses a watchdog heartbeat and job state, so the agent can
-  poll instead of blocking the editor.
-- External processes use `Popen` + `communicate(timeout=...)`, not
-  `capture_output` in daemon threads, to avoid Windows pipe deadlocks.
-- A reindex fast-fail returns a clear "index is rebuilding" error instead of
-  hanging.
-
-## 13. Failure modes and operational checks
-
-| Symptom | First check | Fix |
-|---|---|---|
-| Graph tools return nothing | `graph.db` nodes/edges | `python scripts/rebuild_graph.py` |
-| Search returns experiment docs | index contains `experiments/**` | reindex; FileGuard now excludes them |
-| Docs always miss | gold is `docs/en`, result is `docs/ru` | normalize by basename |
-| Index is stale | `codebase(action="index", path="status")` | `scripts/reindex_text_only.py` |
-| Embedder missing | `debug_runtime_passport()` | text path still works; configure provider if needed |
-| Tools missing from client | `MSCODEBASE_MCP_TOOLS` | add names or set empty for all |
-
-## 14. Testing and verification
-
-- `pytest tests/` — unit/integration suite; markers separate integration and
-  benchmark tests.
-- `python scripts/smoke_e2e.py --project .` — real embed/rerank/search, no
-  mocks, when providers are available.
-- `python scripts/rebuild_graph.py` and `python scripts/reindex_text_only.py`
-  are the supported repair paths for graph/index drift.
-- Search experiments live under `experiments/` with frozen inputs and raw runs;
-  they are the source for the quality numbers in the README.
-
-## 15. Related documents
-
-- [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) — retrieval, ranking, modes and limits.
-- [ARCHITECTURE_DEEP.md](ARCHITECTURE_DEEP.md) — historical deep dive and
-  optional pipeline details.
-- [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) — behavior when providers
-  are unavailable.
-- [INSTALL.md](INSTALL.md) — installation and repair commands.
-- [README.md](../../README.md) — current public contract and measured quality.
+None of them is required for the default text-first path.

@@ -1,20 +1,14 @@
 <div align="center">
 
-<img src="../../logo/baner.png" alt="MSCodeBase Баннер" width="100%"/>
+<img src="../logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
 
 [English](../../README.md) · [Русский](README.md) · [中文](../zh/README.md)
 
 # MSCodebase Intelligence
 
-**Локальный code intelligence для Zed: лексический поиск, граф вызовов, impact analysis, память проекта и безопасные write-tools через MCP.**
+**Локальный code intelligence для Zed: один вопрос — параллельный поиск по всем каналам, лексический поиск, граф вызовов, impact analysis, память проекта и безопасные правки через MCP.**
 
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
-[![Zed](https://img.shields.io/badge/Zed-extension-orange.svg)](https://zed.dev/)
-[![CI](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/ManSio/mscodebase-intelligence/actions/workflows/ci.yml)
-
-*Обновлено: 2026-10-25. Английская страница — канон; этот перевод может отставать.*
+*Переписано: 2026-11-08. Описывает код в его текущем состоянии; канон — английская версия, здесь — полный перевод ключевых разделов.*
 
 </div>
 
@@ -22,278 +16,188 @@
 
 ## Что это
 
-MSCodebase Intelligence — **локальный MCP-сервер**, который даёт AI-ассистенту
-в Zed обоснованное представление о кодовой базе. Это не чат-модель и не замена
-LSP редактора. Его задачи:
+Локальный MCP-сервер, который даёт ИИ-ассистенту в Zed обоснованное представление о кодовой базе. Это не чат-модель и не замена языковому серверу редактора. Он отвечает на четыре типа вопросов:
 
 - Где определён символ, кто его вызывает и что сломается при изменении?
-- Какие файлы относятся к вопросу — в коде, тестах или документации?
-- Что проект уже решил и какие инциденты всё ещё открыты?
-- Можно ли безопасно preview/apply rename, move, replace?
+- Какие файлы важны для вопроса — код, тесты или документация?
+- Что проект уже решил и какие инциденты ещё открыты?
+- Можно ли безопасно выполнить rename/move/replace и увидеть последствия заранее?
 
-Текущий дефолт — **text-first retrieval**: SQLite FTS5/BM25 плюс индекс
-Tree-sitter/PropertyGraph. Провайдеры эмбеддингов и реранкеров существуют, но
-они опциональны и не нужны для дефолтного пути. Это осознанный выбор: сервер
-остаётся полезным offline, latency предсказуема, а векторная БД не становится
-единственной точкой отказа.
+По умолчанию сервер работает **text-first**: SQLite FTS5/BM25 по разобранным чанкам плюс индекс Tree-sitter/PropertyGraph. Эмбеддинги и реранкер опциональны; GPU, сеть и векторная БД для ответа на вопрос о коде не нужны.
 
 ## Что работает сегодня
 
-| Область | Что делает | Примечание |
+| Область | Что делает | Инструмент |
 |---|---|---|
-| Поиск по коду | BM25/FTS5 по чанкам; exact-symbol и path-сигналы; опциональное расширение по графу | `search_code` |
-| Поиск по документации | Отдельный FTS-канал `docs/**`, включается автоматически при сильном BM25-разрыве | Без LLM-роутера |
-| Символы | Определение, callers/callees, references, impact, structural search | `get_symbol_info`, `impact_analysis`, `structural_search` |
-| Граф | PropertyGraph файлов/символов: call, import, assignment, decorator, override | Пересборка: `scripts/rebuild_graph.py` |
-| Память проекта | ADR, инциденты, known issues, retract/supersede | `intel_*` |
-| Безопасные записи | Rename, move, delete, replace, insert с preview/impact | `codebase(action=...)` |
-| Диагностика | Runtime passport, health, index status, logs, jobs | `debug_runtime_passport`, `get_health_report` |
-| LSP rename | Cross-file rename через basedpyright + fallback SymbolIndex | Только rename |
+| **Один вызов на вопрос** | Вопрос → параллельно поиск + символы + grep, затем impact + вызывающие + тесты + память проекта; слияние по file:line с провенансом и `degraded[]` | `investigate` |
+| Поиск по коду | BM25/FTS5 по чанкам; короткое замыкание по графу для идентификаторов; опциональный rerank верхних кандидатов | `search_code` |
+| Поиск по документации | Отдельный FTS-канал по `docs/**`, включается по margin BM25 (без LLM-роутера) | `search_code` |
+| Regex-поиск | Regex с AST-фильтром `scope=code`, который пропускает комментарии и строки (проверка по каждому совпадению) | `grep_code` |
+| Символы | Определение, вызывающие, вызываемые, ссылки, impact, структурный поиск | `get_symbol_info`, `impact_analysis` |
+| Граф | PropertyGraph с рёбрами call/import/assignment/decorator/override | `graph_query`, `codebase` |
+| Память проекта | ADR, инциденты, известные проблемы, retract/supersede | `intel_*` (скрыты по умолчанию) |
+| Безопасные правки | Rename/move/delete/replace/insert с impact-guard и квитанциями | `codebase(action=…)` |
+| Диагностика | Health, статус индекса, логи, счётчики, предсказание правки | `get_health_report`, `predict_change` |
+| Обнаружение | Активный профиль, видимые и скрытые инструменты | `tool_help` |
 
-## Качество поиска: измеренное, с границами
+## Как отвечается вопрос
 
-Числа без методики бесполезны. Ниже — внутренняя **панель из 48 запросов**
-(33 реальных вопроса по проекту + 15 вопросов из docstring), чистый индекс без
-`experiments/**`, граф присутствует. Это не универсальный benchmark и не
-описание всех языков/репозиториев.
+`investigate` — точка входа по умолчанию. Модель не выбирает инструмент; сервер сам запускает нужные каналы и сливает ответы.
 
-| Путь | hit@1 | hit@5 | Что означает |
-|---|---:|---:|---|
-| Код, quality | 0.825 | 0.900 | 33/40 code-вопросов вернули нужный файл первым |
-| Docs, exact path | 0.000 | 0.125 | Gold указывает `docs/en/X`, поиск часто отдаёт `docs/ru/X` |
-| Docs, same basename | 0.750 | 0.750 | Перевод считается тем же документом |
-| Общий quality | 0.688 | 0.750 | Код и docs ровно так, как размечена панель |
-| Общий auto docs route | 0.792 | 0.875 | BM25-margin router + docs-канал; переводы нормализованы |
-| Fast | 0.542 | 0.729 | Ниже качество, ниже latency; для exact/simple lookup |
+```
+investigate("как индексатор решает, что файл надо переиндексировать")
+        │
+        ├─ проход 1 (параллельно)   search ─ symbols ─ grep
+        ▼
+        ├─ проход 2 (параллельно)   impact ─ callers ─ tests ─ память
+        │                            только для того, что нашёл проход 1
+        ▼
+   слияние по (file, line): одна строка на попадание, каналы объединены
+   провенанс у каждого пункта, degraded[] для медленного/упавшего канала
+```
+
+Правила:
+
+- Медленный канал **деградирует** ответ (`degraded: grep:timeout`), а не валит вызов.
+- Нет совпадений — явное «ничего не найдено», без правдоподобных догадок.
+- Ответ ограничен (8 строк, 180 символов текста), чтобы не заливать контекст.
+- `search_code`, `grep_code`, `get_symbol_info` и `impact_analysis` остаются для точного уточнения.
+
+## Качество поиска: измерено, с границами
+
+Цифры из внутренней **панели из 48 запросов** (33 реальных вопроса по проекту + 15 из docstring), на чистом индексе без `experiments/**`. Слепок: **2026-10-25**; перед публикацией перезапускать харнессы в `experiments/`.
+
+| Путь | hit@1 | hit@5 |
+|---|---:|---:|
+| Код, quality mode | 0.825 | 0.900 |
+| Общий, quality mode | 0.688 | 0.750 |
+| Общий, авто-роутинг в docs | 0.792 | 0.875 |
+| Fast mode | 0.542 | 0.729 |
+| Docs, точный путь | 0.000 | 0.125 |
+| Docs, по basename | 0.750 | 0.750 |
 
 Чего эти числа **не** означают:
 
-- Это **не** 95% точности. Ни одна статическая схема на этой панели не дала
-  такого результата. Two-channel repo map (code PageRank + docs BM25) дал около
-  40% / 62% / 73% покрытия gold-файлов при 1k / 2k / 4k токенов и идеальном
-  routing; PageRank отдельно — около 33% / 55% / 68% на code-запросах. Это
-  инструмент выбора контекста, не замена поиску.
-- Это **не** значит, что любой локальный реранкер улучшает результат. Несколько
-  моделей были измерены и отклонены: они снижали hit@1 или добавляли
-  неприемлемую latency на этой панели.
-- Это **не** значит, что docs-канал сломан. Он часто отдаёт правильный документ
-  на другом языке (`docs/ru/X` вместо `docs/en/X`). Это вопрос канонизации gold,
-  а не retrieval.
+- Это **не** 95%. Статический retrieval на этой панели до 95% не дошёл; двухканальная карта репозитория упиралась в ~40% / 62% / 73% при 1k / 2k / 4k токенов даже при идеальном роутинге.
+- Не значит, что любой реранкер улучшает: несколько локальных были измерены и отклонены.
+- Не значит, что docs сломан: он часто возвращает верный документ на другом языке (`docs/ru/X` вместо `docs/en/X`). Это свойство золотой разметки, а не провал поиска.
 
-Панель, сырые прогоны, гипотезы и summary лежат в `experiments/`. Это
-воспроизводимый lab notebook, а не маркетинговый текст.
-
-## Как работает поиск
-
-Дефолтный путь детерминированный:
-
-1. **Parse/index** — файлы → чанки + PropertyGraph.
-2. **Retrieve** — SQLite FTS5/BM25, symbol/path-сигналы, опционально соседи графа.
-3. **Rank/clean** — опциональный on-demand rerank, exact-name boost и
-   дедупликация символов. RRF/MMR/dense fusion относятся к опциональному
-   LanceDB/vector path, а не к каждому дефолтному запросу.
-4. **Docs routing** — если лучший docs-score превышает лучший code-score на
-   настраиваемый margin (`MSCODEBASE_DOCS_MARGIN`, default `4.0`).
-5. **Return** — ранжированные чанки/файлы с metadata. `intent="docs"` или
-   `intent="code"` переопределяют автоматический выбор.
-
-В routing нет LLM. Это один дополнительный FTS-запрос и сравнение scores:
-локально, объяснимо, дешево.
-
-Опциональные слои:
-
-- Embedding-провайдеры (llama.cpp GGUF, ONNX, LM Studio/Ollama) для vector candidates.
-- On-demand rerank при настроенном провайдере.
-- Graph expansion и PageRank-подобный repo ranking.
-
-При `MSCODEBASE_DENSE_OFF=true` (текущий default) сервер не требует embedding
-server для code/docs запросов.
+Все публичные числа и команда перевывода — в **[docs/FACTS.md](../FACTS.md)**.
 
 ## Быстрый старт
 
-Требования: Windows — валидированная платформа; Python 3.14+; Zed с расширением
-`mscodebase-intelligence`.
+Требования: Windows — проверенная платформа; Python 3.14+; Zed с расширением `mscodebase-intelligence`.
 
 ```bash
 cd <repo-root>
-python install.py
-# code-only sync без вопросов:
-python install.py --sync
-# CI-режим без вопросов:
-python install.py --yes
+python install.py            # копирует сервер в каталог расширения Zed
+python install.py --sync     # только код, без вопросов
 ```
 
-`install.py` копирует сервер в extension directory Zed, ставит зависимости,
-опционально готовит модели и пишет MCP-конфиг. После завершения перезапустите Zed.
-
-Проверка из agent panel:
+После `install.py` перезапустить Zed. Проверка из панели агента:
 
 ```text
-debug_runtime_passport()
-intel_get_runtime_status()
+tool_help()                        # профиль, видимые и скрытые инструменты
+get_health_report()                # индекс, embedder, ресурсы
 codebase(action="index", path="status")
 ```
 
-Если граф пустой, а чанки есть — пересоберите только граф (без векторов):
-
-```bash
-python scripts/rebuild_graph.py
-```
-
-Если индекс устарел/пуст — пересоберите текст и граф:
+Если текстовый индекс отсутствует или устарел — пересобрать чанки и граф без эмбеддингов (замер: 498 файлов, 7 375 чанков, 262–266 с):
 
 ```bash
 python scripts/reindex_text_only.py --project .
 ```
 
-Затем перезапустите MCP/Zed, чтобы новый процесс открыл пересобранные stores.
+Если пуст только граф, а чанки есть:
 
-## Инструменты
+```bash
+python scripts/rebuild_graph.py
+```
 
-Сервер регистрирует **69 инструментов** в четырёх группах; `execute_script`
-добавляет один опциональный инструмент при
-`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Для модели это слишком много, поэтому
-видимость задаётся **профилем**, а не ручным allowlist:
+Затем перезапустить MCP-сервер, чтобы новый процесс открыл пересобранные хранилища.
 
-- `MSCODEBASE_MCP_PROFILE=core` (по умолчанию) — **17 инструментов**, по одному
-  на намерение плюс 4 обслуживающих;
-- `MSCODEBASE_MCP_PROFILE=full` — все 69;
-- `MSCODEBASE_MCP_TOOLS` по-прежнему работает как явный allowlist и перекрывает
-  профиль.
+## Инструменты и профиль
 
-`tool_help()` показывает профиль, видимые инструменты с назначением и имена
-скрытых.
+Сервер регистрирует **69 инструментов** (36 core + 16 intel + 13 inline + 4 dev); `execute_script` — опциональный 70-й при `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`. Для модели это слишком много, поэтому клиент видит **профиль**:
 
-| Группа | Примеры | Назначение |
-|---|---|---|
-| Один вход | `investigate` — параллельный fan-out: search + symbols + grep, затем impact + callers + tests + memory | Ответ на вопрос с провенансом |
-| Поиск и анализ | `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query` | Код, символы, связи, impact |
-| Индекс и система | `codebase(action="index"...)`, `notify_change`, `read_live_file`, `get_health_report`, `get_logs` | Свежесть и диагностика индекса |
-| Intelligence | `intel_get_runtime_status`, `intel_get_project_memory`, `intel_log_incident`, `intel_analyze_incident`, `intel_predict_root_cause` | Память, инциденты, runtime |
-| Записи и lifecycle | `codebase(action="rename"...)`, `move`, `safe_delete`, `replace`, `insert_before/after`, `ack_impact` | Preview/apply безопасных изменений |
-| Dev | `bump_version`, `auto_update_docs`, `install_git_hooks`, `generate_docs` | Обслуживание репозитория |
+| Профиль | Видимо | Содержимое |
+|---|---:|---|
+| `core` (по умолчанию) | **17** | по одному входу на намерение + 4 обслуживающих |
+| `full` | **69** | всё зарегистрированное |
 
-`codebase` — hub: `action` выбирает index, git или write. Смотрите tool schema
-в MCP-клиенте, а не рукописный список, который может устареть.
+`MSCODEBASE_MCP_TOOLS` по-прежнему работает как явный allowlist и перекрывает профиль. `tool_help()` показывает профиль, видимые инструменты с назначением и имена скрытых.
+
+Видимые 17: `investigate`, `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`, `read_live_file`, `notify_change`, `get_health_report`, `intel_get_project_memory`, `predict_change`, `tool_help`, `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks`.
+
+Скрыты по умолчанию: шесть `lsp_*`, `plan_search`, `structural_search`, 16 `intel_*` (мутации/жизненный цикл), `submit_background_task` / `get_task_status` / `verify_action` / `get_action_receipt`, `ack_impact`, служебные frame/rank/scan. Включаются `MSCODEBASE_MCP_PROFILE=full`; из сервера ничего не удаляется, фильтруется только клиентская поверхность.
 
 ## Архитектура
 
 ```text
 Zed
  │
- ├── built-in LSP (autocomplete, diagnostics)
+ ├── встроенный LSP (автодополнение, диагностика)
  │
- └── MCP client
+ └── MCP-клиент
       │
       ▼
  MSCodebase MCP server
-   ├── Search      SQLite FTS5/BM25, symbol/path signals, optional graph
-   ├── Graph       PropertyGraph: calls, imports, assignments, decorators, overrides
-   ├── Index       parser → chunks → FTS5 + graph; freshness checks
-   ├── Memory      ADRs, incidents, known issues, retract/supersede
-   ├── Writes      rename/move/delete/replace/insert with impact guards
-   ├── Diagnostics runtime passport, health, jobs, logs, telemetry
-   └── Optional    embedding providers, reranker, LSP rename
+  ├── investigate   двухпроходный параллельный fan-out, слияние с провенансом
+  ├── Search        SQLite FTS5/BM25, сигналы символов/путей, роутинг docs
+  ├── Graph         PropertyGraph: calls, imports, assignments, decorators, overrides
+  ├── Index         parser → chunks → FTS5 + граф; инкрементальная свежесть
+  ├── Memory        ADR, инциденты, known issues, retract/supersede
+  ├── Writes        rename/move/delete/replace/insert с impact-guard
+  ├── Diagnostics   health, jobs, логи, телеметрия, предсказание правки
+  └── Optional      embedders, reranker, LSP rename
 ```
 
-Канонические данные лежат вне репозитория:
+Канонические расположения данных (вне репозитория):
 
-- `%LOCALAPPDATA%/mscodebase/projects/<hash>/` — per-project graph, memory, jobs.
+- `%LOCALAPPDATA%/mscodebase/projects/<hash>/` — граф проекта, память, состояние задач, commit memory, телеметрия.
 - `%LOCALAPPDATA%/mscodebase/logs/` — логи сервера.
-- `<project>/.mscodebase/chunks.db` — text chunk store для Phase 3.
+- `<project>/.mscodebase/chunks.db` — хранилище текстовых чанков для пути по умолчанию.
 
-LanceDB остаётся частью legacy/optional vector path; для дефолтного text-first
-режима она не требуется.
+LanceDB относится к опциональному векторному пути и не требуется в text-first конфигурации.
 
 ## Конфигурация
 
-Все настройки — environment variables с defaults в `src/config/settings.py`.
-Главные для поиска:
+Настройки — переменные окружения с дефолтами в `src/config/settings.py`. Главные:
 
-| Переменная | Default | Эффект |
+| Переменная | Дефолт | Эффект |
 |---|---|---|
-| `MSCODEBASE_DENSE_OFF` | `true` | Пропустить dense/vector retrieval; FTS5, symbols, graph |
-| `MSCODEBASE_SQLITE_CHUNKS` | `true` | Использовать SQLite/FTS5 chunk store |
-| `MSCODEBASE_DEMOTE_NON_CODE` | `false` | Понижать tests/docs/experiments в fused pool |
-| `MSCODEBASE_DEMOTE_INTENT_AWARE` | `false` | Не понижать docs при docs-intent |
-| `MSCODEBASE_DOCS_MARGIN` | `4.0` | Порог auto docs routing (docs − code score) |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Опциональный live rerank; нужен провайдер |
-| `MSCODEBASE_P3_ANCHOR` | `false` | Module-head anchors; без reranker дают latency |
-| `MSCODEBASE_MCP_TOOLS` | default set | Allowlist инструментов; пусто = все |
+| `MSCODEBASE_DENSE_OFF` | `true` | Не использовать dense/vector; только FTS5, символы, граф |
+| `MSCODEBASE_SQLITE_CHUNKS` | `true` | Использовать SQLite/FTS5 хранилище чанков |
+| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Реранк верхних кандидатов живыми эмбеддингами |
+| `MSCODEBASE_DOCS_MARGIN` | `4.0` | Порог роутинга в docs (docs − code) |
+| `MSCODEBASE_AUGMENT_CHUNKS` | `true` | Префикс FILE/SYMBOLS/DOC в тексте чанка |
+| `MSCODEBASE_TESTS_SIGNAL` | `false` | Добавлять покрывающие тесты к результатам по символу |
+| `MSCODEBASE_CODE_BM25` | `false` | BM25 с учётом идентификаторов |
+| `MSCODEBASE_RU_SYNONYMS` | `false` | Расширение RU → EN кодовых терминов |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность: 17 видимых или все 69 (`full`) |
+| `MSCODEBASE_MCP_TOOLS` | — | Явный allowlist; перекрывает профиль |
 
-`experiments/**` намеренно исключён из индекса. Там frozen-панели и run
-artifacts; их индексация раньше заставляла BM25 возвращать саму панель вместо
-кода. Файлы при этом остаются в git.
+`experiments/**` намеренно исключён из индексации: там frozen-панели и артефакты прогонов, и их индексация раньше заставляла BM25 возвращать саму панель вместо кода. Файлы при этом остаются в git.
 
 ## Поддерживаемые языки
 
-Python — основной, полностью проверенный язык. Tree-sitter parsing покрывает
-JavaScript, TypeScript/TSX, Rust, Go, Java, C#, Ruby, PHP, Kotlin, Swift, C,
-C++, Scala и Dart. SQL, YAML, TOML, HTML, CSS и HCL/Terraform индексируются как
-контекст, без такого же покрытия call graph. Глубина графа и data-flow зависит
-от grammar; не все языки дают одинаковые типы рёбер.
+Python — основной, полностью отработанный язык. Tree-sitter разбирает JavaScript, TypeScript/TSX, Rust, Go, Java, C#, Ruby, PHP, Kotlin, Swift, C, C++, Scala и Dart; SQL, YAML, TOML, HTML, CSS и HCL/Terraform индексируются как контекст без той же глубины графа. Текущая сборка загружает **31 грамматику**; глубина графа и data-flow зависит от грамматики.
 
-## Ограничения и известные проблемы
+<!-- stale-ignore -->
+Версии закреплены для воспроизводимости: `tree-sitter==0.26.0` (последняя Python-привязка на PyPI), `tree-sitter-language-pack==1.25.0` и по одному пину на грамматику. Обновление грамматики меняет нарезку на чанки, поэтому требует переиндексации и сравнения числа символов, а не «просто апгрейда».
+<!-- stale-ignore -->
 
-Это осознанные, документированные границы, а не скрытое поведение:
+## Ограничения
 
-- **Docs gold vs язык:** docs-канал может вернуть `docs/ru/X.md`, когда gold —
-  `docs/en/X.md`. Документ правильный, exact-path метрика — нет. При оценке
-  переводов нормализуйте по basename.
-- **Auto docs routing эвристичен:** margin настраивается и подобран на панели 48
-  запросов. Code-запрос с сильными docs-словами может уйти в docs;
-  `intent="code"` — escape hatch.
-- **Graph rebuild отдельно от text reindex:** при `MSCODEBASE_DENSE_OFF=true`
-  полный vector reindex намеренно блокируется. Для графа —
-  `scripts/rebuild_graph.py`, для чанков — `scripts/reindex_text_only.py`.
-- **Нет заявки на 95%:** статический retrieval и протестированные локальные
-  реранкеры не дали этого на внутренней панели. LLM planner/agent loop — другой
-  эксперимент и не дефолтный путь.
-- **Fast mode — не quality mode:** быстрее, но заметно менее точен на смешанных
-  natural-language вопросах. Для exact names и известных путей.
-- **Видимые tools задаёт профиль:** сервер регистрирует 69, клиент видит 17 по
-  умолчанию. Если ожидаемого инструмента нет — `tool_help()` и
-  `MSCODEBASE_MCP_PROFILE=full`.
+Осознанные границы, а не скрытое поведение:
 
-## Как сообщать о баге
-
-Полезный отчёт — маленький эксперимент, а не только число. Укажите:
-
-1. Точный tool call и параметры (`query`, `mode`, `intent`, `limit`).
-2. `debug_runtime_passport()` и `codebase(action="index", path="status")`.
-3. Пересобирался ли граф (`scripts/rebuild_graph.py`) и были ли включены
-   `MSCODEBASE_DENSE_OFF` / `MSCODEBASE_ONDEMAND_RERANK`.
-4. Ожидаемый файл и фактически возвращённые файлы; exact-path или same-basename
-   (переводы считаются тем же документом).
-5. Минимальный запрос для воспроизведения и хвост лога из
-   `%LOCALAPPDATA%/mscodebase/logs/`.
-
-Это позволяет отделить четыре разные проблемы, которые выглядят одинаково:
-плохой ranking, отсутствующий candidate, stale/empty index и gold-label mismatch.
-
-## Структура проекта
-
-```text
-src/
-  main.py                 MCP entry point
-  mcp/
-    server.py             server creation
-    server_factory.py     DI and lifecycle
-    server_tools.py       tool registration and inline tools
-    tools/                search, index, graph, memory, write, lifecycle tools
-  core/
-    search/               engine, FTS5/BM25, scoring, query plan, graph adapter
-    indexing/             parser, chunk store, index pipeline, file guard
-    intelligence/         project memory, incidents, health, jobs
-    graph.py              PropertyGraph
-    di_container.py       service collection
-  config/settings.py      environment-backed settings
-  providers/              optional embedders and rerankers
-experiments/              frozen panels, run artifacts, summaries
-scripts/                  install/reindex/graph/smoke utilities
-tests/                    pytest suite
-docs/                     architecture, installation, operations, research
-```
+- **Docs-gold и язык:** канал docs может вернуть `docs/ru/X.md`, когда золото — `docs/en/X.md`. При оценке нормализуйте по basename.
+- **Авто-роутинг в docs эвристичен:** запрос по коду с сильными «документационными» словами может уйти в docs; `intent="code"` — выход.
+- **Полный векторный reindex заблокирован** при `MSCODEBASE_DENSE_OFF=true`: граф — `scripts/rebuild_graph.py`, чанки — `scripts/reindex_text_only.py`.
+- **Заявки на 95% нет:** статический retrieval и проверенные локальные реранкеры до неё не дошли; LLM-планировщик — отдельный эксперимент, не дефолт.
+- **Fast mode — не quality mode:** быстрее, но заметно менее точен на смешанных вопросах.
+- **Видимость инструментов — профиль:** 69 зарегистрировано, 17 видимо. Нет ожидаемого — `tool_help()` и смена профиля.
+- **LSP-тулы требуют working basedpyright:** при отсутствии падают быстро и понятно, результат кешируется на 30 с.
 
 ## Разработка
 
@@ -302,47 +206,45 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
 
-# Focused search tests
-pytest tests/test_search_docs.py tests/test_query_plan.py \
-  tests/test_experiment_output_guard.py tests/test_searcher.py -q
+# Точечные тесты поиска
+pytest tests/test_search_docs.py tests/test_query_plan.py tests/test_searcher.py -q
 
-# Full suite (integration/benchmark tests are selected by markers)
+# Полный прогон (integration/benchmark выбираются маркерами)
 pytest tests/ -m "not integration and not benchmark"
 
-# Live smoke: real services, no mocks
+# Живой smoke: реальные сервисы, без моков
 python scripts/smoke_e2e.py --project .
 ```
 
-Репозиторий использует Conventional Commits, хранит входы экспериментов в
-`experiments/**/frozen/` и ведёт результаты в `EXPERIMENTS_LOG.md`,
-`AGENT_DIARY.md` и `KNOWN_ISSUES.md`.
+Репозиторий использует Conventional Commits, хранит входы экспериментов в `experiments/**/frozen/` и фиксирует результаты в `EXPERIMENTS_LOG.md`, `AGENT_DIARY.md`, `KNOWN_ISSUES.md`.
+
+## Сообщить о баге
+
+Полезный отчёт — маленький эксперимент:
+
+1. Точный вызов и параметры (`query`, `mode`, `intent`, `limit`).
+2. `tool_help()` / `get_health_report()` и `codebase(action="index", path="status")`.
+3. Пересобирался ли граф и какие флаги стояли (`MSCODEBASE_DENSE_OFF`, `MSCODEBASE_ONDEMAND_RERANK`, профиль).
+4. Ожидаемый файл и фактический, и является ли совпадение точным путём или только basename.
+5. Хвост лога из `%LOCALAPPDATA%/mscodebase/logs/`.
+
+Это разделяет четыре похожие поломки: плохой ранжировщик, отсутствие кандидата, устаревший/пустой индекс и ошибка золотой разметки.
 
 ## Карта документации
 
 | Документ | О чём |
 |---|---|
-| [docs/en/INSTALL.md](../en/INSTALL.md) | Установка, uninstall, platform notes |
-| [docs/en/ARCHITECTURE.md](../en/ARCHITECTURE.md) | Слои, DI, границы модулей |
-| [docs/en/ARCHITECTURE_DEEP.md](../en/ARCHITECTURE_DEEP.md) | Pipeline и lifecycle подробно |
-| [docs/en/SEARCH_PIPELINE.md](../en/SEARCH_PIPELINE.md) | Retrieval, fusion, scoring, rerank |
-| [docs/en/GRACEFUL_DEGRADATION.md](../en/GRACEFUL_DEGRADATION.md) | Поведение без провайдеров |
-| [docs/en/ZED_WINDOWS_QUIRKS.md](../en/ZED_WINDOWS_QUIRKS.md) | Windows и Zed |
+| [docs/FACTS.md](../FACTS.md) | Все публичные числа и команды перевывода |
+| [docs/en/ARCHITECTURE.md](../en/ARCHITECTURE.md) | Слои, DI, границы модулей, профиль инструментов |
+| [docs/en/SEARCH_PIPELINE.md](../en/SEARCH_PIPELINE.md) | Retrieval, ранжирование, docs-роутинг, fan-out `investigate` |
+| [docs/ru/INSTALL.md](INSTALL.md) | Установка и платформенные заметки |
 | [docs/en/CHANGELOG.md](../en/CHANGELOG.md) | История версий |
-| [AGENTS.md](../../AGENTS.md) | Правила для AI-агентов |
-| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | Открытые проблемы и долг |
-| [EXPERIMENTS_LOG.md](../../EXPERIMENTS_LOG.md) | Гипотезы и сырые результаты |
+| [AGENTS.md](../../AGENTS.md) | Правила для ИИ-агентов в этом репозитории |
+| [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md) | Открытый техдолг и наблюдения |
+| [EXPERIMENTS_LOG.md](../../EXPERIMENTS_LOG.md) | Гипотезы и сырые результаты экспериментов |
 
-## Research notes
-
-- [PageRank vs RAG on a real codebase](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj)
-- [Fact-checking one AI's audit with another](https://dev.to/mansio/i-asked-one-ai-to-fact-check-another-ais-audit-of-my-own-code-1ac3)
-- [The silent vector contamination bug](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7)
+Исторические материалы (блоги, research-заметки, архивные дневники) сохранены для провенанса и помечены баннерами; это не описание сегодняшнего состояния.
 
 ## Лицензия
 
 MIT. См. [LICENSE](../../LICENSE).
-
-## Благодарности
-
-Zed, Model Context Protocol, Tree-sitter, SQLite/FTS5 и локальные inference
-проекты, которые делают offline-first ассистента практичным.

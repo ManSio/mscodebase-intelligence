@@ -1,223 +1,132 @@
-# Search Pipeline — Current Contract
+# Search pipeline
 
-> **Current as of 2026-10-25.** The default runtime is Phase 3 text-first:
-> SQLite FTS5/BM25 plus PropertyGraph. Dense, LanceDB and reranker stages are
-> optional and are disabled unless configured. This document describes what the
-> default path actually does; it does not describe the old pipeline as if it
-> were still the default.
+> Rewritten 2026-11-08. The default runtime is **Phase 3 text-first**:
+> SQLite FTS5/BM25 over parsed chunks plus a Tree-sitter/PropertyGraph.
+> Dense, LanceDB and reranker stages exist but are optional and are marked.
+> Numbers: [FACTS.md](FACTS.md).
 
----
-
-## 1. Contract
-
-Input:
-
-- a natural-language or identifier query;
-- `mode`: `fast`, `quality`, `deep`, `context`, `ask`, `auto`;
-- optional `layer`, `intent`, `limit`, `explain`.
-
-Output:
-
-- ranked chunks/files with metadata (`file`, `chunk_index`, `symbol_name`,
-  `symbol_kind`, `layer`, line range, source);
-- a stale-index banner when freshness checks fail;
-- optional security metadata for untrusted indexed content.
-
-The agent may pass `intent="docs"` or `intent="code"`. When `intent` is empty,
-the tool compares the best docs-only BM25 score with the best code score and
-routes to the docs channel when the margin exceeds `MSCODEBASE_DOCS_MARGIN`
-(default `4.0`). There is no LLM in this decision.
-
-## 2. Default Phase 3 path
+## 1. What a query goes through
 
 ```text
 query
   │
-  ├─ normalize / optional RU synonyms
+  ├─ 1. Request guard        empty? >512 chars? → refuse with the reason
   │
-  ├─ SQLiteChunkStore.search(query, limit=20..50)
-  │     └─ FTS5/BM25 over chunk text, symbol_name, docstring, file_path
+  ├─ 2. Freshness (throttled) changed/new files → reindex in the background
   │
-  ├─ if query looks like an identifier/path:
-  │     └─ PropertyGraph stage adds exact symbol/file candidates
+  ├─ 3. Candidate retrieval
+  │       identifier-shaped?  → graph stage (exact location, ~ms)
+  │       otherwise           → SQLite FTS5/BM25 over chunks.db
   │
-  ├─ optional on-demand rerank (only if configured)
+  ├─ 4. Enrichment            symbol/path signals, layer filter, dedup
   │
-  ├─ exact-name boost
-  ├─ symbol deduplication
+  ├─ 5. Rerank (optional)     live embeddings over the top pool
   │
-  └─ return top-N
+  ├─ 6. Docs routing          docs FTS score − code score > margin → docs
+  │
+  └─ 7. Format                file:line, symbol, score, warnings
 ```
 
-The SQLite path is deliberately shorter than the historical LanceDB pipeline.
-In particular, it does **not** run RRF over BM25+dense+graph, MMR, co-change
-boosts or P3 module-head anchors by default. Those stages live in the optional
-dense/LanceDB path or in older code paths.
+## 2. The Phase 3 path (default)
 
-## 3. Candidate sources
+`Searcher._sqlite_hybrid_search_async`:
 
-### 3.1 SQLite FTS5/BM25
+1. **Candidates** — `SQLiteChunkStore.search(query, raw_limit)` where
+   `raw_limit = min(max(limit × 4, 20), 50)`. The store answers with FTS5
+   BM25 over chunk text (FILE/SYMBOLS/DOC are prepended to the text when
+   `MSCODEBASE_AUGMENT_CHUNKS=true`).
+2. **Filter** — optional `layer` (core/mcp/utils/tests/...) applied to the
+   candidate set.
+3. **Rerank (optional)** — with `MSCODEBASE_ONDEMAND_RERANK=true` (default),
+   the top `MSCODEBASE_ONDEMAND_RERANK_TOP_N` candidates are re-scored with
+   live embeddings; text is trimmed to `..._MAX_CHARS` before embedding.
+   Without a provider the stage is skipped, not failed.
+4. **Shape** — results carry `file_path`, `line`, `symbol_name`, `text`,
+   `score`, `source` (`sqlite_fts5`).
 
-`SQLiteChunkStore.search` builds an FTS5 `MATCH` expression from query terms
-(OR-joined, quoted), ranks with SQLite `bm25()`, and returns:
+This path never touches LanceDB, so it works with no vector table at all.
 
-- chunk text and full text;
-- file path, chunk index, symbol name/kind, docstring, layer;
-- start/end line;
-- `final_score` derived from the BM25 rank.
+## 3. Identifier short-circuit
 
-The table is content-linked (`content='chunks'`) with insert/update/delete
-triggers, so deleting a file removes its FTS rows automatically.
+Queries that look like an identifier (`_IDENTIFIER_QUERY_RE`) skip retrieval
+and go to the graph stage, which resolves the definition and its immediate
+neighbours. Measured in the code comments: ~6.8 ms versus a vector search of
+seconds. Non-identifier questions produce no graph hits and fall through to
+the normal path.
 
-### 3.2 Symbol and path signals
+## 4. Docs routing (E57)
 
-Identifier-shaped queries (`snake_case`, `CamelCase`, paths, `::`) get a
-deterministic graph stage. The graph returns exact definition/reference rows
-that FTS may rank below generic text matches. Duplicates are removed by
-`file + chunk_index`.
+`Searcher.prefers_docs(query)` runs one extra FTS query over `docs/**` and
+compares the best docs score with the best code score:
 
-### 3.3 Documentation channel
-
-`Searcher.search_docs()` runs the same FTS5 store and keeps only `docs/**`
-files. It collapses language variants (`docs/en/X`, `docs/ru/X`, `docs/zh/X`)
-to one key, preferring the query language. This is a separate channel, not a
-change to code ranking.
-
-### 3.4 Optional dense/vector path
-
-When `MSCODEBASE_DENSE_OFF=false` and a provider is available, vector search
-runs over LanceDB or the configured backend. This path can add candidates but
-is not required for the default contract.
-
-## 4. Ranking and fusion
-
-Default Phase 3:
-
-1. BM25 order from SQLite.
-2. Graph candidates appended for identifier queries.
-3. Optional on-demand rerank of the top pool.
-4. Exact-name boost for identifier queries.
-5. Deduplicate by symbol.
-
-Optional/historical path:
-
-- reciprocal rank fusion of BM25, dense and FTS5 candidates;
-- bucket weighting by intent and file type;
-- co-change and exact-symbol boosts;
-- non-code demotion (`tests/`, `docs/`, `experiments/`, `fixtures/`);
-- MMR diversification;
-- identifier anchors and P3 module-head anchors;
-- multi-provider reranking.
-
-These stages are configurable and are not applied on every query. Do not use
-the old pipeline description to predict the default result order.
-
-## 5. Documentation routing
-
-Routing is a single cheap comparison:
-
-```text
-docs_max = best BM25 score among docs/**
-code_max = best BM25 score among src/**, tools/**, scripts/**, tests/**
-if docs_max - code_max > MSCODEBASE_DOCS_MARGIN:
-    use search_docs()
-else:
-    use code search
+```
+docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 ```
 
-Properties:
+- No LLM in this step; it is one query and a subtraction.
+- Explicit `intent="docs"` or `intent="code"` overrides the automatic choice.
+- `search_docs` deduplicates translations (ru/en/zh) and prefers the language
+  of the query, so `docs/ru/X.md` and `docs/en/X.md` count as one document.
+- Measured effect on the frozen panel: same-basename hit@1 0.688 → 0.792 with
+  zero code false positives at margin 4.0.
 
-- one extra FTS query; no model call;
-- explicit `intent` wins over the heuristic;
-- threshold is configurable and was tuned on the 48-query panel;
-- a code query with strong documentation vocabulary can still be misrouted;
-  `intent="code"` is the escape hatch.
+## 5. `investigate` — one question, many channels
 
-Measured on the panel: margin `4.0` gave 0 code false positives, docs top-1 in
-5/8 docs questions, and 0.792 same-basename hit@1 overall. Treat that as a
-panel result, not a universal constant.
+`investigate(query, limit=8)` is the default entry point and the reason the
+model no longer has to choose a tool.
 
-## 6. Modes
+**Pass 1 (parallel, 12 s each):**
 
-| Mode | Path | Intended use |
+| Channel | What it runs | Weight |
+|---|---|---:|
+| `search` | SQLite FTS5/BM25 hybrid, docs routing | 0.6 |
+| `symbols` | `symbol_index.search_symbols` per identifier | 1.0 |
+| `grep` | regex over the two most code-like identifiers, AST-scoped, 15 s | 0.3 |
+
+**Pass 2 (parallel, only if pass 1 produced files/identifiers):**
+
+| Channel | What it asks | Weight |
+|---|---|---:|
+| `impact` | blast radius of the top identifiers | 1.2 |
+| `graph` | direct callers of the top identifiers | 1.0 |
+| `tests` | which tests cover the top files (skipped for test files) | 0.1 |
+| `memory` | ADR/incident nodes sharing a token with the question | 0.4 |
+
+**Merge:** key `(file, line)`; channels are unioned (`[search+graph]`), the
+rank is `score + weight`, and rows are sorted by number of channels first, then
+rank. Output is capped (8 rows, 180 chars per row).
+
+**Failure:** a channel that raises or exceeds its budget is listed in
+`degraded[]` (`grep:timeout`, `impact:AttributeError`); the rest of the answer
+is still returned. A query with no hits returns "nothing found" — never a
+plausible guess.
+
+## 6. Budgets and guards
+
+| Layer | Budget | On timeout |
 |---|---|---|
-| `fast` | FTS5 + optional dense if available; no reranker | Exact names, known paths, latency-sensitive calls |
-| `quality` | Default hybrid path + optional rerank | Normal code/doc questions |
-| `deep` | Quality plus graph context expansion | Cross-module investigation |
-| `context` | Similar-code search from a fragment | Duplicate/similar implementation lookup |
-| `ask` | Retrieval plus optional local LLM generation | Only when a local LLM profile is configured |
-| `auto` | Chooses a mode from query shape | Default tool entry |
+| `search_code` | 15 s (1 retry) | structured timeout error |
+| `investigate` | 30 s outer, 12 s/channel, 15 s grep | `degraded[]`, partial answer |
+| `grep_code` | 45 s | structured timeout error |
+| `get_symbol_info` / `impact_analysis` | 15–20 s | structured error |
+| Query length | 512 chars | refused with the length |
+| Files scanned (grep) | 4 000; 1 MB per file | skipped and counted |
+| Pattern length (grep) | 512 chars | refused |
 
-`fast` is materially less accurate on mixed natural-language questions than
-`quality` on the internal panel (0.542 vs 0.688 hit@1). Use it intentionally.
+## 7. What the pipeline does not do
 
-## 7. Optional layers
+- **No embeddings required.** The default path answers with FTS5 and the graph.
+- **No LLM router.** Docs routing is a score comparison, not a model call.
+- **No RRF/MMR over BM25+dense+graph in the default path.** Those exist in the
+  legacy dense path only; mixing them into every query was not measured better.
+- **No 95% claim.** See [FACTS.md](FACTS.md) for the measured snapshot and the
+  harness that produces it.
 
-| Layer | Flag / condition | Effect |
-|---|---|---|
-| Dense retrieval | `MSCODEBASE_DENSE_OFF=false` + provider | Adds vector candidates |
-| On-demand rerank | `MSCODEBASE_ONDEMAND_RERANK=true` + provider | Re-scores top candidates |
-| P3 module-head anchors | `MSCODEBASE_P3_ANCHOR=true` | Adds module-head chunks |
-| RU synonyms | `MSCODEBASE_RU_SYNONYMS=true` | Expands Russian query variants |
-| Non-code demotion | `MSCODEBASE_DEMOTE_NON_CODE=true` | Down-weights tests/docs/experiments |
-| Intent-aware demotion | `MSCODEBASE_DEMOTE_INTENT_AWARE=true` | Keeps docs for docs intent |
-| Docs auto-route | `MSCODEBASE_DOCS_MARGIN` | Docs/code channel choice |
+## 8. How to diagnose a bad result
 
-## 8. Output contract
-
-Each result carries enough metadata for the agent to explain itself:
-
-- `file`, `chunk_index`, `start_line`, `end_line`;
-- `symbol_name`, `symbol_kind`, `layer`;
-- `final_score` and `source` (`sqlite_fts5`, `graph`, `docs_fts`, ...);
-- optional `docstring`, callers/callees and security flags.
-
-The tool response may include a stale-index warning. A warning is not a search
-failure; it means the agent should refresh the index before trusting freshness.
-
-## 9. Measured behavior
-
-Internal panel: 48 real queries, clean index, `experiments/**` excluded, graph
-present.
-
-| Path | hit@1 | hit@5 |
-|---|---:|---:|
-| Code, quality | 0.825 | 0.900 |
-| Docs, exact path | 0.000 | 0.125 |
-| Docs, same basename | 0.750 | 0.750 |
-| Overall quality | 0.688 | 0.750 |
-| Overall auto docs route | 0.792 | 0.875 |
-| Fast | 0.542 | 0.729 |
-
-Limits:
-
-- these are internal, not a universal benchmark;
-- docs exact-path scoring undercounts correct translations;
-- no static configuration or tested local reranker reached 95% hit@1;
-- a two-channel repo map reached about 40/62/73% gold-file coverage at
-  1k/2k/4k tokens with perfect routing, and PageRank alone was lower.
-
-## 10. Debugging search
-
-```text
-debug_runtime_passport()
-intel_get_runtime_status()
-codebase(action="index", path="status")
-search_code(query="...", explain=true)
-```
-
-Useful checks:
-
-1. Is `chunks.db` non-empty? If not, run `scripts/reindex_text_only.py`.
-2. Is `graph.db` empty? Run `scripts/rebuild_graph.py`.
-3. Does the query look like docs? Try `intent="docs"` or `intent="code"`.
-4. Compare exact-path vs same-basename before calling a docs result a miss.
-5. For `fast` vs `quality`, run the same query in both modes and compare.
-
-## 11. Non-goals
-
-- An LLM router for every query. Routing is lexical and cheap.
-- A static repo map that replaces iterative code search. It is context
-  selection, not an oracle.
-- Claiming 95% retrieval accuracy from a small internal panel.
-- Hiding an empty graph or stale index behind a confident answer.
+1. `tool_help()` → are you on `core` and is the tool you expected visible?
+2. `codebase(action="index", path="status")` → chunks > 0, files > 0?
+3. Repeat the same query with `search_code(..., mode="quality")` and with
+   `grep_code(..., scope="all")` → did retrieval miss, or did ranking reorder?
+4. `investigate(...)` → which channels found the file (`[search]`, `[grep]`)?
+5. Check the log tail: `%LOCALAPPDATA%/mscodebase/logs/mcp_global.log`.
