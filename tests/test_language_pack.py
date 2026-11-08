@@ -43,7 +43,19 @@ class TestDisabledByDefault:
 def enabled(monkeypatch):
     pytest.importorskip("tree_sitter_language_pack")
     monkeypatch.setenv("MSCODEBASE_LANGUAGE_PACK", "true")
-    return language_pack.try_enable()
+    result = language_pack.try_enable()
+    if result["enabled"] is False:
+        # Парсеры пакет качает по сети при первом использовании. На CI-раннере
+        # 53 запроса манифеста упираются в лимит GitHub, и слой честно не
+        # поднимается — это состояние окружения, а не дефект кода. Пропуск с
+        # причиной вместо красного теста; локально (парсеры в кэше) тесты идут.
+        failed = result.get("failed") or []
+        if any("Download error" in f for f in failed):
+            pytest.skip(
+                "language-pack parsers unavailable: "
+                f"{failed[0] if failed else 'download failed'}"
+            )
+    return result
 
 
 class TestEnabled:
