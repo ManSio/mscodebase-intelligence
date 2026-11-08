@@ -17,6 +17,7 @@ docs/en/investigations/LSP_WONTFIX.md).
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -87,6 +88,15 @@ async def _ensure_lsp():
 
             root = resolve_project_root()
             client = LspClient(project_root=Path(root))
+            # 2026-11-08: полный старт по умолчанию 40 s, а внутри MCP он
+            # уходил в ~50 s и всё равно падал (basedpyright не поднимается).
+            # Короткий бюджет делает отказ быстрым; вернуть 40 можно env-ом.
+            try:
+                client.START_TIMEOUT = float(
+                    os.getenv("MSCODEBASE_LSP_START_TIMEOUT", "15")
+                )
+            except ValueError:
+                client.START_TIMEOUT = 15.0
             if await client.start():
                 _lsp_client = client
                 _lsp_last_failed_at = None

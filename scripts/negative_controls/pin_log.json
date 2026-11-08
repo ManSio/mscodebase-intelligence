@@ -142,5 +142,14 @@
       "stale_detector": "338613dbbbc5647f894c71d37bb46731777e7bbc6a3c1f5bd3bbccbcd5e021a7",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-11-08T05:48:08Z",
+    "reason": "stale_check.py: capture_output -> Popen (MCP pipe deadlock); mutant still fails",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "2ccfb294583a201017e9118181cf94e53e5684095944f9e5831d9c33e9752ef0",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

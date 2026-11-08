@@ -15,13 +15,39 @@ Returns exit code 1 if critical drifts found.
 import json
 import re
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
+
+
+def _run_git(args: list[str], cwd: Path, timeout: int = 60) -> tuple[int, str]:
+    """git без capture_output (§5.16): внутри MCP stdout — JSON-RPC-пайп, и
+    subprocess.run(capture_output=True) вешает дочерний процесс насмерть.
+    Именно поэтому скан доков «зависал» только в MCP, а в консоли шёл 1.2 s.
+    """
+    import os as _os
+    import subprocess as _sp
+
+    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    try:
+        proc = _sp.Popen(
+            args,
+            cwd=str(cwd),
+            env=env,
+            stdin=_sp.DEVNULL,
+            stdout=_sp.PIPE,
+            stderr=_sp.DEVNULL,
+            creationflags=getattr(_sp, "CREATE_NO_WINDOW", 0),
+        )
+        out, _ = proc.communicate(timeout=timeout)
+        return proc.returncode, (out or b"").decode("utf-8", "replace")
+    except (OSError, _sp.SubprocessError):
+        return 1, ""
 
 
 
@@ -208,24 +234,13 @@ def staged_markdown_files(project_root: Path) -> list[Path]:
     another session has unstaged drafts in this tree, a full-tree scan blocks
     commits that have nothing to do with them (§21 — parallel sessions).
     """
-    import os as _os
-    import subprocess as _sp
-
-    # Do not inherit GIT_DIR/GIT_INDEX_FILE from a hook that invoked us: a
-    # fixture project in a temp dir must not query THIS repo's index.
-    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
-    proc = _sp.run(
+    _rc, _out = _run_git(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-        cwd=str(project_root),
-        env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
+        project_root,
         timeout=60,
     )
     files: list[Path] = []
-    for line in (proc.stdout or "").splitlines():
+    for line in _out.splitlines():
         rel = line.strip()
         if not rel.endswith(".md"):
             continue
@@ -244,25 +259,12 @@ def tracked_markdown_files(project_root: Path) -> set[str]:
     Staged-but-uncommitted files ARE tracked (git ls-files sees the index), so
     a new document added by the pending commit is still checked.
     """
-    import os as _os
-    import subprocess as _sp
-
-    # Same GIT_DIR/GIT_INDEX_FILE isolation as staged_markdown_files: a fixture
-    # project in a temp dir must not inherit the invoking hook's repository.
-    env = {k: v for k, v in _os.environ.items() if not k.startswith("GIT_")}
-    try:
-        proc = _sp.run(
-            ["git", "ls-files", "-z", "--", "*.md"],
-            cwd=str(project_root),
-            env=env,
-            capture_output=True,
-            timeout=60,
-        )
-    except (OSError, _sp.SubprocessError):
+    _rc, _out = _run_git(
+        ["git", "ls-files", "-z", "--", "*.md"], project_root, timeout=60
+    )
+    if _rc != 0:
         return set()
-    if proc.returncode != 0:
-        return set()
-    return {part for part in proc.stdout.decode("utf-8", "replace").split("\0") if part}
+    return {part for part in _out.split("\0") if part}
 
 
 def run(project_root: Path, config: StaleConfig, staged_only: bool = False) -> list[DocReport]:
@@ -330,7 +332,7 @@ def format_human(results: list[DocReport], actual_version: str) -> str:
 
     lines = [
         "=" * 70,
-        f"📋 STALE DETECTOR — Doc Drift Report",
+        "📋 STALE DETECTOR — Doc Drift Report",
         f"   Actual version: {actual_version}",
         f"   Docs with drift: {len(results)}",
         f"   Total drift instances: {total_hits}",
