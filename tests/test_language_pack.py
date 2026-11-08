@@ -48,7 +48,9 @@ def enabled(monkeypatch):
 
 class TestEnabled:
     def test_registers_parsers_and_tags(self, enabled):
-        assert enabled["enabled"] is True
+        # Диагностика в сообщении: в чистом venv пакет качает парсеры по сети,
+        # и без этого текста падение «False is True» ничего не объясняет.
+        assert enabled["enabled"] is True, f"language pack не поднялся: {enabled}"
         # 53 языка из LANG_EXT_MAP получают парсер в 1.25.0.
         assert enabled["languages"] >= 50
         # tags.scm в 1.25.0 есть для 49 языков: queries для cuda/sflog/soql/sosl
