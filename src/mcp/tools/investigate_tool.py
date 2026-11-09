@@ -135,6 +135,42 @@ def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> boo
     return per.get(subject) == 0 and not known
 
 
+_CYRILLIC_QUERY_RE = re.compile(r"[А-Яа-яЁё]")
+_PRECISE_IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+
+
+def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
+    """Deterministic rewrite gate for Russian questions without a code name.
+
+    XERJ N03 ("Где ключ подписи Corpus Hub?") had only proper-noun-like Latin
+    words, while the real subject (`corpus_hub_signing_key`) occurs nowhere;
+    the tool returned `check_knowledge.py` as if it were the answer. Neighbours
+    are not evidence: ask for an identifier instead. A lowercase term
+    (`rerank`) or a code-shaped token (`DEFAULT_LINE_LENGTH`) passes.
+    """
+    if not _CYRILLIC_QUERY_RE.search(query or ""):
+        return None
+    for ident in identifiers:
+        if not _PRECISE_IDENT_RE.fullmatch(ident or ""):
+            continue
+        # A backticked name is an explicit code reference, even if it is a
+        # single capitalised word ("Где определён `Indexer`?"). XERJ N03 has
+        # no backticks around "Corpus Hub", so it stays gated.
+        if f"`{ident}`" in query:
+            return None
+        if "_" in ident or "." in ident or re.search(r"[a-z][A-Z]", ident):
+            return None
+        if ident.islower() and len(ident) >= 3:
+            return None
+    return (
+        f"🧭 investigate: `{query}`\n"
+        "   ⚠️ В запросе нет идентификатора кода: латинского имени, "
+        "`snake_case` или `CamelCase`.\n"
+        "   Соседи не выдаются, чтобы не принять их за ответ. "
+        "Переформулируйте: `where is <identifier> defined`."
+    )
+
+
 def _asks_for_callers(query: str) -> bool:
     """Does the question ask for references (callers / raises / uses), not the definition?
 
@@ -400,6 +436,12 @@ class InvestigateTool(MCPTool):
         root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
 
         identifiers = _identifiers(query)
+        # Deterministic rewrite gate before any channel runs: a Russian
+        # question without a code-shaped name cannot be answered exactly, and
+        # neighbours must not be presented as matches (XERJ N03).
+        rewrite = _needs_identifier_rewrite(query, identifiers)
+        if rewrite:
+            return rewrite
         searcher = self.resolve_searcher(explicit_project_root=_pr)
         symbol_index = self.resolve_symbol_index(explicit_project_root=_pr)
 

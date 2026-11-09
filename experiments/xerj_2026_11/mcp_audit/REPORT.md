@@ -69,6 +69,23 @@ default `dense_off=true` the SQLite/FTS5 path returned docs at full score.
 Docs disappear from the top-5 and the gold answer gains one top-1
 (`search_code dispatch` moves from rank 2 to 1); no gold file is lost.
 
+### 1.3 Rewrite gate for Russian questions without a code name (XERJ N03)
+
+A Cyrillic question with only proper-noun-like Latin words (XERJ N03, `Где
+ключ подписи Corpus Hub?`) cannot name the real identifier
+(`corpus_hub_signing_key`, which occurs nowhere). The tool used to return
+`check_knowledge.py` as if it were the answer. The gate now returns rewrite
+instructions and **no file rows** unless the query contains a lowercase term,
+a code-shaped token, or a backticked name (`` `Indexer` `` passes).
+
+| bucket (XERJ) | 2026-11-09 recheck | with gate |
+|---|---:|---:|
+| negative | 3/4 | **4/4** |
+| ambiguity | 2/4 | 2/4 |
+
+N03 is fixed; A04 still misses the second gold (`indexer_table.py`), which is a
+ranking problem, not a gate problem. English queries are never gated.
+
 ## 2. Latency
 
 | change | before | after | measurement |
