@@ -143,17 +143,21 @@ def _extract_code_functions(line: str) -> List[str]:
     Пример: `` `hybrid_search()` `` → ["hybrid_search"]
     `` text `set_reindexing()` more `` → ["set_reindexing"]
     `` prose word( `` → [] (prose без backtick)
+
+    2026-11-09: имя должно быть ПЕРВЫМ токеном backtick-контента (после
+    `async`/`await`/`def`). Иначе сообщение об ошибке в backtick — например
+    `lance error: query dim(768) doesn't match ...` — даёт ложный ❌ «функция
+    dim не найдена» (P-006: фикстура-проза ≠ код).
     """
     result = []
     # Находим все backtick-блоки
     for m in re.finditer(r'`([^`]+)`', line):
         content = m.group(1)
-        # Ищем function_name( внутри backtick.
-        # Negative lookbehind (?<![\w.]) — НЕ выдёргиваем методы (os.environ.copy(),
-        # future.result()) как функции проекта (ложные ❌ в verify_diary).
-        # Без \s* перед скобкой: «sustained (» в прозе ≠ вызову `sustained(`
-        # (ложное ❌ из backtick-контента с комментарием benchmark).
-        for fm in re.finditer(r'(?<![\w.])([a-z_][a-z0-9_]{2,})\(', content):
+        # Имя — первый токен сегмента; `foo.bar(` (метод) не матчится, потому что
+        # после «foo» стоит точка, а не «(».
+        for fm in re.finditer(
+            r'^\s*(?:async\s+|await\s+|def\s+)?([a-z_][a-z0-9_]{2,})\(', content
+        ):
             result.append(fm.group(1))
     return result
 
