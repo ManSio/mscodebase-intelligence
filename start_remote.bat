@@ -14,7 +14,16 @@ if not exist "%VENV_PY%" (
 
 set "PYTHONPATH=%SCRIPT_DIR%"
 set "MSCODEBASE_ALLOW_SELF_INDEX=1"
-set "MSCODEBASE_REMOTE_TOKEN=d2e0c9b75d0f6838c91cedc241d7462acd1119300c459bc0399e964aa5d4c4e4"
+
+:: The remote token must come from the environment. A hardcoded default was
+:: committed in 2026-11 (git 8f694ff) and is therefore in history: rotate it.
+if "%MSCODEBASE_REMOTE_TOKEN%"=="" (
+    echo [ERROR] MSCODEBASE_REMOTE_TOKEN is not set.
+    echo         Set it first, then re-run this script:
+    echo             set MSCODEBASE_REMOTE_TOKEN=^<token^>
+    pause
+    exit /b 1
+)
 
 :: First arg = project path, else use PROJECT_PATH env, else current dir
 if not "%~1"=="" (
