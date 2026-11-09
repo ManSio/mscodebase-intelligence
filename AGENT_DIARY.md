@@ -10,6 +10,20 @@
 
 
 
+## [2026-11-10] PROCESS — dogfooding MCP на write-цикле: что вылезло
+
+- **Memory-first:** `intel_get_project_memory` → 29 ADR, 1 REFUTED, `memory_stale` alert от
+  `notify_change`; система знала о грязном индексе раньше меня.
+- **Расследование через MCP:** `investigate` + `grep_code(file_path=…)` + `get_symbol_info` +
+  `read_live_file` (диапазоны) нашли `WriteTool` и 6 resolve-сайтов за 4 вызова.
+- **Живой preview/ack выявил 2 дефекта:** write игнорировал `project_root` (preview уходил в
+  MSCodeBase), а `modification_guard` блокировал `ack_impact` — цикл без выхода. Исправлено
+  (PR #94), проверено: guard/ack/preview смотрят в один временный проект.
+- **Rewrite gate (N03):** negative 3/4→4/4, ambiguity 2/4 без изменений; английские запросы не
+  затрагиваются, backticked `Indexer` проходит.
+- **Урок:** MCP-first — для расследования/impact/preview/памяти; shell — для тестов и git.
+  Схемы инструментов проверять контрактным тестом (уже в CI).
+
 ## [2026-11-09] PROCESS — контракт инструментов проверялся поведением, а не схемой
 
 - **Симптом:** после рестартов всплывали новые дефекты одного класса: `read_live_file`/`notify_change`

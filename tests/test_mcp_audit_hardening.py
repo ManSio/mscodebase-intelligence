@@ -569,6 +569,50 @@ def test_write_hub_forwards_project_root(monkeypatch):
     assert seen["project_root"] == "D:\\other"
 
 
+def test_cyrillic_question_without_identifier_asks_for_rewrite():
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "Где ключ подписи Corpus Hub?"
+    answer = _needs_identifier_rewrite(query, _identifiers(query))
+
+    assert answer is not None
+    assert "идентификатора кода" in answer
+    assert "file:" not in answer
+
+
+def test_cyrillic_question_with_a_real_term_is_not_blocked():
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "где используется rerank"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
+def test_cyrillic_backticked_class_name_passes():
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "Где определён `Indexer`?"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
+def test_english_question_is_never_rewrite_gated():
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "where is the project state machine"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
 def test_modification_guard_does_not_block_ack():
     from src.core.modification_guard import modification_guard
 
