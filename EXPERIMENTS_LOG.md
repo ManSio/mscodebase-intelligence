@@ -1,4 +1,55 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E58: evidence gate — verify a row before presenting it
+
+**Question:** does a deterministic per-row verification (definition/ast/fresh/
+graph) plus promotion of a verified declaration change retrieval quality or
+latency?
+
+**Design frozen before the run** (`evidence_gate/frozen/HYPOTHESES.md`):
+control/treatment by `MSCODEBASE_EVIDENCE_GATE`, **interleaved per task**, 3
+repeats, majority per task. Panels: XERJ 24 + mcp_audit 17. A sequential design
+was discarded: it measured +12 s on six tasks during an indexer write and would
+have blamed the gate.
+
+```
+bucket            n   top1 c  top1 t   any c  any t  flaky
+xerj/positive    16    0.188   0.250   0.562  0.562     0
+xerj/ambiguity    4    0.000   0.000   0.500  0.500     0
+xerj/negative     4    1.000   1.000   1.000  1.000     0
+mcp_audit/pos    17    0.412   0.412   0.824  0.824     0
+latency (n=123/arm): mean 2.21 -> 2.28 s (+0.07), p95 3.77 -> 3.84 (+0.07)
+determinism: original wording (4 fixed tasks) PASS; broadened wording FAIL
+             (MSC04's first neighbour moved between repeats); the gate is
+             deterministic on fixed rows (unit test, 10 repeats)
+```
+
+**Changed tasks:** exactly one, top1 only — P01 (`build_call_graph`), where the
+verified declaration sat below rank 1. No `any` loss, no negative row, no
+ambiguity gold lost. An earlier run also showed P07; it was an artefact
+(`impact = si.get_impact_analysis(...)` — a local variable named after the query
+word, and `impact` counted as a graph edge) and is fixed, not claimed.
+
+**H5 fired once (+0.27 s mean) and was fixed, not waived:** the gate parsed every
+candidate file with `ast`; now a file is parsed only when the line or the symbol
+index says a definition can be there, and for Python the parser is authoritative
+(a declaration-shaped line inside a docstring is not a declaration).
+
+**Held-out (tasks written 2026-11-08, different corpora):** itsdangerous +
+iniconfig, **12 unique tasks** (v2 supersedes v1 for three re-frozen tasks) —
+control and treatment both top1 1.000 / any 1.000, zero changed tasks,
+treatment verdict `answer` 12/12. No-harm check, not a gain.
+
+**Cost of the rewrite gate (measured):** ON → non-negative top1 0.174 / any
+0.478, negative rows 0.00; OFF → 0.217 / 0.522, negative rows 2.00 (only N03
+prints). RU questions: `any` 0.000 in both arms. So the gate buys N03 and costs
+P16 (a correct Russian top-1); default ON, switch `MSCODEBASE_ASK_REWRITE`
+kept.
+
+**Verdict: CONFIRMED on the panel and on held-out** — the gate is an ordering
+and honesty layer, not a recall layer (`any` is unchanged everywhere).
+
+Full: `experiments/xerj_2026_11/evidence_gate/REPORT.md`.
+
 ## [2026-10-25] — E57: automatic docs routing without LLM (BM25 margin)
 
 **Keyword router:** exact 0.625/0.708, same-basename 0.708/0.812; 4 code FP.

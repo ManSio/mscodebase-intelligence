@@ -101,6 +101,45 @@ rank. Output is capped (8 rows, 180 chars per row).
 is still returned. A query with no hits returns "nothing found" — never a
 plausible guess.
 
+### 5.1 Evidence gate — a deterministic verdict
+
+Every merged row is checked against facts, not plausibility. No model is called.
+
+| Signal | Fact | Weight |
+|---|---|---:|
+| `definition` | the line declares the identifier (Python confirmed by `ast`) | 0.60 |
+| `exact` | the identifier occurs in the file (grep / compound-name channel) | 0.25 |
+| `fresh` | live `mtime_ns` + `size` match the stat recorded at index time; grep rows scan the live tree, so they are fresh by construction | 0.10 |
+| `ast` | the parser confirmed the declaration line (Python; the file is parsed only when a definition is possible there) | 0.05 |
+| `graph` | the call graph has an edge for the identifier | 0.05 |
+| `test` | a predicted test covers a top file | 0.05 |
+| `memory` | an ADR / incident mentions the subject | 0.05 |
+
+A references question ("who calls X") uses a different table: `exact` 0.45 and
+`graph` 0.25, because a call site or a call-graph edge is the answer there and
+the definition is context.
+
+The verdict is printed as `verdict: answer (0.70) — class at file:line`:
+
+- `answer` — the best row carries a verified declaration (definition question) or
+  an occurrence / call edge (references question) and clears the floor;
+- `caveat` — rows exist but none names the subject; they are neighbours;
+- `ask_rewrite` — a Cyrillic question without a code-shaped token: ask for an
+  identifier instead of inventing one;
+- `abstain` — no row carries evidence (also when the subject does not occur and
+  the graph does not know it).
+
+Row markers are facts, not decoration: `✓def:class`, `✓def:function@368` (the
+declaration is at line 368, the row points at the chunk start), `✓exact`,
+`⚠stale` (the file changed after indexing), `⚠missing` (the index remembers a
+path the disk does not have), `⚠outside project` (never read). On a definition
+question a verified declaration is promoted above name matches; the promotion is
+stable and never drops a row.
+
+Control/treatment on the frozen XERJ and `mcp_audit` panels, with kill criteria
+frozen before the run: `experiments/xerj_2026_11/evidence_gate/REPORT.md`.
+`MSCODEBASE_EVIDENCE_GATE=0` restores the previous behaviour.
+
 ## 6. Budgets and guards
 
 | Layer | Budget | On timeout |

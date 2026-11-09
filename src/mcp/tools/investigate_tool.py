@@ -16,6 +16,7 @@ item keeps the set of channels that found it, so the evidence is auditable.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import threading
 from pathlib import Path
@@ -23,6 +24,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.search.evidence import EvidenceReport, assess
 from src.mcp.tools.base import MCPTool
 
 # Channel weights, additive on top of each channel's own (rank-based) score.
@@ -136,7 +138,21 @@ def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> boo
 
 
 _CYRILLIC_QUERY_RE = re.compile(r"[А-Яа-яЁё]")
-_PRECISE_IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+_PRECISE_IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.]*")
+
+
+def _rewrite_gate_enabled() -> bool:
+    """Ask-for-identifier gate (default on).
+
+    It exists for XERJ N03, where the words exist but the subject does not and
+    the neighbours look like an answer. It also blocks real Russian questions
+    that name no identifier (measured: 3/3 of the mcp_audit RU questions), so
+    the trade is explicit and switchable:
+    `MSCODEBASE_ASK_REWRITE=0` returns neighbours instead.
+    """
+    return os.getenv("MSCODEBASE_ASK_REWRITE", "1").strip().lower() not in (
+        "0", "false", "off", "no",
+    )
 
 
 def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
@@ -146,28 +162,42 @@ def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
     words, while the real subject (`corpus_hub_signing_key`) occurs nowhere;
     the tool returned `check_knowledge.py` as if it were the answer. Neighbours
     are not evidence: ask for an identifier instead. A lowercase term
-    (`rerank`) or a code-shaped token (`DEFAULT_LINE_LENGTH`) passes.
+    (`rerank`), a code-shaped token (`DEFAULT_LINE_LENGTH`), a filename
+    (`progress.json`) or anything in backticks passes.
     """
     if not _CYRILLIC_QUERY_RE.search(query or ""):
+        return None
+    if re.search(r"`[^`]*[A-Za-z][^`]*`", query or ""):
+        # A backticked code token is an explicit reference. Backticks around
+        # plain Cyrillic prose are markdown emphasis, not a code name (review
+        # 2026-11-10), so they do not open the gate.
         return None
     for ident in identifiers:
         if not _PRECISE_IDENT_RE.fullmatch(ident or ""):
             continue
-        # A backticked name is an explicit code reference, even if it is a
-        # single capitalised word ("Где определён `Indexer`?"). XERJ N03 has
-        # no backticks around "Corpus Hub", so it stays gated.
-        if f"`{ident}`" in query:
-            return None
         if "_" in ident or "." in ident or re.search(r"[a-z][A-Z]", ident):
             return None
         if ident.islower() and len(ident) >= 3:
             return None
     return (
         f"🧭 investigate: `{query}`\n"
+        "   verdict: ask_rewrite\n"
         "   ⚠️ В запросе нет идентификатора кода: латинского имени, "
         "`snake_case` или `CamelCase`.\n"
         "   Соседи не выдаются, чтобы не принять их за ответ. "
         "Переформулируйте: `where is <identifier> defined`."
+    )
+
+
+def _evidence_gate_enabled() -> bool:
+    """Environment switch for the control arm of the gate experiment.
+
+    Default on. The flag exists so the frozen panel can compare gate-on and
+    gate-off on the same commit (experiments/xerj_2026_11/evidence_gate/),
+    and so a regression can be rolled back without a revert.
+    """
+    return os.getenv("MSCODEBASE_EVIDENCE_GATE", "1").strip().lower() not in (
+        "0", "false", "off", "no",
     )
 
 
@@ -361,6 +391,7 @@ def _merge(
                 "rank": rank,
                 "defines": defines,
                 "channels": channels,
+                "symbol": str(item.get("symbol") or ""),
             }
         else:
             current["channels"] |= channels
@@ -368,6 +399,8 @@ def _merge(
             current["defines"] = current.get("defines") or defines
             if not current["text"] and item.get("text"):
                 current["text"] = str(item["text"])[:200]
+            if not current.get("symbol") and item.get("symbol"):
+                current["symbol"] = str(item["symbol"])
     # Demotion happens on the MERGED row, not per item: one row can carry both
     # a demoted definition item and a full-weight search item, and the merge
     # keeps the maximum - which silently undid the demotion.
@@ -440,7 +473,7 @@ class InvestigateTool(MCPTool):
         # question without a code-shaped name cannot be answered exactly, and
         # neighbours must not be presented as matches (XERJ N03).
         rewrite = _needs_identifier_rewrite(query, identifiers)
-        if rewrite:
+        if rewrite and _rewrite_gate_enabled():
             return rewrite
         searcher = self.resolve_searcher(explicit_project_root=_pr)
         symbol_index = self.resolve_symbol_index(explicit_project_root=_pr)
@@ -492,6 +525,7 @@ class InvestigateTool(MCPTool):
                             "score": 0.0,
                             "weight": w_definition,
                             "defines": True,
+                            "symbol": name,
                             "channels": {"definition"},
                         }
                     )
@@ -511,6 +545,7 @@ class InvestigateTool(MCPTool):
                             "score": 0.0,
                             "weight": w_symbol,
                             "defines": "def" in str(kind).lower(),
+                            "symbol": name,
                             "channels": {"symbol"},
                         }
                     )
@@ -574,6 +609,7 @@ class InvestigateTool(MCPTool):
                         "text": match["text"],
                         "score": 0.5 if is_raise else 0.0,
                         "weight": w_grep,
+                        "symbol": idents[0],
                         "channels": {"grep"},
                     }
                 )
@@ -618,6 +654,7 @@ class InvestigateTool(MCPTool):
                             "text": f"{variant} — name match",
                             "score": 0.0,
                             "weight": 3.0,
+                            "symbol": variant,
                             "channels": {"name"},
                         }
                     )
@@ -675,6 +712,7 @@ class InvestigateTool(MCPTool):
                         ),
                         "score": 0.0,
                         "weight": w_impact,
+                        "symbol": name,
                         "channels": {"impact"},
                     }
                 )
@@ -689,6 +727,7 @@ class InvestigateTool(MCPTool):
                             "text": f"caller of {name}",
                             "score": 0.0,
                             "weight": w_graph,
+                            "symbol": name,
                             "channels": {"graph"},
                         }
                     )
@@ -784,7 +823,33 @@ class InvestigateTool(MCPTool):
             withheld = len(merged)
             merged = []
 
-        text = self._format(query, identifiers, merged, symbol_lines, degraded, exact)
+        # Deterministic evidence gate (2026-11-10). Every row is checked
+        # against the file on disk, the symbol index and the call graph before
+        # it is presented as a match: a definition must be a declaration at
+        # that line, a path must exist, a stale file is named as stale. The
+        # gate annotates; it does not invent rows. See src/core/search/evidence.py.
+        report = None
+        if _evidence_gate_enabled():
+            report = assess(
+                merged,
+                root=root,
+                identifiers=identifiers,
+                symbol_index=symbol_index,
+                store=getattr(searcher, "_chunk_store", None),
+                intent="references" if intent_callers else "explore",
+                abstain_hint=bool(withheld),
+            )
+            kept = set(report.kept_indices)
+            merged = [row for index, row in enumerate(merged) if index in kept]
+            if report.promote:
+                keys = set(report.promote)
+                merged.sort(
+                    key=lambda row: 0 if (row["file"], row["line"]) in keys else 1
+                )
+
+        text = self._format(
+            query, identifiers, merged, symbol_lines, degraded, exact, report
+        )
         if withheld:
             text += (
                 f"\nNeighbours withheld: {withheld}. "
@@ -800,6 +865,7 @@ class InvestigateTool(MCPTool):
         symbol_lines: List[str],
         degraded: List[str],
         exact: Optional[Dict[str, Any]] = None,
+        evidence: Optional[EvidenceReport] = None,
     ) -> str:
         lines = [f"🧭 investigate: `{query}`"]
         if identifiers:
@@ -823,20 +889,50 @@ class InvestigateTool(MCPTool):
                 )
             else:
                 lines.append(f"   exact: {counts}")
+        if evidence is not None:
+            # A deterministic score, not a probability: the number of
+            # independent facts that hold for the best row.
+            lines.append(
+                f"   verdict: {evidence.verdict} "
+                f"({evidence.confidence:.2f}) — {evidence.reason}"
+            )
+            if evidence.missing:
+                lines.append(
+                    f"   ⚠️ missing: {evidence.missing} path(s) are not on disk "
+                    "(the index may be stale — notify_change/reindex)"
+                )
+            if evidence.verdict == "abstain" and merged:
+                # An abstain verdict next to eight rows reads contradictory
+                # unless the rows are named for what they are.
+                lines.append(
+                    "   ⚠️ the rows below are neighbours — no row carries "
+                    "evidence for this question"
+                )
         lines.append("")
 
         if not merged:
             lines.append("ℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.")
             return "\n".join(lines)
 
+        marks = evidence.by_location() if evidence is not None else {}
         for i, row in enumerate(merged, 1):
             channels = "+".join(sorted(row["channels"]))
             if row["file"] == "(memory)":
                 lines.append(f"{i}. [memory] {row['text']}  [{channels}]")
                 continue
-            lines.append(f"{i}. {row['file']}:{row['line']}  [{channels}]")
+            marker = marks.get((row["file"], row["line"]))
+            suffix = marker.marker() if marker is not None else ""
+            shown_line = row["line"] or (
+                marker.decl_line if marker is not None else 0
+            )
+            lines.append(f"{i}. {row['file']}:{shown_line}  [{channels}]{suffix}")
             if row["text"]:
                 lines.append(f"   {row['text'].strip()[:180]}")
+
+        if evidence is not None and evidence.dossier:
+            lines.append("")
+            lines.append("📎 dossier:")
+            lines.extend(f"   {line}" for line in evidence.dossier)
 
         if symbol_lines:
             lines.append("")

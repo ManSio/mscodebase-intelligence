@@ -98,6 +98,40 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 （`grep:timeout`、`impact:AttributeError`）；其余答案仍会返回。无命中的查询返回
 “未找到”——绝不给出看似合理的猜测。
 
+### 5.1 Evidence gate —— 确定性结论
+
+每一行合并结果都按事实校验，而不是按"看起来合理"。不调用模型。
+
+| 信号 | 事实 | 权重 |
+|---|---|---:|
+| `definition` | 该行声明了标识符（Python 由 `ast` 确认） | 0.60 |
+| `exact` | 标识符出现在该文件中（grep / 复合名通道） | 0.25 |
+| `fresh` | 实时 `mtime_ns` + `size` 与索引时记录的 stat 一致；grep 行扫描实时目录树，天然是新鲜的 | 0.10 |
+| `ast` | 解析器确认了声明行（仅 Python；只有在可能定义处才解析文件） | 0.05 |
+| `graph` | 调用图中存在该标识符的边 | 0.05 |
+| `test` | 预测的测试覆盖了靠前的文件 | 0.05 |
+| `memory` | ADR / 事故记录提到该对象 | 0.05 |
+
+引用类问题（"谁调用 X"）使用另一张表：`exact` 0.45、`graph` 0.25 —— 此时答案
+是调用点或调用图的边，定义只是上下文。
+
+结论以 `verdict: answer (0.70) — class at file:line` 的形式打印：
+
+- `answer` —— 最佳行带有已验证的声明（定义类问题）或出现 / 调用边（引用类问题），
+  并达到置信阈值；
+- `caveat` —— 有结果行，但没有任何一行指向该对象；它们只是邻居；
+- `ask_rewrite` —— 没有代码形态标识符的西里尔文问题：要求给出标识符，而不是编造；
+- `abstain` —— 没有任何一行携带证据（对象不出现且图不认识它时也是如此）。
+
+行标记是事实而非装饰：`✓def:class`、`✓def:function@368`（声明在第 368 行，结果行
+指向分块开头）、`✓exact`、`⚠stale`（文件在索引后已改变）、`⚠missing`（索引记得的路径
+在磁盘上不存在）、`⚠outside project`（不会读取）。在定义类问题上，已验证的声明会被提升到
+名称匹配之前；提升是稳定的，且绝不丢弃结果行。
+
+在冻结的 XERJ 与 `mcp_audit` 面板上的对照/处理实验，停止准则在运行前固定：
+`experiments/xerj_2026_11/evidence_gate/REPORT.md`。
+`MSCODEBASE_EVIDENCE_GATE=0` 恢复旧行为。
+
 ## 6. 预算与保护
 
 | 层级 | 预算 | 超时时 |

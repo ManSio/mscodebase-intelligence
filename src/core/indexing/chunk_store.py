@@ -414,6 +414,64 @@ class SQLiteChunkStore:
             "source": "sqlite_graph_expand",
         }
 
+    def get_file_stats(
+        self, file_paths: Iterable[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        """Indexed stat for several files over ONE read-only connection.
+
+        The evidence gate needs the stat of every file in an answer. A shared
+        read-write connection waits on `busy_timeout` whenever the indexer is
+        writing (measured 2026-11-10: 8 lookups cost up to 12 s during a
+        server write burst). A short-lived `mode=ro` connection plus a single
+        IN-query cannot wait that long and returns "unknown" instead.
+        """
+        paths = [str(path) for path in file_paths if path]
+        if not paths or not self.db_path.exists():
+            return {}
+        result: Dict[str, Dict[str, Any]] = {}
+        try:
+            conn = sqlite3.connect(
+                f"file:{self.db_path.as_posix()}?mode=ro", uri=True, timeout=1.0
+            )
+        except sqlite3.Error:
+            return {}
+        try:
+            conn.execute("PRAGMA query_only=1")
+            conn.execute("PRAGMA busy_timeout=1000")
+            placeholders = ",".join("?" for _ in paths)
+            rows = conn.execute(
+                f"""
+                SELECT file_path, file_mtime_ns, file_size, indexed_at, file_hash
+                FROM chunks
+                WHERE file_path IN ({placeholders})
+                GROUP BY file_path
+                """,
+                paths,
+            ).fetchall()
+        except sqlite3.Error:
+            rows = []
+        finally:
+            conn.close()
+        for file_path, mtime_ns, size, indexed_at, file_hash in rows:
+            result[str(file_path)] = {
+                "mtime_ns": int(mtime_ns or 0),
+                "size": int(size or 0),
+                "indexed_at": str(indexed_at or ""),
+                "file_hash": str(file_hash or ""),
+            }
+        return result
+
+    def get_file_stat(self, file_path: str) -> Optional[Dict[str, Any]]:
+        """Stat recorded when the file was indexed, or None.
+
+        The evidence gate compares this with the live `os.stat` to tell a row
+        that is in the index from a row whose file changed after indexing.
+        No hashing: mtime_ns + size are what the writer stored.
+        """
+        if not file_path:
+            return None
+        return self.get_file_stats([file_path]).get(file_path)
+
     def get_file_head(self, file_path: str) -> Optional[Dict[str, Any]]:
         """Return the chunk_index=0 chunk for a file (module head), or None."""
         if not file_path:
