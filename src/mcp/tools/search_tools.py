@@ -28,6 +28,65 @@ from src.utils.ui_formatter import format_search_code
 logger = logging.getLogger("mscodebase_server.search_tools")
 
 
+def _render_explain(trace_data: dict, limit: int) -> str:
+    """Render a SearchTracer dict as the markdown Explain block.
+
+    Used by every dict-returning route (fast/quality/plan/docs): before
+    2026-11-09 the block lived inside one branch, so `explain=true` silently
+    returned no trace whenever the docs router answered.
+    """
+    lines = ["\n---\n### 🔍 Explain Trace\n"]
+    timing = trace_data.get("stage_timing_ms", {})
+    if timing:
+        lines.append("**Stage timing:**\n")
+        for stage, ms in sorted(timing.items()):
+            try:
+                lines.append(f"  • `{stage}`: {float(ms):.0f}ms\n")
+            except (TypeError, ValueError):
+                lines.append(f"  • `{stage}`: {ms}\n")
+
+    def _safe_float(value, default=0.0):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    for chunk in trace_data.get("chunks", [])[:limit]:
+        file_path = chunk.get("file_path", "?")
+        position = chunk.get("final_position", "?")
+        score_raw = chunk.get("final_score", "N/A")
+        try:
+            score_str = f"{float(score_raw):.6f}"
+        except (TypeError, ValueError):
+            score_str = str(score_raw)
+        lines.append(f"\n**#{position}** `{file_path}` score={score_str}\n")
+        if "bm25_rank" in chunk:
+            lines.append(
+                f"  • BM25 rank={chunk['bm25_rank']} -> RRF={chunk.get('bm25_rrf', 'N/A')}\n"
+            )
+        if "dense_rank" in chunk:
+            lines.append(
+                f"  • Dense rank={chunk['dense_rank']} -> RRF={chunk.get('dense_rrf', 'N/A')}\n"
+            )
+        if "mmr_similarity_penalty" in chunk:
+            selected = "✓" if chunk.get("mmr_selected") else "—"
+            lines.append(
+                f"  • MMR penalty={_safe_float(chunk['mmr_similarity_penalty']):.4f} [{selected}]\n"
+            )
+        if "bucket_weight" in chunk and chunk["bucket_weight"] != 1.0:
+            lines.append(
+                f"  • Bucket weight={chunk['bucket_weight']} (ext={chunk.get('bucket_ext', '')})\n"
+            )
+        if "co_change_boost" in chunk and chunk["co_change_boost"] != 1.0:
+            lines.append(f"  • Co-change boost x{chunk['co_change_boost']}\n")
+        if chunk.get("reranker_applied"):
+            lines.append(
+                f"  • Reranker: {chunk.get('reranker_score_before', 'N/A')} -> "
+                f"{chunk.get('reranker_score_after', 'N/A')}\n"
+            )
+    return "".join(lines)
+
+
 # ══════════════════════════════════════════════════════════
 # Adaptive search budget (CodeGraph-inspired)
 # Размер ответа подстраивается под размер проекта.
@@ -279,6 +338,14 @@ class SearchCodeTool(MCPTool):
                 "rerank_timing": {},
                 "query": query,
             }
+            if explain:
+                from src.core.search.trace import SearchTracer
+
+                _trace = SearchTracer(query, enabled=True)
+                _trace.record_stage_timing(
+                    "docs_route_ms", raw["timing_ms"]["total_ms"]
+                )
+                raw["trace"] = _trace.to_dict()
             results_count = len(
                 [r for r in _docs if SearchCodeTool._is_real_result(r)]
             )
@@ -309,6 +376,14 @@ class SearchCodeTool(MCPTool):
                 "rerank_timing": {},
                 "query": _q,
             }
+            if explain:
+                from src.core.search.trace import SearchTracer
+
+                _trace = SearchTracer(_q, enabled=True)
+                _trace.record_stage_timing(
+                    "plan_ms", raw["timing_ms"]["total_ms"]
+                )
+                raw["trace"] = _trace.to_dict()
             results_count = len(
                 [r for r in _boosted if SearchCodeTool._is_real_result(r)]
             )
@@ -346,53 +421,6 @@ class SearchCodeTool(MCPTool):
                 result_str = stale_banner + self._format_results(
                     raw, mode, project_header=project_header
                 )
-                # Append explain trace if requested
-                if explain and isinstance(raw, dict):
-                    trace_data = raw.get("trace")
-                    if trace_data:
-                        from src.core.search.trace import SearchTracer
-                        _dummy_tracer = SearchTracer(query, enabled=True)
-                        # Reconstruct tracer from dict for markdown formatting
-                        # For simplicity, build markdown inline:
-                        lines = ["\n---\n### 🔍 Explain Trace\n"]
-                        chunks = trace_data.get("chunks", [])
-                        timing = trace_data.get("stage_timing_ms", {})
-                        if timing:
-                            lines.append("**Stage timing:**\n")
-                            for stage, ms in sorted(timing.items()):
-                                lines.append(f"  • `{stage}`: {ms:.0f}ms\n")
-                        def _safe_float(v, default=0.0):
-                            try: return float(v)
-                            except (TypeError, ValueError): return default
-                        for ct in chunks[:effective_limit]:
-                            f = ct.get("file_path", "?")
-                            pos = ct.get("final_position", "?")
-                            score_raw = ct.get("final_score", "N/A")
-                            try:
-                                score = float(score_raw)
-                                score_str = f"{score:.6f}"
-                            except (TypeError, ValueError):
-                                score_str = str(score_raw)
-                            lines.append(f"\n**#{pos}** `{f}` score={score_str}\n")
-                            if "bm25_rank" in ct:
-                                brrf = ct.get('bm25_rrf', 'N/A')
-                                lines.append(f"  • BM25 rank={ct['bm25_rank']} -> RRF={brrf}\n")
-                            if "dense_rank" in ct:
-                                drrf = ct.get('dense_rrf', 'N/A')
-                                lines.append(f"  • Dense rank={ct['dense_rank']} -> RRF={drrf}\n")
-                            if "mmr_similarity_penalty" in ct:
-                                sel = "✓" if ct.get("mmr_selected") else "—"
-                                mpen = _safe_float(ct['mmr_similarity_penalty'])
-                                lines.append(f"  • MMR penalty={mpen:.4f} [{sel}]\n")
-                            if "bucket_weight" in ct and ct["bucket_weight"] != 1.0:
-                                lines.append(f"  • Bucket weight={ct['bucket_weight']} (ext={ct.get('bucket_ext','')})\n")
-                            if "co_change_boost" in ct and ct["co_change_boost"] != 1.0:
-                                lines.append(f"  • Co-change boost x{ct['co_change_boost']}\n")
-                            if ct.get("reranker_applied"):
-                                bf = ct.get('reranker_score_before','N/A')
-                                af = ct.get('reranker_score_after','N/A')
-                                lines.append(f"  • Reranker: {bf} -> {af}\n")
-                        result_str += "".join(lines)
 
         elif mode == "deep":
             raw = None  # deep_search возвращает str
@@ -474,6 +502,10 @@ class SearchCodeTool(MCPTool):
                         layer=filter_layer,
                     )
                 )
+
+        # Explain must survive every dict route (fast/quality/plan/docs).
+        if explain and isinstance(raw, dict) and raw.get("trace"):
+            result_str += _render_explain(raw["trace"], effective_limit)
 
         # Обогащаем телеметрию
         # Grep fallback — ТОЛЬКО для dict-режимов (fast/quality), которые реально

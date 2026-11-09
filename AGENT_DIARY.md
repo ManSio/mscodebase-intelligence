@@ -10,6 +10,17 @@
 
 
 
+## [2026-11-09] SEARCH — explain терялся на docs-маршруте
+
+- **Симптом:** `search_code(explain=true)` для запроса, который авто-маршрутизируется в docs,
+  возвращал ответ без `Explain Trace`; диагностика молча отсутствовала.
+- **Root Cause:** рендер трейса жил внутри ветки fast/quality; docs- и plan-ветки создавали `raw`
+  без `trace`, общего вывода не было.
+- **Fix:** `_render_explain()` вынесен на уровень модуля и вызывается после любой dict-ветки;
+  docs/plan пишут stage timing (`docs_route_ms` / `plan_ms`).
+- **Guard:** `test_render_explain_keeps_stages_and_chunks`,
+  `test_render_explain_handles_missing_fields`.
+
 ## [2026-11-09] MCP AUDIT — 8 дефектов живого сервера: проект, задержки, ранжирование, temp-пути
 
 - **Симптом:** `set_project` отвечает «switched», но поиск идёт по старому проекту; `investigate`
