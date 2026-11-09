@@ -368,3 +368,30 @@
   sha256 сохранён в карантинном манифесте.
 - **Статус:** 🔴 Open. Не баг, а измеренный пробел покрытия. Эксперименты E-1/E-4/E-5 и
   Red Team — в `HANDOFF.md` §3/§4.
+
+## 2026-10-25 — AUDIT: graph=0, leakage, docs=0 — P0 graph fixed
+- **Graph:** production `graph.db` был 0 nodes; `index_project` блокируется
+  `DENSE_OFF`. Fixed: `scripts/rebuild_graph.py` → **12,753 nodes / 45,762 edges**.
+  Требуется рестарт MCP, чтобы сервер открыл новый graph.db.
+- **Leakage:** `experiments/frozen` индексировался (19/48 BM25). Fixed:
+  `SystemArtifacts` исключает `experiments/**`; index очищен (0 experiments,
+  7,314 chunks, FTS synced).
+- **Docs:** E53/E54 — lexical/explicit intent не дают docs hit@1 (0). Нужен
+  отдельный docs-only FTS канал (E48: 0.75/1.00), без LLM-router.
+- Baseline clean: **0.688/0.750**; code 0.825/0.900; docs 0/0.
+
+---
+
+## 2026-10-25 — E36-audit: symbol_name пуст, P3 мёртв, graph-stage synthetic — 🟢 FIXED (index rebuilt)
+- **Root cause:** `write_text_records` читал `symbol_name` из `chunk_metadatas`, где его не было →
+  **0/16 158** чанков с symbol_name. FTS5/BM25 boosts, exact-name, graph hydration — мертвы.
+- **Fix:** AST-symbol→line-range mapping в `IndexPipeline.process_file`; reindex →
+  4 772/16 347 с symbol_name. Graph-stage: hydration + relative paths + line fallback.
+  P3: чтение `SQLiteChunkStore.get_file_head` вместо мёртвого `_bm25_df`.
+- **Corrected E36:** full h1 0.688/h5 **0.771**/p50 183 ms; no_p3 87 ms (P3 +96 ms без качества);
+  no_bucket 0.562; no_o1 0.667; no_demote 0.625; minimal 0.542/0.750.
+- **Остаток:** P3 отключать при выключенном reranker; E32/E33/E35 пере-прогнать на исправленном
+  индексе (E33 demote всё ещё +3 h1; E32/E35 без изменений).
+- **Артефакты:** `experiments/e36_ablation/`.
+
+---

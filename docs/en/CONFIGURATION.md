@@ -44,7 +44,7 @@ are gitignored.
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | Skip dense/vector retrieval entirely; FTS5 + graph only |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | Use the SQLite/FTS5 chunk store for candidates |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Re-score the top candidates with live embeddings when a provider exists |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | Re-score the top candidates with live embeddings when a provider exists; per-call override: `investigate(rerank=true)` |
 | `MSCODEBASE_ONDEMAND_RERANK_TOP_N` | `10` | How many candidates enter the rerank pool |
 | `MSCODEBASE_ONDEMAND_RERANK_MAX_CHARS` | `1600` | Text truncation before embedding |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | Docs channel wins when `docs_score − code_score > margin` |

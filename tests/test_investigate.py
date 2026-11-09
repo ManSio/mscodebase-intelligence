@@ -67,7 +67,7 @@ def _fake_tool(tmp_path: Path) -> InvestigateTool:
         return None
 
     class _Searcher:
-        async def hybrid_search_async(self, query, limit=5):
+        async def hybrid_search_async(self, query, limit=5, rerank=None):
             return [{"file_path": "a.py", "line": 3, "text": "hit", "score": 1.0}]
 
     class _Symbols:

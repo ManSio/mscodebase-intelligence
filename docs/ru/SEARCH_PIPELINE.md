@@ -39,7 +39,7 @@
    `MSCODEBASE_AUGMENT_CHUNKS=true`).
 2. **Фильтр** — опциональный `layer` (core/mcp/utils/tests/...) применяется к
    набору кандидатов.
-3. **Реранк (опционально)** — при `MSCODEBASE_ONDEMAND_RERANK=true` (по умолчанию)
+3. **Реранк (опционально)** — при `MSCODEBASE_ONDEMAND_RERANK=true` (по умолчанию выключен; `investigate(rerank=true)` включает на вызов)
    верхние `MSCODEBASE_ONDEMAND_RERANK_TOP_N` кандидатов переоцениваются живыми
    эмбеддингами; текст обрезается до `..._MAX_CHARS` перед эмбеддингом.
    Без провайдера стадия пропускается, а не падает.

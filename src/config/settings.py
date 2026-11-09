@@ -176,11 +176,13 @@ class SearchConfig:
 
     # On-demand rerank (E25, Фаза 2 миграции): скорить top-N fused-кандидатов
     # живыми эмбеддингами в момент запроса вместо хранимых векторов + BGE.
-    # Фаза 3: включён по умолчанию (owner decision 2026-10-24).
+    # Default OFF (owner decision 2026-11-09): measured 14 ms without it vs ~3.9 s
+    # with it, same 12/12 hit rate on the RU->EN query set (experiments/xerj_2026_11/
+    # ru_vs_dense). An agent can opt in per call via investigate(rerank=true).
     # field(default_factory) — чтобы reload_config() перечитывал env.
     ondemand_rerank: bool = field(
         default_factory=lambda: os.getenv(
-            "MSCODEBASE_ONDEMAND_RERANK", "true"
+            "MSCODEBASE_ONDEMAND_RERANK", "false"
         ).lower()
         == "true"
     )

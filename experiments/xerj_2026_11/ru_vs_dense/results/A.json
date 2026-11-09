@@ -1,0 +1,373 @@
+{
+  "arm": "A",
+  "mode": "lexical",
+  "lang": "ru",
+  "limit": 10,
+  "ondemand_rerank": true,
+  "cases": {
+    "Q01": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "где подпись отделяется от данных",
+        "разделение подписи и нагрузки",
+        "отделение подписи от сообщения"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.012,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q02": {
+      "gold": "timed.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "что отвергает просроченную подпись",
+        "проверка срока подписи",
+        "отклонение устаревшей подписи"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q03": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "растягивание ключа подписи",
+        "ключ до нужной длины",
+        "расширение ключа подписи"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q04": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "сравнение подписей без утечки",
+        "защита от тайминг атак",
+        "сравнение за постоянное время"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q05": {
+      "gold": "encoding.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "число в минимальные байты",
+        "минимальное представление числа",
+        "сериализация числа в байты"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q06": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "ленивый импорт sha1",
+        "почему sha1 импортируется поздно",
+        "отложенный импорт хеша"
+      ],
+      "ranks": [
+        1,
+        1,
+        null
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/signer.py",
+        "tests/test_itsdangerous/test_serializer.py"
+      ],
+      "seconds": [
+        2.388,
+        2.372,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q07": {
+      "gold": "serializer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "поиск всех подписывающих объектов",
+        "как найти объекты для подписи",
+        "обнаружение подписываемых объектов"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q08": {
+      "gold": "_json.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "json без лишних пробелов",
+        "компактная сериализация json",
+        "плотный вывод json"
+      ],
+      "ranks": [
+        1,
+        1,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/_json.py",
+        "src/itsdangerous/_json.py",
+        "src/itsdangerous/url_safe.py"
+      ],
+      "seconds": [
+        1.353,
+        1.372,
+        1.364
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q09": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "отклонение повторяющихся секций",
+        "проверка дубликатов секций",
+        "запрет повторных секций"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.011,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q10": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "вырезание строчного комментария",
+        "удаление комментария из значения",
+        "отсечение комментария в строке"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q11": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "запоминание строки имени",
+        "сохранение номера строки имени",
+        "где хранится строка ключа"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q12": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "чтение продолжения значения",
+        "многострочное значение",
+        "продолжение на следующих строках"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [],
+      "seconds": [
+        0.002,
+        0.002,
+        0.002
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "controls": {
+    "positive_rank": 4,
+    "negative_rows": 10,
+    "empty_rows": 0
+  },
+  "embedder": {
+    "itsdangerous": {
+      "mode": "llama_cpp",
+      "dim": 768
+    },
+    "iniconfig": {
+      "mode": "llama_cpp",
+      "dim": 768
+    }
+  },
+  "summary": {
+    "cases": 12,
+    "hit@turn1": 2,
+    "hit@turn3": 2
+  }
+}

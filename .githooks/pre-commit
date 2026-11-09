@@ -14,6 +14,12 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
 7. lock_guard — активные git-локи (advisory, exit 0)
 8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
+9. third_party_data — чужие данные/лицензии
+10. parallel_sessions — чужой файл в индексе
+11. ruff_gate — линтер
+12. verification_gates — G1–G5 (scripts/gate_cli.py --selftest)
+13. protocol_gate — секреты, удалённые ассерты, focus-маркеры (глобальный гейт протокола)
+14. gitleaks — энтропийный секрет-скан staged-изменений (v8.30.1)
 """
 
 import os
@@ -183,43 +189,144 @@ def main():
         gate_args = ["scripts/gate_cli.py"]
         gate_env = dict(os.environ)
         gate_env["PYTHONUNBUFFERED"] = "1"
-    print("  ⏳ verification_gates: выполняется (бюджет 120s)…", flush=True)
-    gate_proc = Popen(
-        [sys.executable, "-B", str(project_root / "scripts" / "gate_cli.py"), "--selftest"],
-        cwd=str(project_root),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        env=gate_env,
-    )
-    try:
-        _gate_stdout, _ = gate_proc.communicate(timeout=120)
-    except subprocess.TimeoutExpired:
-        gate_proc.kill()
-        gate_proc.communicate()
-        print("  ❌ verification_gates: TIMEOUT >120s — гейт не ответил",
-              flush=True)
+        print("  ⏳ verification_gates: выполняется (бюджет 120s)…", flush=True)
+        gate_proc = Popen(
+            [sys.executable, "-B", str(project_root / "scripts" / "gate_cli.py"), "--selftest"],
+            cwd=str(project_root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env=gate_env,
+        )
+        try:
+            _gate_stdout, _ = gate_proc.communicate(timeout=120)
+        except subprocess.TimeoutExpired:
+            gate_proc.kill()
+            gate_proc.communicate()
+            print("  ❌ verification_gates: TIMEOUT >120s — гейт не ответил",
+                  flush=True)
+            all_ok = False
+        else:
+            gate_rc = gate_proc.returncode
+            if gate_rc == 1:
+                print("  ❌ verification_gates: BLOCK — проверка не прошла",
+                      flush=True)
+                if _gate_stdout:
+                    for line in _gate_stdout.splitlines()[-8:]:
+                        print(f"    {line}", flush=True)
+                all_ok = False
+            elif gate_rc == 2:
+                # UNKNOWN — advisory only, never blocks (§19.6 / P-01).
+                print("  ⚠️  verification_gates: UNKNOWN — недостаточно входа для суждения",
+                      flush=True)
+                if _gate_stdout:
+                    for line in _gate_stdout.splitlines()[-8:]:
+                        print(f"    {line}", flush=True)
+            else:
+                print("  ✅ verification_gates: OK", flush=True)
+
+    # 13. protocol_gate — глобальный гейт агентского протокола (вне репозитория).
+    #     rc=1 BLOCK, rc=2 пустой вход (allow-empty/merge — не судит),
+    #     rc=3 внутренняя ошибка. WARN печатаются, но не блокируют.
+    if project_root is None:
+        print("  ❌ protocol_gate: project root not found", flush=True)
         all_ok = False
     else:
-        gate_rc = gate_proc.returncode
-        if gate_rc == 1:
-            print("  ❌ verification_gates: BLOCK — проверка не прошла",
+        protocol_gate = Path(os.environ.get(
+            "MSCB_PROTOCOL_GATE",
+            str(Path.home() / ".config" / "opencode" / "scripts" / "precommit_gate.py"),
+        ))
+        if not protocol_gate.is_file():
+            print(f"  ⏭️  protocol_gate: не найден ({protocol_gate}) — пропущен",
                   flush=True)
-            if _gate_stdout:
-                for line in _gate_stdout.splitlines()[-8:]:
-                    print(f"    {line}", flush=True)
-            all_ok = False
-        elif gate_rc == 2:
-            # UNKNOWN — advisory only, never blocks (§19.6 / P-01).
-            print("  ⚠️  verification_gates: UNKNOWN — недостаточно входа для суждения",
-                  flush=True)
-            if _gate_stdout:
-                for line in _gate_stdout.splitlines()[-8:]:
-                    print(f"    {line}", flush=True)
         else:
-            print("  ✅ verification_gates: OK", flush=True)
+            print("  ⏳ protocol_gate: выполняется (бюджет 60s)…", flush=True)
+            try:
+                pg_proc = Popen(
+                    [sys.executable, str(protocol_gate)],
+                    cwd=str(project_root),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                pg_out, pg_err = pg_proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                pg_proc.kill()
+                pg_proc.communicate()
+                print("  ❌ protocol_gate: TIMEOUT >60s — гейт не ответил", flush=True)
+                all_ok = False
+            except OSError as exc:
+                print(f"  ❌ protocol_gate: не запустился ({exc})", flush=True)
+                all_ok = False
+            else:
+                lines = ((pg_out or "") + (pg_err or "")).splitlines()
+                if pg_proc.returncode == 1:
+                    print("  ❌ protocol_gate: BLOCK", flush=True)
+                    for line in lines[-10:]:
+                        print(f"    {line}")
+                    all_ok = False
+                elif pg_proc.returncode == 2:
+                    print("  ⚠️  protocol_gate: пустой вход (allow-empty/merge) — не судит",
+                          flush=True)
+                elif pg_proc.returncode == 3:
+                    print("  ❌ protocol_gate: внутренняя ошибка rc=3", flush=True)
+                    for line in lines[-6:]:
+                        print(f"    {line}")
+                    all_ok = False
+                else:
+                    warned = [l for l in lines if l.startswith("WARN")]
+                    print(f"  ✅ protocol_gate: OK ({len(warned)} WARN)", flush=True)
+                    for line in warned[:20]:
+                        print(f"    {line}")
+
+    # 14. gitleaks — настоящий секрет-сканер (энтропия + правила, не regex по форме).
+    #     Пин v8.30.1. Бинарник вне репозитория; если его нет — WARN, не блок:
+    #     иначе коммит невозможен на машине без сканера (CI проверяет всегда).
+    if project_root is None:
+        print("  ❌ gitleaks: project root not found", flush=True)
+        all_ok = False
+    else:
+        gitleaks = Path(os.environ.get(
+            "MSCB_GITLEAKS",
+            str(Path.home() / ".config" / "opencode" / "bin" / "gitleaks.exe"),
+        ))
+        if not gitleaks.is_file():
+            print(f"  ⚠️  gitleaks: не найден ({gitleaks}) — секрет-скан пропущен", flush=True)
+        else:
+            print("  ⏳ gitleaks: выполняется (бюджет 60s)…", flush=True)
+            try:
+                gl_proc = Popen(
+                    [str(gitleaks), "git", ".", "-c", ".gitleaks.toml",
+                     "--staged", "--redact", "--no-banner"],
+                    cwd=str(project_root),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                gl_out, gl_err = gl_proc.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                gl_proc.kill()
+                gl_proc.communicate()
+                print("  ❌ gitleaks: TIMEOUT >60s — гейт не ответил", flush=True)
+                all_ok = False
+            except OSError as exc:
+                print(f"  ❌ gitleaks: не запустился ({exc})", flush=True)
+                all_ok = False
+            else:
+                gl_lines = ((gl_out or "") + (gl_err or "")).splitlines()
+                if gl_proc.returncode == 1:
+                    print("  ❌ gitleaks: найден секрет в staged изменениях", flush=True)
+                    for line in gl_lines[-8:]:
+                        print(f"    {line}")
+                    all_ok = False
+                else:
+                    print("  ✅ gitleaks: OK", flush=True)
 
     if not all_ok:
         print("\n❌ Pre-commit checks FAILED. Исправьте ошибки перед коммитом.", flush=True)

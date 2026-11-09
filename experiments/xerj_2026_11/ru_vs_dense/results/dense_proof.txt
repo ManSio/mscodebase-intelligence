@@ -1,0 +1,8 @@
+﻿embedder dim          : 768
+searcher.embedder same: True
+searcher.embedder dim : 768
+table                 : True
+table rows            : 147
+q='где подпись отделяется от данных'            rows=9 dense=9 top3=['tests/test_itsdangerous/test_signer.py', 'src/itsdangerous/exc.py', 'tests/test_itsdangerous/test_timed.py']
+q='разделение подписи и нагрузки'               rows=9 dense=9 top3=['tests/test_itsdangerous/test_signer.py', 'src/itsdangerous/exc.py', 'src/itsdangerous/_json.py']
+q='отделение подписи от сообщения'              rows=9 dense=9 top3=['src/itsdangerous/exc.py', 'tests/test_itsdangerous/test_serializer.py', 'tests/test_itsdangerous/test_timed.py']

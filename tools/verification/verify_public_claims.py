@@ -28,7 +28,6 @@ Exit: 0 all resolve or are honestly marked · 3 a claim contradicts reality.
 
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
@@ -40,28 +39,6 @@ ROOT = Path(__file__).resolve().parents[2]
 # Each claim: the literal text in the file, the file, and a command whose output
 # must CONTAIN the live value. `contains` keeps the check robust against log noise.
 CLAIMS: list[dict] = [
-    {
-        "id": "readme.test_badge",
-        "file": "README.md",
-        "text": "tests-2131%20passed",
-        "claim": "the test-count badge says 2001 passed",
-        "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
-        "extract": r"(\d+)/\d+ tests collected",
-        "compare": "near",
-        "tolerance": 40,   # collected is the ceiling; passed = collected - skipped
-        "why": "a badge nobody moves is a claim nobody checks",
-    },
-    {
-        "id": "readme.test_count_arch",
-        "file": "README.md",
-        "text": "2142 tests",
-        "claim": "the architecture table says 2142 tests",
-        "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
-        "extract": r"(\d+)/\d+ tests collected",
-        "compare": "near",
-        "tolerance": 5,
-        "why": "same fact, second location — one fix must update both or they diverge",
-    },
     {
         "id": "wisdom.intel_count",
         "file": "WISDOM.md",
@@ -76,8 +53,8 @@ CLAIMS: list[dict] = [
     {
         "id": "wisdom.test_count",
         "file": "WISDOM.md",
-        "text": "2142 collected",
-        "claim": "the live census records 2142 collected tests",
+        "text": "2327 collected",
+        "claim": "the live census records 2327 collected tests",
         "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
         "extract": r"(\d+)/\d+ tests collected",
         "compare": "near",

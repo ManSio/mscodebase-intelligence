@@ -229,7 +229,7 @@ The ones that change behaviour most:
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | Skip dense/vector retrieval; use FTS5, symbols, graph |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | Use the SQLite/FTS5 chunk store |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Rerank the top candidates with live embeddings |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | Rerank the top candidates with live embeddings; per call: `investigate(rerank=true)` |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | Docs routing threshold (docs score − code score) |
 | `MSCODEBASE_AUGMENT_CHUNKS` | `true` | Prepend FILE/SYMBOLS/DOC to chunk text |
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Append covering tests to symbol results |

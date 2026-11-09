@@ -37,7 +37,7 @@ query
    `MSCODEBASE_AUGMENT_CHUNKS=true`).
 2. **Filter** — optional `layer` (core/mcp/utils/tests/...) applied to the
    candidate set.
-3. **Rerank (optional)** — with `MSCODEBASE_ONDEMAND_RERANK=true` (default),
+3. **Rerank (optional)** — with `MSCODEBASE_ONDEMAND_RERANK=true` (off by default; `investigate(rerank=true)` opts in per call),
    the top `MSCODEBASE_ONDEMAND_RERANK_TOP_N` candidates are re-scored with
    live embeddings; text is trimmed to `..._MAX_CHARS` before embedding.
    Without a provider the stage is skipped, not failed.

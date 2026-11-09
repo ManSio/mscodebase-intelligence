@@ -17,7 +17,7 @@
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | 没有稠密层：查询永远不会被 embedding 用于向量检索 |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | 块以文本形式存放在 SQLite FTS5 中，不存储向量 |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | 查询时对 top-N 候选实时做 embedding，**前提是**有 embedder 应答 |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | 启用时在查询时对 top-N 候选实时做 embedding，**前提是**有 embedder 应答；单次调用：`investigate(rerank=true)` |
 
 候选来自 SQLite FTS5（BM25 排序）加上 PropertyGraph。索引过程同样跳过
 embedding：当 `dense_off` 为 true 时，`Indexer.index_project()` 会路由到

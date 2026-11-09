@@ -10,6 +10,35 @@
 
 
 
+## [2026-11-09] SEARCH — быстрый путь по умолчанию, rerank по запросу агента
+
+- **Решение владельца:** система для агента; агент сам решает. `ondemand_rerank`
+  теперь **off по умолчанию**, включается на один вызов `investigate(rerank=true)`.
+- **Замер (live, itsdangerous):** default 3–22 мс на запрос; `rerank=True` —
+  1.2–3.8 с. `searcher._ondemand_rerank` после вызовов не меняется.
+- **Ревью нашло:** (1) README/FAQ/SEARCH_PIPELINE (EN/RU/ZH) всё ещё писали `true`
+  → исправлено 9 файлов; (2) тесты не ловили ветку, игнорирующую per-call флаг →
+  добавлены два теста на реальный `_sqlite_hybrid_search_async`; мутация
+  (`if self._ondemand_rerank`) краснит их, откат — зелёный.
+- **Guard:** `tests/test_ondemand_rerank_control.py` (10) — default, env, 4×resolve,
+  конкурентность 8 вызовов, реальная sqlite-ветка в обе стороны.
+
+## [2026-11-09] SEARCH — RU-вопрос к EN-коду: перевод запроса vs dense
+
+- **Симптом:** русский запрос к английскому коду давал 1/5; dense казался обязательным,
+  но полный reindex на CPU — часы.
+- **Root Cause (замер):** индекс тут ни при чём. RU-лексика даёт 2/12 (нет английских
+  токенов), EN-перевод слепым агентом — 12/12, dense 768 — 8/12. Перевод закрывает
+  языковой разрыв без векторной таблицы; B− без реранка — 12/12 за 14 мс.
+- **Fix/артефакт:** `experiments/xerj_2026_11/ru_vs_dense/` (frozen 4 файла + MANIFEST,
+  3 плеча + B−, negative control, matcher selftest, два независимых ревью).
+- **Guard:** `matcher_selftest.py` (gold = `src/<repo>/<gold>`, тестовый файл не
+  засчитывается) + `dense_score>0` вместо `is not None` + negative control с exit 1.
+- **Урок:** ревью поймало два ложных доказательства, которые давали «правильное»
+  направление по неверной причине: `endswith(basename)` завысил dense (9→8), а
+  `is not None` не отличал dense от BM25-fallback. Направление вывода выжило,
+  числа — нет. Старые 4/5 и 5/5 (REPORT §11) superseded.
+
 ## [2026-10-25] DOCS — синхронизация RU/ZH главных страниц и статус-баннеры
 
 - `docs/ru/README.md` и `docs/zh/README.md` переписаны по новому English README:

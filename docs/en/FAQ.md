@@ -15,7 +15,7 @@ No, not by default. The default runtime is **text-first**:
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | no dense tier: the query is never embedded for vector search |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | chunks are text in SQLite FTS5, no vectors are stored |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | the top-N candidates are embedded live at query time, **if** an embedder answers |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | the top-N candidates are embedded live at query time when enabled **if** an embedder answers; per call: `investigate(rerank=true)` |
 
 Candidates come from SQLite FTS5 (BM25 rank) plus the PropertyGraph. Indexing
 also skips embeddings: `Indexer.index_project()` routes to

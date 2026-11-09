@@ -1,0 +1,21 @@
+# gitleaks config for MSCodeBase (pinned with the scanner: v8.30.1).
+# Default rules stay on; only the legitimate fixture homes are allowlisted.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures, experiment outputs and build artifacts hold fake credentials by design."
+paths = [
+  '''(^|/)tests/.*''',
+  '''(^|/)experiments/.*''',
+  '''(^|/).*__pycache__/.*''',
+]
+
+[[allowlists]]
+description = "Config templates keep placeholders, not values."
+regexTarget = "match"
+regexes = [
+  '''\{env:[A-Z0-9_]+\}''',
+  '''\$\{[A-Z0-9_]+\}''',
+  '''<[A-Z0-9_]+>''',
+]

@@ -47,7 +47,7 @@
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | Полностью пропускать dense/vector retrieval; только FTS5 + граф |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | Использовать чанк-хранилище SQLite/FTS5 для кандидатов |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Переоценивать верхних кандидатов живыми эмбеддингами, когда есть провайдер |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | Переоценивать верхних кандидатов живыми эмбеддингами, когда есть провайдер; на один вызов: `investigate(rerank=true)` |
 | `MSCODEBASE_ONDEMAND_RERANK_TOP_N` | `10` | Сколько кандидатов попадает в пул реранка |
 | `MSCODEBASE_ONDEMAND_RERANK_MAX_CHARS` | `1600` | Обрезка текста перед эмбеддингом |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | Канал документов побеждает, когда `docs_score − code_score > margin` |

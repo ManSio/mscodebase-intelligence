@@ -1,0 +1,413 @@
+{
+  "arm": "B",
+  "mode": "lexical",
+  "lang": "en",
+  "limit": 10,
+  "ondemand_rerank": false,
+  "cases": {
+    "Q01": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "signature separated from payload",
+        "split signature and payload",
+        "signature payload split"
+      ],
+      "ranks": [
+        2,
+        4,
+        8
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/timed.py",
+        "src/itsdangerous/signer.py",
+        "tests/test_itsdangerous/test_signer.py"
+      ],
+      "seconds": [
+        0.03,
+        0.017,
+        0.016
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q02": {
+      "gold": "timed.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "reject expired signature",
+        "expired signature check",
+        "signature expiration validation"
+      ],
+      "ranks": [
+        2,
+        2,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/exc.py",
+        "src/itsdangerous/timed.py",
+        "src/itsdangerous/signer.py"
+      ],
+      "seconds": [
+        0.011,
+        0.015,
+        0.014
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q03": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "derive signing key length",
+        "expand signing key",
+        "key stretching signature"
+      ],
+      "ranks": [
+        2,
+        3,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/signer.py"
+      ],
+      "seconds": [
+        0.018,
+        0.017,
+        0.014
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q04": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "constant time signature compare",
+        "timing safe comparison",
+        "avoid timing leak compare"
+      ],
+      "ranks": [
+        1,
+        null,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/timed.py",
+        "src/itsdangerous/timed.py"
+      ],
+      "seconds": [
+        0.013,
+        0.011,
+        0.009
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q05": {
+      "gold": "encoding.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "minimal byte representation integer",
+        "convert number to bytes",
+        "minimal encoding of number"
+      ],
+      "ranks": [
+        3,
+        3,
+        3
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/timed.py",
+        ".github/ISSUE_TEMPLATE/bug-report.md",
+        "src/itsdangerous/encoding.py"
+      ],
+      "seconds": [
+        0.012,
+        0.012,
+        0.01
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q06": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "lazy import sha1",
+        "why sha1 imported locally",
+        "deferred hash import"
+      ],
+      "ranks": [
+        1,
+        1,
+        3
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/__init__.py",
+        "src/itsdangerous/signer.py"
+      ],
+      "seconds": [
+        0.007,
+        0.013,
+        0.004
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q07": {
+      "gold": "serializer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "find all signing objects",
+        "discover signable objects",
+        "collect objects to sign"
+      ],
+      "ranks": [
+        2,
+        1,
+        2
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "pyproject.toml",
+        "src/itsdangerous/serializer.py",
+        "src/itsdangerous/timed.py"
+      ],
+      "seconds": [
+        0.013,
+        0.003,
+        0.013
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q08": {
+      "gold": "_json.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "compact json serialization",
+        "json without spaces",
+        "minified json output"
+      ],
+      "ranks": [
+        1,
+        1,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/_json.py",
+        "src/itsdangerous/_json.py",
+        ".devcontainer/devcontainer.json"
+      ],
+      "seconds": [
+        0.011,
+        0.006,
+        0.004
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q09": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "reject duplicate sections",
+        "duplicate section validation",
+        "detect repeated sections"
+      ],
+      "ranks": [
+        3,
+        3,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py",
+        "src/iniconfig/_parse.py"
+      ],
+      "seconds": [
+        0.021,
+        0.015,
+        0.014
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q10": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "strip inline comment",
+        "remove comment from value",
+        "cut trailing comment"
+      ],
+      "ranks": [
+        1,
+        2,
+        2
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/iniconfig/_parse.py",
+        "src/iniconfig/__init__.py",
+        "src/iniconfig/_parse.py"
+      ],
+      "seconds": [
+        0.014,
+        0.014,
+        0.014
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q11": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "remember line of name",
+        "store name line number",
+        "track key line number"
+      ],
+      "ranks": [
+        1,
+        1,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/iniconfig/_parse.py",
+        "src/iniconfig/__init__.py",
+        "src/iniconfig/_parse.py"
+      ],
+      "seconds": [
+        0.016,
+        0.017,
+        0.014
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    },
+    "Q12": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "read multiline value continuation",
+        "continuation lines parsing",
+        "value spans multiple lines"
+      ],
+      "ranks": [
+        6,
+        1,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/iniconfig/__init__.py",
+        "src/iniconfig/__init__.py",
+        ".github/workflows/test.yml"
+      ],
+      "seconds": [
+        0.015,
+        0.014,
+        0.015
+      ],
+      "dense_rows": [
+        0,
+        0,
+        0
+      ]
+    }
+  },
+  "controls": {
+    "positive_rank": 9,
+    "negative_rows": 10,
+    "empty_rows": 0
+  },
+  "embedder": {
+    "itsdangerous": {
+      "mode": "llama_cpp",
+      "dim": 768
+    },
+    "iniconfig": {
+      "mode": "llama_cpp",
+      "dim": 768
+    }
+  },
+  "summary": {
+    "cases": 12,
+    "hit@turn1": 12,
+    "hit@turn3": 12
+  }
+}

@@ -44,7 +44,7 @@ class _BaseFake:
 class _HangingSearcher(_BaseFake):
     """Hangs on every measured query; warm-up stays fast (one-hung-query model)."""
 
-    async def hybrid_search_async(self, query, limit=5):
+    async def hybrid_search_async(self, query, limit=5, rerank=None):
         if query == WARMUP:
             return self._row(query)
         await asyncio.sleep(60)
@@ -52,7 +52,7 @@ class _HangingSearcher(_BaseFake):
 
 
 class _FastSearcher(_BaseFake):
-    async def hybrid_search_async(self, query, limit=5):
+    async def hybrid_search_async(self, query, limit=5, rerank=None):
         return self._row(query)
 
 

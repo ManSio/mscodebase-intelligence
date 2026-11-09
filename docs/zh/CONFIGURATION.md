@@ -43,7 +43,7 @@
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | 完全跳过 dense/vector 检索；只用 FTS5 + 图 |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | 用 SQLite/FTS5 chunk 存储提供候选 |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | 有 provider 时用实时 embedding 重排 top 候选 |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | 有 provider 时用实时 embedding 重排 top 候选；单次调用覆盖：`investigate(rerank=true)` |
 | `MSCODEBASE_ONDEMAND_RERANK_TOP_N` | `10` | 进入 rerank 池的候选数量 |
 | `MSCODEBASE_ONDEMAND_RERANK_MAX_CHARS` | `1600` | embedding 前的文本截断长度 |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | `docs_score − code_score > margin` 时文档通道胜出 |

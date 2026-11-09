@@ -1,0 +1,6 @@
+﻿arm=A dense_off=true embedder_dim=768
+rows=10 chunks mentioning ('websocket', 'reconnect'): none
+NEGATIVE CONTROL PASSED
+arm=C dense_off=false embedder_dim=768
+rows=10 chunks mentioning ('websocket', 'reconnect'): none
+NEGATIVE CONTROL PASSED

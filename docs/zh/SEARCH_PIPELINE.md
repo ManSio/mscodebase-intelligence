@@ -38,7 +38,7 @@ query
    BM25 结果（当 `MSCODEBASE_AUGMENT_CHUNKS=true` 时，FILE/SYMBOLS/DOC 会被
    前置到文本中）。
 2. **过滤** —— 可选的 `layer`（core/mcp/utils/tests/...）作用于候选集。
-3. **Rerank（可选）** —— 在 `MSCODEBASE_ONDEMAND_RERANK=true`（默认）时，
+3. **Rerank（可选）** —— 在 `MSCODEBASE_ONDEMAND_RERANK=true`（默认关闭；`investigate(rerank=true)` 可按调用开启）时，
    前 `MSCODEBASE_ONDEMAND_RERANK_TOP_N` 个候选会用实时 embedding 重新打分；
    文本在 embedding 前被截断到 `..._MAX_CHARS`。没有 provider 时该阶段被跳过，
    而不是失败。

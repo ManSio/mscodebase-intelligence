@@ -38,10 +38,18 @@ sys.stdout.reconfigure(encoding="utf-8")
 # against the tree it describes.
 KNOW = pathlib.Path(__file__).resolve().parent
 REPO = pathlib.Path(__file__).resolve().parents[2]
-# The pitfalls skill is personal and stays outside the repo; K3 is skipped when it
+# The pitfalls registry is personal and stays outside the repo; K3 is skipped when it
 # is absent rather than failing (an optional dependency is not a defect).
+# 2026-11-09: the registry moved from skills/pitfalls-registry/SKILL.md to
+# agent_docs/pitfalls-registry.md in the v2 protocol. Reading only the old path made
+# EVERY p_ref look missing (the file was absent, so the set was empty). Both paths are
+# accepted, new one first, so either layout works.
 CFG = pathlib.Path(os.environ.get("OPENCODE_CFG", pathlib.Path.home() / ".config" / "opencode"))
-REG = CFG / "skills" / "pitfalls-registry" / "SKILL.md"
+REG_CANDIDATES = (
+    CFG / "agent_docs" / "pitfalls-registry.md",
+    CFG / "skills" / "pitfalls-registry" / "SKILL.md",
+)
+REG = next((p for p in REG_CANDIDATES if p.exists()), REG_CANDIDATES[0])
 
 TEMP_OK = {"hot", "warm", "cold"}
 ID_RE = re.compile(r"\b(P-M\d{2}|P-\d{2}|H-\d{2}|T-\d{2}|C-\d{2})\b")
@@ -88,12 +96,15 @@ def check(files: dict) -> list[str]:
             if not (REPO / m.group(1)).exists():
                 bad.append(f"K2 {fname}: guard path does not exist: {m.group(1)}")
 
-    # K3 p_ref must exist in the skill registry
-    skill_p = set(PREF_RE.findall(files.get("SKILL", "")))
-    for fname in ("PATTERNS.md",):
-        for m in PREF_RE.finditer(files.get(fname, "")):
-            if m.group(1) not in skill_p:
-                bad.append(f"K3 {fname}: p_ref P-{m.group(1)} not in pitfalls-registry")
+    # K3 p_ref must exist in the registry (absent registry => not judged, not failed)
+    if not REG.exists():
+        print("[skill] pitfalls registry not found — K3 not judged (optional dependency)")
+    else:
+        skill_p = set(PREF_RE.findall(files.get("SKILL", "")))
+        for fname in ("PATTERNS.md",):
+            for m in PREF_RE.finditer(files.get(fname, "")):
+                if m.group(1) not in skill_p:
+                    bad.append(f"K3 {fname}: p_ref P-{m.group(1)} not in pitfalls-registry")
 
     # K4 duplicate ids per registry. Count DEFINITIONS only (bolded `**ID**`), because an
     # id may legitimately be mentioned in prose (e.g. "C-12 and T-06 may be wrong").
@@ -121,6 +132,8 @@ def check(files: dict) -> list[str]:
     # K7 the registry's own numbering must be contiguous -- a hole means an item lost its id
     # a definition is an id that appears at the START of a bolded heading
     defs = sorted(set(re.findall(r"\*\*P-(\d{3})", files.get("SKILL", ""))))
+    # v2 registry is a table: | P-006 | symptom | guard |
+    defs = sorted(set(defs) | set(re.findall(r"(?m)^\|\s*P-(\d{3})\s*\|", files.get("SKILL", ""))))
     if defs:
         nums = [int(d) for d in defs]
         gaps = [n for n in range(min(nums), max(nums) + 1) if n not in nums]
