@@ -1,0 +1,70 @@
+{
+  "project": "black",
+  "root": "D:\\Project\\bench_projects\\black",
+  "penalty": "1",
+  "summary": {
+    "n": 4,
+    "top1": 1,
+    "top5": 4,
+    "median_ms": 3160,
+    "max_ms": 3223,
+    "test_or_doc_slots": 2
+  },
+  "ru_summary": null,
+  "rows": [
+    {
+      "q": "where is the default line length defined",
+      "gold": "src/black/const.py",
+      "rank": 1,
+      "ms": 3223,
+      "files": [
+        "src/black/const.py",
+        "src/blackd/__init__.py",
+        "src/black/trans.py",
+        "src/black/trans.py",
+        "src/black/lines.py"
+      ]
+    },
+    {
+      "q": "how is source parsed into an ast",
+      "gold": "src/black/parsing.py",
+      "rank": 2,
+      "ms": 3160,
+      "files": [
+        "scripts/check_pre_commit_rev_in_example.py",
+        "src/black/parsing.py",
+        "src/black/output.py",
+        "src/black/__init__.py",
+        "src/black/parsing.py"
+      ]
+    },
+    {
+      "q": "where is the cache directory chosen",
+      "gold": "src/black/cache.py",
+      "rank": 2,
+      "ms": 3028,
+      "files": [
+        "scripts/release_tests.py",
+        "src/black/cache.py",
+        "src/black/cache.py",
+        "src/black/cache.py",
+        "src/black/cache.py"
+      ]
+    },
+    {
+      "q": "where does line wrapping decide parentheses",
+      "gold": "src/black/linegen.py",
+      "rank": 2,
+      "ms": 2993,
+      "files": [
+        "src/black/lines.py",
+        "src/black/linegen.py",
+        "src/black/linegen.py",
+        "tests/data/cases/class_blank_parentheses.py",
+        "tests/data/cases/class_blank_parentheses.py"
+      ]
+    }
+  ],
+  "ru_rows": [],
+  "parallel": null
+}

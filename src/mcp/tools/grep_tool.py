@@ -134,6 +134,7 @@ class GrepCodeTool(MCPTool):
         max_matches: int,
         context_lines: int,
         cancel: Optional[Any] = None,
+        extra_patterns: Optional[List[re.Pattern]] = None,
     ) -> Dict[str, Any]:
         """Search `root`. `cancel` is a `threading.Event` checked between files.
 
@@ -175,7 +176,13 @@ class GrepCodeTool(MCPTool):
 
         started = time.perf_counter()
         matches: List[Dict[str, Any]] = []
-        total = 0
+        # Several identifiers in one walk (audit 2026-11-09): investigate used
+        # to call this once per identifier, so two identifiers read and parsed
+        # the whole tree twice (~2.7 s + ~2.7 s on this repo). The walk, the
+        # read and the tree-sitter ranges are shared; only the regex passes
+        # repeat. Counts stay exact per pattern.
+        patterns: List[re.Pattern] = [regex, *(extra_patterns or [])]
+        totals: List[int] = [0] * len(patterns)
         scanned = 0
         skipped_big = 0
         skipped_binary = 0
@@ -207,7 +214,7 @@ class GrepCodeTool(MCPTool):
             # channel under the same GIL. Result: `degraded: grep:timeout` on every
             # query of our own repository. The match set is unchanged — a file
             # with zero regex hits contributed zero matches either way.
-            if not regex.search(source):
+            if not any(pattern.search(source) for pattern in patterns):
                 continue
 
             ranges: List[Tuple[int, int]] = []
@@ -223,32 +230,34 @@ class GrepCodeTool(MCPTool):
             lines = source.split(b"\n")
             line_starts = _line_starts(source)
 
-            for match in regex.finditer(source):
-                if ranges and _inside(match.start(), starts, ranges):
-                    continue
-                total += 1
-                if len(matches) >= max_matches:
-                    continue
-                line_no = bisect.bisect_right(line_starts, match.start())
-                text = lines[line_no - 1].decode("utf-8", "replace").strip()
-                entry: Dict[str, Any] = {"file": rel, "line": line_no, "text": text}
-                if context_lines:
-                    lo = max(0, line_no - 1 - context_lines)
-                    hi = min(len(lines), line_no + context_lines)
-                    entry["before"] = [
-                        lines[i].decode("utf-8", "replace").rstrip()
-                        for i in range(lo, line_no - 1)
-                    ]
-                    entry["after"] = [
-                        lines[i].decode("utf-8", "replace").rstrip()
-                        for i in range(line_no, hi)
-                    ]
-                matches.append(entry)
+            for p_index, pattern in enumerate(patterns):
+                for match in pattern.finditer(source):
+                    if ranges and _inside(match.start(), starts, ranges):
+                        continue
+                    totals[p_index] += 1
+                    if len(matches) >= max_matches:
+                        continue
+                    line_no = bisect.bisect_right(line_starts, match.start())
+                    text = lines[line_no - 1].decode("utf-8", "replace").strip()
+                    entry: Dict[str, Any] = {"file": rel, "line": line_no, "text": text}
+                    if context_lines:
+                        lo = max(0, line_no - 1 - context_lines)
+                        hi = min(len(lines), line_no + context_lines)
+                        entry["before"] = [
+                            lines[i].decode("utf-8", "replace").rstrip()
+                            for i in range(lo, line_no - 1)
+                        ]
+                        entry["after"] = [
+                            lines[i].decode("utf-8", "replace").rstrip()
+                            for i in range(line_no, hi)
+                        ]
+                    matches.append(entry)
 
         return {
             "matches": matches,
-            "total": total,
-            "truncated": total > max_matches,
+            "total": totals[0],
+            "extra_totals": totals[1:],
+            "truncated": any(total > max_matches for total in totals),
             "scanned": scanned,
             "skipped_big": skipped_big,
             "skipped_binary": skipped_binary,

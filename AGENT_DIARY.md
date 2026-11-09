@@ -10,6 +10,30 @@
 
 
 
+## [2026-11-09] MCP AUDIT — 8 дефектов живого сервера: проект, задержки, ранжирование, temp-пути
+
+- **Симптом:** `set_project` отвечает «switched», но поиск идёт по старому проекту; `investigate`
+  5–8 с и 8/8 timeout под параллелью; тесты/доки вытесняют код (black 0/4 top-1); RU-вопросы
+  уходят в `docs/ru`; 4641/7211 чанков содержат `%TEMP%\tmp*`; `status`/`read_live_file` игнорируют
+  `project_root`; первый вызов к проекту стоит 5 с; `index_project_dir` даёт TIMEOUT на 30 с при
+  77.6 с работы.
+- **Root cause:** CWD выше `PROJECT_PATH`; `UNINITIALIZED` ждал полный timeout; два grep-прохода
+  по дереву + последовательные `predict_affected_tests`; нет демоушена tests/docs; `prefers_docs`
+  по BM25 для кириллицы; shadow-файл при CRLF; `status` не принимал `project_root`; индексация
+  синхронная внутри 30-секундного хаба.
+- **Fix:** `MSCODEBASE_PROJECT_PATH` в `set_project` + guard drive root; авто-инициализация в
+  `can_execute`; один walk с `extra_patterns`; параллельные предсказания тестов; `_bucket_penalty`;
+  RU не маршрутизируется в docs + hint агенту; нормализация переводов строк + rebuild metadata;
+  `project_root` в status/progress/timeline/read_live_file/notify_change; фоновая индексация с job;
+  stage timings в explain.
+- **Guard:** `tests/test_mcp_audit_hardening.py` (21): switch, fail-fast, cross-project read,
+  ранжирование, RU, CRLF shadow, one-walk counts, background job, restricted read (оба вида пути),
+  health-report indexer.
+- **Числа:** top-1 MSCodeBase 2/6→3/6, black 0/4→1/4, httpbin 1/4→3/4; top-5 4/6→6/6, 2/4→4/4,
+  3/4→4/4; тестовые слоты в топ-5 8/30→0, 13/20→2, 14/20→4 (остаются контекстом, но не ведут);
+  median in-process MS 9.15 с→3.40 с; один grep-walk 4.78→3.28 с. Отчёт:
+  `experiments/xerj_2026_11/mcp_audit/REPORT.md`.
+
 ## [2026-11-09] SEARCH — быстрый путь по умолчанию, rerank по запросу агента
 
 - **Решение владельца:** система для агента; агент сам решает. `ondemand_rerank`

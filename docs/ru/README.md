@@ -131,6 +131,11 @@ python scripts/rebuild_graph.py
 
 Видимые 17: `investigate`, `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`, `read_live_file`, `notify_change`, `get_health_report`, `intel_get_project_memory`, `predict_change`, `tool_help`, `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks`.
 
+Индексация асинхронна: `codebase(action="index", path="project_dir", project_root=...)` запускает
+фоновую задачу и сразу возвращает управление; прогресс — `codebase(action="index", path="progress",
+...)` (`state` / `files` / `elapsed`). Неиндексированный проект отклоняется быстро с точной
+подсказкой, а не после 5-секундного ожидания.
+
 Скрыты по умолчанию: шесть `lsp_*`, `plan_search`, `structural_search`, 16 `intel_*` (мутации/жизненный цикл), `submit_background_task` / `get_task_status` / `verify_action` / `get_action_receipt`, `ack_impact`, служебные frame/rank/scan. Включаются `MSCODEBASE_MCP_PROFILE=full`; из сервера ничего не удаляется, фильтруется только клиентская поверхность.
 
 ## Архитектура

@@ -1528,7 +1528,18 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
 
         E57: docs top score minus code top score > 4.0 gave 0 code false
         positives and +10 p.p. hit@1 (same-basename gold) on the 48-query panel.
+
+        Russian questions are excluded (audit 2026-11-09): the code is English,
+        so the only BM25 matches are `docs/ru/**`, every Russian question routed
+        to docs-only and looked answered (0/3 gold). A question that explicitly
+        asks for documentation keeps the docs route.
         """
+        if re.search(r"[А-Яа-яЁё]", query or "") and not re.search(
+            r"докум|инструкц|руководств|справк|\breadme\b|\bdocs?\b",
+            query or "",
+            re.I,
+        ):
+            return False
         store = getattr(self, "_chunk_store", None)
         if store is None or not (query or "").strip():
             return False
@@ -1858,6 +1869,10 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Добавляем trace в результат
         trace_dict = tracer.to_dict() if tracer else None
         if tracer:
+            # Explain used to publish only total_ms, so "where did 5 s go?"
+            # could not be answered from the tool (audit 2026-11-09).
+            for _stage, _ms in timing.items():
+                tracer.record_stage_timing(_stage, _ms)
             tracer.record_stage_timing("total_ms", timing.get("total_ms", 0))
 
         return {

@@ -131,6 +131,10 @@ python scripts/rebuild_graph.py
 
 默认可见 17 个：`investigate`、`search_code`、`grep_code`、`get_symbol_info`、`impact_analysis`、`graph_query`、`codebase`、`read_live_file`、`notify_change`、`get_health_report`、`intel_get_project_memory`、`predict_change`、`tool_help`、`generate_docs`、`bump_version`、`auto_update_docs`、`install_git_hooks`。
 
+索引是异步的：`codebase(action="index", path="project_dir", project_root=...)` 启动后台任务并立即返回；
+用 `codebase(action="index", path="progress", ...)` 查询 `state` / `files` / `elapsed`。尚未索引的项目会
+快速拒绝并给出准确的修复提示，而不是等待 5 秒。
+
 默认隐藏：六个 `lsp_*`、`plan_search`、`structural_search`、16 个 `intel_*`（变更/生命周期）、`submit_background_task` / `get_task_status` / `verify_action` / `get_action_receipt`、`ack_impact` 以及 frame/rank/scan 辅助工具。设置 `MSCODEBASE_MCP_PROFILE=full` 可全部暴露；服务器不删除任何工具，只过滤客户端可见面。
 
 ## 架构

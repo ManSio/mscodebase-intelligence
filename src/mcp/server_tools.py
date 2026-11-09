@@ -804,7 +804,11 @@ def _register_inline_tools(mcp, services):
 
     # ─── 8. notify_change (standalone) ─────────────
     @mcp.tool("notify_change")
-    async def notify_change(file_path: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def notify_change(
+        file_path: str,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Обновляет индекс одного файла через LSP VFS или диск.
 
         P0: замыкает workflow edit → notify → reindex. Доступен напрямую
@@ -812,12 +816,15 @@ def _register_inline_tools(mcp, services):
 
         Args:
             file_path: путь к файлу (абсолютный или относительно корня проекта).
+            project_root: явный проект; без него — активный.
             kwargs: опциональные доп. параметры.
         """
         from src.mcp.tools.indexing_tools import NotifyChangeTool
 
         tool = NotifyChangeTool(services)
-        return await NotifyChangeTool.execute.__wrapped__(tool, file_path=file_path, kwargs=kwargs)
+        return await NotifyChangeTool.execute.__wrapped__(
+            tool, file_path=file_path, project_root=project_root, kwargs=kwargs
+        )
 
     # ─── 9. read_live_file (standalone) ────────────
     @mcp.tool("read_live_file")
@@ -826,6 +833,7 @@ def _register_inline_tools(mcp, services):
         file_path: str = "",
         start_line: int = 0,
         end_line: int = 0,
+        project_root: str = "",
     ) -> dict:
         """Читает файл из памяти LSP (включая несохранённые изменения).
 
@@ -836,6 +844,8 @@ def _register_inline_tools(mcp, services):
             file_path: относительный путь от корня проекта.
             start_line: первая строка (1-indexed). 0 = с начала.
             end_line: последняя строка (включительно). 0 = до конца.
+            project_root: явный корень для относительного file_path; без него —
+                активный проект.
         """
         from src.mcp.tools.system_tools import ReadLiveFileTool
 
@@ -846,6 +856,7 @@ def _register_inline_tools(mcp, services):
             file_path=file_path,
             start_line=start_line,
             end_line=end_line,
+            project_root=project_root,
         )
 
     # ─── 10. get_logs (standalone) ─────────────────

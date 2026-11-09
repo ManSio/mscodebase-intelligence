@@ -117,10 +117,21 @@ class IndexParser:
         if content is None:
             yield full_path
             return
+        # Compare NORMALIZED text, not raw bytes. Callers pass text read with
+        # universal newlines (LF) while decode_source_bytes keeps the bytes as
+        # they are (CRLF on a Windows checkout), so every file used to look
+        # "different" and was parsed through a temp shadow file. That shadow
+        # path then leaked into module_name/section headers for 64% of the
+        # chunks in this repo (audit 2026-11-09), poisoning BM25 and layer
+        # detection. Same text after newline normalization means no shadow.
         try:
-            same = full_path.exists() and full_path.read_bytes() == content.encode("utf-8")
+            disk_text = decode_source_bytes(full_path.read_bytes())
         except OSError:
-            same = False
+            disk_text = None
+        same = disk_text is not None and (
+            disk_text.replace("\r\n", "\n").replace("\r", "\n")
+            == content.replace("\r\n", "\n").replace("\r", "\n")
+        )
         if same:
             yield full_path
             return
@@ -206,26 +217,42 @@ class IndexParser:
                         full_path, content if _content_provided else None
                     ) as _parse_path:
                         ast_chunks, symbols = self.parser.parse_file(_parse_path)
+                    # A shadow file is only used for a live-buffer version that
+                    # differs from disk. Its path must never reach the index:
+                    # rewrite the text and rebuild the metadata from the real
+                    # file, otherwise layer/module point at C:\...\Temp\tmp*.
+                    _shadow_used = str(_parse_path) != str(full_path)
                     if ast_chunks:
                         for c in ast_chunks:
                             compact = c.get("text_compact", "") or c.get("text", "")
                             full = c.get("text", "")
+                            if _shadow_used:
+                                compact = compact.replace(str(_parse_path), str(full_path))
+                                full = full.replace(str(_parse_path), str(full_path))
+                                _meta = self.parser._build_chunk_metadata(
+                                    str(full_path),
+                                    symbol_name=str(c.get("symbol_name", "") or ""),
+                                    node_type=str(c.get("type", "") or ""),
+                                    context=str(c.get("context", "") or ""),
+                                )
+                            else:
+                                _meta = c
                             if compact.strip():
-                                _module = c.get("module_name", "")
-                                _level = c.get("hierarchy_level", "other")
-                                _type = c.get("symbol_type", c.get("type", ""))
+                                _module = _meta.get("module_name", "")
+                                _level = _meta.get("hierarchy_level", "other")
+                                _type = _meta.get("symbol_type", c.get("type", ""))
                                 _scope_parts = [p for p in [_level, _type, _module] if p]
                                 _scope = " | ".join(_scope_parts) if _scope_parts else _module
                                 _header = f"// Scope: {_scope}\n"
                                 chunk_texts.append(_header + compact)
                                 chunk_texts_full.append(_header + full)
                                 chunk_metadatas.append({
-                                    "layer": c.get("layer", ""),
-                                    "module_name": c.get("module_name", ""),
-                                    "hierarchy_level": c.get("hierarchy_level", "other"),
-                                    "is_public": c.get("is_public", False),
-                                    "symbol_type": c.get("symbol_type", c.get("type", "")),
-                                    "parent_id": c.get("parent_id", ""),
+                                    "layer": _meta.get("layer", ""),
+                                    "module_name": _module,
+                                    "hierarchy_level": _level,
+                                    "is_public": _meta.get("is_public", False),
+                                    "symbol_type": _type,
+                                    "parent_id": _meta.get("parent_id", ""),
                                     "callees": c.get("callees", ""),
                                     "start_line": c.get("start_line", 0),
                                     "end_line": c.get("end_line", 0),

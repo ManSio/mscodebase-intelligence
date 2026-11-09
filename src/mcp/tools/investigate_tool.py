@@ -156,6 +156,108 @@ def _asks_for_callers(query: str) -> bool:
     )
 
 
+_TEST_PATH_RE = re.compile(
+    r"(^|/)(tests?|__tests__|specs?)/"
+    r"|(^|/)test_[^/]+$"
+    r"|(^|/)conftest\.py$"
+)
+_DOC_PATH_RE = re.compile(r"(^|/)docs?/")
+_HISTORY_PATH_RE = re.compile(r"(^|/)docs?/(archive|research|blog)/")
+_PROSE_FILE_RE = re.compile(r"\.(md|rst|txt)$", re.I)
+
+
+def _asks_for_tests(query: str) -> bool:
+    return bool(re.search(
+        r"\b(tests?|specs?|coverage|pytest|unittest)\b|тест|покрыт", query or "", re.I
+    ))
+
+
+def _asks_for_docs(query: str) -> bool:
+    return bool(re.search(
+        r"\b(docs?|documentation|readme|guide|faq|manual)\b"
+        r"|докум|инструкц|руководств|справк",
+        query or "",
+        re.I,
+    ))
+
+
+_NAME_STOPWORDS = _STOPWORDS | {
+    "is", "are", "was", "were", "be", "been", "being", "of", "to", "in",
+    "on", "at", "by", "it", "its", "a", "an", "do", "did", "does", "can",
+    "should", "must", "i", "we", "you", "my", "our", "your", "there", "here",
+}
+
+
+def _name_words(query: str) -> List[str]:
+    """Query words in the order the user wrote them (stopwords removed).
+
+    `_identifiers` reorders by score, which destroys compounds: "default line
+    length" came back as [default, length, line], so the compound name was
+    DEFAULT_LENGTH_LINE and const.py was never looked up (2026-11-09).
+    """
+    return [
+        word
+        for word in re.findall(r"[A-Za-z][A-Za-z0-9]{1,}", (query or "").lower())
+        if word not in _NAME_STOPWORDS
+    ]
+
+
+def _name_variants(identifiers: Iterable[str], max_variants: int = 12) -> List[str]:
+    """Code-shaped names built from adjacent prose words.
+
+    "where is the default line length defined" carries no identifier, so the
+    symbol/grep channels can only answer with neighbours. The chunk that holds
+    `DEFAULT_LINE_LENGTH = 88` is one FTS query away if the tool tries the
+    compound name (measured 2026-11-09: black `const.py` rank 1 for the exact
+    string, absent from investigate's top-5 for the prose question).
+    """
+    words = [
+        w for w in identifiers
+        if re.fullmatch(r"[A-Za-z][A-Za-z0-9]{1,}", w or "")
+    ]
+    variants: List[str] = []
+    # Triples first: `DEFAULT_LINE_LENGTH` must beat the pair `LINE_LENGTH`,
+    # which also exists in test fixtures as a lowercase token.
+    for size in (3, 2):
+        for start in range(0, max(0, len(words) - size + 1)):
+            parts = words[start:start + size]
+            for variant in (
+                "_".join(parts).upper(),
+                "_".join(parts),
+                "".join(p.capitalize() for p in parts),
+            ):
+                if variant not in variants:
+                    variants.append(variant)
+    return variants[:max_variants]
+
+
+def _bucket_penalty(file: str, query: str) -> float:
+    """Rank penalty for a non-answer bucket (audit 2026-11-09).
+
+    Measured on three corpora: `tests/**`, `tests/data/**` and `docs/archive/**`
+    outranked the implementation even when the question named an identifier
+    (black 0/4 top-1, httpbin 1/4 top-1, tests took 13/20 and 17/20 slots).
+    The penalty is a rank subtraction applied after the merge, like the
+    definition demotion above: it moved tests/docs out of the top-5 on all
+    three measured corpora (8/30, 13/20, 14/20 -> 0). It is not a hard cap,
+    so a test row scoring more than 2.0 above the best code row still leads;
+    that did not happen on the panel, and a cap is left for a future change.
+    A question ABOUT tests/docs keeps them at full weight.
+    """
+    value = 0.0
+    if not _asks_for_docs(query):
+        if _HISTORY_PATH_RE.search(file):
+            value -= 2.0
+        elif _DOC_PATH_RE.search(file) or _PROSE_FILE_RE.search(file):
+            # Root markdown (AGENT_DIARY, EXPERIMENTS_LOG) is as far from an
+            # implementation as docs/: an exact-name hit there used to lead
+            # ("on-demand rerank resolved" → EXPERIMENTS_LOG, audit follow-up).
+            value -= 1.5
+    if _TEST_PATH_RE.search(file) and not _asks_for_tests(query):
+        value -= 2.0
+    return value
+
+
 def _search_row_to_item(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
     """One `hybrid_search_async` row -> one merge item.
 
@@ -194,6 +296,7 @@ def _merge(
     limit: int,
     root: Any = None,
     demote_definitions: bool = False,
+    query: str = "",
 ) -> List[Dict[str, Any]]:
     """Dedup by (file, line); keep the best rank and all channels.
 
@@ -236,6 +339,14 @@ def _merge(
         for entry in merged.values():
             if entry.get("defines"):
                 entry["rank"] = min(entry["rank"], 0.5)
+
+    # Non-answer buckets (tests / docs / historical docs) stay in the answer
+    # as context and lose 2.0 rank on a code question; that moved them out of
+    # the top-5 on all three measured corpora (it is a subtraction, not a cap).
+    for entry in merged.values():
+        penalty = _bucket_penalty(entry["file"], query)
+        if penalty:
+            entry["rank"] += penalty
 
     ranked = sorted(
         merged.values(),
@@ -366,51 +477,106 @@ class InvestigateTool(MCPTool):
         # timeout fires, the thread is told to stop instead of parsing on.
         grep_cancel = threading.Event()
 
-        def _grep() -> None:
+        async def _grep() -> None:
             from src.mcp.tools.grep_tool import GrepCodeTool
 
-            tool = GrepCodeTool(self._services)
-            root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
-            for ident in identifiers[:2]:
+            grep_root = Path(
+                self.resolve_indexer(explicit_project_root=_pr).project_path
+            ).resolve()
+            idents = identifiers[:2]
+            if not idents:
+                return
+
+            def _scan() -> Dict[str, Any]:
+                tool = GrepCodeTool(self._services)
                 try:
-                    regex = re.compile(re.escape(ident).encode("utf-8"))
+                    regex = re.compile(re.escape(idents[0]).encode("utf-8"))
+                    extras = [
+                        re.compile(re.escape(ident).encode("utf-8"))
+                        for ident in idents[1:]
+                    ]
                 except re.error:
-                    continue
-                # Collect MORE than the page size: `_search` truncates in walk
-                # order, so `limit` matches meant "the first 8 by filename" and
-                # files late in the tree never entered the answer (measured:
-                # `who raises BadSignature` never saw signer.py, `lsp_tools.py`
-                # lost to `lsp_client.py`). The channel is evidence, the page
-                # size is the renderer's job.
-                res = tool._search(  # noqa: SLF001
-                    root, None, regex, "code", max(limit * 4, 32), 0,
-                    cancel=grep_cancel,
+                    return {}
+                # One walk, one read, one tree-sitter parse for BOTH identifiers.
+                # Two separate calls cost ~2.7 s each on this repository and were
+                # the biggest term in investigate (audit 2026-11-09); the counts
+                # stay exact per identifier.
+                return tool._search(  # noqa: SLF001
+                    grep_root, None, regex, "code", max(limit * 4, 32), 0,
+                    cancel=grep_cancel, extra_patterns=extras,
                 )
-                matches = res.get("matches", [])
-                # A cancelled scan saw only part of the tree: its count is not
-                # "zero occurrences", it is "not finished". Publishing 0 would
-                # let the abstention rule hide a real answer (red-team attack
-                # 2026-11-08: cancel after one file, symbol lives on disk).
-                if res.get("cancelled"):
-                    break
-                # `total` (not the truncated list) is the honest count: the page
-                # size would make "3 hits" mean "at most 3". Counted PER
-                # identifier: a query like "where is missing_widget implemented"
-                # carries the noise word "implemented", and a single sum would
-                # hide that the subject itself occurs nowhere.
-                exact["per"][ident] = int(res.get("total", len(matches)) or 0)
-                for match in matches:
-                    is_raise = asks_raises and bool(
-                        re.search(r"\braise\b", str(match.get("text") or ""))
-                    )
+
+            res = await asyncio.to_thread(_scan)
+            matches = res.get("matches", [])
+            # A cancelled scan saw only part of the tree: its count is not
+            # "zero occurrences", it is "not finished". Publishing 0 would
+            # let the abstention rule hide a real answer (red-team attack
+            # 2026-11-08: cancel after one file, symbol lives on disk).
+            if res.get("cancelled"):
+                return
+            for index, ident in enumerate(idents):
+                if index == 0:
+                    count = res.get("total", 0)
+                else:
+                    extra = res.get("extra_totals") or []
+                    count = extra[index - 1] if index - 1 < len(extra) else 0
+                exact["per"][ident] = int(count or 0)
+            for match in matches:
+                is_raise = asks_raises and bool(
+                    re.search(r"\braise\b", str(match.get("text") or ""))
+                )
+                items.append(
+                    {
+                        "file": match["file"],
+                        "line": match["line"],
+                        "text": match["text"],
+                        "score": 0.5 if is_raise else 0.0,
+                        "weight": w_grep,
+                        "channels": {"grep"},
+                    }
+                )
+
+        async def _names() -> None:
+            """Compound code names built from prose (e.g. DEFAULT_LINE_LENGTH).
+
+            A prose question has no identifier, so exact-name channels cannot
+            fire. This channel asks FTS for the code-shaped variants and keeps
+            only rows whose text contains the variant verbatim (case-sensitive),
+            which is what separates `const.py` from fixtures that merely share
+            the lowercase words.
+            """
+            variants = _name_variants(_name_words(query))
+            if not variants:
+                return
+            searcher = self.resolve_searcher(explicit_project_root=_pr)
+            store = getattr(searcher, "_chunk_store", None)
+            if store is None:
+                return
+
+            def _lookup() -> List[Tuple[str, List[dict]]]:
+                found: List[Tuple[str, List[dict]]] = []
+                for variant in variants:
+                    try:
+                        rows = store.search(variant, limit=5) or []
+                    except Exception:  # noqa: BLE001 — канал не валит ответ
+                        rows = []
+                    found.append((variant, rows))
+                return found
+
+            for variant, rows in await asyncio.to_thread(_lookup):
+                for row in rows:
+                    text = str(row.get("text_full") or row.get("text") or "")
+                    if variant not in text:
+                        continue
+                    meta = row.get("metadata") or {}
                     items.append(
                         {
-                            "file": match["file"],
-                            "line": match["line"],
-                            "text": match["text"],
-                            "score": 0.5 if is_raise else 0.0,
-                            "weight": w_grep,
-                            "channels": {"grep"},
+                            "file": meta.get("file", ""),
+                            "line": int(meta.get("start_line") or 0),
+                            "text": f"{variant} — name match",
+                            "score": 0.0,
+                            "weight": 3.0,
+                            "channels": {"name"},
                         }
                     )
 
@@ -438,11 +604,12 @@ class InvestigateTool(MCPTool):
         await asyncio.gather(
             _run("search", _search, True),
             _run("symbols", _symbols, False),
-            _run("grep", _grep, False, _GREP_TIMEOUT, cancel_event=grep_cancel),
+            _run("names", _names, True, 5.0),
+            _run("grep", _grep, True, _GREP_TIMEOUT, cancel_event=grep_cancel),
         )
 
         # ─── Pass 2: channels that need a symbol/file from pass 1 ───
-        first_pass = _merge(items, 50, root, intent_callers)
+        first_pass = _merge(items, 50, root, intent_callers, query=query)
         top_files = [row["file"] for row in first_pass if row["file"]][:3]
         top_names = identifiers[:2]
 
@@ -485,23 +652,39 @@ class InvestigateTool(MCPTool):
                     )
 
         def _tests() -> None:
+            from concurrent.futures import ThreadPoolExecutor
+
             from src.core.test_impact import predict_affected_tests
 
-            for rel_file in top_files:
-                if rel_file.startswith("tests/") or rel_file == "(memory)":
-                    continue
-                pred = predict_affected_tests([rel_file], str(root)) or {}
-                for test in (pred.get("affected_tests") or [])[:3]:
-                    items.append(
-                        {
-                            "file": test,
-                            "line": 0,
-                            "text": f"covers {rel_file}",
-                            "score": 0.0,
-                            "weight": 0.1,
-                            "channels": {"tests"},
-                        }
-                    )
+            rels = [
+                rel for rel in top_files
+                if not rel.startswith("tests/") and rel != "(memory)"
+            ]
+            if not rels:
+                return
+
+            def _one(rel_file: str) -> tuple[str, Dict[str, Any]]:
+                try:
+                    return rel_file, predict_affected_tests([rel_file], str(root)) or {}
+                except Exception:  # noqa: BLE001 — канал не валит ответ
+                    return rel_file, {}
+
+            # Per-file predictions are independent (~0.6 s each on a 500-file
+            # repo). Sequentially three files cost 1.8 s (audit 2026-11-09);
+            # together they cost one.
+            with ThreadPoolExecutor(max_workers=min(3, len(rels))) as pool:
+                for rel_file, pred in pool.map(_one, rels):
+                    for test in (pred.get("affected_tests") or [])[:3]:
+                        items.append(
+                            {
+                                "file": test,
+                                "line": 0,
+                                "text": f"covers {rel_file}",
+                                "score": 0.0,
+                                "weight": 0.1,
+                                "channels": {"tests"},
+                            }
+                        )
 
         def _memory() -> None:
             from src.core.intelligence.store import IntelligenceStore
@@ -526,7 +709,7 @@ class InvestigateTool(MCPTool):
             _run("memory", _memory, False),
         )
 
-        merged = _merge(items, limit, root, intent_callers)
+        merged = _merge(items, limit, root, intent_callers, query=query)
 
         # Abstain on insufficient evidence (2026-11-08). The semantic channel
         # always returns neighbours, so an unanswerable question used to produce

@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -218,6 +219,7 @@ class SearchCodeTool(MCPTool):
         from src.core.error_handler import record_tool_result
 
         _pr = project_root or (kwargs or {}).get("project_root", "")
+        _wall_start = time.perf_counter()
         await self.require_ready_project(explicit_project_root=_pr or None)
 
         if not query or not query.strip():
@@ -239,8 +241,9 @@ class SearchCodeTool(MCPTool):
         # KI-109: Incremental Hot-Reload — перед поиском сверяем актуальность
         # индекса (stat-first + hot-reload изменённых/новых файлов в фоне).
         # Дебаунс внутри FreshnessChecker (FRESHNESS_INTERVAL_SEC), skip при полном reindex.
+        _hot_start = time.perf_counter()
         await self._maybe_hot_reload()
-
+        _hot_ms = (time.perf_counter() - _hot_start) * 1000
         # === Project header ===
         project_header = self._project_header(explicit_project_root=_pr or None)
         if filter_layer:
@@ -523,6 +526,52 @@ class SearchCodeTool(MCPTool):
             result_str = result_str.rstrip() + (
                 "\n\n💡 **next_step:** результатов нет — уточните запрос "
                 "или используйте `graph_query` для структурного поиска"
+            )
+
+        # Agent-first hints (audit 2026-11-09). A docs-only answer looks like a
+        # result while the code stays unfound; the tool says it out loud instead
+        # of letting the agent trust it. Two different causes, two actions.
+        _files = []
+        if isinstance(raw, dict):
+            _files = [
+                str((r.get("metadata") or {}).get("file") or "")
+                for r in (raw.get("results") or [])
+            ]
+            _files = [f for f in _files if f]
+        if _files and all(f.startswith("docs/") for f in _files):
+            if re.search(r"[А-Яа-яЁё]", query):
+                result_str = result_str.rstrip() + (
+                    "\n\n💡 Запрос на русском, а код и идентификаторы — на "
+                    "английском. Переформулируйте английскими терминами/именами "
+                    "(`SetProjectTool`, `rerank`, `prefers_docs`): так находится "
+                    "реализация, а не документация."
+                )
+            elif re.search(
+                r"\b(where is|where does|where are|defined|definition|"
+                r"implemented|function|class|method)\b",
+                query,
+                re.I,
+            ):
+                result_str = result_str.rstrip() + (
+                    "\n\n💡 Похоже на вопрос о коде, а вернулись только доки. "
+                    "Повторите с `intent=\"code\"` или добавьте идентификатор "
+                    "(`SetProjectTool`, `rerank`, `prefers_docs`)."
+                )
+
+        # Instrumentation for the unproven 86-second call (audit 2026-11-09):
+        # the reported internal time was 34 ms, so the delay happened OUTSIDE
+        # the search stage. Log wall time and the hot-reload term; a number
+        # without this split cannot tell "slow search" from "blocked event loop".
+        _wall_ms = (time.perf_counter() - _wall_start) * 1000
+        if _wall_ms >= 2000:
+            logger.warning(
+                "[search_code] slow call: wall=%.0fms hot_reload=%.0fms "
+                "mode=%s results=%d query=%r",
+                _wall_ms,
+                _hot_ms,
+                mode,
+                results_count,
+                query[:80],
             )
 
         return result_str

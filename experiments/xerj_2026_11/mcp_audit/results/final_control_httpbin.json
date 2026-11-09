@@ -1,0 +1,70 @@
+{
+  "project": "httpbin",
+  "root": "D:\\Project\\bench_projects\\httpbin",
+  "penalty": "0",
+  "summary": {
+    "n": 4,
+    "top1": 1,
+    "top5": 3,
+    "median_ms": 57,
+    "max_ms": 66,
+    "test_or_doc_slots": 14
+  },
+  "ru_summary": null,
+  "rows": [
+    {
+      "q": "where is the /headers response built",
+      "gold": "httpbin/core.py",
+      "rank": null,
+      "ms": 66,
+      "files": [
+        "httpbin/helpers.py",
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "test_httpbin.py"
+      ]
+    },
+    {
+      "q": "how does digest auth response work",
+      "gold": "httpbin/helpers.py",
+      "rank": 3,
+      "ms": 57,
+      "files": [
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "httpbin/helpers.py",
+        "test_httpbin.py",
+        "test_httpbin.py"
+      ]
+    },
+    {
+      "q": "where is the user agent endpoint defined",
+      "gold": "httpbin/core.py",
+      "rank": 5,
+      "ms": 51,
+      "files": [
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "test_httpbin.py",
+        "httpbin/core.py"
+      ]
+    },
+    {
+      "q": "where are cookies parsed",
+      "gold": "httpbin/core.py",
+      "rank": 1,
+      "ms": 39,
+      "files": [
+        "httpbin/core.py",
+        "httpbin/core.py",
+        "httpbin/core.py",
+        "test_httpbin.py",
+        "test_httpbin.py"
+      ]
+    }
+  ],
+  "ru_rows": [],
+  "parallel": null
+}

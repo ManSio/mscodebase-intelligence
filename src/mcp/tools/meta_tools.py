@@ -320,6 +320,9 @@ class SystemTool(MCPTool):
             tool,
             absolute_path=kw.get("absolute_path", ""),
             file_path=kw.get("file_path", ""),
+            start_line=kw.get("start_line", 0),
+            end_line=kw.get("end_line", 0),
+            project_root=kw.get("project_root", ""),
         )
 
     async def _action_counters(self, **kw) -> str:
