@@ -402,11 +402,13 @@ def test_notify_change_reports_the_explicit_project(tmp_path):
 
 def test_set_project_refuses_system_directory(preserve_project_env):
     tool = SetProjectTool(_DummyServices())
+    # Windows has drive roots ("C:\"); POSIX has "/". Both must be refused.
+    root = "C:\\" if os.name == "nt" else "/"
 
-    answer = asyncio.run(tool.execute(project_root="C:\\"))
+    answer = asyncio.run(tool.execute(project_root=root))
 
     assert "Refusing" in answer
-    assert os.environ.get("MSCODEBASE_PROJECT_PATH") != "C:\\"
+    assert os.environ.get("MSCODEBASE_PROJECT_PATH") != root
 
 
 def test_restricted_read_rejects_unknown_project_root(monkeypatch, tmp_path):
@@ -436,26 +438,33 @@ def test_restricted_read_rejects_unknown_project_root(monkeypatch, tmp_path):
     assert "ALLOWED" in str(passed)
 
 
-def test_index_project_dir_returns_a_job_and_finishes(tmp_path):
+def test_index_project_dir_returns_a_job_and_finishes(tmp_path, monkeypatch):
+    from src.config.settings import reload_config
     from src.core.di_container import create_service_collection
     from src.mcp.tools.indexing_tools import IndexProjectDirTool, get_index_job
 
     (tmp_path / "a.py").write_text("def alpha():\n    return 1\n", encoding="utf-8")
-    services = create_service_collection(tmp_path)
-    tool = IndexProjectDirTool(services)
 
-    answer = asyncio.run(tool.execute(path=str(tmp_path)))
+    # CI has no embedder; text-only indexing is the supported path there.
+    with monkeypatch.context() as mp:
+        mp.setenv("MSCODEBASE_DENSE_OFF", "true")
+        reload_config()
+        services = create_service_collection(tmp_path)
+        tool = IndexProjectDirTool(services)
 
-    assert "запущена" in answer.lower()
-    assert str(tmp_path.resolve()) in answer
+        answer = asyncio.run(tool.execute(path=str(tmp_path)))
 
-    job = None
-    deadline = time.time() + 120
-    while time.time() < deadline:
-        job = get_index_job(str(tmp_path))
-        if job and job.get("state") in ("done", "error"):
-            break
-        time.sleep(0.2)
+        assert "запущена" in answer.lower()
+        assert str(tmp_path.resolve()) in answer
+
+        job = None
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            job = get_index_job(str(tmp_path))
+            if job and job.get("state") in ("done", "error"):
+                break
+            time.sleep(0.2)
+    reload_config()
 
     assert job is not None
     assert job["state"] == "done", job
