@@ -80,7 +80,7 @@ class _FakeSearcher:
     def _build_fts5_index(self):
         pass
 
-    async def hybrid_search_async(self, query, limit=5):
+    async def hybrid_search_async(self, query, limit=5, rerank=None):
         self.loops.append(id(asyncio.get_running_loop()))
         return [{"metadata": {"file": "x.py"}, "identifier_boost": False}]
 

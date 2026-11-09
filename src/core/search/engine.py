@@ -977,12 +977,23 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             logger.debug(f"[P3-anchor] +{added} module-head chunks")
         return pool
 
+    def _resolve_ondemand_rerank(self, rerank: Optional[bool]) -> bool:
+        """Per-call override for the on-demand cosine rerank.
+
+        None -> the configured default. The result is returned, never assigned
+        to self, so concurrent calls with different values stay independent.
+        """
+        if rerank is None:
+            return bool(self._ondemand_rerank)
+        return bool(rerank)
+
     async def _sqlite_hybrid_search_async(
         self,
         query: str,
         limit: int,
         layer: Optional[str] = None,
         tracer: Optional[SearchTracer] = None,
+        rerank: Optional[bool] = None,
     ) -> List[dict]:
         """Phase 3 candidate retrieval: SQLite FTS5 + on-demand rerank.
 
@@ -1027,7 +1038,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             return []
 
         # On-demand rerank: embed only top-N live (E25), no stored vectors.
-        if self._ondemand_rerank:
+        if self._resolve_ondemand_rerank(rerank):
             final_results = await self._apply_ondemand_reranker_async(
                 query, candidates, limit
             )
@@ -1052,6 +1063,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         layer: Optional[str] = None,
         intent_hint: str = "auto",
         tracer: Optional[SearchTracer] = None,
+        rerank: Optional[bool] = None,
     ) -> List[dict]:
         """Асинхронный гибридный поиск: BM25 + векторный + реранкинг.
 
@@ -1070,6 +1082,11 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         Note:
             Все синхронные LanceDB/BM25 вызовы оборачиваются в asyncio.to_thread,
             чтобы не блокировать event loop при параллельных MCP-запросах.
+
+            rerank: True/False forces the on-demand cosine rerank on/off for THIS
+            call; None uses the config default. The value is passed down, never
+            stored on self, so two concurrent calls with opposite values cannot
+            change each other (guarded by tests/test_ondemand_rerank_control.py).
         """
         # Fast-fail (2026-08-25, живое воспроизведение): пока идёт переиндексация
         # (`db_manager.is_reindexing()`), чтение LanceDB небезопасно/долго — вместо
@@ -1106,7 +1123,8 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             try:
                 if self._chunk_store.count() > 0:
                     return await self._sqlite_hybrid_search_async(
-                        query, limit, layer=layer, tracer=tracer
+                        query, limit, layer=layer, tracer=tracer,
+                        rerank=self._resolve_ondemand_rerank(rerank),
                     )
             except Exception as _sq_err:
                 logger.warning(f"SQLite chunk store path failed: {_sq_err}")
@@ -1361,7 +1379,7 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
         # Мульти-провайдерный реранкинг (Ollama / LM Studio) — опциональный
         # Реранкер перезаписывает final_score своими семантическими весами
         _pre_rerank = list(pre_rerank_results) if tracer else None
-        if self._ondemand_rerank and pre_rerank_results:
+        if self._resolve_ondemand_rerank(rerank) and pre_rerank_results:
             # Фаза 2 (E25): on-demand cosine вместо BGE — параллельный путь,
             # включается только флагом. При ошибке — пул как есть (как BGE).
             final_results = await self._apply_ondemand_reranker_async(

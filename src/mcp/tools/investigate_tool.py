@@ -258,6 +258,7 @@ class InvestigateTool(MCPTool):
         limit: int = 8,
         project_root: str = "",
         include_neighbours: bool = False,
+        rerank: Optional[bool] = None,
     ) -> str:
         query = (query or "").strip()
         if not query:
@@ -302,7 +303,9 @@ class InvestigateTool(MCPTool):
         exact: Dict[str, Any] = {"per": {}}
 
         async def _search() -> None:
-            raw = await searcher.hybrid_search_async(query, limit=limit * 2) or []
+            raw = await searcher.hybrid_search_async(
+                query, limit=limit * 2, rerank=rerank
+            ) or []
             for idx, row in enumerate(raw):
                 item = _search_row_to_item(row, idx)
                 item["weight"] = w_search

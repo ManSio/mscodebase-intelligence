@@ -10,6 +10,19 @@
 
 
 
+## [2026-11-09] SEARCH — быстрый путь по умолчанию, rerank по запросу агента
+
+- **Решение владельца:** система для агента; агент сам решает. `ondemand_rerank`
+  теперь **off по умолчанию**, включается на один вызов `investigate(rerank=true)`.
+- **Замер (live, itsdangerous):** default 3–22 мс на запрос; `rerank=True` —
+  1.2–3.8 с. `searcher._ondemand_rerank` после вызовов не меняется.
+- **Ревью нашло:** (1) README/FAQ/SEARCH_PIPELINE (EN/RU/ZH) всё ещё писали `true`
+  → исправлено 9 файлов; (2) тесты не ловили ветку, игнорирующую per-call флаг →
+  добавлены два теста на реальный `_sqlite_hybrid_search_async`; мутация
+  (`if self._ondemand_rerank`) краснит их, откат — зелёный.
+- **Guard:** `tests/test_ondemand_rerank_control.py` (10) — default, env, 4×resolve,
+  конкурентность 8 вызовов, реальная sqlite-ветка в обе стороны.
+
 ## [2026-11-09] SEARCH — RU-вопрос к EN-коду: перевод запроса vs dense
 
 - **Симптом:** русский запрос к английскому коду давал 1/5; dense казался обязательным,

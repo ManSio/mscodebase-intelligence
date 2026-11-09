@@ -170,7 +170,7 @@ LanceDB 属于可选向量路径，默认 text-first 配置不需要它。
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | 跳过 dense/向量检索；只用 FTS5、符号、图 |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | 使用 SQLite/FTS5 chunk 存储 |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | 用实时嵌入重排顶部候选 |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | 用实时嵌入重排顶部候选；单次调用：`investigate(rerank=true)` |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | 文档路由阈值（docs − code） |
 | `MSCODEBASE_AUGMENT_CHUNKS` | `true` | 在 chunk 文本前加 FILE/SYMBOLS/DOC |
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | 在符号结果后追加覆盖测试 |

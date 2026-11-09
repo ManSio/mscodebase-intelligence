@@ -65,10 +65,11 @@ def test_split_prefers_text_full_and_counts_skipped():
     assert len(usable) == 2
 
 
-def test_engine_wiring_present_and_flag_defaults_on():
-    import os
+def test_engine_wiring_present_and_flag_defaults_off(monkeypatch):
+    monkeypatch.delenv("MSCODEBASE_ONDEMAND_RERANK", raising=False)
+    from src.config.settings import SearchConfig
 
-    assert os.getenv("MSCODEBASE_ONDEMAND_RERANK", "true") == "true"
+    assert SearchConfig().ondemand_rerank is False
     from src.core.search import engine as E
 
     assert hasattr(E.Searcher, "_apply_ondemand_reranker_async")

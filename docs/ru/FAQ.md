@@ -17,7 +17,7 @@ blog-постов. Цитируемые числа живут в `docs/FACTS.md`
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | dense-уровня нет: запрос никогда не эмбеддится для векторного поиска |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | чанки лежат текстом в SQLite FTS5, векторы не хранятся |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | top-N кандидатов эмбеддятся на лету во время запроса, **если** эмбеддер отвечает |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | top-N кандидатов эмбеддятся на лету во время запроса, когда включено, **если** эмбеддер отвечает; на вызов: `investigate(rerank=true)` |
 
 Кандидаты приходят из SQLite FTS5 (ранжирование по BM25) плюс из PropertyGraph.
 Индексация тоже пропускает эмбеддинги: `Indexer.index_project()` уходит в

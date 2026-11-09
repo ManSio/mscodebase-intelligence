@@ -170,7 +170,7 @@ LanceDB относится к опциональному векторному п
 |---|---|---|
 | `MSCODEBASE_DENSE_OFF` | `true` | Не использовать dense/vector; только FTS5, символы, граф |
 | `MSCODEBASE_SQLITE_CHUNKS` | `true` | Использовать SQLite/FTS5 хранилище чанков |
-| `MSCODEBASE_ONDEMAND_RERANK` | `true` | Реранк верхних кандидатов живыми эмбеддингами |
+| `MSCODEBASE_ONDEMAND_RERANK` | `false` | Реранк верхних кандидатов живыми эмбеддингами; на вызов: `investigate(rerank=true)` |
 | `MSCODEBASE_DOCS_MARGIN` | `4.0` | Порог роутинга в docs (docs − code) |
 | `MSCODEBASE_AUGMENT_CHUNKS` | `true` | Префикс FILE/SYMBOLS/DOC в тексте чанка |
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Добавлять покрывающие тесты к результатам по символу |
