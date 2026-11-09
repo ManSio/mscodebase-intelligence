@@ -8,14 +8,14 @@
 
 - **Замер (12 вопросов, 2 репо):** RU-лексика 2/12, слепой EN-перевод 12/12,
   dense 768 8/12, перевод без реранка 12/12 за 14 мс — `ru_vs_dense/REPORT.md`.
-- **После ревью:** gold-матчер `endswith(basename)` считал тест-файл реализацией
-  (C 9→8); `dense_score is not None` всегда истинно (BM25=0.0) → теперь `>0`;
-  negative control был литералом → проверяет текст и падает. Guard:
-  `matcher_selftest.py`, `negative_control.py --arm A|C`, frozen+MANIFEST.
-- **Границы:** hard subset (0 общих токенов с gold) = 1/12; старые 4/5 и 5/5
-  superseded (2 gold указывали на вызывающий файл).
-- **Gate-долги:** WISDOM test count обновлён (2317 collected); K3 `P-006` —
-  в личном skill вне репо, нужен владелец.
+- **После ревью:** матчер gold считал тест-файл реализацией (C 9→8); `dense_score
+  is not None` всегда истинно → `>0`; negative control был литералом → проверяет
+  текст и падает. Guard: `matcher_selftest.py`, `negative_control.py --arm A|C`.
+- **Границы:** hard subset = 1/12; старые 4/5 и 5/5 superseded.
+- **Gate-долги:** WISDOM test count обновлён (2317 collected). K3 `P-006` был не
+  ошибкой реестра, а устаревшим путём гейта: протокол v2 перенёс реестр в
+  `agent_docs/pitfalls-registry.md`, а гейт читал старый `skills/...`. Исправлено
+  в `tools/knowledge/check_knowledge.py` (оба пути, новый первым; K7 читает таблицу).
 
 ---
 ## 2026-11-09 — pre-commit: `gate_cli.py --selftest` правит трекнутый манифест — 🟡
