@@ -10,6 +10,19 @@
 
 
 
+## [2026-11-09] PROCESS — контракт инструментов проверялся поведением, а не схемой
+
+- **Симптом:** после рестартов всплывали новые дефекты одного класса: `read_live_file`/`notify_change`
+  теряли `project_root` в inline-обёртках, `predict_change` не имел его вовсе, `explain` пропадал
+  на docs-маршруте.
+- **Root Cause:** аудит шёл от поведения, а не от сверки живого `tools/list` (inputSchema) с
+  сигнатурами классов; у регистрационного слоя своя сигнатура, и она молча урезает параметры.
+- **Fix:** `tools/list` прогнан по всем 17 инструментам и сверен с `execute.__wrapped__`; найден
+  `predict_change` (только `kwargs`), параметр добавлен и прокинут в `resolve_project_root`.
+- **Guard:** `test_project_scoped_tools_expose_project_root` (11 классов),
+  `test_inline_tool_wrappers_forward_project_root`, `test_predict_change_uses_the_explicit_project`.
+- **Урок:** новый инструмент или обёртка → сначала схема vs сигнатура, потом поведение.
+
 ## [2026-11-09] SEARCH — демоушен доков не работал на SQLite-пути
 
 - **Симптом:** `MSCODEBASE_DEMOTE_NON_CODE=true`, но `search_code(quality)` ставил docs первыми:

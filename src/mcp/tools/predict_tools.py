@@ -44,6 +44,7 @@ class PredictChangeTool(MCPTool):
     async def execute(
         self,
         kwargs: Optional[Dict[str, Any]] = None,
+        project_root: str = "",
     ) -> str:
         from src.core.change_preview import ChangePreview, static_predict
         from src.core.project_resolution import resolve_project_root
@@ -56,7 +57,13 @@ class PredictChangeTool(MCPTool):
         except (TypeError, ValueError):
             timeout = 300
 
-        repo = resolve_project_root()
+        # Explicit project_root: the live schema exposed only kwargs, so this
+        # tool always predicted the ACTIVE project (contract sweep 2026-11-09).
+        repo = (
+            resolve_project_root(project_root)
+            if project_root
+            else resolve_project_root()
+        )
         if mode == "full":
             verdict, message = await asyncio.to_thread(
                 ChangePreview(repo, base, timeout=timeout).run
