@@ -39,6 +39,7 @@ from src.mcp.tools.system_tools import (
     GetIndexStatusTool,
     ReadLiveFileTool,
 )
+from src.mcp.tools.write_tools import WriteTool
 from src.sources.local_fs.windows import SafePathManager
 
 
@@ -488,6 +489,7 @@ def test_project_scoped_tools_expose_project_root():
         ReadLiveFileTool,
         NotifyChangeTool,
         GetHealthReportTool,
+        WriteTool,
     ]
     missing = []
     for cls in classes:
@@ -526,6 +528,59 @@ def test_predict_change_uses_the_explicit_project(tmp_path, monkeypatch):
     asyncio.run(tool.execute(project_root=str(tmp_path)))
 
     assert seen["repo"] == tmp_path.resolve()
+
+
+def test_write_tool_uses_explicit_project_for_contract(tmp_path):
+    tool = WriteTool(_DummyServices())
+    seen = {}
+
+    def fake_resolve(explicit_project_root=None):
+        seen["root"] = explicit_project_root
+        return SimpleNamespace(project_path=tmp_path)
+
+    tool.resolve_indexer = fake_resolve  # type: ignore[method-assign]
+    tool._write_project_root = str(tmp_path)
+
+    assert tool._contract_project_root() == str(tmp_path)
+    assert seen["root"] == str(tmp_path)
+
+
+def test_write_hub_forwards_project_root(monkeypatch):
+    seen = {}
+
+    async def fake_execute(self, **kwargs):
+        seen.update(kwargs)
+        return "ok"
+
+    monkeypatch.setattr(WriteTool, "execute", fake_execute)
+    tool = CodebaseTool(_DummyServices())
+
+    answer = asyncio.run(
+        tool._action_write(
+            action="replace",
+            symbol="render",
+            new_code="def render(): pass",
+            apply=False,
+            project_root="D:\\other",
+        )
+    )
+
+    assert answer == "ok"
+    assert seen["project_root"] == "D:\\other"
+
+
+def test_modification_guard_does_not_block_ack():
+    from src.core.modification_guard import modification_guard
+
+    calls = []
+
+    @modification_guard()
+    async def fake(self, action: str, file_path: str = ""):
+        calls.append(action)
+        return "ok"
+
+    assert asyncio.run(fake(object(), action="ack", file_path="x.py")) == "ok"
+    assert calls == ["ack"]
 
 
 def test_render_explain_keeps_stages_and_chunks():
