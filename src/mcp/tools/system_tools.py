@@ -28,11 +28,18 @@ class GetIndexStatusTool(MCPTool):
         super().__init__(services, tool_name="get_index_status")
 
     @error_boundary("get_index_status", timeout_ms=3000)
-    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> str:
+    async def execute(
+        self,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> str:
         # INC-6BCB-v3: определяем project path ПЕРВЫМ (до resolve_indexer,
         # чтобы увидеть ГДЕ мы ищем, даже если indexer пуст).
+        # project_root: явный проект (мультипроектный агент). Без него —
+        # активный, как раньше; до аудита 2026-11-09 аргумент молча
+        # игнорировался и статус чужого проекта показывал текущий.
         try:
-            indexer = self.resolve_indexer()
+            indexer = self.resolve_indexer(explicit_project_root=project_root or None)
             project_path = indexer.project_path
             project_label = f"📂 Project: {project_path}"
         except Exception as e:
@@ -46,7 +53,7 @@ class GetIndexStatusTool(MCPTool):
         files = stats.get("unique_files", 0)
         db_status = stats.get("status", "unknown")
 
-        sym_idx = self.resolve_symbol_index()
+        sym_idx = self.resolve_symbol_index(explicit_project_root=project_root or None)
         total_symbols = (
             sym_idx.get_symbol_count()
             if hasattr(sym_idx, "get_symbol_count")
@@ -125,15 +132,37 @@ class GetIndexProgressTool(MCPTool):
         super().__init__(services, tool_name="get_index_progress")
 
     @error_boundary("get_index_progress", timeout_ms=5000)
-    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
-        # Получаем базовую статистику
-        stats = self.resolve_indexer().get_status()
-        return {
+    async def execute(
+        self,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> dict:
+        # Получаем базовую статистику (явный project_root — мультипроектный
+        # агент; до аудита 2026-11-09 аргумент игнорировался).
+        indexer = self.resolve_indexer(explicit_project_root=project_root or None)
+        stats = indexer.get_status()
+        result = {
             "status": "ok",
+            "project_path": str(getattr(indexer, "project_path", "")),
             "total_chunks": stats.get("total_chunks", 0),
             "unique_files": stats.get("unique_files", 0),
             "indexer_status": stats.get("status", "unknown"),
         }
+        # Фоновая индексация (2026-11-09): job живёт в indexing_tools, чтобы
+        # index_project_dir возвращал управление сразу и агент мог опросить
+        # прогресс, а не ждать 30-секундного таймаута.
+        try:
+            from src.mcp.tools.indexing_tools import get_index_job
+
+            job = get_index_job(result["project_path"])
+            if job:
+                if job.get("state") == "running":
+                    # Live progress instead of files=0 for the whole run.
+                    job["files"] = stats.get("unique_files", 0)
+                result["job"] = job
+        except Exception:  # noqa: BLE001 — прогресс не должен ломать статус
+            pass
+        return result
 
 
 class GetIndexTimelineTool(MCPTool):
@@ -143,14 +172,18 @@ class GetIndexTimelineTool(MCPTool):
         super().__init__(services, tool_name="get_index_timeline")
 
     @error_boundary("get_index_timeline", timeout_ms=15000)
-    async def execute(self, kwargs: Optional[Dict[str, Any]] = None) -> dict:
+    async def execute(
+        self,
+        project_root: str = "",
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> dict:
         from collections import defaultdict
 
-
-        if not self.resolve_indexer().table or len(self.resolve_indexer().table) == 0:
+        indexer = self.resolve_indexer(explicit_project_root=project_root or None)
+        if not indexer.table or len(indexer.table) == 0:
             return {"status": "warning", "message": "Database is empty"}
 
-        df = self.resolve_indexer().table.to_pandas()
+        df = indexer.table.to_pandas()
         if df.empty:
             return {"status": "warning", "message": "No data"}
 
@@ -306,19 +339,23 @@ class GetHealthReportTool(MCPTool):
     ) -> dict:
         from src.core.intelligence.health import HealthReport
 
-        target_path = self.resolve_indexer().project_path
-        if project_root:
-            target_path = Path(project_root).resolve()
-            if not target_path.exists():
-                return {
-                    "status": "error",
-                    "message": f"Path does not exist: {project_root}",
-                }
+        # An explicit project_root must select its OWN indexer; resolving with
+        # no argument reported the active project under the requested path
+        # (independent review 2026-11-09, same defect class as status).
+        if project_root and not Path(project_root).resolve().exists():
+            return {
+                "status": "error",
+                "message": f"Path does not exist: {project_root}",
+            }
+        indexer = self.resolve_indexer(explicit_project_root=project_root or None)
+        target_path = indexer.project_path
 
         report = HealthReport(
             project_path=target_path,
-            indexer=self.resolve_indexer(),
-            symbol_index=self.resolve_symbol_index(),
+            indexer=indexer,
+            symbol_index=self.resolve_symbol_index(
+                explicit_project_root=project_root or None
+            ),
             embedder=self.resolve_embedder(),
         )
         result = report.run_full_diagnostic()
@@ -351,14 +388,21 @@ class DualArmHealthCheckTool(MCPTool):
         import subprocess
         from pathlib import Path
 
-        target_path = Path(project_root).resolve() if project_root else self.resolve_indexer().project_path
+        target_indexer = self.resolve_indexer(
+            explicit_project_root=project_root or None
+        )
+        target_path = (
+            Path(project_root).resolve() if project_root else target_indexer.project_path
+        )
 
         # Arm 2 (Positive): health report — всегда выполняется
         from src.core.intelligence.health import HealthReport
         health_report = HealthReport(
             project_path=target_path,
-            indexer=self.resolve_indexer(),
-            symbol_index=self.resolve_symbol_index(),
+            indexer=target_indexer,
+            symbol_index=self.resolve_symbol_index(
+                explicit_project_root=project_root or None
+            ),
             embedder=self.resolve_embedder(),
         )
         health_result = health_report.run_full_diagnostic()
@@ -472,6 +516,44 @@ class ReadLiveFileTool(MCPTool):
     def __init__(self, services: ServiceCollection):
         super().__init__(services, tool_name="read_live_file")
 
+    @staticmethod
+    def _restricted_read() -> bool:
+        return os.environ.get(
+            "MSCODEBASE_RESTRICTED_READ", ""
+        ).strip().lower() in ("1", "true", "yes")
+
+    def _indexed_roots(self) -> set[str]:
+        try:
+            from src.core.di_container import ProjectIndexerRegistry
+
+            registry = self._services.resolve(ProjectIndexerRegistry)
+            return {str(p.resolve()).lower() for p in registry.get_all_paths()}
+        except Exception:  # noqa: BLE001 — no registry means no allowlist
+            return set()
+
+    def _allowed_explicit_root(
+        self, explicit: str
+    ) -> tuple[Optional[Path], Optional[dict]]:
+        """Resolve an agent-supplied root, enforcing the restricted-read allowlist.
+
+        The allowlist must run for BOTH read forms: the independent review
+        (2026-11-09) showed `absolute_path=...` + `project_root="D:\\"` read any
+        file on the drive with MSCODEBASE_RESTRICTED_READ=1, while the relative
+        form was guarded. One helper, one rule.
+        """
+        if not explicit:
+            return None, None
+        root = Path(explicit).resolve()
+        if self._restricted_read() and str(root).lower() not in self._indexed_roots():
+            return None, {
+                "status": "error",
+                "message": (
+                    "Restricted read: project_root is not one of the indexed "
+                    "projects"
+                ),
+            }
+        return root, None
+
     @error_boundary("read_live_file", timeout_ms=3000)
     async def execute(
         self,
@@ -479,6 +561,7 @@ class ReadLiveFileTool(MCPTool):
         file_path: str = "",
         start_line: int = 0,
         end_line: int = 0,
+        project_root: str = "",
     ) -> dict:
         """
         Args:
@@ -486,32 +569,49 @@ class ReadLiveFileTool(MCPTool):
             file_path: Относительный путь от корня проекта.
             start_line: Первая строка (1-indexed, 0 = сначала).
             end_line: Последняя строка (включительно, 0 = до конца).
+            project_root: Явный корень проекта для относительного file_path.
+                Без него используется активный проект; до аудита 2026-11-09
+                путь молча резолвился от чужого корня.
         """
         # ─── 1. Определяем полный путь с Path traversal guard (§5.12) ───
         if absolute_path:
             target = Path(absolute_path).resolve()
             # SEC-05: restricted-read policy. При MSCODEBASE_RESTRICTED_READ=1
-            # absolute_path разрешён только внутри активного project root
-            # (аналог guard для file_path ниже). По умолчанию выключено —
-            # не ломает существующие сценарии диагностики.
-            if os.environ.get("MSCODEBASE_RESTRICTED_READ", "").strip().lower() in ("1", "true", "yes"):
-                try:
-                    project_root = self.resolve_indexer().project_path
-                except Exception as _res_err:
-                    logger.warning(f"read_live_file: resolve_indexer failed ({_res_err}) — restricted read cannot verify root")
-                    project_root = None
-                if project_root is not None and not target.is_relative_to(project_root.resolve()):
+            # absolute_path разрешён только внутри разрешённого project root.
+            if self._restricted_read():
+                explicit_root, error = self._allowed_explicit_root(project_root)
+                if error is not None:
+                    return error
+                root = explicit_root
+                if root is None:
+                    try:
+                        root = self.resolve_indexer().project_path.resolve()
+                    except Exception as _res_err:
+                        logger.warning(
+                            "read_live_file: resolve_indexer failed (%s) — "
+                            "restricted read cannot verify root",
+                            _res_err,
+                        )
+                        root = None
+                if root is not None and not target.is_relative_to(root):
                     logger.warning(
-                        f"read_live_file: restricted read blocked absolute_path outside project root: {target}"
+                        "read_live_file: restricted read blocked absolute_path "
+                        "outside project root: %s",
+                        target,
                     )
                     return {
                         "status": "error",
                         "message": f"Restricted read: path outside project root: {target}",
                     }
         elif file_path:
-            project_root = self.resolve_indexer().project_path
-            resolved = (project_root / file_path).resolve()
-            if not resolved.is_relative_to(project_root.resolve()):
+            explicit_root, error = self._allowed_explicit_root(project_root)
+            if error is not None:
+                return error
+            project_root_path = explicit_root or self.resolve_indexer(
+                explicit_project_root=project_root or None
+            ).project_path
+            resolved = (project_root_path / file_path).resolve()
+            if not resolved.is_relative_to(project_root_path.resolve()):
                 return {
                     "status": "error",
                     "message": "Path traversal detected",

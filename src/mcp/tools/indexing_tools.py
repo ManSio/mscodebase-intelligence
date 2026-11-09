@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -20,6 +22,40 @@ from src.core.rate_limiter import SlidingWindowRateLimiter
 from src.mcp.tools.base import MCPTool
 
 logger = logging.getLogger("mscodebase_server.indexing_tools")
+
+# Background indexing jobs (audit 2026-11-09). `index_project_dir` used to await
+# the whole run inside a 30 s hub timeout: black (381 files) took 77.6 s, the
+# tool returned TIMEOUT while the index was still being written, and the agent
+# had no job id to poll. Jobs are kept per project so `index progress` can
+# report them without re-running anything.
+_INDEX_JOBS: Dict[str, Dict[str, Any]] = {}
+_INDEX_JOBS_LOCK = threading.Lock()
+
+
+def _job_key(path: Any) -> str:
+    return str(Path(path).resolve())
+
+
+def get_index_job(project_root: str) -> Optional[Dict[str, Any]]:
+    """Snapshot of the background indexing job for a project (or None)."""
+    if not project_root or not str(project_root).strip():
+        return None
+    with _INDEX_JOBS_LOCK:
+        job = _INDEX_JOBS.get(_job_key(project_root))
+        return dict(job) if job else None
+
+
+def _set_job(key: str, **fields: Any) -> None:
+    with _INDEX_JOBS_LOCK:
+        job = _INDEX_JOBS.setdefault(key, {})
+        job.update(fields)
+        # Bounded bookkeeping: finished jobs are history, not state.
+        if len(_INDEX_JOBS) > 50:
+            done = [
+                k for k, v in _INDEX_JOBS.items() if v.get("state") != "running"
+            ]
+            for stale in done[:10]:
+                _INDEX_JOBS.pop(stale, None)
 
 
 class NotifyChangeTool(MCPTool):
@@ -40,6 +76,7 @@ class NotifyChangeTool(MCPTool):
     async def execute(
         self,
         file_path: str,
+        project_root: str = "",
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> str:
         # ★ RATE LIMIT: максимум 10 notify_change в секунду ★
@@ -49,15 +86,27 @@ class NotifyChangeTool(MCPTool):
                 "⚠️ Rate limit exceeded: too many notify_change calls. Wait and retry."
             )
 
-        project_root = self._get_project_root()
-        rel_path = self._resolve_and_validate_path(file_path, project_root)
+        # project_root: явный проект (мультипроектный агент). Без него —
+        # активный; до аудита 2026-11-09 обновлять индекс неактивного
+        # проекта было невозможно.
+        root = self._get_project_root(project_root)
+        # The root is now agent-supplied; keep the same artifact guard as
+        # index_project_dir/set_project (red team 2026-11-09).
+        try:
+            from src.core.system_artifacts import SystemArtifacts
+
+            if SystemArtifacts.is_system_path(root):
+                return f"❌ Refusing to index a system directory: {root}"
+        except ImportError:
+            pass
+        rel_path = self._resolve_and_validate_path(file_path, root)
         # Multi-window (INC-6BCB): per-project Indexer.
-        indexer = self.resolve_indexer(explicit_project_root=str(project_root))
+        indexer = self.resolve_indexer(explicit_project_root=str(root))
 
         # Получаем контент из LSP VFS или с диска
         content, source = await self._get_content(rel_path)
 
-        rel_path_str = str(rel_path.relative_to(project_root)).replace("\\", "/")
+        rel_path_str = str(rel_path.relative_to(root)).replace("\\", "/")
 
         # Consistency Engine (WS2): источник изменён — индекс станет устаревшим
         # до завершения фоновой переиндексации.
@@ -76,7 +125,7 @@ class NotifyChangeTool(MCPTool):
             if memory_state != "STALE":
                 from src.core.intelligence.alert_store import get_alert_store
 
-                get_alert_store(project_root).push(
+                get_alert_store(root).push(
                     "memory_stale",
                     "Файлы изменились — память отмечена STALE; узлы будут перепроверены "
                     "следующим VOR-проходом (cooldown 120s)",
@@ -118,14 +167,21 @@ class NotifyChangeTool(MCPTool):
         # INC-6BCB-v3: project header — пользователь видит ГДЕ индексирует.
         return (
             f"✅ Queued for reindex: {rel_path_str} (source: {source})\n"
-            f"{self._project_header()}"
+            f"{self._project_header(str(root))}"
         )
 
-    def _get_project_root(self) -> Path:
-        """Определяет корень проекта (multi-window: из DI default)."""
-        from src.core.di_container import ProjectRootKey
+    def _get_project_root(self, explicit: str = "") -> Path:
+        """Корень проекта: явный project_root или активный (resolve_project_root).
 
-        return self._services.resolve(ProjectRootKey)
+        resolve_project_root, а не DI ProjectRootKey: set_project меняет именно
+        его (MSCODEBASE_PROJECT_PATH), и notify_change должен следовать за
+        переключением, а не оставаться на проекте старта (аудит 2026-11-09).
+        """
+        if explicit and explicit.strip():
+            return Path(explicit).resolve()
+        from src.core.project_resolution import resolve_project_root
+
+        return resolve_project_root()
 
     def _resolve_and_validate_path(self, file_path: str, project_root: Path) -> Path:
         """Проверяет и резолвит путь."""
@@ -274,30 +330,95 @@ class IndexProjectDirTool(MCPTool):
         except Exception as _e:
             logger.warning("exception", exc_info=True)
             pass
-        # Запускаем полную индексацию в фоновом потоке
+        # Запускаем полную индексацию в фоновом ПОТОКЕ и сразу отдаём job id.
+        # Раньше вызов ждал весь прогон внутри 30-секундного таймаута хаба:
+        # black (381 файл, 77.6 s) получал TIMEOUT, хотя запись продолжалась,
+        # и агенту нечем было опросить прогресс (аудит 2026-11-09).
         logger.info(f"🔄 Starting full indexing for {target_path.name}...")
+        key = _job_key(target_path)
+        with _INDEX_JOBS_LOCK:
+            running = _INDEX_JOBS.get(key)
+            if running and running.get("state") == "running":
+                return (
+                    f"🔄 Индексация уже идёт: {target_path.name}\n"
+                    f"  • начата: {time.strftime('%H:%M:%S', time.localtime(running.get('started_at', 0)))}\n"
+                    f"  • прогресс: codebase(action=\"index\", path=\"progress\", "
+                    f"project_root=\"{target_path}\")"
+                )
+            _INDEX_JOBS[key] = {
+                "state": "running",
+                "project_path": str(target_path),
+                "started_at": time.time(),
+                "files": 0,
+                "error": "",
+            }
 
         # Multi-window: получаем per-project Indexer (lazy создаётся
         # в registry, не singleton).
-        indexer = self.resolve_indexer(explicit_project_root=str(target_path))
-
         try:
-            import asyncio
-
-            indexed = await asyncio.to_thread(indexer.index_project, target_path)
-            from datetime import datetime, timedelta
-
-            _eta_time = (datetime.now() + timedelta(seconds=120)).strftime("%H:%M:%S")
-            return (
-                f"✅ Индексация завершена: {target_path.name}\n"
-                f"  • Обработано файлов: {indexed}\n"
-                f"  • Используйте get_index_status() для проверки состояния\n"
-                f"💡 *Следующая индексация: не ранее {_eta_time}. "
-                f"Запрашивай статус не чаще раза в 30с.*"
+            indexer = self.resolve_indexer(explicit_project_root=str(target_path))
+        except Exception as exc:  # noqa: BLE001 — ошибка уходит в job, не в 500
+            _set_job(
+                key, state="error", error=str(exc), finished_at=time.time()
             )
-        except Exception as e:
-            logger.error(f"Indexing error: {e}")
-            return f"❌ Ошибка индексации: {e}\n💡 *Проверь LM Studio и повтори.*"
+            return f"❌ Не удалось открыть проект {target_path.name}: {exc}"
+        services = self._services
+
+        def _worker() -> None:
+            started = time.time()
+            registry = None
+            try:
+                from src.core.di_container import (
+                    ProjectIndexerRegistry as _RegistryKey,
+                )
+                from src.core.indexing.project_indexer_registry import ProjectState
+
+                registry = services.resolve(_RegistryKey)
+                registry.set_state(target_path, ProjectState.INDEXING)
+            except Exception:  # noqa: BLE001 — state machine не блокирует индексацию
+                registry = None
+            try:
+                indexed = indexer.index_project(target_path)
+                _set_job(
+                    key,
+                    state="done",
+                    files=indexed,
+                    finished_at=time.time(),
+                    elapsed_s=round(time.time() - started, 1),
+                )
+                if registry is not None:
+                    registry.set_state(target_path, ProjectState.READY)
+                logger.info(
+                    f"✅ Indexing done for {target_path.name}: "
+                    f"{indexed} files in {time.time() - started:.1f}s"
+                )
+            except Exception as exc:  # noqa: BLE001 — ошибка уходит в job
+                _set_job(
+                    key,
+                    state="error",
+                    error=str(exc),
+                    finished_at=time.time(),
+                    elapsed_s=round(time.time() - started, 1),
+                )
+                if registry is not None:
+                    registry.set_state(target_path, ProjectState.FAILED)
+                logger.error(f"Indexing error for {target_path.name}: {exc}")
+
+        threading.Thread(
+            target=_worker,
+            name=f"index-{target_path.name}",
+            # Non-daemon: the same guarantee as the previous to_thread call —
+            # a graceful process exit waits for the index write instead of
+            # killing it mid-transaction.
+            daemon=False,
+        ).start()
+        return (
+            f"🔄 Индексация запущена в фоне: {target_path.name}\n"
+            f"  • job: {key}\n"
+            f"  • прогресс: codebase(action=\"index\", path=\"progress\", "
+            f"project_root=\"{target_path}\")\n"
+            f"  • поиск продолжает отвечать по текущему индексу"
+        )
 
 
 class IndexHealthTool(MCPTool):
@@ -338,7 +459,7 @@ class IndexHealthTool(MCPTool):
                 "status": "warning",
                 "message": f"Database not found: {db_path.name}",
                 "recovery_hint": "Run index_project_dir() to create",
-                **self._project_metadata(),  # INC-6BCB-v3
+                **self._project_metadata(str(target_path)),  # INC-6BCB-v3
             }
 
         health = quick_health_check(db_path)
@@ -351,7 +472,7 @@ class IndexHealthTool(MCPTool):
             "symbol_index_exists": health["symbol_index_exists"],
             "healthy": health["healthy"],
             "error": health.get("error"),
-            **self._project_metadata(),  # INC-6BCB-v3
+            **self._project_metadata(str(target_path)),  # INC-6BCB-v3
         }
 
 
@@ -381,13 +502,41 @@ class SetProjectTool(MCPTool):
         if not target.exists():
             return f"❌ Path does not exist: {project_root}"
 
+        # Same two guards as index_project_dir (audit 2026-11-09 red team):
+        # switching the whole process to a system directory or to the extension
+        # source would make every later relative call resolve into it.
+        try:
+            from src.core.system_artifacts import SystemArtifacts
+
+            if SystemArtifacts.is_system_path(target):
+                return f"❌ Refusing to switch to system directory: {target}"
+        except ImportError:
+            pass
+        # A drive root ("C:\\") is not in the artifact list but switching the
+        # whole process there would index the entire disk.
+        if target == Path(target.anchor):
+            return f"❌ Refusing to switch to a drive root: {target}"
+        try:
+            from src.core.project_resolution import ext_root as _ext
+
+            if target == _ext.resolve():
+                return f"❌ Refusing to switch to the extension directory: {target}"
+        except Exception:  # noqa: BLE001 — guard must not block a valid switch
+            pass
+
         _active_project_root = str(target)
 
         from src.core.project_resolution import reset_project_root_cache
         reset_project_root_cache()
 
         import os
+        # MSCODEBASE_PROJECT_PATH is the only override ranked ABOVE CWD in
+        # resolve_project_root() (position 0.5). PROJECT_PATH alone is position 2,
+        # so in a server whose CWD is the original workspace the switch was a
+        # no-op while this tool reported success (audit 2026-11-09).
+        os.environ["MSCODEBASE_PROJECT_PATH"] = str(target)
         os.environ["PROJECT_PATH"] = str(target)
+        logger.info(f"set_project: active project is now {target}")
 
         return (
             f"✅ Project switched to: {target}\n"
@@ -402,4 +551,5 @@ __all__ = [
     "IndexGitUrlTool",
     "SetProjectTool",
     "get_active_project_root",
+    "get_index_job",
 ]

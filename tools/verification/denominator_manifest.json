@@ -123,8 +123,8 @@
   "repo/AGENT_DIARY.md": {
    "class": "INTERNAL",
    "reason": "internal diary; public via diary.json",
-   "n_sig1": 111,
-   "n_sig2": 3122,
+   "n_sig1": 172,
+   "n_sig2": 3989,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -134,8 +134,8 @@
   "repo/EXPERIMENTS_LOG.md": {
    "class": "INTERNAL",
    "reason": "internal log; public via experiments.json",
-   "n_sig1": 308,
-   "n_sig2": 6335,
+   "n_sig1": 395,
+   "n_sig2": 7134,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -146,7 +146,7 @@
    "class": "INTERNAL",
    "reason": "internal tracker",
    "n_sig1": 13,
-   "n_sig2": 937,
+   "n_sig2": 963,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -156,8 +156,8 @@
   "repo/KNOWN_ISSUES.md": {
    "class": "INTERNAL",
    "reason": "internal board; public via known-issues.json",
-   "n_sig1": 3,
-   "n_sig2": 221,
+   "n_sig1": 31,
+   "n_sig2": 380,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -167,8 +167,8 @@
   "repo/README.md": {
    "class": "PUBLIC",
    "reason": "public readme",
-   "n_sig1": 24,
-   "n_sig2": 110,
+   "n_sig1": 5,
+   "n_sig2": 67,
    "n_reviewed": 0,
    "profiles": [
     "full",
@@ -179,7 +179,7 @@
    "class": "INTERNAL",
    "reason": "internal distilate",
    "n_sig1": 9,
-   "n_sig2": 226,
+   "n_sig2": 225,
    "n_reviewed": 0,
    "profiles": [
     "full",

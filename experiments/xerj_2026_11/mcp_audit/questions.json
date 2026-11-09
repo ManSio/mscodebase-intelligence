@@ -1,0 +1,40 @@
+{
+  "projects": {
+    "mscodebase": {
+      "root": "D:\\Project\\MSCodeBase",
+      "questions": [
+        ["where is the on-demand rerank resolved", "src/core/search/engine.py"],
+        ["where does search_code dispatch by mode", "src/mcp/tools/search_tools.py"],
+        ["where is the project state machine", "src/core/indexing/project_indexer_registry.py"],
+        ["how is the knowledge gate K3 checked", "tools/knowledge/check_knowledge.py"],
+        ["where are public claims verified", "tools/verification/verify_public_claims.py"],
+        ["where is install sync implemented", "install.py"]
+      ],
+      "ru": [
+        ["где решается включать ли реранк", "src/core/search/engine.py"],
+        ["где проверяются публичные числа", "tools/verification/verify_public_claims.py"],
+        ["где переключается проект", "src/mcp/tools/indexing_tools.py"]
+      ]
+    },
+    "black": {
+      "root": "D:\\Project\\bench_projects\\black",
+      "questions": [
+        ["where is the default line length defined", "src/black/const.py"],
+        ["how is source parsed into an ast", "src/black/parsing.py"],
+        ["where is the cache directory chosen", "src/black/cache.py"],
+        ["where does line wrapping decide parentheses", "src/black/linegen.py"]
+      ],
+      "ru": []
+    },
+    "httpbin": {
+      "root": "D:\\Project\\bench_projects\\httpbin",
+      "questions": [
+        ["where is the /headers response built", "httpbin/core.py"],
+        ["how does digest auth response work", "httpbin/helpers.py"],
+        ["where is the user agent endpoint defined", "httpbin/core.py"],
+        ["where are cookies parsed", "httpbin/core.py"]
+      ],
+      "ru": []
+    }
+  }
+}

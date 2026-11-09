@@ -193,12 +193,13 @@ class CodebaseTool(MCPTool):
         )
 
         services = self._services
+        _pr = kw.get("project_root", "")
         if sub in ("", "status"):
-            return await GetIndexStatusTool(services).execute()
+            return await GetIndexStatusTool(services).execute(project_root=_pr)
         if sub == "progress":
-            return await GetIndexProgressTool(services).execute()
+            return await GetIndexProgressTool(services).execute(project_root=_pr)
         if sub == "timeline":
-            return await GetIndexTimelineTool(services).execute()
+            return await GetIndexTimelineTool(services).execute(project_root=_pr)
         if sub == "health":
             return await IndexHealthTool(services).execute(
                 project_root=kw.get("project_root", "")
@@ -217,7 +218,9 @@ class CodebaseTool(MCPTool):
             file_path = kw.get("file_path", "")
             if not file_path:
                 return "❌ notify_change: required file_path (путь к файлу)"
-            return await NotifyChangeTool(services).execute(file_path=file_path)
+            return await NotifyChangeTool(services).execute(
+                file_path=file_path, project_root=_pr
+            )
         return (
             f"❌ Unknown index sub-action: '{sub}'. "
             f"Available: status | progress | timeline | health | project_dir | notify"

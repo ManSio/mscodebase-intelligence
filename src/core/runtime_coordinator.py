@@ -16,6 +16,7 @@ RuntimeCoordinator — единая точка принятия решения �
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from pathlib import Path
@@ -123,7 +124,37 @@ class RuntimeCoordinator:
             state = registry.get_state(path)
 
             if state == ProjectState.UNINITIALIZED:
-                state = await registry.wait_until_ready(path, timeout=timeout)
+                # Auto-initialize instead of sleeping the full timeout: a state
+                # of UNINITIALIZED means no thread is creating this indexer
+                # (creation flips it to STARTING first), so waiting cannot
+                # succeed on its own. get_indexer() opens the store and moves
+                # the state to READY/INDEXING in ~50-300 ms. Before this change
+                # every first call to a project cost 5 s and then failed
+                # (audit 2026-11-09: black/httpbin 5003-5005 ms).
+                try:
+                    from src.core.di_container import IndexerFactoryKey
+
+                    # get_status() takes the table write lock; the file's own
+                    # incident 2026-08-25 froze the event loop for minutes when
+                    # called inline (base.py wraps the same call in to_thread).
+                    await asyncio.to_thread(
+                        registry.get_indexer,
+                        path,
+                        factory=self._services.resolve(IndexerFactoryKey),
+                    )
+                    state = registry.get_state(path)
+                except Exception as init_err:
+                    _COUNTERS["verdict_blocked_not_ready"] += 1
+                    return ExecutionVerdict(
+                        ok=False,
+                        reason="project_not_ready",
+                        state=state.name,
+                        requires_reindex=True,
+                        detail=(
+                            f"Project {path.name} is not initialized ({init_err}). "
+                            "Run index_project_dir(...) for this path."
+                        ),
+                    )
                 if state == ProjectState.UNINITIALIZED:
                     _COUNTERS["verdict_blocked_not_ready"] += 1
                     return ExecutionVerdict(
@@ -133,7 +164,7 @@ class RuntimeCoordinator:
                         requires_reindex=True,
                         detail=(
                             f"Project {path.name} has not been initialized. "
-                            "Try opening a file in the project or run index_project_dir()."
+                            "Run index_project_dir(...) for this path."
                         ),
                     )
 

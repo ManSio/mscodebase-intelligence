@@ -181,6 +181,11 @@ Default-visible 17:
 | `tool_help` | profile and discovery |
 | `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` | maintenance |
 
+Indexing is asynchronous: `codebase(action="index", path="project_dir", project_root=...)` starts a
+background job and returns immediately; poll `codebase(action="index", path="progress", ...)` for
+`state` / `files` / `elapsed`. A project that is not indexed yet is refused fast with the exact
+remediation instead of a 5-second wait.
+
 Hidden by default (registered, not exposed): the six `lsp_*` tools,
 `plan_search`, `structural_search`, the 16 `intel_*` mutation/lifecycle tools,
 `submit_background_task` / `get_task_status` / `verify_action` /

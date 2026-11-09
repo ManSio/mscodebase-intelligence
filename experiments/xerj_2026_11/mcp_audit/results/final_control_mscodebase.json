@@ -1,0 +1,143 @@
+{
+  "project": "mscodebase",
+  "root": "D:\\Project\\MSCodeBase",
+  "penalty": "0",
+  "summary": {
+    "n": 6,
+    "top1": 2,
+    "top5": 4,
+    "median_ms": 3062,
+    "max_ms": 3700,
+    "test_or_doc_slots": 8
+  },
+  "ru_summary": {
+    "n": 3,
+    "top1": 0,
+    "top5": 0,
+    "median_ms": 1762,
+    "max_ms": 3179,
+    "test_or_doc_slots": 9
+  },
+  "rows": [
+    {
+      "q": "where is the on-demand rerank resolved",
+      "gold": "src/core/search/engine.py",
+      "rank": 1,
+      "ms": 2077,
+      "files": [
+        "src/core/search/engine.py",
+        "tests/test_graph_resolver.py",
+        "tests/test_tool_project_root.py",
+        "tests/test_tool_project_root.py",
+        "src/core/search/engine.py"
+      ]
+    },
+    {
+      "q": "where does search_code dispatch by mode",
+      "gold": "src/mcp/tools/search_tools.py",
+      "rank": null,
+      "ms": 2515,
+      "files": [
+        "src/remote_main.py",
+        "tests/test_search_code_fts5_marker.py",
+        "src/core/search/code_tokenizer.py",
+        "src/core/search/code_tokenizer.py",
+        "src/remote_main.py"
+      ]
+    },
+    {
+      "q": "where is the project state machine",
+      "gold": "src/core/indexing/project_indexer_registry.py",
+      "rank": null,
+      "ms": 3700,
+      "files": [
+        "src/providers/reranker/llama_install.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/core/consistency.py",
+        "tests/test_artifact_paths.py"
+      ]
+    },
+    {
+      "q": "how is the knowledge gate K3 checked",
+      "gold": "tools/knowledge/check_knowledge.py",
+      "rank": 3,
+      "ms": 3012,
+      "files": [
+        "tools/verification/run_all.py",
+        "src/utils/ui_formatter.py",
+        "tools/knowledge/check_knowledge.py",
+        "tools/knowledge/repoint_stale_refs.py",
+        "tests/test_stale_after.py"
+      ]
+    },
+    {
+      "q": "where are public claims verified",
+      "gold": "tools/verification/verify_public_claims.py",
+      "rank": 1,
+      "ms": 3062,
+      "files": [
+        "tools/verification/verify_public_claims.py",
+        "tools/verification/verify_public_claims.py",
+        "tools/verification/verify_public_claims.py",
+        "tests/test_change_preview.py",
+        "tests/test_execution_contract.py"
+      ]
+    },
+    {
+      "q": "where is install sync implemented",
+      "gold": "install.py",
+      "rank": 5,
+      "ms": 3604,
+      "files": [
+        "src/core/git_hooks_installer.py",
+        "scripts/archive_autosync_entries.py",
+        "src/core/search/agentic_search.py",
+        "src/core/search/agentic_search.py",
+        "install.py"
+      ]
+    }
+  ],
+  "ru_rows": [
+    {
+      "q": "где решается включать ли реранк",
+      "gold": "src/core/search/engine.py",
+      "rank": null,
+      "ms": 1761,
+      "files": [
+        "docs/ru/INSTALL.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "EXPERIMENTS_LOG.md",
+        "docs/ru/FAQ.md"
+      ]
+    },
+    {
+      "q": "где проверяются публичные числа",
+      "gold": "tools/verification/verify_public_claims.py",
+      "rank": null,
+      "ms": 1762,
+      "files": [
+        "docs/ru/README.md",
+        "src/core/search/cypher_engine.py",
+        "docs/ru/README.md",
+        "ISSUE.md",
+        "docs/ru/CHANGELOG.md"
+      ]
+    },
+    {
+      "q": "где переключается проект",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "rank": null,
+      "ms": 3179,
+      "files": [
+        "src/core/search/branch_aware_index.py",
+        "docs/ru/README.md",
+        "docs/archive/KNOWN_ISSUES_2026_07.md",
+        "src/core/search/branch_aware_index.py",
+        "src/core/search/branch_aware_index.py"
+      ]
+    }
+  ],
+  "parallel": null
+}
