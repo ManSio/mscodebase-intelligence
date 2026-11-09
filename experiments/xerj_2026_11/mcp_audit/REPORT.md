@@ -54,6 +54,21 @@ The control was measured before the name channel existed; `--names 0` is its exa
 (and `--penalty 0` disables every rank rule). Per-question rows are in
 `results/final_control_*.json` (control) and `results/final2_*.json` (treatment).
 
+### 1.2 Non-code demotion on the SQLite path (paired, same index)
+
+`MSCODEBASE_DEMOTE_NON_CODE` was applied only in the LanceDB branch; with the
+default `dense_off=true` the SQLite/FTS5 path returned docs at full score.
+`eval_sqlite_demote.py` toggles `searcher._demote_non_code` on the same index,
+6 MSCodeBase code questions, `search_code(mode="quality")`:
+
+| arm | docs top-1 | docs top-5 | gold top-1 | gold top-5 |
+|---|---:|---:|---:|---:|
+| off (control) | 3/6 | 10/30 | 2/6 | 5/6 |
+| on (treatment) | **0/6** | **0/30** | **3/6** | 5/6 |
+
+Docs disappear from the top-5 and the gold answer gains one top-1
+(`search_code dispatch` moves from rank 2 to 1); no gold file is lost.
+
 ## 2. Latency
 
 | change | before | after | measurement |

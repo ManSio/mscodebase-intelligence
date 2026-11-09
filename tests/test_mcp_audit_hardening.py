@@ -400,6 +400,61 @@ def test_notify_change_reports_the_explicit_project(tmp_path):
     assert f"HEADER:{target.resolve()}" in answer
 
 
+class _DemoteStore:
+    """Docs first, code second: exactly the shape the default path returned."""
+
+    def count(self):
+        return 2
+
+    def search(self, query, limit):
+        return [
+            {
+                "text": "docs",
+                "text_full": "docs",
+                "final_score": 10.0,
+                "metadata": {"file": "docs/x.md", "chunk_index": 0},
+            },
+            {
+                "text": "code",
+                "text_full": "code",
+                "final_score": 9.0,
+                "metadata": {"file": "src/x.py", "chunk_index": 1},
+            },
+        ]
+
+
+def _demote_searcher(enabled: bool) -> Searcher:
+    searcher = Searcher.__new__(Searcher)
+    searcher._ondemand_rerank = False
+    searcher._ondemand_rerank_top_n = 10
+    searcher._ondemand_rerank_max_chars = 1600
+    searcher._demote_non_code = enabled
+    searcher._demote_intent_aware = True
+    searcher._chunk_store = _DemoteStore()
+    searcher._last_rerank_timing = {}
+    return searcher
+
+
+def test_sqlite_path_demotes_docs_when_enabled():
+    rows = asyncio.run(
+        _demote_searcher(True)._sqlite_hybrid_search_async(
+            "plain words", 5, rerank=False
+        )
+    )
+
+    assert rows[0]["metadata"]["file"] == "src/x.py"
+
+
+def test_sqlite_path_keeps_docs_when_demotion_is_off():
+    rows = asyncio.run(
+        _demote_searcher(False)._sqlite_hybrid_search_async(
+            "plain words", 5, rerank=False
+        )
+    )
+
+    assert rows[0]["metadata"]["file"] == "docs/x.md"
+
+
 def test_render_explain_keeps_stages_and_chunks():
     from src.mcp.tools.search_tools import _render_explain
 
