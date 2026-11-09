@@ -1,0 +1,26 @@
+{
+  "frozen_at": "2026-11-09",
+  "corpora": {
+    "itsdangerous": "pallets__itsdangerous__HEAD-672971d",
+    "iniconfig": "pytest-dev__iniconfig__HEAD-a9e0ad1"
+  },
+  "note": "Gold files were read from the source in this session. A gold file is the file that CONTAINS the implementation, not a caller: this corrected two golds from the earlier frozen set (inline comment stripping and duplicate-section rejection are implemented in _parse.py, not __init__.py).",
+  "cases": [
+    {"id": "Q01", "repo": "itsdangerous", "gold": "signer.py",     "question": "Где подпись отделяется от полезной нагрузки?"},
+    {"id": "Q02", "repo": "itsdangerous", "gold": "timed.py",      "question": "Что отвергает просроченную подпись?"},
+    {"id": "Q03", "repo": "itsdangerous", "gold": "signer.py",     "question": "Как ключ подписи растягивается до нужной длины?"},
+    {"id": "Q04", "repo": "itsdangerous", "gold": "signer.py",     "question": "Как сравниваются подписи без утечки по времени?"},
+    {"id": "Q05", "repo": "itsdangerous", "gold": "encoding.py",   "question": "Как число превращается в минимальное байтовое представление?"},
+    {"id": "Q06", "repo": "itsdangerous", "gold": "signer.py",     "question": "Почему sha1 импортируется только при вызове?"},
+    {"id": "Q07", "repo": "itsdangerous", "gold": "serializer.py", "question": "Как сериализатор находит все возможные подписывающие объекты?"},
+    {"id": "Q08", "repo": "itsdangerous", "gold": "_json.py",      "question": "Где json сериализуется без лишних пробелов?"},
+    {"id": "Q09", "repo": "iniconfig",     "gold": "_parse.py",    "question": "Где отклоняются повторяющиеся секции?"},
+    {"id": "Q10", "repo": "iniconfig",     "gold": "_parse.py",    "question": "Как вырезается строчный комментарий из значения?"},
+    {"id": "Q11", "repo": "iniconfig",     "gold": "_parse.py",    "question": "Где запоминается, на какой строке встретилось имя?"},
+    {"id": "Q12", "repo": "iniconfig",     "gold": "_parse.py",    "question": "Как читается продолжение значения на следующих строках?"}
+  ],
+  "controls": {
+    "positive": {"repo": "itsdangerous", "query": "where is class Signer defined", "gold": "signer.py"},
+    "negative": {"repo": "itsdangerous", "query": "where is websocket reconnect implemented", "gold": null}
+  }
+}

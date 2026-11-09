@@ -4,6 +4,20 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-11-09 — RU→EN: перевод сильнее dense; ревью поймало 2 ложных доказательства — 🟢
+
+- **Замер (12 вопросов, 2 репо):** RU-лексика 2/12, слепой EN-перевод 12/12,
+  dense 768 8/12, перевод без реранка 12/12 за 14 мс — `ru_vs_dense/REPORT.md`.
+- **После ревью:** gold-матчер `endswith(basename)` считал тест-файл реализацией
+  (C 9→8); `dense_score is not None` всегда истинно (BM25=0.0) → теперь `>0`;
+  negative control был литералом → проверяет текст и падает. Guard:
+  `matcher_selftest.py`, `negative_control.py --arm A|C`, frozen+MANIFEST.
+- **Границы:** hard subset (0 общих токенов с gold) = 1/12; старые 4/5 и 5/5
+  superseded (2 gold указывали на вызывающий файл).
+- **Gate-долги:** WISDOM test count обновлён (2317 collected); K3 `P-006` —
+  в личном skill вне репо, нужен владелец.
+
+---
 ## 2026-11-09 — pre-commit: `gate_cli.py --selftest` правит трекнутый манифест — 🟡
 
 - **Симптом:** после `git hook run pre-commit` изменён `tools/verification/denominator_manifest.json`

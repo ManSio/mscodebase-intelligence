@@ -1,0 +1,297 @@
+{
+  "cases": {
+    "Q01": {
+      "gold": "signer.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "payload",
+          "signature"
+        ],
+        [
+          "payload",
+          "signature"
+        ],
+        [
+          "payload",
+          "signature"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q02": {
+      "gold": "timed.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "expired",
+          "signature"
+        ],
+        [
+          "check",
+          "expired",
+          "signature"
+        ],
+        [
+          "signature",
+          "validation"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q03": {
+      "gold": "signer.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "derive",
+          "key",
+          "signing"
+        ],
+        [
+          "key",
+          "signing"
+        ],
+        [
+          "key",
+          "signature"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q04": {
+      "gold": "signer.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "compare",
+          "signature"
+        ],
+        [],
+        [
+          "compare"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q05": {
+      "gold": "encoding.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [],
+        [
+          "bytes"
+        ],
+        [
+          "encoding"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": true,
+      "hard_all_turns": false
+    },
+    "Q06": {
+      "gold": "signer.py",
+      "ru_overlap": [
+        [
+          "sha1"
+        ],
+        [
+          "sha1"
+        ],
+        []
+      ],
+      "en_overlap": [
+        [
+          "import",
+          "lazy",
+          "sha1"
+        ],
+        [
+          "sha1"
+        ],
+        [
+          "hash",
+          "import"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q07": {
+      "gold": "serializer.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "signing"
+        ],
+        [],
+        [
+          "sign"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q08": {
+      "gold": "_json.py",
+      "ru_overlap": [
+        [
+          "json"
+        ],
+        [
+          "json"
+        ],
+        [
+          "json"
+        ]
+      ],
+      "en_overlap": [
+        [
+          "json"
+        ],
+        [
+          "json"
+        ],
+        [
+          "json"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q09": {
+      "gold": "_parse.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "duplicate",
+          "sections"
+        ],
+        [
+          "duplicate",
+          "section"
+        ],
+        [
+          "sections"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q10": {
+      "gold": "_parse.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "inline",
+          "strip"
+        ],
+        [
+          "value"
+        ],
+        []
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q11": {
+      "gold": "_parse.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "name"
+        ],
+        [
+          "name",
+          "number"
+        ],
+        [
+          "key",
+          "number"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    },
+    "Q12": {
+      "gold": "_parse.py",
+      "ru_overlap": [
+        [],
+        [],
+        []
+      ],
+      "en_overlap": [
+        [
+          "continuation",
+          "value"
+        ],
+        [
+          "continuation"
+        ],
+        [
+          "value"
+        ]
+      ],
+      "symbol_hits": [],
+      "hard_turn1": false,
+      "hard_all_turns": false
+    }
+  },
+  "summary": {
+    "cases": 12,
+    "hard_turn1": 1,
+    "hard_all_turns": 0,
+    "cases_with_symbol_leak": 0
+  }
+}

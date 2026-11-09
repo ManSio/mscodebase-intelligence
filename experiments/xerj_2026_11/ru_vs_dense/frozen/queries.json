@@ -1,0 +1,18 @@
+{
+  "source": "blind subagent, fresh context, no repository access, no gold knowledge, no invented identifiers",
+  "generated_at": "2026-11-09",
+  "queries": {
+    "Q01": {"ru": ["где подпись отделяется от данных", "разделение подписи и нагрузки", "отделение подписи от сообщения"], "en": ["signature separated from payload", "split signature and payload", "signature payload split"]},
+    "Q02": {"ru": ["что отвергает просроченную подпись", "проверка срока подписи", "отклонение устаревшей подписи"], "en": ["reject expired signature", "expired signature check", "signature expiration validation"]},
+    "Q03": {"ru": ["растягивание ключа подписи", "ключ до нужной длины", "расширение ключа подписи"], "en": ["derive signing key length", "expand signing key", "key stretching signature"]},
+    "Q04": {"ru": ["сравнение подписей без утечки", "защита от тайминг атак", "сравнение за постоянное время"], "en": ["constant time signature compare", "timing safe comparison", "avoid timing leak compare"]},
+    "Q05": {"ru": ["число в минимальные байты", "минимальное представление числа", "сериализация числа в байты"], "en": ["minimal byte representation integer", "convert number to bytes", "minimal encoding of number"]},
+    "Q06": {"ru": ["ленивый импорт sha1", "почему sha1 импортируется поздно", "отложенный импорт хеша"], "en": ["lazy import sha1", "why sha1 imported locally", "deferred hash import"]},
+    "Q07": {"ru": ["поиск всех подписывающих объектов", "как найти объекты для подписи", "обнаружение подписываемых объектов"], "en": ["find all signing objects", "discover signable objects", "collect objects to sign"]},
+    "Q08": {"ru": ["json без лишних пробелов", "компактная сериализация json", "плотный вывод json"], "en": ["compact json serialization", "json without spaces", "minified json output"]},
+    "Q09": {"ru": ["отклонение повторяющихся секций", "проверка дубликатов секций", "запрет повторных секций"], "en": ["reject duplicate sections", "duplicate section validation", "detect repeated sections"]},
+    "Q10": {"ru": ["вырезание строчного комментария", "удаление комментария из значения", "отсечение комментария в строке"], "en": ["strip inline comment", "remove comment from value", "cut trailing comment"]},
+    "Q11": {"ru": ["запоминание строки имени", "сохранение номера строки имени", "где хранится строка ключа"], "en": ["remember line of name", "store name line number", "track key line number"]},
+    "Q12": {"ru": ["чтение продолжения значения", "многострочное значение", "продолжение на следующих строках"], "en": ["read multiline value continuation", "continuation lines parsing", "value spans multiple lines"]}
+  }
+}

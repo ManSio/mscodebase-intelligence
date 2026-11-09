@@ -1,0 +1,413 @@
+{
+  "arm": "C",
+  "mode": "dense",
+  "lang": "ru",
+  "limit": 10,
+  "ondemand_rerank": true,
+  "cases": {
+    "Q01": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "где подпись отделяется от данных",
+        "разделение подписи и нагрузки",
+        "отделение подписи от сообщения"
+      ],
+      "ranks": [
+        6,
+        7,
+        8
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "src/itsdangerous/exc.py",
+        "tests/test_itsdangerous/test_timed.py"
+      ],
+      "seconds": [
+        2.098,
+        2.074,
+        1.825
+      ],
+      "dense_rows": [
+        9,
+        9,
+        9
+      ]
+    },
+    "Q02": {
+      "gold": "timed.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "что отвергает просроченную подпись",
+        "проверка срока подписи",
+        "отклонение устаревшей подписи"
+      ],
+      "ranks": [
+        8,
+        9,
+        8
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "src/itsdangerous/exc.py",
+        "tests/test_itsdangerous/test_timed.py"
+      ],
+      "seconds": [
+        1.954,
+        1.962,
+        1.953
+      ],
+      "dense_rows": [
+        9,
+        10,
+        9
+      ]
+    },
+    "Q03": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "растягивание ключа подписи",
+        "ключ до нужной длины",
+        "расширение ключа подписи"
+      ],
+      "ranks": [
+        4,
+        5,
+        3
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "tests/test_itsdangerous/test_timed.py",
+        "tests/test_itsdangerous/test_signer.py"
+      ],
+      "seconds": [
+        1.931,
+        2.09,
+        1.942
+      ],
+      "dense_rows": [
+        9,
+        10,
+        9
+      ]
+    },
+    "Q04": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "сравнение подписей без утечки",
+        "защита от тайминг атак",
+        "сравнение за постоянное время"
+      ],
+      "ranks": [
+        6,
+        null,
+        null
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "tests/test_itsdangerous/test_timed.py",
+        "tests/test_itsdangerous/test_signer.py"
+      ],
+      "seconds": [
+        2.076,
+        2.021,
+        1.928
+      ],
+      "dense_rows": [
+        9,
+        10,
+        9
+      ]
+    },
+    "Q05": {
+      "gold": "encoding.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "число в минимальные байты",
+        "минимальное представление числа",
+        "сериализация числа в байты"
+      ],
+      "ranks": [
+        9,
+        9,
+        7
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_encoding.py",
+        "tests/test_itsdangerous/test_encoding.py",
+        "src/itsdangerous/_json.py"
+      ],
+      "seconds": [
+        2.046,
+        1.845,
+        1.944
+      ],
+      "dense_rows": [
+        10,
+        10,
+        8
+      ]
+    },
+    "Q06": {
+      "gold": "signer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "ленивый импорт sha1",
+        "почему sha1 импортируется поздно",
+        "отложенный импорт хеша"
+      ],
+      "ranks": [
+        1,
+        1,
+        null
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/signer.py",
+        "src/itsdangerous/_json.py"
+      ],
+      "seconds": [
+        2.129,
+        2.019,
+        1.947
+      ],
+      "dense_rows": [
+        5,
+        4,
+        8
+      ]
+    },
+    "Q07": {
+      "gold": "serializer.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "поиск всех подписывающих объектов",
+        "как найти объекты для подписи",
+        "обнаружение подписываемых объектов"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [
+        "tests/test_itsdangerous/test_signer.py",
+        "tests/test_itsdangerous/test_signer.py",
+        "src/itsdangerous/exc.py"
+      ],
+      "seconds": [
+        1.968,
+        1.93,
+        1.895
+      ],
+      "dense_rows": [
+        9,
+        10,
+        9
+      ]
+    },
+    "Q08": {
+      "gold": "_json.py",
+      "repo": "itsdangerous",
+      "queries": [
+        "json без лишних пробелов",
+        "компактная сериализация json",
+        "плотный вывод json"
+      ],
+      "ranks": [
+        1,
+        1,
+        1
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "src/itsdangerous/_json.py",
+        "src/itsdangerous/_json.py",
+        "src/itsdangerous/url_safe.py"
+      ],
+      "seconds": [
+        2.24,
+        1.949,
+        2.264
+      ],
+      "dense_rows": [
+        5,
+        5,
+        6
+      ]
+    },
+    "Q09": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "отклонение повторяющихся секций",
+        "проверка дубликатов секций",
+        "запрет повторных секций"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [
+        "testing/conftest.py",
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py"
+      ],
+      "seconds": [
+        5.868,
+        4.92,
+        4.859
+      ],
+      "dense_rows": [
+        10,
+        10,
+        10
+      ]
+    },
+    "Q10": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "вырезание строчного комментария",
+        "удаление комментария из значения",
+        "отсечение комментария в строке"
+      ],
+      "ranks": [
+        10,
+        1,
+        10
+      ],
+      "hit@turn1": true,
+      "hit@turn3": true,
+      "turns_to_success": 1,
+      "top3_first_turn": [
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py"
+      ],
+      "seconds": [
+        4.948,
+        4.577,
+        4.798
+      ],
+      "dense_rows": [
+        10,
+        10,
+        10
+      ]
+    },
+    "Q11": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "запоминание строки имени",
+        "сохранение номера строки имени",
+        "где хранится строка ключа"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [
+        "testing/conftest.py",
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py"
+      ],
+      "seconds": [
+        4.712,
+        4.424,
+        4.73
+      ],
+      "dense_rows": [
+        10,
+        10,
+        10
+      ]
+    },
+    "Q12": {
+      "gold": "_parse.py",
+      "repo": "iniconfig",
+      "queries": [
+        "чтение продолжения значения",
+        "многострочное значение",
+        "продолжение на следующих строках"
+      ],
+      "ranks": [
+        null,
+        null,
+        null
+      ],
+      "hit@turn1": false,
+      "hit@turn3": false,
+      "turns_to_success": null,
+      "top3_first_turn": [
+        "testing/conftest.py",
+        "testing/test_iniconfig.py",
+        "testing/test_iniconfig.py"
+      ],
+      "seconds": [
+        5.187,
+        4.995,
+        5.785
+      ],
+      "dense_rows": [
+        10,
+        9,
+        10
+      ]
+    }
+  },
+  "controls": {
+    "positive_rank": 2,
+    "negative_rows": 10,
+    "empty_rows": 0
+  },
+  "embedder": {
+    "itsdangerous": {
+      "mode": "llama_cpp",
+      "dim": 768
+    },
+    "iniconfig": {
+      "mode": "llama_cpp",
+      "dim": 768
+    }
+  },
+  "summary": {
+    "cases": 12,
+    "hit@turn1": 8,
+    "hit@turn3": 8
+  }
+}
