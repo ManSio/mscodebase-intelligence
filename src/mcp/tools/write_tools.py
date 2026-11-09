@@ -110,7 +110,7 @@ class WriteTool(MCPTool):
 
         Returns error message or None if valid."""
         try:
-            indexer = self.resolve_indexer()
+            indexer = self._write_indexer()
             project_root = Path(indexer.project_path).resolve()
         except Exception:
             return (
@@ -152,7 +152,7 @@ class WriteTool(MCPTool):
 
     def _contract_project_root(self) -> str:
         try:
-            return str(Path(self.resolve_indexer().project_path))
+            return str(Path(self._write_indexer().project_path))
         except Exception:  # noqa: BLE001
             return str(Path.cwd())
 
@@ -275,6 +275,7 @@ class WriteTool(MCPTool):
         apply: bool = False,
         impact_token: str = "",
         check_types: bool = False,
+        project_root: str = "",
     ) -> str:
         """Execute a write operation.
 
@@ -295,7 +296,26 @@ class WriteTool(MCPTool):
                 basedpyright и вернуть ошибки типов в ответе (не блокирует запись;
                 синтаксическая ошибка результирующего файла блокирует всегда).
                 Работает и в preview-режиме (apply=False) — ошибки видны ДО записи.
+            project_root: явный проект для поиска символа, preview и записи. Без
+                него — активный. До 2026-11-09 write-операции его не принимали и
+                молча работали с активным проектом (найдено живым preview).
         """
+        # Per-call target project. WriteTool is created per hub call, so this
+        # attribute cannot leak between concurrent requests.
+        if project_root:
+            _root = Path(project_root).resolve()
+            if not _root.is_dir():
+                return f"❌ project_root is not a directory: {project_root}"
+            try:
+                from src.core.system_artifacts import SystemArtifacts
+
+                if SystemArtifacts.is_system_path(_root):
+                    return f"❌ Refusing to write inside a system directory: {_root}"
+            except ImportError:
+                pass
+            self._write_project_root = str(_root)
+        else:
+            self._write_project_root = ""
 
         action_map = {
             "rename": self._action_rename,
@@ -316,13 +336,26 @@ class WriteTool(MCPTool):
 
         # Вызываем хендлер с параметрами (без служебных ключей)
         kwargs = {k: v for k, v in locals().items()
-                  if k not in ('self', 'action', 'handler', 'kwargs', 'action_map')}
+                  if k not in ('self', 'action', 'handler', 'kwargs', 'action_map',
+                               'project_root')}
         return await handler(**kwargs)
+
+    def _write_indexer(self):
+        """Per-call indexer: explicit project_root or the active project."""
+        return self.resolve_indexer(
+            explicit_project_root=getattr(self, "_write_project_root", "") or None
+        )
+
+    def _write_symbol_index(self):
+        """Per-call symbol index, same target project as the write."""
+        return self.resolve_symbol_index(
+            explicit_project_root=getattr(self, "_write_project_root", "") or None
+        )
 
     async def _action_rename(self, **kw):
         """Rename a symbol across all files."""
         await self.require_ready_project()
-        si = self.resolve_symbol_index()
+        si = self._write_symbol_index()
         old_name = kw["old_name"]
         new_name = kw["new_name"]
         file_path = kw.get("file_path", "")
@@ -386,7 +419,7 @@ class WriteTool(MCPTool):
 
     async def _action_move(self, **kw):
         await self.require_ready_project()
-        si = self.resolve_symbol_index()
+        si = self._write_symbol_index()
         symbol = kw["symbol"]
         to_file = kw["to_file"]
         file_path = kw.get("file_path", "")
@@ -423,7 +456,7 @@ class WriteTool(MCPTool):
         all_refs = si.find_all_references(symbol)
         target_path = Path(to_file)
         if not target_path.is_absolute():
-            target_path = Path(self.resolve_indexer().project_path) / to_file
+            target_path = Path(self._write_indexer().project_path) / to_file
         target_file = target_path.resolve().as_posix()
         source_package = self._infer_package(source_file)
         target_package = self._infer_package(target_file)
@@ -442,7 +475,7 @@ class WriteTool(MCPTool):
 
     async def _action_safe_delete(self, **kw):
         await self.require_ready_project()
-        si = self.resolve_symbol_index()
+        si = self._write_symbol_index()
         symbol = kw["symbol"]
         file_path = kw.get("file_path", "")
         force = kw["force"]
@@ -488,7 +521,7 @@ class WriteTool(MCPTool):
 
     async def _action_replace(self, **kw) -> str:
         await self.require_ready_project()
-        si = self.resolve_symbol_index()
+        si = self._write_symbol_index()
         symbol = kw["symbol"]
         new_code = kw["new_code"]
         file_path = kw.get("file_path", "")
@@ -609,7 +642,7 @@ class WriteTool(MCPTool):
 
     async def _action_insert(self, position: str, **kw) -> str:
         await self.require_ready_project()
-        si = self.resolve_symbol_index()
+        si = self._write_symbol_index()
         anchor_symbol = kw["anchor_symbol"]
         new_code = kw["new_code"]
         file_path = kw["file_path"]
@@ -752,7 +785,7 @@ class WriteTool(MCPTool):
         # относительно проекта, а не абсолютный Windows-путь
         # (иначе получаем невалидный `from D:\.Project... import X`).
         try:
-            root = Path(self.resolve_indexer().project_path).resolve()
+            root = Path(self._write_indexer().project_path).resolve()
             rel = p.relative_to(root)
         except Exception:
             rel = p
@@ -943,7 +976,7 @@ class WriteTool(MCPTool):
         # DocSync: авто-обновление .md файлов после переименования
         try:
             from src.core.doc_sync_engine import DocSyncEngine
-            project_root = str(Path(self.resolve_indexer().project_path))
+            project_root = str(Path(self._write_indexer().project_path))
             if project_root:
                 engine = DocSyncEngine(project_root)
                 report = engine.apply_rename(old_name, new_name)
@@ -1065,7 +1098,7 @@ class WriteTool(MCPTool):
         # be resolved we refuse the edit (return None) instead of passing an
         # unvalidated path from the LSP into the write path (ISSUE P1-9).
         try:
-            project_root = Path(self.resolve_indexer().project_path).resolve()
+            project_root = Path(self._write_indexer().project_path).resolve()
         except Exception:  # noqa: BLE001 — unknown root => refuse
             return None
         try:
@@ -1134,7 +1167,7 @@ class WriteTool(MCPTool):
             content = src_path.read_text(encoding="utf-8")
             src_before = _sha256_text(content)
             lines = content.splitlines(True)
-            si = self.resolve_symbol_index()
+            si = self._write_symbol_index()
             defs = si.find_definitions(symbol)
             if defs:
                 def_line = defs[0].line - 1

@@ -137,8 +137,9 @@ class CodebaseTool(MCPTool):
         from src.mcp.tools.write_tools import WriteTool
 
         wt = WriteTool(self._services)
-        # Пробрасываем только нужные kwargs. project_root НЕ принимается
-        # WriteTool.execute — убран (REF: symbol_write_tools → write_tools).
+        # project_root forward: write/preview must target the project the agent
+        # named, not the active one (live preview 2026-11-09 hit MSCodeBase
+        # while project_root was a temp repo).
         return await wt.execute(
             action=sub,
             old_name=kw.get("old_name", ""),
@@ -152,6 +153,7 @@ class CodebaseTool(MCPTool):
             force=kw.get("force", False),
             allow_collision=kw.get("allow_collision", False),
             impact_token=kw.get("impact_token", ""),
+            project_root=kw.get("project_root", ""),
         )
 
     async def _action_symbol(self, **kw) -> str:

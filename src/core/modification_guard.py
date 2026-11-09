@@ -208,6 +208,13 @@ def modification_guard(
             except TypeError:
                 call_args = kwargs  # fallback
 
+            # `ack_impact` is the way OUT of a DENY; guarding it would deny the
+            # acknowledgement itself and leave a load-bearing file uneditable
+            # (found by the live preview/ack loop 2026-11-09).
+            _action = str(call_args.get("action", "") or kwargs.get("action", ""))
+            if _action in ("ack", "ack_impact"):
+                return await func(self, *args, **kwargs)
+
             file_path = (
                 call_args.get("file_path", "")
                 or call_args.get("path", "")
@@ -223,6 +230,12 @@ def modification_guard(
                 or kwargs.get("symbol", kwargs.get("old_name", ""))
                 or ""
             )
+            # Per-call project: the guard must resolve the symbol in the SAME
+            # project the write targets (live preview 2026-11-09 resolved
+            # "render" in the active repo while project_root was a temp repo).
+            project_root = call_args.get("project_root", "") or kwargs.get(
+                "project_root", ""
+            )
 
             if not file_path and not symbol:
                 # Нет цели для проверки — пропускаем
@@ -235,7 +248,13 @@ def modification_guard(
             elif symbol:
                 # Пытаемся найти файл по символу через SymbolIndex
                 try:
-                    si = self.resolve_symbol_index() if hasattr(self, "resolve_symbol_index") else None
+                    si = (
+                        self.resolve_symbol_index(
+                            explicit_project_root=project_root or None
+                        )
+                        if hasattr(self, "resolve_symbol_index")
+                        else None
+                    )
                     if si:
                         defs = si.find_definitions(symbol)
                         if len(defs) == 1:
