@@ -15,15 +15,12 @@ if not exist "%VENV_PY%" (
 set "PYTHONPATH=%SCRIPT_DIR%"
 set "MSCODEBASE_ALLOW_SELF_INDEX=1"
 
-:: The remote token must come from the environment. A hardcoded default was
-:: committed in 2026-11 (git 8f694ff) and is therefore in history: rotate it.
-if "%MSCODEBASE_REMOTE_TOKEN%"=="" (
-    echo [ERROR] MSCODEBASE_REMOTE_TOKEN is not set.
-    echo         Set it first, then re-run this script:
-    echo             set MSCODEBASE_REMOTE_TOKEN=^<token^>
-    pause
-    exit /b 1
-)
+:: Local, direct mode: the daemon binds 127.0.0.1 and runs WITHOUT a Bearer token
+:: (empty variable = auth disabled, src/remote_main.py). The hardcoded token that
+:: used to live here was removed in 2026-11; the value is still in git history,
+:: so rotate it before ever exposing this port. Remote/Docker deployments still
+:: set MSCODEBASE_REMOTE_TOKEN on the server and in the client headers.
+set "MSCODEBASE_REMOTE_TOKEN="
 
 :: First arg = project path, else use PROJECT_PATH env, else current dir
 if not "%~1"=="" (
