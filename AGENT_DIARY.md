@@ -10,6 +10,19 @@
 
 
 
+## [2026-11-09] SEARCH — демоушен доков не работал на SQLite-пути
+
+- **Симптом:** `MSCODEBASE_DEMOTE_NON_CODE=true`, но `search_code(quality)` ставил docs первыми:
+  3/6 top-1 и 10/30 слотов на шести код-вопросах.
+- **Root Cause:** E33-демоушен жил только в LanceDB-ветке; при `dense_off=true` активен
+  SQLite/FTS5-путь, который отдавал доки с полным скором.
+- **Fix:** тот же множитель 0.3 и пересортировка в `_sqlite_hybrid_search_async`; правило
+  intent-aware сохранено (вопрос про доки не демоутится).
+- **Числа (paired, один индекс):** docs top-1 3/6→0/6, top-5 10/30→0/30, gold top-1 2/6→3/6,
+  gold top-5 5/6→5/6.
+- **Guard:** `test_sqlite_path_demotes_docs_when_enabled` /
+  `..._keeps_docs_when_demotion_is_off`; скрипт `eval_sqlite_demote.py`.
+
 ## [2026-11-09] SEARCH — explain терялся на docs-маршруте
 
 - **Симптом:** `search_code(explain=true)` для запроса, который авто-маршрутизируется в docs,

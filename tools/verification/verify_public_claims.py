@@ -53,8 +53,8 @@ CLAIMS: list[dict] = [
     {
         "id": "wisdom.test_count",
         "file": "WISDOM.md",
-        "text": "2350 collected",
-        "claim": "the live census records 2350 collected tests",
+        "text": "2352 collected",
+        "claim": "the live census records 2352 collected tests",
         "command": [sys.executable, "-m", "pytest", "tests/", "-q", "--collect-only"],
         "extract": r"(\d+)/\d+ tests collected",
         "compare": "near",

@@ -1037,6 +1037,26 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
             self._last_rerank_timing = {}
             return []
 
+        # E33 on the SQLite path (2026-11-09). The non-code demotion lived only
+        # in the LanceDB branch, so with dense_off=true (the default) docs kept
+        # leading code questions at full score: 6 code questions -> docs top-1
+        # 4/6, docs in top-5 10/30. Same rule, same factor, before the cut.
+        if getattr(self, "_demote_non_code", False):
+            _d_intent = auto_detect_intent(query)
+            _prefixes = _NON_CODE_PREFIXES
+            if getattr(self, "_demote_intent_aware", False) and _d_intent == "docs":
+                _prefixes = tuple(p for p in _NON_CODE_PREFIXES if p != "docs/")
+            for _row in candidates:
+                _meta = _row.get("metadata") or {}
+                _file = str(_meta.get("file", "") or "").replace("\\", "/")
+                if _file.startswith(_prefixes):
+                    _row["final_score"] = (
+                        _row.get("final_score", 0.0) or 0.0
+                    ) * 0.3
+            candidates.sort(
+                key=lambda r: r.get("final_score", 0.0) or 0.0, reverse=True
+            )
+
         # On-demand rerank: embed only top-N live (E25), no stored vectors.
         if self._resolve_ondemand_rerank(rerank):
             final_results = await self._apply_ondemand_reranker_async(
