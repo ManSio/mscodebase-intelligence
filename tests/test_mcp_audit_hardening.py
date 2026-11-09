@@ -6,6 +6,7 @@ test/doc ranking and the CRLF temp-shadow leak.
 """
 
 import asyncio
+import inspect
 import os
 import re
 import time
@@ -19,8 +20,20 @@ from src.core.indexing.parser import CodeParser
 from src.core.runtime_coordinator import RuntimeCoordinator
 from src.core.search.engine import Searcher
 from src.mcp.tools.codebase_tool import CodebaseTool
+from src.mcp.tools.graph_tools import GraphQueryTool
+from src.mcp.tools.grep_tool import GrepCodeTool
 from src.mcp.tools.indexing_tools import NotifyChangeTool, SetProjectTool
-from src.mcp.tools.investigate_tool import _bucket_penalty, _merge
+from src.mcp.tools.investigate_tool import (
+    InvestigateTool,
+    _bucket_penalty,
+    _merge,
+)
+from src.mcp.tools.predict_tools import PredictChangeTool
+from src.mcp.tools.search_tools import (
+    GetSymbolInfoTool,
+    ImpactAnalysisTool,
+    SearchCodeTool,
+)
 from src.mcp.tools.system_tools import (
     GetHealthReportTool,
     GetIndexStatusTool,
@@ -453,6 +466,66 @@ def test_sqlite_path_keeps_docs_when_demotion_is_off():
     )
 
     assert rows[0]["metadata"]["file"] == "docs/x.md"
+
+
+def test_project_scoped_tools_expose_project_root():
+    """The live schema must expose every parameter the class accepts.
+
+    This class of defect (inline wrapper with its own signature) shipped twice:
+    read_live_file/notify_change dropped project_root, predict_change never had
+    it. The sweep of `tools/list` vs these signatures found predict_change; the
+    test keeps the whole set honest.
+    """
+    classes = [
+        SearchCodeTool,
+        GetSymbolInfoTool,
+        ImpactAnalysisTool,
+        GrepCodeTool,
+        InvestigateTool,
+        CodebaseTool,
+        GraphQueryTool,
+        PredictChangeTool,
+        ReadLiveFileTool,
+        NotifyChangeTool,
+        GetHealthReportTool,
+    ]
+    missing = []
+    for cls in classes:
+        fn = getattr(cls.execute, "__wrapped__", cls.execute)
+        if "project_root" not in inspect.signature(fn).parameters:
+            missing.append(cls.__name__)
+
+    assert missing == []
+
+
+def test_inline_tool_wrappers_forward_project_root():
+    source = (
+        Path(__file__).resolve().parents[1] / "src/mcp/server_tools.py"
+    ).read_text(encoding="utf-8")
+
+    for name in ("read_live_file", "notify_change"):
+        start = source.index(f"async def {name}(")
+        block = source[start:start + 1200]
+        signature = block[:block.index(") ->")]
+        assert "project_root" in signature, name
+        assert "project_root=project_root" in block, name
+
+
+def test_predict_change_uses_the_explicit_project(tmp_path, monkeypatch):
+    from src.core import change_preview
+
+    seen = {}
+    monkeypatch.setattr(
+        change_preview,
+        "static_predict",
+        lambda repo, base: seen.update(repo=repo, base=base)
+        or {"changed": [], "note": "nothing"},
+    )
+    tool = PredictChangeTool(_DummyServices())
+
+    asyncio.run(tool.execute(project_root=str(tmp_path)))
+
+    assert seen["repo"] == tmp_path.resolve()
 
 
 def test_render_explain_keeps_stages_and_chunks():
