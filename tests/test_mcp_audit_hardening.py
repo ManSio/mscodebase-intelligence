@@ -400,6 +400,38 @@ def test_notify_change_reports_the_explicit_project(tmp_path):
     assert f"HEADER:{target.resolve()}" in answer
 
 
+def test_render_explain_keeps_stages_and_chunks():
+    from src.mcp.tools.search_tools import _render_explain
+
+    text = _render_explain(
+        {
+            "stage_timing_ms": {"docs_route_ms": 12.4, "total_ms": 12.4},
+            "chunks": [
+                {
+                    "file_path": "docs/en/X.md",
+                    "final_position": 1,
+                    "final_score": 1.2345,
+                    "bm25_rank": 2,
+                }
+            ],
+        },
+        3,
+    )
+
+    assert "Explain Trace" in text
+    assert "docs_route_ms" in text
+    assert "docs/en/X.md" in text
+    assert "BM25 rank=2" in text
+
+
+def test_render_explain_handles_missing_fields():
+    from src.mcp.tools.search_tools import _render_explain
+
+    text = _render_explain({"stage_timing_ms": {"total_ms": "n/a"}}, 3)
+
+    assert "total_ms" in text
+
+
 def test_set_project_refuses_system_directory(preserve_project_env):
     tool = SetProjectTool(_DummyServices())
     # Windows has drive roots ("C:\"); POSIX has "/". Both must be refused.
