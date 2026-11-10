@@ -58,6 +58,8 @@
 | `MSCODEBASE_P3_ANCHOR` | `false` | Якорь пула по заголовкам модулей |
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Добавлять покрывающие тесты к результатам по символам |
 | `MSCODEBASE_LATE_ENRICHMENT` | `false` | Отложить обогащение графом до конца ранжирования |
+| `MSCODEBASE_EVIDENCE_GATE` | `true` | Проверять каждую строку `investigate` (definition/ast/fresh/graph) и печатать детерминированный вердикт; `0` возвращает ответ до гейта |
+| `MSCODEBASE_ASK_REWRITE` | `true` | Кириллический вопрос без code-shaped токена получает просьбу назвать идентификатор вместо соседей. Замеренная цена/выгода: `experiments/xerj_2026_11/evidence_gate/probe_rewrite.py` |
 
 `EXPERIMENTS/**` исключён из индексации через `FileGuard` независимо от этих флагов:
 замороженные панели не должны никогда попадать в результаты поиска.

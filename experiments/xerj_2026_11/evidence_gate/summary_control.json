@@ -1,0 +1,61 @@
+{
+ "xerj/positive": {
+  "n": 16,
+  "runs_per_task": 3,
+  "top1": 0.188,
+  "any": 0.562,
+  "verdicts": {
+   "answer": 0,
+   "caveat": 0,
+   "abstain": 0,
+   "ask_rewrite": 5,
+   "": 11
+  }
+ },
+ "xerj/ambiguity": {
+  "n": 4,
+  "runs_per_task": 3,
+  "top1": 0.0,
+  "any": 0.5,
+  "verdicts": {
+   "answer": 0,
+   "caveat": 0,
+   "abstain": 0,
+   "ask_rewrite": 0,
+   "": 4
+  }
+ },
+ "xerj/negative": {
+  "n": 4,
+  "runs_per_task": 3,
+  "top1": 1.0,
+  "any": 1.0,
+  "verdicts": {
+   "answer": 0,
+   "caveat": 0,
+   "abstain": 0,
+   "ask_rewrite": 1,
+   "": 3
+  },
+  "answered": 0.75
+ },
+ "mcp_audit/positive": {
+  "n": 17,
+  "runs_per_task": 3,
+  "top1": 0.412,
+  "any": 0.824,
+  "verdicts": {
+   "answer": 0,
+   "caveat": 0,
+   "abstain": 0,
+   "ask_rewrite": 3,
+   "": 14
+  }
+ },
+ "latency": {
+  "n": 123,
+  "mean": 2.21,
+  "p95": 3.768
+ },
+ "invalid": 0
+}

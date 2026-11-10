@@ -579,6 +579,7 @@ def test_cyrillic_question_without_identifier_asks_for_rewrite():
     answer = _needs_identifier_rewrite(query, _identifiers(query))
 
     assert answer is not None
+    assert "verdict: ask_rewrite" in answer
     assert "идентификатора кода" in answer
     assert "file:" not in answer
 
@@ -601,6 +602,48 @@ def test_cyrillic_backticked_class_name_passes():
 
     query = "Где определён `Indexer`?"
     assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
+def test_cyrillic_filename_passes():
+    """`progress.json` is a code token even though it has no underscore."""
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "Где вычисляется путь `progress.json` вне проекта?"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
+def test_cyrillic_filename_passes_without_backticks():
+    """`progress.json` is a code token even with no backticks and no underscore."""
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "Где вычисляется progress.json вне проекта?"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is None
+
+
+def test_backticked_cyrillic_prose_is_still_gated():
+    """Backticks around Russian words are emphasis, not a code reference."""
+    from src.mcp.tools.investigate_tool import (
+        _identifiers,
+        _needs_identifier_rewrite,
+    )
+
+    query = "Где описан контракт `артефакты вне проекта`?"
+    assert _needs_identifier_rewrite(query, _identifiers(query)) is not None
+
+
+def test_rewrite_gate_control_switch(monkeypatch):
+    from src.mcp.tools.investigate_tool import _rewrite_gate_enabled
+
+    monkeypatch.delenv("MSCODEBASE_ASK_REWRITE", raising=False)
+    assert _rewrite_gate_enabled() is True
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "0")
+    assert _rewrite_gate_enabled() is False
 
 
 def test_english_question_is_never_rewrite_gated():
