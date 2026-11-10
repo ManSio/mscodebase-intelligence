@@ -19,6 +19,7 @@ import asyncio
 import os
 import re
 import threading
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -255,6 +256,16 @@ _TEST_PATH_RE = re.compile(
     r"|(^|/)test_[^/]+$"
     r"|(^|/)conftest\.py$"
 )
+# A `test_*.py` name alone is not proof: `src/core/test_impact.py` *predicts*
+# test impact and was penalised as a test file (E66 red team, A2). Under the
+# `content` mode outside `tests/`, the file has to actually define tests or
+# import a test framework before it counts.
+_TEST_DEF_RE = re.compile(r"^\s*(async\s+)?def\s+test_[A-Za-z0-9_]*", re.M)
+_TEST_FRAMEWORK_RE = re.compile(
+    r"^\s*(import\s+pytest|from\s+pytest|import\s+unittest|from\s+unittest)",
+    re.M,
+)
+_TEST_BUCKET_MODES = ("path", "content")
 _DOC_PATH_RE = re.compile(r"(^|/)docs?/")
 _HISTORY_PATH_RE = re.compile(r"(^|/)docs?/(archive|research|blog)/")
 _SCRIPT_PATH_RE = re.compile(r"(^|/)(scripts|examples|benches|fuzz)/")
@@ -265,6 +276,40 @@ def _asks_for_tests(query: str) -> bool:
     return bool(re.search(
         r"\b(tests?|specs?|coverage|pytest|unittest)\b|тест|покрыт", query or "", re.I
     ))
+
+
+def _test_bucket_mode() -> str:
+    """`content` (shipped after E67) or `path` (the previous behaviour).
+
+    Unknown or empty -> `content`: the fix is the default, and `path` exists as
+    a rollback, not as the normal state.
+    """
+    mode = (os.environ.get("MSCODEBASE_TEST_BUCKET") or "").strip().lower()
+    return "path" if mode == "path" else "content"
+
+
+@lru_cache(maxsize=1024)
+def _content_says_test(path: str) -> bool:
+    """Does this file define test functions or import a test framework?
+
+    Unreadable files answer `True`: an unknown file keeps the old, stricter
+    behaviour instead of silently becoming visible.
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return True
+    return bool(_TEST_DEF_RE.search(text) or _TEST_FRAMEWORK_RE.search(text))
+
+
+def _test_penalty_applies(file: str, root: Any) -> bool:
+    if _test_bucket_mode() != "content":
+        return True
+    if file.replace("\\", "/").startswith(("tests/", "test/")):
+        return True  # a tests/ path is a test; no I/O needed
+    base = Path(root) if root else None
+    absolute = str((base / file).resolve()) if base else file
+    return _content_says_test(absolute)
 
 
 def _asks_for_docs(query: str) -> bool:
@@ -326,7 +371,7 @@ def _name_variants(identifiers: Iterable[str], max_variants: int = 12) -> List[s
     return variants[:max_variants]
 
 
-def _bucket_penalty(file: str, query: str) -> float:
+def _bucket_penalty(file: str, query: str, root: Any = None) -> float:
     """Rank penalty for a non-answer bucket (audit 2026-11-09).
 
     Measured on three corpora: `tests/**`, `tests/data/**` and `docs/archive/**`
@@ -349,7 +394,8 @@ def _bucket_penalty(file: str, query: str) -> float:
             # ("on-demand rerank resolved" → EXPERIMENTS_LOG, audit follow-up).
             value -= 1.5
     if _TEST_PATH_RE.search(file) and not _asks_for_tests(query):
-        value -= 2.0
+        if _test_penalty_applies(file, root):
+            value -= 2.0
     if (
         _SCRIPT_PATH_RE.search(file)
         and not _asks_for_tests(query)
@@ -524,7 +570,7 @@ def _merge(
     # numbers would be a hard ban rather than the documented "not a cap", so
     # there the bucket goes to the tail instead.
     for entry in merged.values():
-        penalty = _bucket_penalty(entry["file"], query)
+        penalty = _bucket_penalty(entry["file"], query, root)
         if not penalty:
             continue
         if mode == "rrf":

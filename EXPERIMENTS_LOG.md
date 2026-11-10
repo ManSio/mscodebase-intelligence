@@ -1,4 +1,23 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E67: a production module was penalised as a test file
+
+**Bug (found by the E66 generator):** `_bucket_penalty` classifies by path, and
+`test_*.py` matched `src/core/test_impact.py` — a production module that
+*predicts* test impact. Its definitions lost 2.0 rank on code questions, so three
+E66 tasks failed there while a plain grep found them. Blast radius: 926 `.py`
+files, 271 match the regex, 260 are real tests, **1 production module** is
+misclassified.
+
+**Fix:** outside `tests/`, a `test_*.py` is a test only if it defines tests or
+imports pytest/unittest; unreadable files keep the strict behaviour;
+`MSCODEBASE_TEST_BUCKET=path` is the rollback.
+
+**Measurement** (3 affected + 41 anchors + 40 sampled positives, 3 repeats):
+T1 3/3 fixed, T2 anchors 21/41 vs 21/41, T3 sample 40/40 vs 40/40, T4 identical
+on unrelated tasks. Targeted re-check: `path` 0/9, `content` 9/9 top-1.
+
+**Shipped:** default flipped to `content`.
+
 ## [2026-11-10] — E68: commit-localization benchmark — the default answers *less* than plain search
 
 **Why:** every earlier panel was authored by us, so "tuned to the test" was a
