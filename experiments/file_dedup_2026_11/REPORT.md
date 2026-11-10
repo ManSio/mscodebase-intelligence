@@ -5,14 +5,14 @@ change). Switch: `MSCODEBASE_FILE_DEDUP=file`, **off by default**.
 
 ## What was asked
 
-The tool answers with chunks; a "which file" question wants files. On 10
-sqlalchemy tasks 72 rows covered 51 files (0.71 files per row, worst case 8 rows
-= 1 file). Hypothesis: 29% of the answer slots repeat a file, so grep — which
-ranks whole files — wins on external repos.
+The tool answers with chunks; a "which file" question wants files. On the
+benchmark's own 40-commit task list, **70 of 216 rows (32%) repeat a file**,
+worst case 8 rows from 1 file. Hypothesis: repeated slots are why grep, which
+ranks whole files, wins on external repos.
 
-The repeat share on a larger sample (20 commits, below) is 22% of rows, not 29%;
-the direction is the same, the number is not. Both samples are reported rather
-than the rounder one.
+An earlier draft used 22-29% from a raw `git log` sample; that sample is not the
+task population (it includes docs-only commits), so the number here is the one
+measured with the benchmark's task filter applied.
 
 ## What was measured
 
@@ -34,29 +34,35 @@ B1 dev, 71 tasks              tool   neighbours  search  grep
   flag on                     19/71      38        22      2
 ```
 
-**The flag changed no hit@5 number on either corpus**, and it did work: with the
-flag on, the same answers carry **0 duplicate rows instead of 25**. So the
-repeats were real and were removed — the score simply did not move.
+**The flag changed no hit@5 number on either corpus**, and it did work: on the
+20-commit sample used to check its effect, the same answers carry **0 duplicate
+rows instead of 25**. So the repeats were real and were removed — the score
+simply did not move.
 
-`duplicate_positions.py`, 20 sqlalchemy commits, flag off:
+`duplicate_positions.py`, the benchmark's 40 sqlalchemy commits, flag off:
 
 ```
-rows=112  duplicate_rows=25 (0.22 of rows)
+rows=216  duplicate_rows=70 (0.32 of rows)  empty_answers=13
 duplicate row positions (1-based in the answer):
-  rank 2: 1   rank 3: 2   rank 4: 4   rank 5: 3
-  rank 6: 5   rank 7: 3   rank 8: 7
-duplicates at ranks 1-5: 10 of 25
+  rank 2: 9   rank 3: 9   rank 4: 4   rank 5: 12
+  rank 6: 12  rank 7: 14  rank 8: 10
+duplicates at ranks 1-5: 34 of 70
 ```
 
-So 10 of the 25 repeats sat inside the top-5 that hit@5 counts, and replacing
+So 34 of the 70 repeats sat inside the top-5 that hit@5 counts, and replacing
 them with distinct files still produced 11/40 — the swaps were neutral: the
 duplicate was not what kept the gold file out. What limits the tool is **which
 distinct files rank where**, not that one file took several slots.
 
 One more fact from the same run, unrelated to the flag but larger than it:
-**6 of 20** sqlalchemy commits get an empty answer (0 rows) both with and
-without the flag. On that repo the abstain is a bigger gap than dedup, and it is
-not addressed here.
+**13 of the 40** solvable commits get an empty answer (0 rows) with and without
+the flag. E73 traced that to a false refusal, not to an absent subject.
+
+An earlier draft of this report said "6 of 20". That count came from
+`duplicate_positions.py`, which then sampled raw commits without the benchmark's
+task filter, so it included docs-only commits that have no `.py` gold and whose
+empty answer is correct. The script now applies the same filter and exits with
+code 2 instead of printing a share on a different denominator.
 
 ## The harm the flag does (P3)
 
