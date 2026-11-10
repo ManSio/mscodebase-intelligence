@@ -108,7 +108,7 @@ Every merged row is checked against facts, not plausibility. No model is called.
 | Signal | Fact | Weight |
 |---|---|---:|
 | `definition` | the line declares the identifier (Python confirmed by `ast`) | 0.60 |
-| `exact` | the identifier occurs in the file (grep / compound-name channel) | 0.25 |
+| `exact` | the identifier occurs verbatim on the row's line (a channel match alone is not enough; a line-less row keeps the channel claim) | 0.25 |
 | `fresh` | live `mtime_ns` + `size` match the stat recorded at index time; grep rows scan the live tree, so they are fresh by construction | 0.10 |
 | `ast` | the parser confirmed the declaration line (Python; the file is parsed only when a definition is possible there) | 0.05 |
 | `graph` | the call graph has an edge for the identifier | 0.05 |

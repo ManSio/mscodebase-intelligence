@@ -247,7 +247,7 @@ erify_clean_state.sh --no-clone на локальном clone закоммиче
   отдельно и проверяется командой, а не памятью. Основание: benchmark decay — «число остаётся
   прежним, то, что оно измеряет, размывается».
 - Текущие значения (пере-меряются, не выдумываются):
-  `intel_*=20`, `tests=2424 collected / 2417 passed, 0 failed, 7 skipped`
+  `intel_*=20`, `tests=2426 collected / 2419 passed, 0 failed, 7 skipped`
   (полный прогон 2026-11-09; 97 deselected маркерами `not slow and not benchmark`).
 - Команда пересчёта: `python tools/verification/verify_public_claims.py`
   (каждое утверждение имеет свою команду; расхождение → rc=3).

@@ -242,24 +242,25 @@ def main() -> int:
         )
 
     # Determinism: within the treatment arm, every repeat of a task must give
-    # the same verdict and the same first row. With --runs 3 this covers the
-    # whole panel, not a four-task sample.
-    grouped: dict[str, list[dict]] = {}
-    for row in results["treatment"]:
-        grouped.setdefault(row["id"], []).append(row)
-    unstable = sorted(
-        task_id for task_id, rows in grouped.items()
-        if len({(r["verdict"], tuple(r["files"][:1])) for r in rows}) > 1
-    )
-    same = not unstable
-    (HERE / "determinism.json").write_text(
-        json.dumps({"tasks": len(grouped), "runs_per_task": args.runs,
-                    "identical": same, "unstable": unstable},
-                   ensure_ascii=False, indent=1),
-        encoding="utf-8", newline="",
-    )
-    print(f"\ndeterminism over {len(grouped)} tasks x {args.runs} runs: "
-          f"{'PASS' if same else 'FAIL ' + str(unstable)}")
+    # the same verdict and the same first row. With --runs 1 there is nothing
+    # to compare, so the file is left as measured by the last repeated run.
+    if args.runs >= 2:
+        grouped: dict[str, list[dict]] = {}
+        for row in results["treatment"]:
+            grouped.setdefault(row["id"], []).append(row)
+        unstable = sorted(
+            task_id for task_id, rows in grouped.items()
+            if len({(r["verdict"], tuple(r["files"][:1])) for r in rows}) > 1
+        )
+        same = not unstable
+        (HERE / "determinism.json").write_text(
+            json.dumps({"tasks": len(grouped), "runs_per_task": args.runs,
+                        "identical": same, "unstable": unstable},
+                       ensure_ascii=False, indent=1),
+            encoding="utf-8", newline="",
+        )
+        print(f"\ndeterminism over {len(grouped)} tasks x {args.runs} runs: "
+              f"{'PASS' if same else 'FAIL ' + str(unstable)}")
     print(json.dumps(summaries, ensure_ascii=False, indent=1))
     return 0
 

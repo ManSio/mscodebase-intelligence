@@ -105,7 +105,7 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 | 信号 | 事实 | 权重 |
 |---|---|---:|
 | `definition` | 该行声明了标识符（Python 由 `ast` 确认） | 0.60 |
-| `exact` | 标识符出现在该文件中（grep / 复合名通道） | 0.25 |
+| `exact` | 标识符逐字出现在该结果行上（仅有通道匹配不够；无行号的结果保留通道声明） | 0.25 |
 | `fresh` | 实时 `mtime_ns` + `size` 与索引时记录的 stat 一致；grep 行扫描实时目录树，天然是新鲜的 | 0.10 |
 | `ast` | 解析器确认了声明行（仅 Python；只有在可能定义处才解析文件） | 0.05 |
 | `graph` | 调用图中存在该标识符的边 | 0.05 |

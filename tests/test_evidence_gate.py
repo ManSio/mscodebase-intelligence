@@ -182,7 +182,11 @@ def test_verified_line_is_the_declaration_line_not_the_chunk_line(tmp_path: Path
 
 
 def test_local_assignment_is_not_a_definition(tmp_path: Path):
-    """`impact = si.get_impact_analysis(...)` is a local, not the impact token."""
+    """`impact = si.get_impact_analysis(...)` is a local, not the impact token.
+
+    The line does contain the word, so it is exact evidence; it must still not
+    become a definition or be promoted.
+    """
     _write(
         tmp_path,
         "mod.py",
@@ -199,9 +203,10 @@ def test_local_assignment_is_not_a_definition(tmp_path: Path):
     )
 
     candidate = report.candidates[0]
+    assert candidate.signals["exact"] == "occurrence"
     assert "definition" not in candidate.signals
     assert "graph" not in candidate.signals  # impact is a risk summary
-    assert report.verdict == "abstain"
+    assert report.verdict == "caveat"
 
 
 def test_module_level_assignment_is_a_definition(tmp_path: Path):
@@ -346,6 +351,49 @@ def test_index_line_on_a_decorator_does_not_become_the_verified_line(tmp_path: P
     assert "definition: def render()" in report.dossier[0]
 
 
+def test_exact_is_a_line_claim_not_a_channel_claim(tmp_path: Path):
+    """A name-channel row whose line does not contain the name is not exact.
+
+    The review found the opposite: a `name` hit (the variant occurs somewhere
+    in the chunk) printed `✓exact` for a row whose line is unrelated (P05).
+    """
+    _write(tmp_path, "mod.py", "value = 1\n")
+    store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
+
+    report = assess(
+        [{"file": "mod.py", "line": 1, "text": "render — name match",
+          "symbol": "render", "channels": {"name"}}],
+        root=tmp_path,
+        identifiers=["default", "render"],
+        store=store,
+    )
+
+    assert "exact" not in report.candidates[0].signals
+
+
+def test_local_variable_line_is_exact_but_not_a_definition(tmp_path: Path):
+    """P08's shape: the gold line is a local `degraded: List[str] = []`."""
+    _write(
+        tmp_path,
+        "mod.py",
+        "def run():\n    degraded: List[str] = []\n    return degraded\n",
+    )
+    store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
+
+    report = assess(
+        [{"file": "mod.py", "line": 2, "text": "degraded",
+          "channels": {"search"}}],
+        root=tmp_path,
+        identifiers=["degraded"],
+        store=store,
+    )
+
+    candidate = report.candidates[0]
+    assert candidate.signals["exact"] == "occurrence"
+    assert "definition" not in candidate.signals
+    assert report.verdict == "caveat"  # evidence, but not a declaration
+
+
 def test_python_definition_is_verified_by_ast(tmp_path: Path):
     _write(tmp_path, "mod.py", "def render():\n    return 1\n")
     store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
@@ -452,7 +500,8 @@ def test_references_intent_accepts_a_call_graph_edge(tmp_path: Path):
     )
 
     assert report.verdict == "answer"
-    assert "call graph edge" in report.reason
+    assert "graph" in report.candidates[0].signals
+    assert "exact" in report.candidates[0].signals
 
 
 def test_missing_path_is_marked_not_dropped(tmp_path: Path):
@@ -509,8 +558,9 @@ def test_stale_file_is_marked_but_a_live_declaration_still_verifies(tmp_path: Pa
     assert candidate.note == "stale"
     assert "⚠stale" in candidate.marker()
     assert report.verdict == "answer"
+    assert "exact" in candidate.signals
     assert candidate.confidence == pytest.approx(
-        WEIGHTS["definition"] + WEIGHTS["ast"]
+        WEIGHTS["definition"] + WEIGHTS["ast"] + WEIGHTS["exact"]
     )
 
 
@@ -636,8 +686,9 @@ def test_gate_can_say_not_verified(tmp_path, monkeypatch):
         store=store,
     )
 
-    assert report.verdict == "abstain", "a broken verifier must not still say answer"
-    assert report.confidence == WEIGHTS["fresh"]
+    assert report.verdict != "answer", "a broken verifier must not still say answer"
+    assert "definition" not in report.candidates[0].signals
+    assert report.confidence == WEIGHTS["exact"] + WEIGHTS["fresh"]
 
 
 def test_fuzzy_symbol_is_not_the_subject(tmp_path: Path):
@@ -688,7 +739,8 @@ def test_a_derived_variant_is_ignored_when_the_query_names_a_symbol(tmp_path: Pa
     )
 
     assert "definition" not in report.candidates[0].signals
-    assert report.verdict == "caveat"  # an occurrence, not the definition
+    assert "exact" not in report.candidates[0].signals
+    assert report.verdict == "abstain"  # the line does not contain the subject
 
 
 def test_a_verified_definition_is_promoted_over_name_rows(tmp_path: Path):
