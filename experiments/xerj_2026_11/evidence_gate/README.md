@@ -28,12 +28,15 @@ affects both arms instead of one sweep (see the module docstring).
 | File | What it is |
 |---|---|
 | `frozen/HYPOTHESES.md` | predictions and kill criteria, written before the first run |
+| `frozen/REWRITE.md` | predictions for the three-arm rewrite-gate experiment |
 | `frozen/MANIFEST.sha256` | sha256 of the two frozen task files |
 | `run_gate.py` | the harness (metrics defined inside, not copied) |
 | `results_control.json` / `results_treatment.json` | one row per task per run (3 runs per task), with the raw answer |
-| `summary_*.json` | aggregated metrics |
+| `summary_*.json` | aggregated metrics (per-task majority) |
 | `determinism.json` | every task rerun 3 times in the treatment arm |
-| `REPORT.md` | numbers, verdict on each prediction, threats to validity |
+| `probe_rewrite_arms.py` / `rewrite_arms.json` | on/off/smart rewrite gate, 27 asks |
+| `REPORT.md` | the gate: numbers, verdict on each prediction, threats |
+| `REPORT_REWRITE.md` | the rewrite gate: three arms, decision, threats |
 
 ## Panels
 

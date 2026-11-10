@@ -56,7 +56,7 @@ are gitignored.
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Append covering tests to symbol results |
 | `MSCODEBASE_LATE_ENRICHMENT` | `false` | Defer graph enrichment until after ranking |
 | `MSCODEBASE_EVIDENCE_GATE` | `true` | Verify each `investigate` row (definition/ast/fresh/graph) and print a deterministic verdict; `0` restores the pre-gate answer |
-| `MSCODEBASE_ASK_REWRITE` | `true` | For a Cyrillic question with no code-shaped token, ask for an identifier instead of returning neighbours. Measured cost/benefit: `experiments/xerj_2026_11/evidence_gate/probe_rewrite.py` |
+| `MSCODEBASE_ASK_REWRITE` | `smart` | `on` — ask for an identifier whenever a Cyrillic question has no code token; `smart` — only when it also names a proper-noun-like Latin word (XERJ N03); `off` — return neighbours with a verdict. Measured: `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md` |
 
 `EXPERIMENTS/**` is excluded from indexing by `FileGuard` regardless of these flags:
 frozen panels must never appear as search hits.

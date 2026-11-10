@@ -2,14 +2,14 @@
  "xerj/positive": {
   "n": 16,
   "runs_per_task": 3,
-  "top1": 0.188,
-  "any": 0.562,
+  "top1": 0.25,
+  "any": 0.625,
   "verdicts": {
    "answer": 0,
    "caveat": 0,
    "abstain": 0,
-   "ask_rewrite": 5,
-   "": 11
+   "ask_rewrite": 0,
+   "": 16
   }
  },
  "xerj/ambiguity": {
@@ -48,14 +48,14 @@
    "answer": 0,
    "caveat": 0,
    "abstain": 0,
-   "ask_rewrite": 3,
-   "": 14
+   "ask_rewrite": 0,
+   "": 17
   }
  },
  "latency": {
   "n": 123,
-  "mean": 2.21,
-  "p95": 3.768
+  "mean": 2.556,
+  "p95": 3.679
  },
  "invalid": 0
 }

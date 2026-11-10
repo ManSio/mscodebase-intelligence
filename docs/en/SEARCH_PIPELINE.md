@@ -124,8 +124,11 @@ The verdict is printed as `verdict: answer (0.70) — class at file:line`:
 - `answer` — the best row carries a verified declaration (definition question) or
   an occurrence / call edge (references question) and clears the floor;
 - `caveat` — rows exist but none names the subject; they are neighbours;
-- `ask_rewrite` — a Cyrillic question without a code-shaped token: ask for an
-  identifier instead of inventing one;
+- `ask_rewrite` — a Cyrillic question that names a proper-noun-like Latin word
+  (`Corpus`, `Hub`) but no code token: ask for an identifier instead of
+  inventing one. `MSCODEBASE_ASK_REWRITE=on` broadens this to every Cyrillic
+  question without a code token; the measured trade is in
+  `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md`;
 - `abstain` — no row carries evidence (also when the subject does not occur and
   the graph does not know it).
 

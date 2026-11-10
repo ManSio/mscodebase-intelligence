@@ -139,20 +139,47 @@ def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> boo
 
 _CYRILLIC_QUERY_RE = re.compile(r"[А-Яа-яЁё]")
 _PRECISE_IDENT_RE = re.compile(r"[A-Za-z][A-Za-z0-9_.]*")
+# "Corpus", "Hub": a Latin word that looks like a proper noun, not an acronym
+# (LSP) and not a code token (`progress.json`). It is the only shape the
+# rewrite gate is meant for: XERJ N03.
+_PROPER_NOUN_RE = re.compile(r"\b[A-Z][a-z]{2,}\b")
+
+
+def _rewrite_gate_mode() -> str:
+    """`smart` (default), `on`, or `off`.
+
+    `on` asks for an identifier whenever a Cyrillic question has no code-shaped
+    token (XERJ N03), which also hides real questions like P16. `smart` asks
+    only when the question additionally names a proper-noun-like Latin word -
+    the shape where the subject can be absent while its words look real.
+    Measured: smart = off's positives + on's N03 (27 asks, 3 arms;
+    experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md).
+    """
+    value = os.getenv("MSCODEBASE_ASK_REWRITE", "smart").strip().lower()
+    if value in ("0", "false", "off", "no"):
+        return "off"
+    if value in ("1", "true", "on", "yes"):
+        return "on"
+    return "smart"
 
 
 def _rewrite_gate_enabled() -> bool:
-    """Ask-for-identifier gate (default on).
+    """Backward-compatible view of the mode: anything but `off` is enabled."""
+    return _rewrite_gate_mode() != "off"
 
-    It exists for XERJ N03, where the words exist but the subject does not and
-    the neighbours look like an answer. It also blocks real Russian questions
-    that name no identifier (measured: 3/3 of the mcp_audit RU questions), so
-    the trade is explicit and switchable:
-    `MSCODEBASE_ASK_REWRITE=0` returns neighbours instead.
-    """
-    return os.getenv("MSCODEBASE_ASK_REWRITE", "1").strip().lower() not in (
-        "0", "false", "off", "no",
-    )
+
+def _asks_for_identifier(query: str) -> str | None:
+    """The rewrite message when the active rule says this question cannot be
+    answered exactly, else None."""
+    message = _needs_identifier_rewrite(query, _identifiers(query))
+    if not message:
+        return None
+    mode = _rewrite_gate_mode()
+    if mode == "off":
+        return None
+    if mode == "smart" and not _PROPER_NOUN_RE.search(query or ""):
+        return None
+    return message
 
 
 def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
@@ -472,8 +499,8 @@ class InvestigateTool(MCPTool):
         # Deterministic rewrite gate before any channel runs: a Russian
         # question without a code-shaped name cannot be answered exactly, and
         # neighbours must not be presented as matches (XERJ N03).
-        rewrite = _needs_identifier_rewrite(query, identifiers)
-        if rewrite and _rewrite_gate_enabled():
+        rewrite = _asks_for_identifier(query)
+        if rewrite:
             return rewrite
         searcher = self.resolve_searcher(explicit_project_root=_pr)
         symbol_index = self.resolve_symbol_index(explicit_project_root=_pr)

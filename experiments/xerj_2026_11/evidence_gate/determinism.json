@@ -1,8 +1,6 @@
 {
  "tasks": 41,
  "runs_per_task": 3,
- "identical": false,
- "unstable": [
-  "MSC04"
- ]
+ "identical": true,
+ "unstable": []
 }

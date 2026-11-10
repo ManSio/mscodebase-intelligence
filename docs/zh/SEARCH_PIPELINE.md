@@ -120,7 +120,10 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 - `answer` —— 最佳行带有已验证的声明（定义类问题）或出现 / 调用边（引用类问题），
   并达到置信阈值；
 - `caveat` —— 有结果行，但没有任何一行指向该对象；它们只是邻居；
-- `ask_rewrite` —— 没有代码形态标识符的西里尔文问题：要求给出标识符，而不是编造；
+- `ask_rewrite` —— 没有代码形态标识符、但包含类专有名词拉丁词（`Corpus`、`Hub`）的
+  西里尔文问题：要求给出标识符，而不是编造。`MSCODEBASE_ASK_REWRITE=on` 会将此扩展到
+  所有没有代码形态标识符的西里尔文问题；实测代价见
+  `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md`；
 - `abstain` —— 没有任何一行携带证据（对象不出现且图不认识它时也是如此）。
 
 行标记是事实而非装饰：`✓def:class`、`✓def:function@368`（声明在第 368 行，结果行

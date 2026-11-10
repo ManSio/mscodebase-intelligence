@@ -1,0 +1,1862 @@
+{
+ "on": [
+  {
+   "arm": "on",
+   "id": "P01",
+   "kind": "positive",
+   "question": "Где определяется `build_call_graph` и что оно возвращает?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n3. src/core/search/graph_adapter.py:597  [definition+grep]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P02",
+   "kind": "positive",
+   "question": "Кто вызывает `get_impact_analysis`?",
+   "gold": [
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "files": [
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Кто вызывает `get_impact_analysis`?`\n   identifiers: get_impact_analysis\n   results: 8\n   exact: get_impact_analysis=8\n   verdict: answer (0.80) — occurrence at src/core/graph_rag.py:93 (row 6)\n\n1. src/mcp/tools/search_tools.py:866  [name+search]  ✓exact\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n2. src/mcp/tools/investigate_tool.py:616  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n3. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n4. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n5. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n6. src/core/graph_rag.py:93  [graph+grep+symbol]  ✓exact\n   get_impact_analysis — function\n7. src/core/modification_guard.py:166  [graph+grep]  ✓exact\n   impact = si.get_impact_analysis(symbol, depth=2)\n8. src/mcp/tools/investigate_tool.py:723  [grep]  ✓exact\n   res = symbol_index.get_impact_analysis(name, 2) or {}\n\n📎 dossier:\n   callers: 2 → src/core/graph_rag.py:93, src/core/modification_guard.py:166\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"get_impact_analysis\") | impact_analysis | read_live_file(\"src/mcp/tools/search_tools.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P03",
+   "kind": "positive",
+   "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+   "gold": [
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/write_tools.py"
+   ],
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`\n   identifiers: ModificationGuard\n   results: 8\n   exact: ModificationGuard=2\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/graph_rag.py:78  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n2. src/core/graph_rag.py:1  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n3. src/core/graph_rag.py:34  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n4. src/core/graph_rag.py:193  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n5. src/core/graph_rag.py:239  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n6. src/core/graph_rag.py:227  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/graph_rag.py:216  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n8. src/core/graph_rag.py:183  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n\nСимволы:\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n\nДальше: get_symbol_info(\"ModificationGuard\") | impact_analysis | read_live_file(\"src/core/graph_rag.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P04",
+   "kind": "positive",
+   "question": "Где решается, нужно ли переиндексировать файл?",
+   "gold": [
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Где решается, нужно ли переиндексировать файл?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "P05",
+   "kind": "positive",
+   "question": "Где вычисляется путь `progress.json` вне проекта?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "scripts/monitor.py",
+    "src/core/artifact_paths.py",
+    "install.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где вычисляется путь `progress.json` вне проекта?`\n   identifiers: progress.json\n   results: 8\n   exact: progress.json=18\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. scripts/monitor.py:92  [name]  ✓exact\n   progress_json — name match\n2. src/core/artifact_paths.py:1  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n3. install.py:35  [impact]\n   impact progress.json: risk=critical, affected=9\n4. docs/archive/AGENT_DIARY_2026_08.md:283  [name]  ✓exact\n   progress_json — name match\n5. docs/archive/KNOWN_ISSUES_2026_07.md:2800  [name]  ✓exact\n   progress_json — name match\n6. docs/archive/KNOWN_ISSUES_2026_08.md:438  [name]  ✓exact\n   progress_json — name match\n7. src/core/doc_llm_verifier.py:208  [graph]\n   caller of progress.json\n8. src/core/doc_llm_verifier.py:269  [graph]\n   caller of progress.json\n\n📎 dossier:\n   callers: 2 → src/core/doc_llm_verifier.py:208, src/core/doc_llm_verifier.py:269\n   risk: impact progress.json: risk=critical, affected=9\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nДальше: get_symbol_info(\"progress.json\") | impact_analysis | read_live_file(\"scripts/monitor.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P06",
+   "kind": "positive",
+   "question": "Какая функция возвращает путь прогресса?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Какая функция возвращает путь прогресса?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "P07",
+   "kind": "positive",
+   "question": "Где выдаётся и проверяется impact-токен?",
+   "gold": [
+    "src/core/modification_guard.py"
+   ],
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/search/agentic_search.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где выдаётся и проверяется impact-токен?`\n   identifiers: impact\n   results: 8\n   exact: impact=275\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/cross_project_deps.py:325  [definition+symbol]\n   CrossProjectDependencyGraph.analyze_impact — function_definition\n2. src/core/graph_rag.py:78  [definition+symbol]\n   GraphRAGQueryEngine.query_impact — function_definition\n3. src/mcp/tools/search_tools.py:859  [definition+symbol]\n   ImpactAnalysisTool — class_definition\n4. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n5. src/core/modification_guard.py:166  [impact]  ⚠stale\n   impact impact: risk=low, affected=1\n6. src/core/modification_guard.py:49  [search]  ⚠stale\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n7. src/mcp/tools/context_tool.py:1  [search]\n   FILE: src/mcp/tools/context_tool.py\nSYMBOLS: _truncate_to_budget _dedup_sections GetContextTool\nDOC: get_context — task-shaped инструмент: контекст по нескольким целям одним вызово\n8. src/mcp/tools/search_tools.py:1  [search]\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n\nСимволы:\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n\nДальше: get_symbol_info(\"impact\") | impact_analysis | read_live_file(\"src/core/search/cross_project_deps.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P08",
+   "kind": "positive",
+   "question": "Где в `investigate` появляется строка `degraded`?",
+   "gold": [
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "scripts/o1_holdout_gate.py",
+    "scripts/p2_holdout_gate.py",
+    "src/providers/embedder/remote_embedder.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где в `investigate` появляется строка `degraded`?`\n   identifiers: investigate, degraded\n   results: 8\n   exact: investigate=125, degraded=77\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/mcp/tools/investigate_tool.py:359  [definition+symbol]  ⚠stale\n   InvestigateTool — class_definition\n2. src/mcp/tools/investigate_tool.py:362  [definition+symbol]  ⚠stale\n   InvestigateTool.__init__ — function_definition\n3. src/mcp/tools/investigate_tool.py:753  [definition+symbol]  ⚠stale\n   InvestigateTool._format — function_definition\n4. scripts/o1_holdout_gate.py:164  [definition+symbol]\n   degraded — variable\n5. scripts/p2_holdout_gate.py:140  [definition+symbol]\n   degraded — variable\n6. src/providers/embedder/remote_embedder.py:443  [impact]\n   impact degraded: risk=low, affected=1\n7. src/mcp/tools/investigate_tool.py:138  [search]  ⚠stale\n   FILE: src/mcp/tools/investigate_tool.py\nSYMBOLS: _memory_hits _identifiers _relpath _abstains _asks_for_callers _asks_for_tests _asks_for_docs _name_words _name_variants _bucket_pe\n8. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n\nСимволы:\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n\nДальше: get_symbol_info(\"investigate\") | impact_analysis | read_live_file(\"src/mcp/tools/investigate_tool.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P09",
+   "kind": "positive",
+   "question": "Где определяется allowlist/профиль инструментов?",
+   "gold": [
+    "src/mcp/server_tools.py"
+   ],
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где определяется allowlist/профиль инструментов?`\n   identifiers: allowlist\n   results: 8\n   exact: allowlist=92\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/cli.py:111  [definition+impact+symbol]\n   allowlist — variable\n2. src/mcp/server_tools.py:244  [definition+symbol]\n   _raw_allowlist — variable\n3. src/mcp/server_tools.py:228  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n4. src/mcp/tools/base.py:1  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n5. src/mcp/server_tools.py:1  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n6. src/mcp/tools/base.py:492  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n7. src/mcp/tools/base.py:461  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n8. src/mcp/tools/base.py:200  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n\nСимволы:\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n\nДальше: get_symbol_info(\"allowlist\") | impact_analysis | read_live_file(\"src/cli.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P10",
+   "kind": "positive",
+   "question": "Где задан профиль ETA для `impact_analysis`?",
+   "gold": [
+    "src/core/eta_predictor.py"
+   ],
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`\n   identifiers: impact_analysis, ETA\n   results: 8\n   exact: impact_analysis=68, ETA=76\n   verdict: abstain (0.15) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n2. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n3. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n4. src/core/indexing/symbol_index.py:684  [definition+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n5. src/core/search/graph_adapter.py:797  [definition+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n6. src/core/graph_rag.py:93  [definition+symbol]\n   get_impact_analysis — function\n7. src/core/indexing/parser.py:823  [definition+symbol]\n   CodeParser._build_chunk_metadata — function_definition\n8. src/core/eta_predictor.py:43  [definition+symbol]\n   ETAPredictor — class_definition\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"impact_analysis\") | impact_analysis | read_live_file(\"src/core/modification_guard.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P11",
+   "kind": "positive",
+   "question": "Где объявлен `SymbolIndexAdapter`?",
+   "gold": [
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`\n   identifiers: SymbolIndexAdapter\n   results: 8\n   exact: SymbolIndexAdapter=36\n   verdict: answer (1.00) — class at src/core/search/graph_adapter.py:41 (row 1)\n\n1. src/core/search/graph_adapter.py:41  [definition+grep+impact+symbol]  ✓def:class ✓exact\n   SymbolIndexAdapter — class_definition\n2. src/core/search/graph_adapter.py:56  [symbol]\n   SymbolIndexAdapter.__init__ — function_definition\n3. src/core/search/graph_adapter.py:783  [symbol]\n   SymbolIndexAdapter._call_confidence — function_definition\n4. src/core/search/graph_adapter_pure.py:550  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/core/search/graph_adapter_pure.py:494  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/mcp/tools/context_tool.py:94  [graph+grep]  ✓exact\n   self._flow_adapter = SymbolIndexAdapter(pg)\n7. src/mcp/tools/graph_tools.py:470  [graph+grep]  ✓exact\n   adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)\n8. src/mcp/tools/graph_tools.py:729  [graph]\n   caller of SymbolIndexAdapter\n\n📎 dossier:\n   definition: class SymbolIndexAdapter(PureGraphMixin): — src/core/search/graph_adapter.py:41\n   callers: 3 → src/mcp/tools/context_tool.py:94, src/mcp/tools/graph_tools.py:470, src/mcp/tools/graph_tools.py:729\n   risk: SymbolIndexAdapter — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56\n• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783\n\nДальше: get_symbol_info(\"SymbolIndexAdapter\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P12",
+   "kind": "positive",
+   "question": "Где считается call chain?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "src/core/indexing/database_lock.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где считается call chain?`\n   identifiers: chain\n   results: 8\n   exact: chain=114\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/dataflow_experiment.py:415  [definition+symbol]\n   Analyzer._provenance_chains — function_definition\n2. src/core/indexing/database_lock.py:115  [definition+symbol]\n   ProcessInspector.parent_chain — function_definition\n3. src/core/indexing/symbol_index.py:548  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n4. src/mcp/tools/graph_tools.py:612  [impact]\n   impact chain: risk=low, affected=1\n5. src/core/search/graph_adapter_pure.py:340  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/core/graph_rag.py:143  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/search/graph_adapter.py:432  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n8. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n\nСимволы:\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n\nДальше: get_symbol_info(\"chain\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P13",
+   "kind": "positive",
+   "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+   "gold": [
+    "src/core/indexing/db_manager.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py",
+    "src/core/indexing/indexer.py",
+    "scripts/verify_diary.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`\n   identifiers: file_mtime_ns, file_hash\n   results: 8\n   exact: file_mtime_ns=7, file_hash=25\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/indexing/indexer.py:428  [name+search]  ✓exact\n   FILE: src/core/indexing/indexer.py\nSYMBOLS: _generate_unique_db_path Indexer\nDOC:  MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning) \n\n2. src/core/indexing/chunk_store.py:255  [name+search]  ✓exact ⚠stale\n   FILE: src/core/indexing/chunk_store.py\nSYMBOLS: get_chunks_db_path _fts_query SQLiteChunkStore migrate_from_lancedb\nDOC: SQLite/FTS5 chunk store (Phase 3 of the approved stack migr\n3. src/core/indexing/db_writer.py:352  [name]  ✓exact\n   mtime_ns — name match\n4. src/core/indexing/indexer.py:468  [name]  ✓exact\n   mtime_ns — name match\n5. scripts/verify_diary.py:706  [name]  ✓exact\n   mtime_ns — name match\n6. src/core/indexing/chunk_store.py:238  [definition+grep+impact+symbol]  ✓exact\n   SQLiteChunkStore.file_hash — function_definition\n7. src/core/indexing/index_guard.py:627  [grep+symbol]  ✓exact\n   IndexGuard._compute_file_hash — function_definition\n8. src/core/indexing/indexer.py:328  [grep+symbol]  ✓exact\n   Indexer._calculate_file_hash — function_definition\n\n📎 dossier:\n   risk: SQLiteChunkStore.file_hash — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627\n• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:328\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n\nДальше: get_symbol_info(\"file_mtime_ns\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "P14",
+   "kind": "positive",
+   "question": "Какой документ является каноном публичных чисел?",
+   "gold": [
+    "docs/FACTS.md"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Какой документ является каноном публичных чисел?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "P15",
+   "kind": "positive",
+   "question": "Где LSP-инструмент отправляет за ссылками?",
+   "gold": [
+    "src/mcp/tools/lsp_tools.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "P16",
+   "kind": "positive",
+   "question": "Где описан контракт «артефакты вне проекта»?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Где описан контракт «артефакты вне проекта»?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "A01",
+   "kind": "ambiguity",
+   "question": "Где реализован `build_call_graph`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `build_call_graph`?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. src/core/search/graph_adapter.py:597  [definition+grep+search]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n3. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "A02",
+   "kind": "ambiguity",
+   "question": "Где реализован `get_call_chain`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/agentic_search.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `get_call_chain`?`\n   identifiers: get_call_chain\n   results: 8\n   exact: get_call_chain=7\n   verdict: answer (1.00) — function at src/core/search/graph_adapter_pure.py:477 (row 1)\n\n1. src/core/search/graph_adapter_pure.py:477  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   PureGraphMixin.get_call_chain — function_definition\n2. src/core/indexing/symbol_index.py:353  [definition+grep+symbol]  ✓def:function ✓exact\n   SymbolIndex.get_call_chain — function_definition\n3. src/core/graph_rag.py:163  [grep+symbol]  ✓exact\n   get_call_chain — function\n4. src/core/graph_rag.py:175  [graph+grep]  ✓exact\n   call_chain = self.symbol_index.get_call_chain(sym, direction=\"up\")\n5. src/core/search/graph_adapter.py:1  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n6. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n7. docs/archive/research/2026-07-09-provider-benchmark.md:262  [search]\n   FILE: docs/archive/research/2026-07-09-provider-benchmark.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.research.2026-07-09-provider-benchmark\nFrom D:\\Project\\M\n8. AGENT_DIARY.md:1204  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-09-17]\n\n📎 dossier:\n   definition: def get_call_chain(self, symbol: str, direction: str = \"both\", max_depth: int = 3) -> Dict: — src/core/search/graph_adapter_pure.py:477\n   callers: 1 → src/core/graph_rag.py:175\n   risk: PureGraphMixin.get_call_chain — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n\nДальше: get_symbol_info(\"get_call_chain\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter_pure.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "A03",
+   "kind": "ambiguity",
+   "question": "Где считается «устаревание» (staleness)?",
+   "gold": [
+    "src/core/auto_doc_updater.py",
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "src/core/intelligence/store.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/core/indexing/database_lock.py",
+    "src/mcp/tools/indexing_tools.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где считается «устаревание» (staleness)?`\n   identifiers: staleness\n   results: 8\n   exact: staleness=26\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/auto_doc_updater.py:149  [definition+grep+symbol]  ✓exact\n   AutoDocUpdater.check_staleness — function_definition\n2. src/core/intelligence/store.py:191  [definition+grep+symbol]  ✓exact\n   IntelligenceStore.check_staleness — function_definition\n3. src/core/intelligence/store.py:210  [grep+impact]  ✓exact\n   staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n4. src/mcp/tools/dev_tools.py:101  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n5. src/mcp/tools/dev_tools.py:95  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n6. src/core/indexing/database_lock.py:510  [search]\n   FILE: src/core/indexing/database_lock.py\nSYMBOLS: LockHolderState LockBusyError ProcessInspector WindowsProcessInspector DatabaseLock\nDOC: DatabaseLock — межпроцессный single-write\n7. src/mcp/tools/indexing_tools.py:116  [search]\n   FILE: src/mcp/tools/indexing_tools.py\nSYMBOLS: _job_key get_index_job _set_job NotifyChangeTool IndexGitUrlTool IndexProjectDirTool IndexHealthTool get_active_project_root SetProje\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   risk: staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n\nДальше: get_symbol_info(\"staleness\") | impact_analysis | read_live_file(\"src/core/auto_doc_updater.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "A04",
+   "kind": "ambiguity",
+   "question": "Где определён `Indexer`?",
+   "gold": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/indexer_table.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определён `Indexer`?`\n   identifiers: Indexer\n   results: 8\n   exact: Indexer=220\n   verdict: answer (0.75) — class at src/core/indexing/indexer.py:36 (row 1)\n\n1. src/core/indexing/indexer.py:36  [definition+impact]  ✓def:class\n   Indexer — class_definition\n2. scripts/diag_quality_hang.py:89  [symbol]\n   AsyncTableIndexer — class_definition\n3. scripts/diag_quality_hang.py:94  [symbol]\n   AsyncTableIndexer.__init__ — function_definition\n4. scripts/diag_quality_hang.py:111  [symbol]\n   AsyncTableIndexer._ensure_async_table — function_definition\n5. src/core/di_container.py:295  [graph]\n   caller of Indexer\n6. src/core/indexing/symbol_index.py:294  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n7. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   definition: class Indexer(IndexerTableMixin): — src/core/indexing/indexer.py:36\n   callers: 1 → src/core/di_container.py:295\n   risk: Indexer — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• Indexer (class_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:36\n• AsyncTableIndexer (class_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:89\n• AsyncTableIndexer.__init__ (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:94\n• AsyncTableIndexer._ensure_async_table (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:111\n\nДальше: get_symbol_info(\"Indexer\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "on",
+   "id": "N01",
+   "kind": "negative",
+   "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`\n   identifiers: partner_agreement\n   results: 0\n   exact: partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "on",
+   "id": "N02",
+   "kind": "negative",
+   "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`\n   identifiers: XERJ_FACTS_MODEL_DIR\n   results: 0\n   exact: XERJ_FACTS_MODEL_DIR=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "on",
+   "id": "N03",
+   "kind": "negative",
+   "question": "Где ключ подписи Corpus Hub?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Где ключ подписи Corpus Hub?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "N04",
+   "kind": "negative",
+   "question": "Где `consensus_partner_agreement`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где `consensus_partner_agreement`?`\n   identifiers: consensus_partner_agreement\n   results: 0\n   exact: consensus_partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "on",
+   "id": "MSCRU1",
+   "kind": "positive",
+   "question": "где решается включать ли реранк",
+   "gold": [
+    "src/core/search/engine.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `где решается включать ли реранк`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "MSCRU2",
+   "kind": "positive",
+   "question": "где проверяются публичные числа",
+   "gold": [
+    "tools/verification/verify_public_claims.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `где проверяются публичные числа`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "on",
+   "id": "MSCRU3",
+   "kind": "positive",
+   "question": "где переключается проект",
+   "gold": [
+    "src/mcp/tools/indexing_tools.py"
+   ],
+   "files": [],
+   "rows": 0,
+   "top1": false,
+   "any": false,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `где переключается проект`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  }
+ ],
+ "off": [
+  {
+   "arm": "off",
+   "id": "P01",
+   "kind": "positive",
+   "question": "Где определяется `build_call_graph` и что оно возвращает?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n3. src/core/search/graph_adapter.py:597  [definition+grep]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P02",
+   "kind": "positive",
+   "question": "Кто вызывает `get_impact_analysis`?",
+   "gold": [
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "files": [
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Кто вызывает `get_impact_analysis`?`\n   identifiers: get_impact_analysis\n   results: 8\n   exact: get_impact_analysis=8\n   verdict: answer (0.80) — occurrence at src/core/graph_rag.py:93 (row 6)\n\n1. src/mcp/tools/search_tools.py:866  [name+search]  ✓exact\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n2. src/mcp/tools/investigate_tool.py:616  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n3. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n4. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n5. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n6. src/core/graph_rag.py:93  [graph+grep+symbol]  ✓exact\n   get_impact_analysis — function\n7. src/core/modification_guard.py:166  [graph+grep]  ✓exact\n   impact = si.get_impact_analysis(symbol, depth=2)\n8. src/mcp/tools/investigate_tool.py:723  [grep]  ✓exact\n   res = symbol_index.get_impact_analysis(name, 2) or {}\n\n📎 dossier:\n   callers: 2 → src/core/graph_rag.py:93, src/core/modification_guard.py:166\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"get_impact_analysis\") | impact_analysis | read_live_file(\"src/mcp/tools/search_tools.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P03",
+   "kind": "positive",
+   "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+   "gold": [
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/write_tools.py"
+   ],
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`\n   identifiers: ModificationGuard\n   results: 8\n   exact: ModificationGuard=2\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/graph_rag.py:78  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n2. src/core/graph_rag.py:1  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n3. src/core/graph_rag.py:34  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n4. src/core/graph_rag.py:193  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n5. src/core/graph_rag.py:239  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n6. src/core/graph_rag.py:227  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/graph_rag.py:216  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n8. src/core/graph_rag.py:183  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n\nСимволы:\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n\nДальше: get_symbol_info(\"ModificationGuard\") | impact_analysis | read_live_file(\"src/core/graph_rag.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P04",
+   "kind": "positive",
+   "question": "Где решается, нужно ли переиндексировать файл?",
+   "gold": [
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "scripts/e2e_quality_search.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/di_container.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/doc_sync_engine.py",
+    "src/core/di_container.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где решается, нужно ли переиндексировать файл?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/indexing/file_guard.py:59  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n2. src/core/indexing/file_guard.py:66  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n3. scripts/e2e_quality_search.py:1  [search]\n   FILE: scripts/e2e_quality_search.py\nSYMBOLS: norm hit_at build_searcher _count run_mode report main\nDOC: \n// Scope: module | module_docstring | e2e_quality_search\n// File: D:\\Proje\n4. src/core/indexing/file_guard.py:121  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n5. src/core/di_container.py:389  [search]\n   FILE: src/core/di_container.py\nSYMBOLS: ProjectRootKey IndexerFactoryKey GitUrlSourceFactoryKey ServiceCollection create_service_collection _make_local_source\nDOC: Dependency Injec\n6. src/core/indexing/file_guard.py:1  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n7. src/core/doc_sync_engine.py:293  [search]\n   FILE: src/core/doc_sync_engine.py\nSYMBOLS: SyncAction SyncReport DocSyncEngine\nDOC:  doc_sync_engine.py — авто-синхронизация документации с кодом. По Тумблеру: чистая бизнес-логика\n8. src/core/di_container.py:177  [search]\n   FILE: src/core/di_container.py\nSYMBOLS: ProjectRootKey IndexerFactoryKey GitUrlSourceFactoryKey ServiceCollection create_service_collection _make_local_source\nDOC: Dependency Injec\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/indexing/file_guard.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P05",
+   "kind": "positive",
+   "question": "Где вычисляется путь `progress.json` вне проекта?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "scripts/monitor.py",
+    "src/core/artifact_paths.py",
+    "install.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где вычисляется путь `progress.json` вне проекта?`\n   identifiers: progress.json\n   results: 8\n   exact: progress.json=18\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. scripts/monitor.py:92  [name]  ✓exact\n   progress_json — name match\n2. src/core/artifact_paths.py:1  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n3. install.py:35  [impact]\n   impact progress.json: risk=critical, affected=9\n4. docs/archive/AGENT_DIARY_2026_08.md:283  [name]  ✓exact\n   progress_json — name match\n5. docs/archive/KNOWN_ISSUES_2026_07.md:2800  [name]  ✓exact\n   progress_json — name match\n6. docs/archive/KNOWN_ISSUES_2026_08.md:438  [name]  ✓exact\n   progress_json — name match\n7. src/core/doc_llm_verifier.py:208  [graph]\n   caller of progress.json\n8. src/core/doc_llm_verifier.py:269  [graph]\n   caller of progress.json\n\n📎 dossier:\n   callers: 2 → src/core/doc_llm_verifier.py:208, src/core/doc_llm_verifier.py:269\n   risk: impact progress.json: risk=critical, affected=9\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nДальше: get_symbol_info(\"progress.json\") | impact_analysis | read_live_file(\"scripts/monitor.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P06",
+   "kind": "positive",
+   "question": "Какая функция возвращает путь прогресса?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "src/core/bootstrap_trace_plugin.py",
+    "src/core/task_queue.py",
+    "src/core/indexing/parser.py",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/task_queue.py",
+    "src/sources/local_fs/windows.py",
+    "scripts/check_lsp_health.py",
+    "src/core/multi_project_searcher.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Какая функция возвращает путь прогресса?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/bootstrap_trace_plugin.py:1  [search]\n   FILE: src/core/bootstrap_trace_plugin.py\nSYMBOLS: _trace pytest_runtest_call pytest_runtest_teardown pytest_sessionfinish\nDOC: \n// Scope: module | module_docstring | core.bootstrap\n2. src/core/task_queue.py:300  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n3. src/core/indexing/parser.py:1875  [search]\n   FILE: src/core/indexing/parser.py\nSYMBOLS: CodeParser\nDOC:  Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback. \n// Scope: function_part | giant_function_pa\n4. src/core/interfaces/workspace_source.py:33  [search]\n   FILE: src/core/interfaces/workspace_source.py\nSYMBOLS: FileChangeEvent WorkspaceSource\nDOC: WorkspaceSource — интерфейс источника кода (ТЗ §2.1 Universal Engine). Core объявляет ин\n5. src/core/task_queue.py:131  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n6. src/sources/local_fs/windows.py:54  [search]\n   FILE: src/sources/local_fs/windows.py\nSYMBOLS: SafePathManager\nDOC: \n// Scope: function | function_definition | sources.local_fs.windows\n// File: D:\\Project\\MSCodeBase\\src\\sources\\\n7. scripts/check_lsp_health.py:42  [search]\n   FILE: scripts/check_lsp_health.py\nSYMBOLS: _get_zed_config_dir _get_zed_logs_dir _get_zed_db_path _get_ext_root check_settings_json check_lsp_process check_bridge_files main\nDOC: \n\n8. src/core/multi_project_searcher.py:71  [search]\n   FILE: src/core/multi_project_searcher.py\nSYMBOLS: parse_cross_repo_query ProjectRegistry MultiProjectSearcher\nDOC:  MSCodebase Intelligence — Cross-repo поиск по нескольким проекта\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/bootstrap_trace_plugin.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P07",
+   "kind": "positive",
+   "question": "Где выдаётся и проверяется impact-токен?",
+   "gold": [
+    "src/core/modification_guard.py"
+   ],
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/search/agentic_search.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где выдаётся и проверяется impact-токен?`\n   identifiers: impact\n   results: 8\n   exact: impact=275\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/cross_project_deps.py:325  [definition+symbol]\n   CrossProjectDependencyGraph.analyze_impact — function_definition\n2. src/core/graph_rag.py:78  [definition+symbol]\n   GraphRAGQueryEngine.query_impact — function_definition\n3. src/mcp/tools/search_tools.py:859  [definition+symbol]\n   ImpactAnalysisTool — class_definition\n4. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n5. src/core/modification_guard.py:166  [impact]  ⚠stale\n   impact impact: risk=low, affected=1\n6. src/core/modification_guard.py:49  [search]  ⚠stale\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n7. src/mcp/tools/context_tool.py:1  [search]\n   FILE: src/mcp/tools/context_tool.py\nSYMBOLS: _truncate_to_budget _dedup_sections GetContextTool\nDOC: get_context — task-shaped инструмент: контекст по нескольким целям одним вызово\n8. src/mcp/tools/search_tools.py:1  [search]\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n\nСимволы:\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n\nДальше: get_symbol_info(\"impact\") | impact_analysis | read_live_file(\"src/core/search/cross_project_deps.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P08",
+   "kind": "positive",
+   "question": "Где в `investigate` появляется строка `degraded`?",
+   "gold": [
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "scripts/o1_holdout_gate.py",
+    "scripts/p2_holdout_gate.py",
+    "src/providers/embedder/remote_embedder.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где в `investigate` появляется строка `degraded`?`\n   identifiers: investigate, degraded\n   results: 8\n   exact: investigate=125, degraded=77\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/mcp/tools/investigate_tool.py:359  [definition+symbol]  ⚠stale\n   InvestigateTool — class_definition\n2. src/mcp/tools/investigate_tool.py:362  [definition+symbol]  ⚠stale\n   InvestigateTool.__init__ — function_definition\n3. src/mcp/tools/investigate_tool.py:753  [definition+symbol]  ⚠stale\n   InvestigateTool._format — function_definition\n4. scripts/o1_holdout_gate.py:164  [definition+symbol]\n   degraded — variable\n5. scripts/p2_holdout_gate.py:140  [definition+symbol]\n   degraded — variable\n6. src/providers/embedder/remote_embedder.py:443  [impact]\n   impact degraded: risk=low, affected=1\n7. src/mcp/tools/investigate_tool.py:138  [search]  ⚠stale\n   FILE: src/mcp/tools/investigate_tool.py\nSYMBOLS: _memory_hits _identifiers _relpath _abstains _asks_for_callers _asks_for_tests _asks_for_docs _name_words _name_variants _bucket_pe\n8. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n\nСимволы:\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n\nДальше: get_symbol_info(\"investigate\") | impact_analysis | read_live_file(\"src/mcp/tools/investigate_tool.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P09",
+   "kind": "positive",
+   "question": "Где определяется allowlist/профиль инструментов?",
+   "gold": [
+    "src/mcp/server_tools.py"
+   ],
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где определяется allowlist/профиль инструментов?`\n   identifiers: allowlist\n   results: 8\n   exact: allowlist=92\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/cli.py:111  [definition+impact+symbol]\n   allowlist — variable\n2. src/mcp/server_tools.py:244  [definition+symbol]\n   _raw_allowlist — variable\n3. src/mcp/server_tools.py:228  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n4. src/mcp/tools/base.py:1  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n5. src/mcp/server_tools.py:1  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n6. src/mcp/tools/base.py:492  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n7. src/mcp/tools/base.py:461  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n8. src/mcp/tools/base.py:200  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n\nСимволы:\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n\nДальше: get_symbol_info(\"allowlist\") | impact_analysis | read_live_file(\"src/cli.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P10",
+   "kind": "positive",
+   "question": "Где задан профиль ETA для `impact_analysis`?",
+   "gold": [
+    "src/core/eta_predictor.py"
+   ],
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`\n   identifiers: impact_analysis, ETA\n   results: 8\n   exact: impact_analysis=68, ETA=76\n   verdict: abstain (0.15) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n2. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n3. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n4. src/core/indexing/symbol_index.py:684  [definition+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n5. src/core/search/graph_adapter.py:797  [definition+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n6. src/core/graph_rag.py:93  [definition+symbol]\n   get_impact_analysis — function\n7. src/core/indexing/parser.py:823  [definition+symbol]\n   CodeParser._build_chunk_metadata — function_definition\n8. src/core/eta_predictor.py:43  [definition+symbol]\n   ETAPredictor — class_definition\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"impact_analysis\") | impact_analysis | read_live_file(\"src/core/modification_guard.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P11",
+   "kind": "positive",
+   "question": "Где объявлен `SymbolIndexAdapter`?",
+   "gold": [
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`\n   identifiers: SymbolIndexAdapter\n   results: 8\n   exact: SymbolIndexAdapter=36\n   verdict: answer (1.00) — class at src/core/search/graph_adapter.py:41 (row 1)\n\n1. src/core/search/graph_adapter.py:41  [definition+grep+impact+symbol]  ✓def:class ✓exact\n   SymbolIndexAdapter — class_definition\n2. src/core/search/graph_adapter.py:56  [symbol]\n   SymbolIndexAdapter.__init__ — function_definition\n3. src/core/search/graph_adapter.py:783  [symbol]\n   SymbolIndexAdapter._call_confidence — function_definition\n4. src/core/search/graph_adapter_pure.py:550  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/core/search/graph_adapter_pure.py:494  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/mcp/tools/context_tool.py:94  [graph+grep]  ✓exact\n   self._flow_adapter = SymbolIndexAdapter(pg)\n7. src/mcp/tools/graph_tools.py:470  [graph+grep]  ✓exact\n   adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)\n8. src/mcp/tools/graph_tools.py:729  [graph]\n   caller of SymbolIndexAdapter\n\n📎 dossier:\n   definition: class SymbolIndexAdapter(PureGraphMixin): — src/core/search/graph_adapter.py:41\n   callers: 3 → src/mcp/tools/context_tool.py:94, src/mcp/tools/graph_tools.py:470, src/mcp/tools/graph_tools.py:729\n   risk: SymbolIndexAdapter — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56\n• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783\n\nДальше: get_symbol_info(\"SymbolIndexAdapter\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P12",
+   "kind": "positive",
+   "question": "Где считается call chain?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "src/core/indexing/database_lock.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где считается call chain?`\n   identifiers: chain\n   results: 8\n   exact: chain=114\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/dataflow_experiment.py:415  [definition+symbol]\n   Analyzer._provenance_chains — function_definition\n2. src/core/indexing/database_lock.py:115  [definition+symbol]\n   ProcessInspector.parent_chain — function_definition\n3. src/core/indexing/symbol_index.py:548  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n4. src/mcp/tools/graph_tools.py:612  [impact]\n   impact chain: risk=low, affected=1\n5. src/core/search/graph_adapter_pure.py:340  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/core/graph_rag.py:143  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/search/graph_adapter.py:432  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n8. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n\nСимволы:\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n\nДальше: get_symbol_info(\"chain\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P13",
+   "kind": "positive",
+   "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+   "gold": [
+    "src/core/indexing/db_manager.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py",
+    "src/core/indexing/indexer.py",
+    "scripts/verify_diary.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`\n   identifiers: file_mtime_ns, file_hash\n   results: 8\n   exact: file_mtime_ns=7, file_hash=25\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/indexing/indexer.py:428  [name+search]  ✓exact\n   FILE: src/core/indexing/indexer.py\nSYMBOLS: _generate_unique_db_path Indexer\nDOC:  MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning) \n\n2. src/core/indexing/chunk_store.py:255  [name+search]  ✓exact ⚠stale\n   FILE: src/core/indexing/chunk_store.py\nSYMBOLS: get_chunks_db_path _fts_query SQLiteChunkStore migrate_from_lancedb\nDOC: SQLite/FTS5 chunk store (Phase 3 of the approved stack migr\n3. src/core/indexing/db_writer.py:352  [name]  ✓exact\n   mtime_ns — name match\n4. src/core/indexing/indexer.py:468  [name]  ✓exact\n   mtime_ns — name match\n5. scripts/verify_diary.py:706  [name]  ✓exact\n   mtime_ns — name match\n6. src/core/indexing/chunk_store.py:238  [definition+grep+impact+symbol]  ✓exact\n   SQLiteChunkStore.file_hash — function_definition\n7. src/core/indexing/index_guard.py:627  [grep+symbol]  ✓exact\n   IndexGuard._compute_file_hash — function_definition\n8. src/core/indexing/indexer.py:328  [grep+symbol]  ✓exact\n   Indexer._calculate_file_hash — function_definition\n\n📎 dossier:\n   risk: SQLiteChunkStore.file_hash — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627\n• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:328\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n\nДальше: get_symbol_info(\"file_mtime_ns\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P14",
+   "kind": "positive",
+   "question": "Какой документ является каноном публичных чисел?",
+   "gold": [
+    "docs/FACTS.md"
+   ],
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "scripts/diag_quality_hang.py",
+    "AGENT_DIARY.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Какой документ является каноном публичных чисел?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/dataflow_experiment.py:220  [search]\n   FILE: scripts/dataflow_experiment.py\nSYMBOLS: Analyzer MultiProjectExperiment\nDOC:  DataFlow Experiment v3 — мульти-проектный замер. Запускает 4 сценария на нескольких проектах и с\n2. docs/ru/UNIVERSAL_ENGINE_PLAN.md:587  [search]\n   FILE: docs/ru/UNIVERSAL_ENGINE_PLAN.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.universal_engine_plan\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\UNIVERSAL_ENGINE_PLAN.md, \n3. AI_INSTALLATION_PROMPT.md:115  [search]\n   FILE: AI_INSTALLATION_PROMPT.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.ai_installation_prompt.md\nFrom D:\\Project\\MSCodeBase\\AI_INSTALLATION_PR\n4. docs/archive/research/2026-07-09-model-comparison.md:16  [search]\n   FILE: docs/archive/research/2026-07-09-model-comparison.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.research.2026-07-09-model-comparison\nFrom D:\\Project\\MSCod\n5. AGENT_DIARY.md:1427  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-10-21]\n6. docs/ru/UNIVERSAL_ENGINE_PLAN.md:477  [search]\n   FILE: docs/ru/UNIVERSAL_ENGINE_PLAN.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.universal_engine_plan\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\UNIVERSAL_ENGINE_PLAN.md, \n7. scripts/diag_quality_hang.py:212  [search]\n   FILE: scripts/diag_quality_hang.py\nSYMBOLS: FakeIndexer FakeEmbedder RealEmbedderProxy AsyncTableIndexer\nDOC: Диагностика: воспроизведение quality-пайплайна вне MCP (read-only). Ст\n8. AGENT_DIARY.md:1434  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-10-21]\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P15",
+   "kind": "positive",
+   "question": "Где LSP-инструмент отправляет за ссылками?",
+   "gold": [
+    "src/mcp/tools/lsp_tools.py"
+   ],
+   "files": [
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/mcp/tools/write_tools.py",
+    "src/core/code_health.py",
+    "src/mcp/tools/base.py",
+    "src/core/intelligence/tools_reg.py",
+    "src/core/auto_doc_updater.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`\n   identifiers: LSP\n   results: 8\n   exact: LSP=397\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/lsp_client.py:291  [definition+symbol]\n   LspClient — class_definition\n2. src/core/lsp_client.py:303  [definition+symbol]\n   LspClient.__init__ — function_definition\n3. src/core/lsp_client.py:368  [definition+symbol]\n   LspClient._ensure_started — function_definition\n4. src/mcp/tools/write_tools.py:866  [impact]  ⚠stale\n   impact LSP: risk=low, affected=1\n5. src/core/code_health.py:1  [search]\n   FILE: src/core/code_health.py\nSYMBOLS: score_file _count_lines _max_nesting_depth _count_cyclomatic_complexity _count_bare_excepts\nDOC:  Code Health Score — детерминированная оценк\n6. src/mcp/tools/base.py:1  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n7. src/core/intelligence/tools_reg.py:18  [search]\n   FILE: src/core/intelligence/tools_reg.py\nSYMBOLS: register_intelligence_tools\nDOC:  MCP Tool Registration for Intelligence Layer. Вынесено из layer.py для декомпозиции God Object (\n8. src/core/auto_doc_updater.py:743  [search]\n   FILE: src/core/auto_doc_updater.py\nSYMBOLS: _ledger_autosync_enabled BrokenRef AutoDocUpdater\nDOC:  auto_doc_updater.py — автоматическое обновление документации. По Тумблеру: чиста\n\nСимволы:\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n\nДальше: get_symbol_info(\"LSP\") | impact_analysis | read_live_file(\"src/core/lsp_client.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "P16",
+   "kind": "positive",
+   "question": "Где описан контракт «артефакты вне проекта»?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где описан контракт «артефакты вне проекта»?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/artifact_paths.py:1  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n2. src/core/artifact_paths.py:262  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n3. src/core/artifact_paths.py:204  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n4. src/core/artifact_paths.py:256  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n5. src/core/artifact_paths.py:363  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n6. src/core/artifact_paths.py:336  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n7. src/core/artifact_paths.py:427  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n8. src/core/artifact_paths.py:220  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/artifact_paths.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "A01",
+   "kind": "ambiguity",
+   "question": "Где реализован `build_call_graph`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `build_call_graph`?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. src/core/search/graph_adapter.py:597  [definition+grep+search]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n3. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "A02",
+   "kind": "ambiguity",
+   "question": "Где реализован `get_call_chain`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/agentic_search.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `get_call_chain`?`\n   identifiers: get_call_chain\n   results: 8\n   exact: get_call_chain=7\n   verdict: answer (1.00) — function at src/core/search/graph_adapter_pure.py:477 (row 1)\n\n1. src/core/search/graph_adapter_pure.py:477  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   PureGraphMixin.get_call_chain — function_definition\n2. src/core/indexing/symbol_index.py:353  [definition+grep+symbol]  ✓def:function ✓exact\n   SymbolIndex.get_call_chain — function_definition\n3. src/core/graph_rag.py:163  [grep+symbol]  ✓exact\n   get_call_chain — function\n4. src/core/graph_rag.py:175  [graph+grep]  ✓exact\n   call_chain = self.symbol_index.get_call_chain(sym, direction=\"up\")\n5. src/core/search/graph_adapter.py:1  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n6. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n7. docs/archive/research/2026-07-09-provider-benchmark.md:262  [search]\n   FILE: docs/archive/research/2026-07-09-provider-benchmark.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.research.2026-07-09-provider-benchmark\nFrom D:\\Project\\M\n8. AGENT_DIARY.md:1204  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-09-17]\n\n📎 dossier:\n   definition: def get_call_chain(self, symbol: str, direction: str = \"both\", max_depth: int = 3) -> Dict: — src/core/search/graph_adapter_pure.py:477\n   callers: 1 → src/core/graph_rag.py:175\n   risk: PureGraphMixin.get_call_chain — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n\nДальше: get_symbol_info(\"get_call_chain\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter_pure.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "A03",
+   "kind": "ambiguity",
+   "question": "Где считается «устаревание» (staleness)?",
+   "gold": [
+    "src/core/auto_doc_updater.py",
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "src/core/intelligence/store.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/core/indexing/database_lock.py",
+    "src/mcp/tools/indexing_tools.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где считается «устаревание» (staleness)?`\n   identifiers: staleness\n   results: 8\n   exact: staleness=26\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/auto_doc_updater.py:149  [definition+grep+symbol]  ✓exact\n   AutoDocUpdater.check_staleness — function_definition\n2. src/core/intelligence/store.py:191  [definition+grep+symbol]  ✓exact\n   IntelligenceStore.check_staleness — function_definition\n3. src/core/intelligence/store.py:210  [grep+impact]  ✓exact\n   staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n4. src/mcp/tools/dev_tools.py:101  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n5. src/mcp/tools/dev_tools.py:95  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n6. src/core/indexing/database_lock.py:510  [search]\n   FILE: src/core/indexing/database_lock.py\nSYMBOLS: LockHolderState LockBusyError ProcessInspector WindowsProcessInspector DatabaseLock\nDOC: DatabaseLock — межпроцессный single-write\n7. src/mcp/tools/indexing_tools.py:116  [search]\n   FILE: src/mcp/tools/indexing_tools.py\nSYMBOLS: _job_key get_index_job _set_job NotifyChangeTool IndexGitUrlTool IndexProjectDirTool IndexHealthTool get_active_project_root SetProje\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   risk: staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n\nДальше: get_symbol_info(\"staleness\") | impact_analysis | read_live_file(\"src/core/auto_doc_updater.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "A04",
+   "kind": "ambiguity",
+   "question": "Где определён `Indexer`?",
+   "gold": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/indexer_table.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определён `Indexer`?`\n   identifiers: Indexer\n   results: 8\n   exact: Indexer=220\n   verdict: answer (0.75) — class at src/core/indexing/indexer.py:36 (row 1)\n\n1. src/core/indexing/indexer.py:36  [definition+impact]  ✓def:class\n   Indexer — class_definition\n2. scripts/diag_quality_hang.py:89  [symbol]\n   AsyncTableIndexer — class_definition\n3. scripts/diag_quality_hang.py:94  [symbol]\n   AsyncTableIndexer.__init__ — function_definition\n4. scripts/diag_quality_hang.py:111  [symbol]\n   AsyncTableIndexer._ensure_async_table — function_definition\n5. src/core/di_container.py:295  [graph]\n   caller of Indexer\n6. src/core/indexing/symbol_index.py:294  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n7. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   definition: class Indexer(IndexerTableMixin): — src/core/indexing/indexer.py:36\n   callers: 1 → src/core/di_container.py:295\n   risk: Indexer — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• Indexer (class_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:36\n• AsyncTableIndexer (class_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:89\n• AsyncTableIndexer.__init__ (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:94\n• AsyncTableIndexer._ensure_async_table (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:111\n\nДальше: get_symbol_info(\"Indexer\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "N01",
+   "kind": "negative",
+   "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`\n   identifiers: partner_agreement\n   results: 0\n   exact: partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "off",
+   "id": "N02",
+   "kind": "negative",
+   "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`\n   identifiers: XERJ_FACTS_MODEL_DIR\n   results: 0\n   exact: XERJ_FACTS_MODEL_DIR=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "off",
+   "id": "N03",
+   "kind": "negative",
+   "question": "Где ключ подписи Corpus Hub?",
+   "gold": [],
+   "files": [
+    "tools/knowledge/check_knowledge.py",
+    "tools/microtask_pipeline/live_smoke.py",
+    "AGENT_DIARY.md",
+    "src/mcp/tools/graph_tools.py",
+    "scripts/run_1L_live_arm.py",
+    "src/mcp/tools/investigate_tool.py",
+    "tools/verification/gates.py",
+    "tools/microtask_pipeline/live_smoke.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где ключ подписи Corpus Hub?`\n   identifiers: Corpus, Hub\n   results: 8\n   exact: Corpus=4, Hub=44\n   verdict: abstain (0.15) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. tools/knowledge/check_knowledge.py:81  [definition+impact+symbol]\n   corpus — variable\n2. tools/microtask_pipeline/live_smoke.py:31  [definition+symbol]\n   corpus_tasks — module\n3. AGENT_DIARY.md:1548  [name+search]  ✓exact ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-11-08]\n4. src/mcp/tools/graph_tools.py:640  [impact]\n   impact Hub: risk=low, affected=2\n5. scripts/run_1L_live_arm.py:1  [search]\n   FILE: scripts/run_1L_live_arm.py\nSYMBOLS: _api_key _provider_endpoint _prompt _load_graph_contexts _graph_context_for _src_index _best_file_for_token _first_line _resolve_snippet _\n6. src/mcp/tools/investigate_tool.py:726  [search]  ⚠stale\n   FILE: src/mcp/tools/investigate_tool.py\nSYMBOLS: _memory_hits _identifiers _relpath _abstains _asks_for_callers _asks_for_tests _asks_for_docs _name_words _name_variants _bucket_pe\n7. tools/verification/gates.py:40  [search]\n   FILE: tools/verification/gates.py\nSYMBOLS: g1_population g2_referent g3_generalization g4_control scope_of run selftest main\nDOC: gates.py — the enforcement layer of the agent prot\n8. tools/microtask_pipeline/live_smoke.py:1  [search]\n   FILE: tools/microtask_pipeline/live_smoke.py\nSYMBOLS: main\nDOC: Live smoke test of the pipeline against the owner's LM Studio server. Uses the frozen corpus task `17e65663b7_health\n\nСимволы:\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:81\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• corpus (variable) — D:/Project/MSCodeBase/tools/knowledge/check_knowledge.py:81\n• corpus_tasks (module) — D:/Project/MSCodeBase/tools/microtask_pipeline/live_smoke.py:31\n• hub (function_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:46\n• FakeWriteTool (class_definition) — D:/Project/MSCodeBase/tests/test_codebase_hub.py:30\n\nДальше: get_symbol_info(\"Corpus\") | impact_analysis | read_live_file(\"tools/knowledge/check_knowledge.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "N04",
+   "kind": "negative",
+   "question": "Где `consensus_partner_agreement`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где `consensus_partner_agreement`?`\n   identifiers: consensus_partner_agreement\n   results: 0\n   exact: consensus_partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "off",
+   "id": "MSCRU1",
+   "kind": "positive",
+   "question": "где решается включать ли реранк",
+   "gold": [
+    "src/core/search/engine.py"
+   ],
+   "files": [
+    "scripts/e2e_quality_search.py",
+    "docs/ru/INSTALL.md",
+    "docs/ru/SEARCH_PIPELINE.md",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "EXPERIMENTS_LOG.md",
+    "docs/ru/FAQ.md",
+    "EXPERIMENTS_LOG.md",
+    "docs/ru/README.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где решается включать ли реранк`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/e2e_quality_search.py:1  [search]\n   FILE: scripts/e2e_quality_search.py\nSYMBOLS: norm hit_at build_searcher _count run_mode report main\nDOC: \n// Scope: module | module_docstring | e2e_quality_search\n// File: D:\\Proje\n2. docs/ru/INSTALL.md:113  [search]\n   FILE: docs/ru/INSTALL.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.install\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\INSTALL.md, section '## 6. Опциональные провайдеры':\n#\n3. docs/ru/SEARCH_PIPELINE.md:31  [search]  ⚠stale\n   FILE: docs/ru/SEARCH_PIPELINE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.search_pipeline\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\SEARCH_PIPELINE.md, section '## 2. Пут\n4. docs/ru/GRACEFUL_DEGRADATION.md:21  [search]\n   FILE: docs/ru/GRACEFUL_DEGRADATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.graceful_degradation\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\GRACEFUL_DEGRADATION.md, sec\n5. EXPERIMENTS_LOG.md:1961  [search]  ⚠stale\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md\nFrom D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md, secti\n6. docs/ru/FAQ.md:11  [search]\n   FILE: docs/ru/FAQ.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.faq\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\FAQ.md, section '## Нужны ли эмбеддинги для поиска?':\n## Нужны\n7. EXPERIMENTS_LOG.md:3609  [search]  ⚠stale\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md\nFrom D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md, secti\n8. docs/ru/README.md:16  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Что это':\n## Что это\n\nЛокальный M\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"scripts/e2e_quality_search.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "MSCRU2",
+   "kind": "positive",
+   "question": "где проверяются публичные числа",
+   "gold": [
+    "tools/verification/verify_public_claims.py"
+   ],
+   "files": [
+    "src/core/search/cypher_engine.py",
+    "src/core/search/cypher_engine.py",
+    "docs/ru/README.md",
+    "docs/ru/README.md",
+    "ISSUE.md",
+    "docs/ru/CHANGELOG.md",
+    "ISSUE.md",
+    "tools/knowledge/THREADS.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где проверяются публичные числа`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/cypher_engine.py:1  [search]\n   FILE: src/core/search/cypher_engine.py\nSYMBOLS: query_graph\nDOC: Cypher query engine — компонент для подмножества openCypher. Facade: реэкспортирует все публичные классы для обратн\n2. src/core/search/cypher_engine.py:42  [search]\n   FILE: src/core/search/cypher_engine.py\nSYMBOLS: query_graph\nDOC: Cypher query engine — компонент для подмножества openCypher. Facade: реэкспортирует все публичные классы для обратн\n3. docs/ru/README.md:239  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Карта документации':\n## Карта док\n4. docs/ru/README.md:65  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Качество поиска: измерено, с гран\n5. ISSUE.md:722  [search]\n   FILE: ISSUE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.issue.md\nFrom D:\\Project\\MSCodeBase\\ISSUE.md, section '## Порядок (обоснован, а не «снач\n6. docs/ru/CHANGELOG.md:2  [search]\n   FILE: docs/ru/CHANGELOG.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.changelog\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CHANGELOG.md, section '## [3.5.0] — 2026-11-08':\n#\n7. ISSUE.md:633  [search]\n   FILE: ISSUE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.issue.md\nFrom D:\\Project\\MSCodeBase\\ISSUE.md, section '### Порядок выполнения (рекоменда\n8. tools/knowledge/THREADS.md:22  [search]\n   FILE: tools/knowledge/THREADS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.tools.knowledge.threads.md\nFrom D:\\Project\\MSCodeBase\\tools\\knowledge\\\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/search/cypher_engine.py\")"
+  },
+  {
+   "arm": "off",
+   "id": "MSCRU3",
+   "kind": "positive",
+   "question": "где переключается проект",
+   "gold": [
+    "src/mcp/tools/indexing_tools.py"
+   ],
+   "files": [
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где переключается проект`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/branch_aware_index.py:1  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n2. src/core/search/branch_aware_index.py:131  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n3. src/core/search/branch_aware_index.py:22  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n4. src/core/search/branch_aware_index.py:28  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n5. src/core/search/branch_aware_index.py:70  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n6. src/core/search/branch_aware_index.py:50  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n7. src/core/search/branch_aware_index.py:182  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n8. src/core/search/branch_aware_index.py:90  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/search/branch_aware_index.py\")"
+  }
+ ],
+ "smart": [
+  {
+   "arm": "smart",
+   "id": "P01",
+   "kind": "positive",
+   "question": "Где определяется `build_call_graph` и что оно возвращает?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определяется `build_call_graph` и что оно возвращает?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n3. src/core/search/graph_adapter.py:597  [definition+grep]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P02",
+   "kind": "positive",
+   "question": "Кто вызывает `get_impact_analysis`?",
+   "gold": [
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "files": [
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Кто вызывает `get_impact_analysis`?`\n   identifiers: get_impact_analysis\n   results: 8\n   exact: get_impact_analysis=8\n   verdict: answer (0.80) — occurrence at src/core/graph_rag.py:93 (row 6)\n\n1. src/mcp/tools/search_tools.py:866  [name+search]  ✓exact\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n2. src/mcp/tools/investigate_tool.py:616  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n3. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   get_impact_analysis — name match\n4. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n5. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n6. src/core/graph_rag.py:93  [graph+grep+symbol]  ✓exact\n   get_impact_analysis — function\n7. src/core/modification_guard.py:166  [graph+grep]  ✓exact\n   impact = si.get_impact_analysis(symbol, depth=2)\n8. src/mcp/tools/investigate_tool.py:723  [grep]  ✓exact\n   res = symbol_index.get_impact_analysis(name, 2) or {}\n\n📎 dossier:\n   callers: 2 → src/core/graph_rag.py:93, src/core/modification_guard.py:166\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"get_impact_analysis\") | impact_analysis | read_live_file(\"src/mcp/tools/search_tools.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P03",
+   "kind": "positive",
+   "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+   "gold": [
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/write_tools.py"
+   ],
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Что сломается, если изменить сигнатуру `ModificationGuard`?`\n   identifiers: ModificationGuard\n   results: 8\n   exact: ModificationGuard=2\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/graph_rag.py:78  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n2. src/core/graph_rag.py:1  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n3. src/core/graph_rag.py:34  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n4. src/core/graph_rag.py:193  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n5. src/core/graph_rag.py:239  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n6. src/core/graph_rag.py:227  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/graph_rag.py:216  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n8. src/core/graph_rag.py:183  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n\nСимволы:\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n• TestModificationGuard (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:119\n• TestModificationGuard.TestTool (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:465\n• TestModificationGuard.TestTool.my_write (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:470\n\nДальше: get_symbol_info(\"ModificationGuard\") | impact_analysis | read_live_file(\"src/core/graph_rag.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P04",
+   "kind": "positive",
+   "question": "Где решается, нужно ли переиндексировать файл?",
+   "gold": [
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "scripts/e2e_quality_search.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/di_container.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/doc_sync_engine.py",
+    "src/core/di_container.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где решается, нужно ли переиндексировать файл?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/indexing/file_guard.py:59  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n2. src/core/indexing/file_guard.py:66  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n3. scripts/e2e_quality_search.py:1  [search]\n   FILE: scripts/e2e_quality_search.py\nSYMBOLS: norm hit_at build_searcher _count run_mode report main\nDOC: \n// Scope: module | module_docstring | e2e_quality_search\n// File: D:\\Proje\n4. src/core/indexing/file_guard.py:121  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n5. src/core/di_container.py:389  [search]\n   FILE: src/core/di_container.py\nSYMBOLS: ProjectRootKey IndexerFactoryKey GitUrlSourceFactoryKey ServiceCollection create_service_collection _make_local_source\nDOC: Dependency Injec\n6. src/core/indexing/file_guard.py:1  [search]\n   FILE: src/core/indexing/file_guard.py\nSYMBOLS: FileGuard\nDOC:  Guardrails для файловой системы - защита от бинарников, мусора и .gitignore. Все системные директории и артефакты опр\n7. src/core/doc_sync_engine.py:293  [search]\n   FILE: src/core/doc_sync_engine.py\nSYMBOLS: SyncAction SyncReport DocSyncEngine\nDOC:  doc_sync_engine.py — авто-синхронизация документации с кодом. По Тумблеру: чистая бизнес-логика\n8. src/core/di_container.py:177  [search]\n   FILE: src/core/di_container.py\nSYMBOLS: ProjectRootKey IndexerFactoryKey GitUrlSourceFactoryKey ServiceCollection create_service_collection _make_local_source\nDOC: Dependency Injec\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/indexing/file_guard.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P05",
+   "kind": "positive",
+   "question": "Где вычисляется путь `progress.json` вне проекта?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "scripts/monitor.py",
+    "src/core/artifact_paths.py",
+    "install.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где вычисляется путь `progress.json` вне проекта?`\n   identifiers: progress.json\n   results: 8\n   exact: progress.json=18\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. scripts/monitor.py:92  [name]  ✓exact\n   progress_json — name match\n2. src/core/artifact_paths.py:1  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n3. install.py:35  [impact]\n   impact progress.json: risk=critical, affected=9\n4. docs/archive/AGENT_DIARY_2026_08.md:283  [name]  ✓exact\n   progress_json — name match\n5. docs/archive/KNOWN_ISSUES_2026_07.md:2800  [name]  ✓exact\n   progress_json — name match\n6. docs/archive/KNOWN_ISSUES_2026_08.md:438  [name]  ✓exact\n   progress_json — name match\n7. src/core/doc_llm_verifier.py:208  [graph]\n   caller of progress.json\n8. src/core/doc_llm_verifier.py:269  [graph]\n   caller of progress.json\n\n📎 dossier:\n   callers: 2 → src/core/doc_llm_verifier.py:208, src/core/doc_llm_verifier.py:269\n   risk: impact progress.json: risk=critical, affected=9\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nДальше: get_symbol_info(\"progress.json\") | impact_analysis | read_live_file(\"scripts/monitor.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P06",
+   "kind": "positive",
+   "question": "Какая функция возвращает путь прогресса?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "src/core/bootstrap_trace_plugin.py",
+    "src/core/task_queue.py",
+    "src/core/indexing/parser.py",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/task_queue.py",
+    "src/sources/local_fs/windows.py",
+    "scripts/check_lsp_health.py",
+    "src/core/multi_project_searcher.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Какая функция возвращает путь прогресса?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/bootstrap_trace_plugin.py:1  [search]\n   FILE: src/core/bootstrap_trace_plugin.py\nSYMBOLS: _trace pytest_runtest_call pytest_runtest_teardown pytest_sessionfinish\nDOC: \n// Scope: module | module_docstring | core.bootstrap\n2. src/core/task_queue.py:300  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n3. src/core/indexing/parser.py:1875  [search]\n   FILE: src/core/indexing/parser.py\nSYMBOLS: CodeParser\nDOC:  Парсинг кода через Tree-sitter с контекстным чанкингом и надежным fallback. \n// Scope: function_part | giant_function_pa\n4. src/core/interfaces/workspace_source.py:33  [search]\n   FILE: src/core/interfaces/workspace_source.py\nSYMBOLS: FileChangeEvent WorkspaceSource\nDOC: WorkspaceSource — интерфейс источника кода (ТЗ §2.1 Universal Engine). Core объявляет ин\n5. src/core/task_queue.py:131  [search]\n   FILE: src/core/task_queue.py\nSYMBOLS: TaskStatus Task TaskQueue get_task_queue enable_idle_scheduler disable_idle_scheduler _cpu_available set_idle_vor_callback _improve_summaries_\n6. src/sources/local_fs/windows.py:54  [search]\n   FILE: src/sources/local_fs/windows.py\nSYMBOLS: SafePathManager\nDOC: \n// Scope: function | function_definition | sources.local_fs.windows\n// File: D:\\Project\\MSCodeBase\\src\\sources\\\n7. scripts/check_lsp_health.py:42  [search]\n   FILE: scripts/check_lsp_health.py\nSYMBOLS: _get_zed_config_dir _get_zed_logs_dir _get_zed_db_path _get_ext_root check_settings_json check_lsp_process check_bridge_files main\nDOC: \n\n8. src/core/multi_project_searcher.py:71  [search]\n   FILE: src/core/multi_project_searcher.py\nSYMBOLS: parse_cross_repo_query ProjectRegistry MultiProjectSearcher\nDOC:  MSCodebase Intelligence — Cross-repo поиск по нескольким проекта\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/bootstrap_trace_plugin.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P07",
+   "kind": "positive",
+   "question": "Где выдаётся и проверяется impact-токен?",
+   "gold": [
+    "src/core/modification_guard.py"
+   ],
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/search/agentic_search.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где выдаётся и проверяется impact-токен?`\n   identifiers: impact\n   results: 8\n   exact: impact=275\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/cross_project_deps.py:325  [definition+symbol]\n   CrossProjectDependencyGraph.analyze_impact — function_definition\n2. src/core/graph_rag.py:78  [definition+symbol]\n   GraphRAGQueryEngine.query_impact — function_definition\n3. src/mcp/tools/search_tools.py:859  [definition+symbol]\n   ImpactAnalysisTool — class_definition\n4. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n5. src/core/modification_guard.py:166  [impact]  ⚠stale\n   impact impact: risk=low, affected=1\n6. src/core/modification_guard.py:49  [search]  ⚠stale\n   FILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blas\n7. src/mcp/tools/context_tool.py:1  [search]\n   FILE: src/mcp/tools/context_tool.py\nSYMBOLS: _truncate_to_budget _dedup_sections GetContextTool\nDOC: get_context — task-shaped инструмент: контекст по нескольким целям одним вызово\n8. src/mcp/tools/search_tools.py:1  [search]\n   FILE: src/mcp/tools/search_tools.py\nSYMBOLS: _render_explain _get_search_budget _get_stale_warning _is_complex_query SearchCodeTool GetSymbolInfoTool ImpactAnalysisTool PlanSearchT\n\nСимволы:\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n• CrossProjectDependencyGraph.analyze_impact (function_definition) — D:/Project/MSCodeBase/src/core/search/cross_project_deps.py:325\n• GraphRAGQueryEngine.query_impact (function_definition) — D:/Project/MSCodeBase/src/core/graph_rag.py:78\n• ImpactAnalysisTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/search_tools.py:859\n\nДальше: get_symbol_info(\"impact\") | impact_analysis | read_live_file(\"src/core/search/cross_project_deps.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P08",
+   "kind": "positive",
+   "question": "Где в `investigate` появляется строка `degraded`?",
+   "gold": [
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "scripts/o1_holdout_gate.py",
+    "scripts/p2_holdout_gate.py",
+    "src/providers/embedder/remote_embedder.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где в `investigate` появляется строка `degraded`?`\n   identifiers: investigate, degraded\n   results: 8\n   exact: investigate=125, degraded=77\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/mcp/tools/investigate_tool.py:359  [definition+symbol]  ⚠stale\n   InvestigateTool — class_definition\n2. src/mcp/tools/investigate_tool.py:362  [definition+symbol]  ⚠stale\n   InvestigateTool.__init__ — function_definition\n3. src/mcp/tools/investigate_tool.py:753  [definition+symbol]  ⚠stale\n   InvestigateTool._format — function_definition\n4. scripts/o1_holdout_gate.py:164  [definition+symbol]\n   degraded — variable\n5. scripts/p2_holdout_gate.py:140  [definition+symbol]\n   degraded — variable\n6. src/providers/embedder/remote_embedder.py:443  [impact]\n   impact degraded: risk=low, affected=1\n7. src/mcp/tools/investigate_tool.py:138  [search]  ⚠stale\n   FILE: src/mcp/tools/investigate_tool.py\nSYMBOLS: _memory_hits _identifiers _relpath _abstains _asks_for_callers _asks_for_tests _asks_for_docs _name_words _name_variants _bucket_pe\n8. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n\nСимволы:\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n• InvestigateTool (class_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:359\n• InvestigateTool.__init__ (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:362\n• InvestigateTool._format (function_definition) — D:/Project/MSCodeBase/src/mcp/tools/investigate_tool.py:753\n\nДальше: get_symbol_info(\"investigate\") | impact_analysis | read_live_file(\"src/mcp/tools/investigate_tool.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P09",
+   "kind": "positive",
+   "question": "Где определяется allowlist/профиль инструментов?",
+   "gold": [
+    "src/mcp/server_tools.py"
+   ],
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где определяется allowlist/профиль инструментов?`\n   identifiers: allowlist\n   results: 8\n   exact: allowlist=92\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/cli.py:111  [definition+impact+symbol]\n   allowlist — variable\n2. src/mcp/server_tools.py:244  [definition+symbol]\n   _raw_allowlist — variable\n3. src/mcp/server_tools.py:228  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n4. src/mcp/tools/base.py:1  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n5. src/mcp/server_tools.py:1  [search]\n   FILE: src/mcp/server_tools.py\nSYMBOLS: _apply_tool_profile register_all_tools _register_intelligence_tools _register_inline_tools register_system_prompt\nDOC:  server_tools.py — Рег\n6. src/mcp/tools/base.py:492  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n7. src/mcp/tools/base.py:461  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n8. src/mcp/tools/base.py:200  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n\nСимволы:\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n• _raw_allowlist (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• _raw_allowlist_env (variable) — D:/Project/MSCodeBase/src/mcp/server_tools.py:244\n• allowlist (variable) — D:/Project/MSCodeBase/src/cli.py:111\n\nДальше: get_symbol_info(\"allowlist\") | impact_analysis | read_live_file(\"src/cli.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P10",
+   "kind": "positive",
+   "question": "Где задан профиль ETA для `impact_analysis`?",
+   "gold": [
+    "src/core/eta_predictor.py"
+   ],
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где задан профиль ETA для `impact_analysis`?`\n   identifiers: impact_analysis, ETA\n   results: 8\n   exact: impact_analysis=68, ETA=76\n   verdict: abstain (0.15) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/modification_guard.py:1  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n2. src/core/modification_guard.py:149  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n3. src/core/modification_guard.py:63  [name]  ✓exact ⚠stale\n   impact_analysis — name match\n4. src/core/indexing/symbol_index.py:684  [definition+symbol]\n   SymbolIndex.get_impact_analysis — function_definition\n5. src/core/search/graph_adapter.py:797  [definition+symbol]\n   SymbolIndexAdapter.get_impact_analysis — function_definition\n6. src/core/graph_rag.py:93  [definition+symbol]\n   get_impact_analysis — function\n7. src/core/indexing/parser.py:823  [definition+symbol]\n   CodeParser._build_chunk_metadata — function_definition\n8. src/core/eta_predictor.py:43  [definition+symbol]\n   ETAPredictor — class_definition\n\nСимволы:\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n• SymbolIndex.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:684\n• SymbolIndexAdapter.get_impact_analysis (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:797\n• get_impact_analysis (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:93\n\nДальше: get_symbol_info(\"impact_analysis\") | impact_analysis | read_live_file(\"src/core/modification_guard.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P11",
+   "kind": "positive",
+   "question": "Где объявлен `SymbolIndexAdapter`?",
+   "gold": [
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где объявлен `SymbolIndexAdapter`?`\n   identifiers: SymbolIndexAdapter\n   results: 8\n   exact: SymbolIndexAdapter=36\n   verdict: answer (1.00) — class at src/core/search/graph_adapter.py:41 (row 1)\n\n1. src/core/search/graph_adapter.py:41  [definition+grep+impact+symbol]  ✓def:class ✓exact\n   SymbolIndexAdapter — class_definition\n2. src/core/search/graph_adapter.py:56  [symbol]\n   SymbolIndexAdapter.__init__ — function_definition\n3. src/core/search/graph_adapter.py:783  [symbol]\n   SymbolIndexAdapter._call_confidence — function_definition\n4. src/core/search/graph_adapter_pure.py:550  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n5. src/core/search/graph_adapter_pure.py:494  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/mcp/tools/context_tool.py:94  [graph+grep]  ✓exact\n   self._flow_adapter = SymbolIndexAdapter(pg)\n7. src/mcp/tools/graph_tools.py:470  [graph+grep]  ✓exact\n   adapter = SymbolIndexAdapter(pg, mode=SymbolIndexAdapter.MODE_PURE)\n8. src/mcp/tools/graph_tools.py:729  [graph]\n   caller of SymbolIndexAdapter\n\n📎 dossier:\n   definition: class SymbolIndexAdapter(PureGraphMixin): — src/core/search/graph_adapter.py:41\n   callers: 3 → src/mcp/tools/context_tool.py:94, src/mcp/tools/graph_tools.py:470, src/mcp/tools/graph_tools.py:729\n   risk: SymbolIndexAdapter — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter (class_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:41\n• SymbolIndexAdapter.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:56\n• SymbolIndexAdapter._call_confidence (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:783\n\nДальше: get_symbol_info(\"SymbolIndexAdapter\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P12",
+   "kind": "positive",
+   "question": "Где считается call chain?",
+   "gold": [
+    "src/core/indexing/symbol_index.py"
+   ],
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "src/core/indexing/database_lock.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где считается call chain?`\n   identifiers: chain\n   results: 8\n   exact: chain=114\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/dataflow_experiment.py:415  [definition+symbol]\n   Analyzer._provenance_chains — function_definition\n2. src/core/indexing/database_lock.py:115  [definition+symbol]\n   ProcessInspector.parent_chain — function_definition\n3. src/core/indexing/symbol_index.py:548  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function_par\n4. src/mcp/tools/graph_tools.py:612  [impact]\n   impact chain: risk=low, affected=1\n5. src/core/search/graph_adapter_pure.py:340  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n6. src/core/graph_rag.py:143  [search]\n   FILE: src/core/graph_rag.py\nSYMBOLS: GraphRAGQueryEngine get_query_engine\nDOC:  GraphRAG Query Engine — навигация по графу знаний. Позволяет отвечать на сложные вопросы: - \"Какие ф\n7. src/core/search/graph_adapter.py:432  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n8. src/core/search/graph_adapter_pure.py:477  [search]\n   FILE: src/core/search/graph_adapter_pure.py\nSYMBOLS: PureGraphMixin\nDOC:  Pure mode methods for SymbolIndexAdapter. Содержит PURE (PropertyGraph-only) реализацию методов для Symbol\n\nСимволы:\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n• Analyzer._provenance_chains (function_definition) — D:/Project/MSCodeBase/scripts/dataflow_experiment.py:415\n• FakeInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/tests/test_database_lock_selfhealing.py:69\n• ProcessInspector.parent_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/database_lock.py:115\n\nДальше: get_symbol_info(\"chain\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P13",
+   "kind": "positive",
+   "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+   "gold": [
+    "src/core/indexing/db_manager.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py",
+    "src/core/indexing/indexer.py",
+    "scripts/verify_diary.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где хранится схема `file_hash` / `file_mtime_ns`?`\n   identifiers: file_mtime_ns, file_hash\n   results: 8\n   exact: file_mtime_ns=7, file_hash=25\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/indexing/indexer.py:428  [name+search]  ✓exact\n   FILE: src/core/indexing/indexer.py\nSYMBOLS: _generate_unique_db_path Indexer\nDOC:  MSCodebase Intelligence — Продакшен инкрементальный индекс на LanceDB с авто-очисткой (Pruning) \n\n2. src/core/indexing/chunk_store.py:255  [name+search]  ✓exact ⚠stale\n   FILE: src/core/indexing/chunk_store.py\nSYMBOLS: get_chunks_db_path _fts_query SQLiteChunkStore migrate_from_lancedb\nDOC: SQLite/FTS5 chunk store (Phase 3 of the approved stack migr\n3. src/core/indexing/db_writer.py:352  [name]  ✓exact\n   mtime_ns — name match\n4. src/core/indexing/indexer.py:468  [name]  ✓exact\n   mtime_ns — name match\n5. scripts/verify_diary.py:706  [name]  ✓exact\n   mtime_ns — name match\n6. src/core/indexing/chunk_store.py:238  [definition+grep+impact+symbol]  ✓exact\n   SQLiteChunkStore.file_hash — function_definition\n7. src/core/indexing/index_guard.py:627  [grep+symbol]  ✓exact\n   IndexGuard._compute_file_hash — function_definition\n8. src/core/indexing/indexer.py:328  [grep+symbol]  ✓exact\n   Indexer._calculate_file_hash — function_definition\n\n📎 dossier:\n   risk: SQLiteChunkStore.file_hash — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n• IndexGuard._compute_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/index_guard.py:627\n• Indexer._calculate_file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:328\n• SQLiteChunkStore.file_hash (function_definition) — D:/Project/MSCodeBase/src/core/indexing/chunk_store.py:238\n\nДальше: get_symbol_info(\"file_mtime_ns\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P14",
+   "kind": "positive",
+   "question": "Какой документ является каноном публичных чисел?",
+   "gold": [
+    "docs/FACTS.md"
+   ],
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "scripts/diag_quality_hang.py",
+    "AGENT_DIARY.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Какой документ является каноном публичных чисел?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/dataflow_experiment.py:220  [search]\n   FILE: scripts/dataflow_experiment.py\nSYMBOLS: Analyzer MultiProjectExperiment\nDOC:  DataFlow Experiment v3 — мульти-проектный замер. Запускает 4 сценария на нескольких проектах и с\n2. docs/ru/UNIVERSAL_ENGINE_PLAN.md:587  [search]\n   FILE: docs/ru/UNIVERSAL_ENGINE_PLAN.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.universal_engine_plan\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\UNIVERSAL_ENGINE_PLAN.md, \n3. AI_INSTALLATION_PROMPT.md:115  [search]\n   FILE: AI_INSTALLATION_PROMPT.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.ai_installation_prompt.md\nFrom D:\\Project\\MSCodeBase\\AI_INSTALLATION_PR\n4. docs/archive/research/2026-07-09-model-comparison.md:16  [search]\n   FILE: docs/archive/research/2026-07-09-model-comparison.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.research.2026-07-09-model-comparison\nFrom D:\\Project\\MSCod\n5. AGENT_DIARY.md:1427  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-10-21]\n6. docs/ru/UNIVERSAL_ENGINE_PLAN.md:477  [search]\n   FILE: docs/ru/UNIVERSAL_ENGINE_PLAN.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.universal_engine_plan\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\UNIVERSAL_ENGINE_PLAN.md, \n7. scripts/diag_quality_hang.py:212  [search]\n   FILE: scripts/diag_quality_hang.py\nSYMBOLS: FakeIndexer FakeEmbedder RealEmbedderProxy AsyncTableIndexer\nDOC: Диагностика: воспроизведение quality-пайплайна вне MCP (read-only). Ст\n8. AGENT_DIARY.md:1434  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-10-21]\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"scripts/dataflow_experiment.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P15",
+   "kind": "positive",
+   "question": "Где LSP-инструмент отправляет за ссылками?",
+   "gold": [
+    "src/mcp/tools/lsp_tools.py"
+   ],
+   "files": [
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/mcp/tools/write_tools.py",
+    "src/core/code_health.py",
+    "src/mcp/tools/base.py",
+    "src/core/intelligence/tools_reg.py",
+    "src/core/auto_doc_updater.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где LSP-инструмент отправляет за ссылками?`\n   identifiers: LSP\n   results: 8\n   exact: LSP=397\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/lsp_client.py:291  [definition+symbol]\n   LspClient — class_definition\n2. src/core/lsp_client.py:303  [definition+symbol]\n   LspClient.__init__ — function_definition\n3. src/core/lsp_client.py:368  [definition+symbol]\n   LspClient._ensure_started — function_definition\n4. src/mcp/tools/write_tools.py:866  [impact]  ⚠stale\n   impact LSP: risk=low, affected=1\n5. src/core/code_health.py:1  [search]\n   FILE: src/core/code_health.py\nSYMBOLS: score_file _count_lines _max_nesting_depth _count_cyclomatic_complexity _count_bare_excepts\nDOC:  Code Health Score — детерминированная оценк\n6. src/mcp/tools/base.py:1  [search]\n   FILE: src/mcp/tools/base.py\nSYMBOLS: resolve_indexer_for_intel resolve_indexer_for_request MCPTool\nDOC: Базовый класс для MCP-инструментов с DI и ErrorBoundary. Все инструменты нас\n7. src/core/intelligence/tools_reg.py:18  [search]\n   FILE: src/core/intelligence/tools_reg.py\nSYMBOLS: register_intelligence_tools\nDOC:  MCP Tool Registration for Intelligence Layer. Вынесено из layer.py для декомпозиции God Object (\n8. src/core/auto_doc_updater.py:743  [search]\n   FILE: src/core/auto_doc_updater.py\nSYMBOLS: _ledger_autosync_enabled BrokenRef AutoDocUpdater\nDOC:  auto_doc_updater.py — автоматическое обновление документации. По Тумблеру: чиста\n\nСимволы:\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n• LspClient (class_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:291\n• LspClient.__init__ (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:303\n• LspClient._ensure_started (function_definition) — D:/Project/MSCodeBase/src/core/lsp_client.py:368\n\nДальше: get_symbol_info(\"LSP\") | impact_analysis | read_live_file(\"src/core/lsp_client.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "P16",
+   "kind": "positive",
+   "question": "Где описан контракт «артефакты вне проекта»?",
+   "gold": [
+    "src/core/artifact_paths.py"
+   ],
+   "files": [
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "rows": 8,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где описан контракт «артефакты вне проекта»?`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/artifact_paths.py:1  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n2. src/core/artifact_paths.py:262  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n3. src/core/artifact_paths.py:204  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n4. src/core/artifact_paths.py:256  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n5. src/core/artifact_paths.py:363  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n6. src/core/artifact_paths.py:336  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n7. src/core/artifact_paths.py:427  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n8. src/core/artifact_paths.py:220  [search]\n   FILE: src/core/artifact_paths.py\nSYMBOLS: ArtifactStorageError safe_mkdir check_disk_space get_data_root _ensure_data_root project_hash _compute_project_dir get_project_dir get_ind\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/artifact_paths.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "A01",
+   "kind": "ambiguity",
+   "question": "Где реализован `build_call_graph`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `build_call_graph`?`\n   identifiers: build_call_graph\n   results: 8\n   exact: build_call_graph=41\n   verdict: answer (1.00) — function at src/core/indexing/symbol_index.py:548 (row 5 → promoted)\n\n1. src/core/indexing/symbol_index.py:548  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   SymbolIndex.build_call_graph — function_definition\n2. src/core/search/graph_adapter.py:597  [definition+grep+search]  ✓def:function ✓exact\n   SymbolIndexAdapter.build_call_graph — function_definition\n3. scripts/run_experiment_pagerank.py:41  [definition+grep]  ✓def:function ✓exact\n   build_call_graph — function_definition\n4. src/mcp/tools/lifecycle_tools.py:83  [name]  ✓exact\n   build_graph — name match\n5. src/core/graph_rag.py:40  [name]  ✓exact\n   build_graph — name match\n6. src/mcp/tools/lifecycle_tools.py:92  [name]  ✓exact\n   build_graph — name match\n7. src/core/graph_rag.py:34  [name]  ✓exact\n   build_graph — name match\n8. src/core/search/graph_adapter.py:612  [symbol]\n   SymbolIndexAdapter._graph_build_call_graph — function_definition\n\n📎 dossier:\n   definition: def build_call_graph(self, symbol: str, depth: int = 2) -> Dict: — src/core/indexing/symbol_index.py:548\n   risk: SymbolIndex.build_call_graph — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• build_call_graph (function_definition) — D:/Project/MSCodeBase/scripts/run_experiment_pagerank.py:41\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:597\n• SymbolIndex.build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:548\n• SymbolIndexAdapter._graph_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:612\n• SymbolIndexAdapter._hybrid_build_call_graph (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter.py:698\n\nДальше: get_symbol_info(\"build_call_graph\") | impact_analysis | read_live_file(\"src/core/indexing/symbol_index.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "A02",
+   "kind": "ambiguity",
+   "question": "Где реализован `get_call_chain`?",
+   "gold": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/agentic_search.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": true,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где реализован `get_call_chain`?`\n   identifiers: get_call_chain\n   results: 8\n   exact: get_call_chain=7\n   verdict: answer (1.00) — function at src/core/search/graph_adapter_pure.py:477 (row 1)\n\n1. src/core/search/graph_adapter_pure.py:477  [definition+grep+impact+search+symbol]  ✓def:function ✓exact\n   PureGraphMixin.get_call_chain — function_definition\n2. src/core/indexing/symbol_index.py:353  [definition+grep+symbol]  ✓def:function ✓exact\n   SymbolIndex.get_call_chain — function_definition\n3. src/core/graph_rag.py:163  [grep+symbol]  ✓exact\n   get_call_chain — function\n4. src/core/graph_rag.py:175  [graph+grep]  ✓exact\n   call_chain = self.symbol_index.get_call_chain(sym, direction=\"up\")\n5. src/core/search/graph_adapter.py:1  [search]\n   FILE: src/core/search/graph_adapter.py\nSYMBOLS: SymbolIndexAdapter\nDOC:  Graph Adapters — обратная совместимость между PropertyGraph и существующими интерфейсами SymbolIndex / Grap\n6. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n7. docs/archive/research/2026-07-09-provider-benchmark.md:262  [search]\n   FILE: docs/archive/research/2026-07-09-provider-benchmark.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.research.2026-07-09-provider-benchmark\nFrom D:\\Project\\M\n8. AGENT_DIARY.md:1204  [search]  ⚠stale\n   FILE: AGENT_DIARY.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.agent_diary.md\nFrom D:\\Project\\MSCodeBase\\AGENT_DIARY.md, section '## [2026-09-17]\n\n📎 dossier:\n   definition: def get_call_chain(self, symbol: str, direction: str = \"both\", max_depth: int = 3) -> Dict: — src/core/search/graph_adapter_pure.py:477\n   callers: 1 → src/core/graph_rag.py:175\n   risk: PureGraphMixin.get_call_chain — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• PureGraphMixin.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/search/graph_adapter_pure.py:477\n• SymbolIndex.get_call_chain (function_definition) — D:/Project/MSCodeBase/src/core/indexing/symbol_index.py:353\n• get_call_chain (function) — D:/Project/MSCodeBase/src/core/graph_rag.py:163\n\nДальше: get_symbol_info(\"get_call_chain\") | impact_analysis | read_live_file(\"src/core/search/graph_adapter_pure.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "A03",
+   "kind": "ambiguity",
+   "question": "Где считается «устаревание» (staleness)?",
+   "gold": [
+    "src/core/auto_doc_updater.py",
+    "src/core/indexing/freshness.py"
+   ],
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "src/core/intelligence/store.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/core/indexing/database_lock.py",
+    "src/mcp/tools/indexing_tools.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "caveat",
+   "text": "🧭 investigate: `Где считается «устаревание» (staleness)?`\n   identifiers: staleness\n   results: 8\n   exact: staleness=26\n   verdict: caveat (0.35) — partial evidence: no verified declaration\n\n1. src/core/auto_doc_updater.py:149  [definition+grep+symbol]  ✓exact\n   AutoDocUpdater.check_staleness — function_definition\n2. src/core/intelligence/store.py:191  [definition+grep+symbol]  ✓exact\n   IntelligenceStore.check_staleness — function_definition\n3. src/core/intelligence/store.py:210  [grep+impact]  ✓exact\n   staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n4. src/mcp/tools/dev_tools.py:101  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n5. src/mcp/tools/dev_tools.py:95  [search]\n   FILE: src/mcp/tools/dev_tools.py\nSYMBOLS: register_dev_tools\nDOC:  MCP tools: generate_docs, bump_version, install_git_hooks. По Тумблеру: чистые обёртки над src/core/ бизнес-логик\n6. src/core/indexing/database_lock.py:510  [search]\n   FILE: src/core/indexing/database_lock.py\nSYMBOLS: LockHolderState LockBusyError ProcessInspector WindowsProcessInspector DatabaseLock\nDOC: DatabaseLock — межпроцессный single-write\n7. src/mcp/tools/indexing_tools.py:116  [search]\n   FILE: src/mcp/tools/indexing_tools.py\nSYMBOLS: _job_key get_index_job _set_job NotifyChangeTool IndexGitUrlTool IndexProjectDirTool IndexHealthTool get_active_project_root SetProje\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   risk: staleness = check_note_staleness(note, project_root=self.store_dir.parent)\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n• AutoDocUpdater.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/auto_doc_updater.py:149\n• IntelligenceStore.check_staleness (function_definition) — D:/Project/MSCodeBase/src/core/intelligence/store.py:191\n• TestCLI.test_cli_check_staleness (function_definition) — D:/Project/MSCodeBase/tests/test_stale_after.py:145\n\nДальше: get_symbol_info(\"staleness\") | impact_analysis | read_live_file(\"src/core/auto_doc_updater.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "A04",
+   "kind": "ambiguity",
+   "question": "Где определён `Indexer`?",
+   "gold": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/indexer_table.py"
+   ],
+   "files": [
+    "src/core/indexing/indexer.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "answer",
+   "text": "🧭 investigate: `Где определён `Indexer`?`\n   identifiers: Indexer\n   results: 8\n   exact: Indexer=220\n   verdict: answer (0.75) — class at src/core/indexing/indexer.py:36 (row 1)\n\n1. src/core/indexing/indexer.py:36  [definition+impact]  ✓def:class\n   Indexer — class_definition\n2. scripts/diag_quality_hang.py:89  [symbol]\n   AsyncTableIndexer — class_definition\n3. scripts/diag_quality_hang.py:94  [symbol]\n   AsyncTableIndexer.__init__ — function_definition\n4. scripts/diag_quality_hang.py:111  [symbol]\n   AsyncTableIndexer._ensure_async_table — function_definition\n5. src/core/di_container.py:295  [graph]\n   caller of Indexer\n6. src/core/indexing/symbol_index.py:294  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n7. src/core/indexing/symbol_index.py:275  [search]\n   FILE: src/core/indexing/symbol_index.py\nSYMBOLS: SymbolRef SymbolIndex\nDOC:  Symbol Index — отслеживание определений и использований символов между файлами. \n// Scope: function | f\n8. src/core/search/agentic_search.py:228  [search]\n   FILE: src/core/search/agentic_search.py\nSYMBOLS: AgenticSearchMixin\nDOC: Agentic search mixin — декомпозиция запросов, итеративный поиск, анализ связей. Extracted from engine.py fo\n\n📎 dossier:\n   definition: class Indexer(IndexerTableMixin): — src/core/indexing/indexer.py:36\n   callers: 1 → src/core/di_container.py:295\n   risk: Indexer — class_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• Indexer (class_definition) — D:/Project/MSCodeBase/src/core/indexing/indexer.py:36\n• AsyncTableIndexer (class_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:89\n• AsyncTableIndexer.__init__ (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:94\n• AsyncTableIndexer._ensure_async_table (function_definition) — D:/Project/MSCodeBase/scripts/diag_quality_hang.py:111\n\nДальше: get_symbol_info(\"Indexer\") | impact_analysis | read_live_file(\"src/core/indexing/indexer.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "N01",
+   "kind": "negative",
+   "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где реализовано «согласие партнёрской модели» (`partner_agreement`)?`\n   identifiers: partner_agreement\n   results: 0\n   exact: partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "smart",
+   "id": "N02",
+   "kind": "negative",
+   "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где читается `XERJ_FACTS_MODEL_DIR`?`\n   identifiers: XERJ_FACTS_MODEL_DIR\n   results: 0\n   exact: XERJ_FACTS_MODEL_DIR=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "smart",
+   "id": "N03",
+   "kind": "negative",
+   "question": "Где ключ подписи Corpus Hub?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": true,
+   "verdict": "ask_rewrite",
+   "text": "🧭 investigate: `Где ключ подписи Corpus Hub?`\n   verdict: ask_rewrite\n   ⚠️ В запросе нет идентификатора кода: латинского имени, `snake_case` или `CamelCase`.\n   Соседи не выдаются, чтобы не принять их за ответ. Переформулируйте: `where is <identifier> defined`."
+  },
+  {
+   "arm": "smart",
+   "id": "N04",
+   "kind": "negative",
+   "question": "Где `consensus_partner_agreement`?",
+   "gold": [],
+   "files": [],
+   "rows": 0,
+   "top1": true,
+   "any": true,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `Где `consensus_partner_agreement`?`\n   identifiers: consensus_partner_agreement\n   results: 0\n   exact: consensus_partner_agreement=0\n   verdict: abstain (0.00) — subject does not occur and the graph does not know it\n\nℹ️ Ничего не найдено. Запрос не подтверждён ни одним каналом.\nNeighbours withheld: 8. Pass include_neighbours=true to see them anyway."
+  },
+  {
+   "arm": "smart",
+   "id": "MSCRU1",
+   "kind": "positive",
+   "question": "где решается включать ли реранк",
+   "gold": [
+    "src/core/search/engine.py"
+   ],
+   "files": [
+    "scripts/e2e_quality_search.py",
+    "docs/ru/INSTALL.md",
+    "docs/ru/SEARCH_PIPELINE.md",
+    "docs/ru/GRACEFUL_DEGRADATION.md",
+    "EXPERIMENTS_LOG.md",
+    "docs/ru/FAQ.md",
+    "EXPERIMENTS_LOG.md",
+    "docs/ru/README.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где решается включать ли реранк`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. scripts/e2e_quality_search.py:1  [search]\n   FILE: scripts/e2e_quality_search.py\nSYMBOLS: norm hit_at build_searcher _count run_mode report main\nDOC: \n// Scope: module | module_docstring | e2e_quality_search\n// File: D:\\Proje\n2. docs/ru/INSTALL.md:113  [search]\n   FILE: docs/ru/INSTALL.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.install\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\INSTALL.md, section '## 6. Опциональные провайдеры':\n#\n3. docs/ru/SEARCH_PIPELINE.md:31  [search]  ⚠stale\n   FILE: docs/ru/SEARCH_PIPELINE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.search_pipeline\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\SEARCH_PIPELINE.md, section '## 2. Пут\n4. docs/ru/GRACEFUL_DEGRADATION.md:21  [search]\n   FILE: docs/ru/GRACEFUL_DEGRADATION.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.graceful_degradation\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\GRACEFUL_DEGRADATION.md, sec\n5. EXPERIMENTS_LOG.md:1961  [search]  ⚠stale\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md\nFrom D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md, secti\n6. docs/ru/FAQ.md:11  [search]\n   FILE: docs/ru/FAQ.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.faq\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\FAQ.md, section '## Нужны ли эмбеддинги для поиска?':\n## Нужны\n7. EXPERIMENTS_LOG.md:3609  [search]  ⚠stale\n   FILE: EXPERIMENTS_LOG.md\nSYMBOLS: add_two\nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.experiments_log.md\nFrom D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md, secti\n8. docs/ru/README.md:16  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Что это':\n## Что это\n\nЛокальный M\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"scripts/e2e_quality_search.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "MSCRU2",
+   "kind": "positive",
+   "question": "где проверяются публичные числа",
+   "gold": [
+    "tools/verification/verify_public_claims.py"
+   ],
+   "files": [
+    "src/core/search/cypher_engine.py",
+    "src/core/search/cypher_engine.py",
+    "docs/ru/README.md",
+    "docs/ru/README.md",
+    "ISSUE.md",
+    "docs/ru/CHANGELOG.md",
+    "ISSUE.md",
+    "tools/knowledge/THREADS.md"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где проверяются публичные числа`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/cypher_engine.py:1  [search]\n   FILE: src/core/search/cypher_engine.py\nSYMBOLS: query_graph\nDOC: Cypher query engine — компонент для подмножества openCypher. Facade: реэкспортирует все публичные классы для обратн\n2. src/core/search/cypher_engine.py:42  [search]\n   FILE: src/core/search/cypher_engine.py\nSYMBOLS: query_graph\nDOC: Cypher query engine — компонент для подмножества openCypher. Facade: реэкспортирует все публичные классы для обратн\n3. docs/ru/README.md:239  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Карта документации':\n## Карта док\n4. docs/ru/README.md:65  [search]\n   FILE: docs/ru/README.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.readme\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\README.md, section '## Качество поиска: измерено, с гран\n5. ISSUE.md:722  [search]\n   FILE: ISSUE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.issue.md\nFrom D:\\Project\\MSCodeBase\\ISSUE.md, section '## Порядок (обоснован, а не «снач\n6. docs/ru/CHANGELOG.md:2  [search]\n   FILE: docs/ru/CHANGELOG.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | ru.changelog\nFrom D:\\Project\\MSCodeBase\\docs\\ru\\CHANGELOG.md, section '## [3.5.0] — 2026-11-08':\n#\n7. ISSUE.md:633  [search]\n   FILE: ISSUE.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.issue.md\nFrom D:\\Project\\MSCodeBase\\ISSUE.md, section '### Порядок выполнения (рекоменда\n8. tools/knowledge/THREADS.md:22  [search]\n   FILE: tools/knowledge/THREADS.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | d:.project.mscodebase.tools.knowledge.threads.md\nFrom D:\\Project\\MSCodeBase\\tools\\knowledge\\\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/search/cypher_engine.py\")"
+  },
+  {
+   "arm": "smart",
+   "id": "MSCRU3",
+   "kind": "positive",
+   "question": "где переключается проект",
+   "gold": [
+    "src/mcp/tools/indexing_tools.py"
+   ],
+   "files": [
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py",
+    "src/core/search/branch_aware_index.py"
+   ],
+   "rows": 8,
+   "top1": false,
+   "any": false,
+   "gated": false,
+   "verdict": "abstain",
+   "text": "🧭 investigate: `где переключается проект`\n   results: 8\n   verdict: abstain (0.10) — no verified candidate\n   ⚠️ the rows below are neighbours — no row carries evidence for this question\n\n1. src/core/search/branch_aware_index.py:1  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n2. src/core/search/branch_aware_index.py:131  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n3. src/core/search/branch_aware_index.py:22  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n4. src/core/search/branch_aware_index.py:28  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n5. src/core/search/branch_aware_index.py:70  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n6. src/core/search/branch_aware_index.py:50  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n7. src/core/search/branch_aware_index.py:182  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n8. src/core/search/branch_aware_index.py:90  [search]\n   FILE: src/core/search/branch_aware_index.py\nSYMBOLS: BranchAwareIndex\nDOC:  Branch-Aware Index — управление индексами для разных git-веток. Каждая ветка имеет свой изолированный ин\n\nДальше: get_symbol_info(\"\") | impact_analysis | read_live_file(\"src/core/search/branch_aware_index.py\")"
+  }
+ ]
+}
