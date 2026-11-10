@@ -122,10 +122,10 @@ delta      mean=+0.05s p95=+0.09s
 
 | bucket | answer | caveat | abstain | ask_rewrite |
 |---|---:|---:|---:|---:|
-| xerj/positive | 3 | 2 | 6 | 5 |
+| xerj/positive | 3 | 2 | 11 | 0 |
 | xerj/ambiguity | 3 | 1 | 0 | 0 |
 | xerj/negative | 0 | 0 | 3 | 1 |
-| mcp_audit/positive | 4 | 4 | 6 | 3 |
+| mcp_audit/positive | 4 | 4 | 9 | 0 |
 
 Three of the four ambiguity tasks are `answer`; A03 ("staleness") is `caveat`
 because the question names a concept, not a symbol — the rows (`check_staleness`)
@@ -133,11 +133,15 @@ are occurrences, and the gate says so instead of pinning one as "the"
 definition. The four XERJ negatives are `abstain`/`ask_rewrite` with zero rows,
 i.e. the frozen "no false positive" rule still holds.
 
-The `mcp_audit` split shifts between measurements (5/5 → 4/6 caveat/abstain):
-those questions point at files that were being edited while the panels ran, so
-`fresh` correctly demotes them (`exact` + stale = 0.15 → `abstain`). The
-distribution is descriptive, not a metric; `top1`/`any` were stable across
-every run.
+The `mcp_audit` split shifts between measurements (4/4 → 4/4 → 4/9 answer to
+abstain over three runs): those questions point at files that were being edited
+while the panels ran, so `fresh` correctly demotes them (`exact` + stale =
+0.15 → `abstain`). The distribution is descriptive, not a metric; `top1`/`any`
+were stable across every run.
+
+Under the `smart` rewrite default no XERJ positive is `ask_rewrite` any more:
+the four Russian prose questions that the old `on` rule hid are back as
+`abstain` with neighbour rows and an explicit "no row carries evidence" note.
 
 ## Held-out panel (different corpora, tasks written before the gate existed)
 
