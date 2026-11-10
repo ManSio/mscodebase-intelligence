@@ -1,0 +1,23 @@
+{
+ "measurement": "E62 (chunk locator + scripts demote), 3 runs, run 1 per task",
+ "distribution": {
+  "xerj/positive": {
+   "answer": 3,
+   "abstain": 6,
+   "caveat": 7
+  },
+  "xerj/ambiguity": {
+   "answer": 3,
+   "caveat": 1
+  },
+  "xerj/negative": {
+   "abstain": 3,
+   "ask_rewrite": 1
+  },
+  "mcp_audit/positive": {
+   "caveat": 9,
+   "abstain": 4,
+   "answer": 4
+  }
+ }
+}

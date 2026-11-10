@@ -127,9 +127,9 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 - `abstain` —— 没有任何一行携带证据（对象不出现且图不认识它时也是如此）。
 
 行标记是事实而非装饰：`✓def:class`、`✓def:function@368`（声明在第 368 行，结果行
-指向分块开头）、`✓exact`、`⚠stale`（文件在索引后已改变）、`⚠missing`（索引记得的路径
-在磁盘上不存在）、`⚠outside project`（不会读取）。在定义类问题上，已验证的声明会被提升到
-名称匹配之前；提升是稳定的，且绝不丢弃结果行。
+指向分块开头）、`✓exact@211`（术语在分块内的第 211 行）、`⚠stale`（文件在索引后已改变）、
+`⚠missing`（索引记得的路径在磁盘上不存在）、`⚠outside project`（不会读取）。在定义类问题上，
+已验证的声明会被提升到名称匹配之前；提升是稳定的，且绝不丢弃结果行。
 
 在冻结的 XERJ 与 `mcp_audit` 面板上的对照/处理实验，停止准则在运行前固定：
 `experiments/xerj_2026_11/evidence_gate/REPORT.md`。

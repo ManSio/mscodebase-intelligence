@@ -391,6 +391,7 @@ def _search_row_to_item(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
     return {
         "file": row.get("file_path") or row.get("file") or meta.get("file"),
         "line": row.get("line") or row.get("start_line") or meta.get("start_line") or 0,
+        "end_line": row.get("end_line") or meta.get("end_line") or 0,
         "text": row.get("text") or row.get("content") or "",
         "score": rank_score,
         "weight": 0.6,  # replaced by the profile weight in `_search`
@@ -428,6 +429,7 @@ def _merge(
             merged[key] = {
                 "file": file,
                 "line": line,
+                "end_line": int(item.get("end_line") or 0),
                 "text": str(item.get("text") or item.get("content") or "")[:200],
                 "rank": rank,
                 "defines": defines,
@@ -442,6 +444,8 @@ def _merge(
                 current["text"] = str(item["text"])[:200]
             if not current.get("symbol") and item.get("symbol"):
                 current["symbol"] = str(item["symbol"])
+            if not current.get("end_line") and item.get("end_line"):
+                current["end_line"] = int(item["end_line"])
     # Demotion happens on the MERGED row, not per item: one row can carry both
     # a demoted definition item and a full-weight search item, and the merge
     # keeps the maximum - which silently undid the demotion.
@@ -963,9 +967,13 @@ class InvestigateTool(MCPTool):
                 continue
             marker = marks.get((row["file"], row["line"]))
             suffix = marker.marker() if marker is not None else ""
-            shown_line = row["line"] or (
-                marker.decl_line if marker is not None else 0
-            )
+            shown_line = row["line"]
+            if marker is not None:
+                # The verified declaration wins over the matched term; both
+                # win over the chunk start.
+                shown_line = (
+                    marker.decl_line or marker.found_line or row["line"]
+                )
             lines.append(f"{i}. {row['file']}:{shown_line}  [{channels}]{suffix}")
             if row["text"]:
                 lines.append(f"   {row['text'].strip()[:180]}")

@@ -2,12 +2,12 @@
  "xerj/positive": {
   "n": 16,
   "runs_per_task": 3,
-  "top1": 0.312,
+  "top1": 0.375,
   "any": 0.625,
   "verdicts": {
    "answer": 3,
-   "caveat": 2,
-   "abstain": 11,
+   "caveat": 7,
+   "abstain": 6,
    "ask_rewrite": 0,
    "": 0
   }
@@ -42,20 +42,20 @@
  "mcp_audit/positive": {
   "n": 17,
   "runs_per_task": 3,
-  "top1": 0.412,
+  "top1": 0.529,
   "any": 0.824,
   "verdicts": {
    "answer": 4,
-   "caveat": 4,
-   "abstain": 9,
+   "caveat": 9,
+   "abstain": 4,
    "ask_rewrite": 0,
    "": 0
   }
  },
  "latency": {
   "n": 123,
-  "mean": 2.604,
-  "p95": 3.773
+  "mean": 2.674,
+  "p95": 3.903
  },
  "invalid": 0
 }

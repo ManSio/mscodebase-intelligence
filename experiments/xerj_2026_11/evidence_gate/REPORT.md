@@ -33,21 +33,17 @@ Panels: XERJ 24 (16 positive, 4 ambiguity where *both* golds are required,
 (6 EN + 3 RU on this repo, 4 on `black`, 4 on `httpbin`). Task files are
 pinned by `frozen/MANIFEST.sha256`.
 
-## Result
+## Result (current defaults, 3 repeats per arm, E62)
 
 | bucket | n | top1 control | top1 treatment | any control | any treatment | flaky tasks |
 |---|---:|---:|---:|---:|---:|---:|
-| xerj/positive | 16 | 0.250 | **0.312** | 0.625 | 0.625 | 0 |
+| xerj/positive | 16 | 0.312 | **0.375** | 0.625 | 0.625 | 0 |
 | xerj/ambiguity | 4 | 0.000 | 0.000 | 0.500 | 0.500 | 0 |
 | xerj/negative | 4 | 1.000 | 1.000 | 1.000 | 1.000 | 0 |
-| mcp_audit/positive | 17 | 0.412 | 0.412 | 0.824 | 0.824 | 0 |
+| mcp_audit/positive | 17 | 0.529 | 0.529 | 0.824 | 0.824 | 0 |
 
 `flaky` counts tasks whose `top1` or `any` moved between repeats of one arm:
-zero in this run (an earlier run had one, see H6).
-
-Measured under the shipped rewrite default (`MSCODEBASE_ASK_REWRITE=smart`,
-E59), so both arms include the four XERJ Russian prose questions that the old
-`on` rule used to hide.
+zero in this run.
 
 **What changed:** exactly one task, top-1 only:
 
@@ -58,6 +54,11 @@ xerj P01  top1 False -> True   ("Где определяется `build_call_gra
 A verified declaration existed below rank 1 and the promotion moved it up. No
 task lost `any`, no row set changed on negatives, no ambiguity gold was lost,
 and `mcp_audit` is identical in both arms.
+
+The table moved from 0.250/0.312 (E58) to 0.312/0.375 because two later changes
+became the shipped defaults: E61 (scripts/examples demotion) and E62 (chunk-line
+locator + second-identifier `exact`). The gate's own delta is still exactly one
+task (P01, +0.0625); the absolute rates are a snapshot of the current defaults.
 
 An earlier measurement (under the old `on` rewrite default) showed a second gain
 (P07). That one was an artefact and is **not** claimed: the promoted row was
@@ -113,22 +114,19 @@ is then authoritative (a declaration-shaped line inside a docstring is not a
 declaration). The frozen threshold was not touched. Final, with repeats:
 
 ```
-control    mean=2.56s  p95=3.68s  (n=123)
-treatment  mean=2.60s  p95=3.77s  (n=123)
-delta      mean=+0.05s p95=+0.09s
+control    mean=2.57s  p95=3.80s  (n=123)
+treatment  mean=2.67s  p95=3.90s  (n=123)
+delta      mean=+0.10s p95=+0.10s
 ```
 
-## Verdict distribution (treatment, one run per task, E60)
-
-Measured after the `exact`-on-the-row's-line change (E60); the metric table above
-is E58 (3 repeats, unchanged by E60 because `exact` does not reorder rows).
+## Verdict distribution (treatment, run 1 per task, E62)
 
 | bucket | answer | caveat | abstain | ask_rewrite |
 |---|---:|---:|---:|---:|
-| xerj/positive | 3 | 4 | 9 | 0 |
+| xerj/positive | 3 | 7 | 6 | 0 |
 | xerj/ambiguity | 3 | 1 | 0 | 0 |
 | xerj/negative | 0 | 0 | 3 | 1 |
-| mcp_audit/positive | 4 | 6 | 7 | 0 |
+| mcp_audit/positive | 4 | 9 | 4 | 0 |
 
 Three of the four ambiguity tasks are `answer`; A03 ("staleness") is `caveat`
 because the question names a concept, not a symbol — the rows (`check_staleness`)
