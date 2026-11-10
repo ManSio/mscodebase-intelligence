@@ -1,4 +1,36 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E68: commit-localization benchmark — the default answers *less* than plain search
+
+**Why:** every earlier panel was authored by us, so "tuned to the test" was a
+fair objection. Here the question is a commit message we did not write, the gold
+is `git show --name-only`, and the corpus is a worktree at `B = 7c2c7a3`
+(2026-09-06) — the fixes are not in the index.
+
+**Panel:** 174 commits in `(B, HEAD]`; 66 reference files created after `B` and
+are unsolvable by construction (dropped, counted); 108 solvable, split 71 dev /
+37 sealed by date. Sealed ran once (`--sealed`).
+
+```
+                    hit@1  hit@5  any@8        dev (n=71)      sealed (n=37)
+tool (default)         12     19     23          0.268            0.189
+tool + neighbours      24     37     44          0.521            0.568
+search channel alone   10     24     29          0.338            0.135
+grep (floor)            0      2      6          0.028            0.027
+```
+
+**Verdict:** P1 FAIL (default 0.268 < 0.35), P2 FAIL (default is **5 below**
+plain search on dev), P3 PASS, P4 PASS (dev/sealed within 0.10 for both arms).
+
+**Cause, measured:** 36 of 52 default misses are `abstain` with zero rows — the
+message names things the commit introduces, so the gate finds no occurrence and
+withholds the eight neighbours it already computed. Turning them on recovers
++18 of 71 (dev) and +16 of 37 (sealed). This is a policy decision (honesty vs
+recall), not a ranking defect.
+
+**Instrumentation:** the sealed process died twice (16 and 22 tasks) with no
+traceback; the runner now resumes from `results_*.partial.jsonl`. Arms were
+frozen before the run; no code or metric changed afterwards.
+
 ## [2026-11-10] — E66: generated 281-task panel — the instrument is calibrated
 
 **Design** (frozen before the run): tasks generated from the index, seed =
