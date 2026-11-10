@@ -37,22 +37,52 @@ experiments, two different runners, same panel: the measurement is stable enough
 to compare against.
 
 **It does not mean "search is 96% accurate".** The generated questions contain
-the identifier (`where is \`resolve_llama_role_bin\` defined`), so they measure
-the symbol channel and the ranking around it. A tool that greps the name passes
-them. The number is a **regression detector**, not a quality claim: it says
-"exact names resolve, 154 of 160 times", and nothing about prose questions
-(`hints`, E64), ambiguous golds (XERJ A01-A04) or docs routing.
+the identifier, and the grep control below shows it: a plain `grep` reaches
+91.9% on the same `name` tasks. The number is a **regression detector**, not a
+quality claim — it says "exact names resolve, 154 of 160 times", and nothing
+about prose questions (`hints`, E64), ambiguous golds (XERJ A01-A04) or docs
+routing.
 
 The cost column shows the same thing from another side: a generated task costs
 2163 chars per correct answer, an XERJ prose task 5894. The difference is task
 difficulty, not an improvement in the tool.
 
+## Controls (red team, `REDTEAM.md`)
+
+**grep baseline** — every `.py` file that literally defines the symbol, first
+hit in path order:
+
+```
+bucket       grep top1   tool top1   grep any   tool any
+name         147/160     154/160     160/160    157/160
+qualified     23/40       38/40       33/40      40/40
+```
+
+So the `name` bucket is close to a grep test (91.9% vs 96.3%), while `qualified`
+discriminates strongly (57.5% vs 95%). Read the headline rate with that in mind.
+
+**Selection bias** — 5958 graph symbols -> 5809 unique -> 2584 code-only ->
+791 eligible `name` names -> 160 sampled (20%). The panel uses distinctive names
+(5-40 chars, no dunders), which makes it easier than the corpus.
+
+**Determinism** — 24 tasks x 3 repeats: metric stable. But one task
+(`MultiProjectSearcher.cross_repo_search`) differed between the original run and
+later repeats, so a single-run rate carries session noise: published numbers
+from this panel need 3 repeats, as in E65.
+
 ## The 6 misses, honestly
 
-Six `name` tasks and two `qualified` tasks did not put the gold file first
-(`any@8`: 3 and 0 misses). They were not inspected individually in this run —
-that is the next step if the number has to move: the generator records the id,
-so a miss list is reproducible from the same commit (`tasks.jsonl` + seed).
+Three of the six are one bug, not three retrieval misses: `risk_level`,
+`module_of` and `referenced_modules` all live in `src/core/test_impact.py`, and
+the bucket classifier penalises that production module by `-2.0` because its
+name starts with `test_`. Measured blast radius: 926 `.py` files, 271 match the
+test regex, 1 production module is misclassified. That is E67, with its own
+frozen bar.
+
+The remaining three are ranking (`expect`, `CommitMemory.get_hotspots` found at
+row 2) and name resolution. The generator records ids, so the list is
+reproducible from the same commit.
+
 
 ## Instrument findings (found while building the panel, not fixed here)
 
