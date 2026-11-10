@@ -1,0 +1,170 @@
+[
+ {
+  "base": "T1",
+  "form": "name",
+  "question": "where is FreshnessChecker defined",
+  "gold": "src/core/indexing/freshness.py",
+  "files": [
+   "src/core/indexing/freshness.py",
+   "src/core/indexing/freshness.py",
+   "src/core/indexing/freshness.py"
+  ],
+  "top1": true,
+  "any": true,
+  "verdict": "answer"
+ },
+ {
+  "base": "T1",
+  "form": "ru",
+  "question": "Где решается, нужно ли переиндексировать файл?",
+  "gold": "src/core/indexing/freshness.py",
+  "files": [
+   "src/core/indexing/file_guard.py",
+   "src/core/indexing/file_guard.py",
+   "src/core/indexing/file_guard.py"
+  ],
+  "top1": false,
+  "any": false,
+  "verdict": "abstain"
+ },
+ {
+  "base": "T1",
+  "form": "en",
+  "question": "where is the decision to reindex a file",
+  "gold": "src/core/indexing/freshness.py",
+  "files": [
+   "src/plugins/trust_store.py",
+   "src/core/search/bm25.py",
+   "src/core/interfaces/searcher.py"
+  ],
+  "top1": false,
+  "any": false,
+  "verdict": "answer"
+ },
+ {
+  "base": "T2",
+  "form": "name",
+  "question": "where is get_progress_file defined",
+  "gold": "src/core/artifact_paths.py",
+  "files": [
+   "src/core/artifact_paths.py",
+   "src/core/notification_broker.py",
+   "docs/RESEARCH_SUBAGENTS_OPENCODE.md"
+  ],
+  "top1": true,
+  "any": true,
+  "verdict": "answer"
+ },
+ {
+  "base": "T2",
+  "form": "ru",
+  "question": "Какая функция возвращает путь прогресса?",
+  "gold": "src/core/artifact_paths.py",
+  "files": [
+   "src/core/bootstrap_trace_plugin.py",
+   "src/core/task_queue.py",
+   "src/core/indexing/parser.py"
+  ],
+  "top1": false,
+  "any": false,
+  "verdict": "abstain"
+ },
+ {
+  "base": "T2",
+  "form": "en",
+  "question": "which function returns the progress path",
+  "gold": "src/core/artifact_paths.py",
+  "files": [
+   "src/mcp/tools/system_tools.py",
+   "src/mcp/tools/system_tools.py",
+   "src/mcp/tools/system_tools.py"
+  ],
+  "top1": false,
+  "any": true,
+  "verdict": "caveat"
+ },
+ {
+  "base": "T3",
+  "form": "name",
+  "question": "where is ETAPredictor defined",
+  "gold": "src/core/eta_predictor.py",
+  "files": [
+   "src/core/eta_predictor.py",
+   "src/core/eta_predictor.py",
+   "src/core/eta_predictor.py"
+  ],
+  "top1": true,
+  "any": true,
+  "verdict": "answer"
+ },
+ {
+  "base": "T3",
+  "form": "ru",
+  "question": "Где задан профиль ETA для impact_analysis?",
+  "gold": "src/core/eta_predictor.py",
+  "files": [
+   "src/core/modification_guard.py",
+   "src/core/modification_guard.py",
+   "src/core/modification_guard.py"
+  ],
+  "top1": false,
+  "any": true,
+  "verdict": "caveat"
+ },
+ {
+  "base": "T3",
+  "form": "en",
+  "question": "where is the ETA profile for impact_analysis",
+  "gold": "src/core/eta_predictor.py",
+  "files": [
+   "src/core/eta_predictor.py",
+   "src/core/indexing/symbol_index.py",
+   "src/core/search/graph_adapter.py"
+  ],
+  "top1": true,
+  "any": true,
+  "verdict": "caveat"
+ },
+ {
+  "base": "T4",
+  "form": "name",
+  "question": "where is get_call_chain defined",
+  "gold": "src/core/indexing/symbol_index.py",
+  "files": [
+   "src/core/search/graph_adapter_pure.py",
+   "src/core/indexing/symbol_index.py",
+   "src/core/graph_rag.py"
+  ],
+  "top1": false,
+  "any": true,
+  "verdict": "answer"
+ },
+ {
+  "base": "T4",
+  "form": "ru",
+  "question": "Где считается call chain?",
+  "gold": "src/core/indexing/symbol_index.py",
+  "files": [
+   "src/core/indexing/database_lock.py",
+   "src/core/indexing/symbol_index.py",
+   "src/mcp/tools/graph_tools.py"
+  ],
+  "top1": false,
+  "any": true,
+  "verdict": "caveat"
+ },
+ {
+  "base": "T4",
+  "form": "en",
+  "question": "where is the call chain computed",
+  "gold": "src/core/indexing/symbol_index.py",
+  "files": [
+   "src/core/indexing/database_lock.py",
+   "src/mcp/tools/graph_tools.py",
+   "src/core/search/graph_adapter.py"
+  ],
+  "top1": false,
+  "any": false,
+  "verdict": "caveat"
+ }
+]
