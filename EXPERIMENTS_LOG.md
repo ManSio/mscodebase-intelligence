@@ -1,4 +1,35 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-11] — E73: the first-token abstain refused answers the tool had found
+
+**Found by** the E72 follow-up. On the 40 solvable sqlalchemy commits, 13 answered
+nothing (`rows=0`, `abstain 0.00`) while the rows existed: `_abstains` decided
+"the subject does not occur" from the FIRST extracted identifier
+(`investigate_tool.py:138`), and on commit prose that token is an annotation or a
+type name: `_orm.registry=0` next to `Declarative=785`, `Databricks=0` next to
+`TypeError=290`.
+
+**Fix:** refuse only when NO identifier occurs. The policy (option C, E69) is
+untouched - 2 of the 13 still refuse because every token is absent.
+
+```
+sqlalchemy, 40 commits   hit@5   before 11 -> after 17   (bar >=15: PASS)
+B1 dev, 71 commits       19/71 both ways                 (bar 19: PASS)
+44 negative tasks        44/44 silent, no leak           (PASS)
+13 formerly-empty        6/13 recovered                  (bar 8: FAIL)
+```
+
+P4 was miscalibrated in my own spec: the bar of 8 came from an
+`include_neighbours=true` run, which bypasses the refusal, while the change keeps
+it. Two of the thirteen are the all-zero case and must stay refused, so the
+reachable maximum is 11/13. The gate is recorded as failed and NOT re-edited; the
+frozen rule says "P4 < 8 -> revert", its premise ("the first-token rule is not
+the cause") is contradicted by P1 (+6, no leak), so the ship decision is with the
+owner.
+
+**Still unexplained:** with the refusal removed, the same commit shows the gold
+in the top-5 under the bypass path but not in the normal answer for 2 cases
+beyond the all-zero pair - the evidence gate drops those rows. Not investigated.
+
 ## [2026-11-11] — E72: file-level dedup changes the shape, not the score
 
 **Why:** on external repos the tool answers with chunks while grep ranks whole
