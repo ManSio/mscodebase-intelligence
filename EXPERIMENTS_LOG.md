@@ -1,4 +1,31 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E60: `exact` is a line claim; two abstains are not fixed by it
+
+**Change:** `exact` no longer comes from the channel that found the row; it
+requires the identifier to occur verbatim on the row's line (a line-less row
+keeps the channel claim). Motivation: the metric audit found `✓exact` on a
+`name` hit whose line is unrelated (P05).
+
+**Re-run** (XERJ 24 + mcp_audit 17, one run per task, gate on):
+
+```
+bucket            answer caveat abstain ask_rewrite
+xerj/positive        3      4       9        0
+xerj/ambiguity       3      1       0        0
+xerj/negative        0      0       3        1
+mcp_audit/positive   4      6       7        0
+```
+
+`top1`/`any` are unchanged (exact does not reorder; E58's 3-repeat table still
+holds). The distribution moved by two tasks (abstain → caveat).
+
+**Not fixed, and the audit's remedy does not fix it:** P08 and P16 still report
+`abstain` even though the correct file is row 1. Their rows point at a *chunk
+start* (`investigate_tool.py:205`), not at the line that contains the term, so a
+line check cannot confirm anything. Closing that needs a chunk-internal line
+locator (scan `[start_line, end_line]` of the row's chunk for the identifier and
+render that line) — a separate, measurable change.
+
 ## [2026-11-10] — E59: rewrite gate — `smart` default (keeps N03, restores P16)
 
 **Question:** the ask-for-identifier gate bought N03 (8 neighbour rows → 0) and

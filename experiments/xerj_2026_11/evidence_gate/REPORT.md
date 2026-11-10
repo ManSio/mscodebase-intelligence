@@ -118,14 +118,17 @@ treatment  mean=2.60s  p95=3.77s  (n=123)
 delta      mean=+0.05s p95=+0.09s
 ```
 
-## Verdict distribution (treatment, one run per task)
+## Verdict distribution (treatment, one run per task, E60)
+
+Measured after the `exact`-on-the-row's-line change (E60); the metric table above
+is E58 (3 repeats, unchanged by E60 because `exact` does not reorder rows).
 
 | bucket | answer | caveat | abstain | ask_rewrite |
 |---|---:|---:|---:|---:|
-| xerj/positive | 3 | 2 | 11 | 0 |
+| xerj/positive | 3 | 4 | 9 | 0 |
 | xerj/ambiguity | 3 | 1 | 0 | 0 |
 | xerj/negative | 0 | 0 | 3 | 1 |
-| mcp_audit/positive | 4 | 4 | 9 | 0 |
+| mcp_audit/positive | 4 | 6 | 7 | 0 |
 
 Three of the four ambiguity tasks are `answer`; A03 ("staleness") is `caveat`
 because the question names a concept, not a symbol — the rows (`check_staleness`)

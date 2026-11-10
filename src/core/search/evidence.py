@@ -6,8 +6,9 @@ from the index, the call graph, or the file on disk:
     definition  the candidate line declares the requested identifier
                 (Python: confirmed by `ast` node name + lineno; other
                 languages: a declaration regex on the line)
-    exact       the identifier occurs verbatim in the candidate file
-                (the grep / compound-name channels are exact by construction)
+    exact       the identifier occurs verbatim on the row's line (a channel
+                match alone is not enough; a line-less row keeps the channel
+                claim and the verdict still says it is not a declaration)
     fresh       the file's live stat matches the stat recorded at index time
     ast         the parser confirmed the declaration line (Python); the file
                 is parsed only when a definition is possible there
@@ -542,12 +543,16 @@ def assess(
             continue
 
         signals: Dict[str, str] = {}
-        if set(channels) & {"grep", "name"}:
-            signals["exact"] = "occurrence"
+        # `exact` is a claim about the ROW'S LINE, not about the channel that
+        # found the row: a name-channel hit can be a mention elsewhere in the
+        # chunk (review 2026-11-10, P05). It is decided after the line is read.
+        exact_channels = bool(set(channels) & {"grep", "name"})
 
         decl = ""
         snippet = ""
         decl_line = line
+        line_text = ""
+        lines: Optional[List[str]] = None
         # Only two names may be verified for this row: the subject itself, or
         # a compound variant the name channel derived from the query. A fuzzy
         # symbol hit is a neighbour: "build_call_graph" must not be confirmed
@@ -577,10 +582,11 @@ def assess(
                 if lines:
                     for probe in probes:
                         if 0 < probe <= len(lines):
-                            decl = declaration_of(lines[probe - 1], row_symbol)
+                            line_text = lines[probe - 1]
+                            decl = declaration_of(line_text, row_symbol)
                             if decl:
                                 decl_line = probe
-                                snippet = lines[probe - 1].strip()
+                                snippet = line_text.strip()
                                 break
                 # Parsing a 100 KB module costs ~25 ms and most rows are
                 # neighbours of a symbol defined elsewhere, so a file is parsed
@@ -613,6 +619,15 @@ def assess(
                         snippet = ""
         if decl:
             signals["definition"] = decl
+
+        if row_symbol and line_text:
+            if row_symbol in line_text:
+                signals["exact"] = "occurrence"
+        elif exact_channels and line <= 0:
+            # No line to check (a line-less row): the channel itself guarantees
+            # the match, so the weaker claim stands, and the verdict still says
+            # it is not a declaration.
+            signals["exact"] = "occurrence"
 
         if "graph" in channels:
             # `impact` is a risk summary for the symbol, not a call edge: it
