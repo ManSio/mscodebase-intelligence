@@ -75,6 +75,10 @@ is stable enough to compare experiments against.
 measure the symbol channel, not prose. 0.963 is a regression detector ("exact
 names resolve"), not a quality headline; prose is covered by `hints` (E64).
 
+**Post-E67 re-run:** `name` 157/160 top-1 and 160/160 any@8 (was 154/157); the
+three `test_impact.py` misses are gone, the anchors did not move. The B1
+benchmark was re-run on the merged build too and is identical.
+
 **Index defects found by the generator's own gold check:** the graph returns
 nodes whose file is not in the project (`src/sources/manifest/extract.py`), and
 it labels a call expression as a `Function` (`callable` in

@@ -141,6 +141,13 @@ visible in the log before the crash; no code, arm or metric changed after that
 (the arms were frozen in Amendments 1-3 before the sealed run), so this is
 disclosed rather than "clean".
 
+### Re-measured after E67
+
+The test-bucket fix (E67, merged as `092418a`) changed a bucket rule, so the dev
+split was re-run on the merged build: **identical** (`tool` 19, `neighbours` 38,
+`search` 22, `grep` 2; paired +16). The fix does not touch this benchmark, which
+is what a classification change should look like.
+
 ## Threats
 
 - The corpus is one snapshot at `B`. A file renamed after `B` makes its task

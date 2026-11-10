@@ -7,7 +7,7 @@
    "n": 17,
    "top1": 11,
    "any": 14,
-   "chars_per_top1": 3441.7272727272725
+   "chars_per_top1": 3447.818181818182
   },
   "anchor:xerj/ambiguity": {
    "n": 4,
@@ -29,9 +29,9 @@
   },
   "name": {
    "n": 160,
-   "top1": 154,
-   "any": 157,
-   "chars_per_top1": 2162.935064935065
+   "top1": 157,
+   "any": 160,
+   "chars_per_top1": 2120.503184713376
   },
   "negative": {
    "n": 40,
@@ -43,7 +43,7 @@
    "n": 40,
    "top1": 38,
    "any": 40,
-   "chars_per_top1": 2668.9473684210525
+   "chars_per_top1": 2671.184210526316
   }
  },
  "predictions": {
