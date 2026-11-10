@@ -1,4 +1,27 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-11] — E73/P5: removing the false refusal costs the requests panel nothing
+
+Rerun of B2 (`psf/requests`, 25 solvable commits, corpus `e331a288`, 786 chunks)
+with the E73 fix. Pre-registered bar: **tool hit@5 >= 10 / 25** — the value
+recorded for this panel in PR #110. No re-barring.
+
+```
+arm           hit@1  hit@5    PR #110 -> now
+tool              9     12        10 -> 12
+neighbours        9     13        13
+search            5     15        15
+grep              6     19        19
+invalid runs: 0
+```
+
+Bar passed; no arm lost a task. On this smaller repo the refusal was hiding two
+answers as well, so the fix is not a large-repo-only effect.
+
+Command:
+`python experiments/bench_2026_11/external.py --repo <bench>/requests --corpus <bench>/req-B --base e331a288 --limit 40`
+(`<bench>` = the directory with the external clones, see
+`experiments/bench_2026_11/REPORT.md` → Reproduce).
+
 ## [2026-11-11] — E73: the first-token abstain refused answers the tool had found
 
 **Found by** the E72 follow-up. On the 40 solvable sqlalchemy commits, 13 answered

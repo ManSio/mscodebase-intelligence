@@ -145,13 +145,17 @@ def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> boo
     """
     if include_neighbours or not per:
         return False
-    subject = next(iter(per), "")
-    if per.get(subject, 0) > 0:
-        return False
-    # "The subject does not occur" means NO extracted name occurs. Checking only
+    # "The subject does not occur" means NO counted name occurs. Checking only
     # the first token refused answers where a later name occurred 47/290/785
     # times (E73: 13 of 40 sqlalchemy commits abstained, 8 of them hid the gold).
-    return not known and not any(count > 0 for count in per.values())
+    # A `None` or negative counter is "unknown", not "absent": unknown must never
+    # become a refusal (same fail-open rule as the degraded grep channel).
+    counts = []
+    for value in per.values():
+        if value is None or int(value) < 0:
+            return False
+        counts.append(int(value))
+    return not known and not any(counts)
 
 
 _CYRILLIC_QUERY_RE = re.compile(r"[А-Яа-яЁё]")

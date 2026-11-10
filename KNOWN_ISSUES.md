@@ -4,6 +4,27 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-11-11 — E73: что осталось открытым после снятия ложного отказа — 🟡
+
+- **Измерено на `sqlalchemy` (40 решаемых коммитов, база `8b62343`):** до фикса
+  пустых ответов 13; после — 6 восстановлены, 2 отказа законны, 4 промаха
+  ранжирования, 0 потерь от гейта доказательств.
+- **Законные отказы (2):** `749086adb0cc`, `049ed1db162a` — у обоих все
+  идентификаторы по нулям (`mapped_column.default_factory=0`,
+  `mapped_column.default=0`); это политика C (E69), не дефект.
+- **Промахи ранжирования (4):** `65ea6bee8214`, `98ad157d6334`, `975ffa7d77ee`,
+  `956a0235027e` — в ответе 8 строк, gold вне top-5.
+- **Заявленные «2 дропа evidence-gate» не воспроизвелись:** разница
+  bypass-прогона (8/13) против фикса (6/13) — это ровно те два случая с нулями.
+  Чтобы поймать отбрасывание строки самим гейтом, нужен замер с
+  инструментированием `kept` — он не делался.
+- **Перевывод:** `python experiments/false_abstain_2026_11/verify.py --corpus <bench>/sa-B
+  --repo <bench>/sqlalchemy --base 8b62343 --panel experiments/scale_2026_11/tasks.jsonl`
+  печатает per-task `hit@5` и список пустых; все id выше — его вывод
+  (`<bench>` — каталог с клонами, команды клонирования в
+  `experiments/bench_2026_11/REPORT.md`).
+
+---
 ## 2026-11-09 — RU→EN: перевод сильнее dense; ревью поймало 2 ложных доказательства — 🟢
 
 - **Замер (12 вопросов, 2 репо):** RU-лексика 2/12, слепой EN-перевод 12/12,
@@ -134,27 +155,6 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 
 ---
 
-## 2026-10-25 — README rewritten; RU/ZH synchronized — 🟢
-- Root `README.md`, `docs/ru/README.md`, `docs/zh/README.md` now describe the
-  Phase 3 text-first runtime (SQLite/FTS5 + PropertyGraph, optional providers),
-  measured quality with methodology, limitations and bug-report protocol.
-- Old claims removed: LanceDB/vector as default, 65 visible tools, inconsistent
-  test counts, 95% quality implication.
-- Historical architecture/search docs carry a Phase 3 status banner; they are
-  not silently presented as current.
-
----
-
-## 2026-10-25 — E57: auto docs routing by BM25 margin (no LLM) — 🟢
-- `docs_max - code_max > 4.0` -> docs channel, else code.
-- same-basename **0.688 → 0.792**, docs 5/8, **0 code false positives**;
-  code hit@1 0.825 unchanged; exact 0.708; p50 ~100 ms extra.
-- **Реализовано:** `MSCODEBASE_DOCS_MARGIN` (4.0), `Searcher.prefers_docs()`,
-  auto-ветка в `SearchCodeTool` при пустом `intent`; tests 27 pass.
-- Gold canonicalization (`docs/ru/X` for `docs/en/X`) всё ещё искажает exact.
-
----
-
 ## 2026-10-25 — E55/E56: chain modes; docs gold-language bottleneck — 🟡
 - **E55:** hybrid/quality/deep 0.688/0.771 (p50 45–48 ms); fast 0.542/0.729
   (p50 19 ms); `nodemote/intent/ru/p3` — 0 эффекта на hit@1.
@@ -234,15 +234,6 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 
 ---
 
-## 2026-10-25 — E45: structured agent plan — +1 h1, p50 72 ms — 🟢 worth API
-- **План:** primary + must_include + symbols, один запрос, без multi-query RRF.
-- **Результат:** baseline 0.688/0.771/79ms; plan_must **0.708**/0.771/71ms; plan_full 0.708/0.771/72ms.
-- **Вердикт:** один primary + must_include — маленький реальный выигрыш; symbols не дают.
-  Внедрить как опциональные поля `search_code` + tool `plan_search`. 95% не закрывает.
-- **Артефакты:** `experiments/e45_agent_plan/`.
-
----
-
 ## 2026-10-25 — E44: agent rewrites — keywords +1 h1; fusion/identifiers хуже — 🟡
 - **Плечи:** baseline / keywords / identifiers / agent_all на 48 запросах E30.
 - **Результат:** baseline 0.688/0.771, 84 ms; keywords **0.708**/0.771, 78 ms;
@@ -271,30 +262,3 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 
 ---
 
-## 2026-10-25 — E39: Qwen3-Reranker-0.6B — 29–55 s, хуже — 🔴 rejected
-- **Пилот:** 16 запросов E30; demote vs Qwen3 top10/top20 на corrected index.
-- **Результат:** demote 0.625/0.688, 116 ms; Qwen3 top10 0.500/0.562, 28.9 s;
-  top20 0.438/0.562, 54.8 s. H1–H6 FAIL.
-- **Вердикт:** не usable на CPU; качество ниже deterministic. Reranking не рычаг.
-  Deterministic 0.688/0.771/84 ms — потолок на этой панели.
-- **Артефакты:** `experiments/e39_qwen3_rerank/`.
-
----
-
-## 2026-10-25 — E38: BGE-reranker-base — хуже deterministic — 🔴 rejected
-- **Плечи:** demote / bge_base_top10 / top20 на 48 запросах E30 (corrected index).
-- **Результат:** demote 0.688/0.771, 84 ms; BGE-base top10 0.625/0.708, 3139 ms;
-  top20 0.583/0.688, 6028 ms. H7 PASS (лучше MiniLM); остальные FAIL.
-- **Вердикт:** generic cross-encoder out-of-domain для кода. Детерминированный pipeline 0.688/0.771/84 ms.
-  Reranking не рычаг; только Qwen3-Reranker-0.6B как пилот.
-- **Артефакты:** `experiments/e38_code_aware_rerank/`.
-
----
-
-## 2026-10-25 — E37: chunking 32/64/128 — качество не меняется; P3 off — 🟢
-- **Результат:** current/split32/split64/split128 — все h1 0.688, h5 0.771, MRR 0.713.
-- Нарезка не узкое место; top-5 определяется file-level ranking. P3 off: p50 87 ms,
-  качество не падает. `MSCODEBASE_P3_ANCHOR=false` по умолчанию.
-- **Артефакты:** `experiments/e37_chunking/`.
-
----

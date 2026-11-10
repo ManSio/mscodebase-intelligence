@@ -43,6 +43,14 @@ def test_all_zero_with_extra_tokens_still_abstains():
     assert _abstains({"zz_a": 0, "zz_b": 0, "previously": 0}, False, False) is True
 
 
+def test_an_unknown_counter_never_becomes_a_refusal():
+    # `None`/negative is "the channel could not count", not "nothing occurs" -
+    # the same fail-open rule as a degraded grep channel (E73 review, nit 4-5).
+    assert _abstains({"a": None}, False, False) is False
+    assert _abstains({"a": 0, "b": None}, False, False) is False
+    assert _abstains({"a": -1}, False, False) is False
+
+
 def _fake_tool(tmp_path: Path) -> InvestigateTool:
     """The stub used by tests/test_investigate.py: one search row, no symbols."""
     tool = InvestigateTool(ServiceCollection())

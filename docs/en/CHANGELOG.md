@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files changed while the server was down are reindexed on the next search.
 
 ### Fixed
+- `investigate` withheld an answer when only the **first** extracted identifier
+  was absent, even though another name occurred hundreds of times: on an external
+  repo 13 of 40 solvable commits returned no rows (E73). The refusal now applies
+  only when no identifier occurs; the all-absent case still refuses.
 - `stale_detector` hung the whole event loop: `subprocess.run(capture_output=True)`
   for `git diff`/`git ls-files` deadlocks when stdout is the JSON-RPC pipe
   (AGENTS.md §5.16). Now `Popen + communicate`, with a bounded scan.

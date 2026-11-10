@@ -4,8 +4,8 @@
  "tasks": 25,
  "table": {
   "tool": {
-   "top1": 8,
-   "top5": 10
+   "top1": 9,
+   "top5": 12
   },
   "neighbours": {
    "top1": 9,
