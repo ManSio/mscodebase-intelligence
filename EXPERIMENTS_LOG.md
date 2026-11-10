@@ -1,4 +1,28 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E61: demote `scripts/` for code questions (+1 top-1, no loss)
+
+**Question:** five XERJ ranking misses have the gold at ranks 2, 5, 2, 8, 3.
+Do helper scripts (`scripts/monitor.py`, `scripts/dataflow_experiment.py`) lead
+because they are not demoted the way tests/docs are?
+
+**Probe** (`probe_scripts_demote.py`, read-only two arms by
+`MSCODEBASE_SCRIPTS_DEMOTE`, interleaved, XERJ 24):
+
+```
+arm        positive top1  any   ambiguity any  negative
+control          5/16    10/16        2/4         4/4
+treatment        6/16    10/16        2/4         4/4
+```
+
+One task changed: **P05** (`scripts/monitor.py` → `src/core/artifact_paths.py`,
+gold). P12's top also moved from `scripts/dataflow_experiment.py` to
+`src/core/indexing/database_lock.py` without reaching the gold. No `any` loss,
+no ambiguity loss, negatives unchanged.
+
+**Verdict:** ship as default `true` (switch retained for the control arm). +1
+task is inside the panel's sampling error (Wilson 95% on 6/16 is [0.18, 0.61]),
+so the claim is "no harm, one principled recovery", not a rate gain.
+
 ## [2026-11-10] — E60: `exact` is a line claim; two abstains are not fixed by it
 
 **Change:** `exact` no longer comes from the channel that found the row; it

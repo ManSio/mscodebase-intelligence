@@ -1,0 +1,701 @@
+{
+ "control": [
+  {
+   "id": "P01",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P02",
+   "kind": "positive",
+   "files": [
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P03",
+   "kind": "positive",
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P04",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "scripts/e2e_quality_search.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/di_container.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/doc_sync_engine.py",
+    "src/core/di_container.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P05",
+   "kind": "positive",
+   "files": [
+    "scripts/monitor.py",
+    "src/core/artifact_paths.py",
+    "install.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P06",
+   "kind": "positive",
+   "files": [
+    "src/core/bootstrap_trace_plugin.py",
+    "src/core/task_queue.py",
+    "src/core/indexing/parser.py",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/task_queue.py",
+    "src/sources/local_fs/windows.py",
+    "scripts/check_lsp_health.py",
+    "src/core/multi_project_searcher.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P07",
+   "kind": "positive",
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/search/agentic_search.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P08",
+   "kind": "positive",
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "scripts/o1_holdout_gate.py",
+    "scripts/p2_holdout_gate.py",
+    "src/providers/embedder/remote_embedder.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P09",
+   "kind": "positive",
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P10",
+   "kind": "positive",
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P11",
+   "kind": "positive",
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P12",
+   "kind": "positive",
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "src/core/indexing/database_lock.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P13",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py",
+    "src/core/indexing/indexer.py",
+    "scripts/verify_diary.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P14",
+   "kind": "positive",
+   "files": [
+    "scripts/dataflow_experiment.py",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "scripts/diag_quality_hang.py",
+    "AGENT_DIARY.md"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P15",
+   "kind": "positive",
+   "files": [
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/mcp/tools/write_tools.py",
+    "src/core/code_health.py",
+    "src/mcp/tools/base.py",
+    "src/core/intelligence/tools_reg.py",
+    "src/core/auto_doc_updater.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P16",
+   "kind": "positive",
+   "files": [
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "A01",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "scripts/run_experiment_pagerank.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "A02",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/agentic_search.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "A03",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "src/core/intelligence/store.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/core/indexing/database_lock.py",
+    "src/mcp/tools/indexing_tools.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "A04",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/indexing/indexer.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "N01",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N02",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N03",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N04",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  }
+ ],
+ "treatment": [
+  {
+   "id": "P01",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P02",
+   "kind": "positive",
+   "files": [
+    "src/mcp/tools/search_tools.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/graph_rag.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/investigate_tool.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P03",
+   "kind": "positive",
+   "files": [
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P04",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/di_container.py",
+    "src/core/indexing/file_guard.py",
+    "src/core/doc_sync_engine.py",
+    "src/core/di_container.py",
+    "src/core/indexing/file_guard.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P05",
+   "kind": "positive",
+   "files": [
+    "src/core/artifact_paths.py",
+    "install.py",
+    "docs/archive/AGENT_DIARY_2026_08.md",
+    "docs/archive/KNOWN_ISSUES_2026_07.md",
+    "docs/archive/KNOWN_ISSUES_2026_08.md",
+    "scripts/monitor.py",
+    "src/core/doc_llm_verifier.py",
+    "src/core/doc_llm_verifier.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P06",
+   "kind": "positive",
+   "files": [
+    "src/core/bootstrap_trace_plugin.py",
+    "src/core/task_queue.py",
+    "src/core/indexing/parser.py",
+    "src/core/interfaces/workspace_source.py",
+    "src/core/task_queue.py",
+    "src/sources/local_fs/windows.py",
+    "src/core/multi_project_searcher.py",
+    "EXPERIMENTS_LOG.md"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P07",
+   "kind": "positive",
+   "files": [
+    "src/core/search/cross_project_deps.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/search_tools.py",
+    "src/core/search/agentic_search.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/search_tools.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P08",
+   "kind": "positive",
+   "files": [
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/providers/embedder/remote_embedder.py",
+    "src/mcp/tools/investigate_tool.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/investigate_tool.py",
+    "tests/test_health_report.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P09",
+   "kind": "positive",
+   "files": [
+    "src/cli.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/server_tools.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py",
+    "src/mcp/tools/base.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P10",
+   "kind": "positive",
+   "files": [
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/modification_guard.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/graph_rag.py",
+    "src/core/indexing/parser.py",
+    "src/core/eta_predictor.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P11",
+   "kind": "positive",
+   "files": [
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/mcp/tools/context_tool.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/mcp/tools/graph_tools.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "P12",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/database_lock.py",
+    "src/core/indexing/symbol_index.py",
+    "src/mcp/tools/graph_tools.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "P13",
+   "kind": "positive",
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/db_writer.py",
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/chunk_store.py",
+    "src/core/indexing/index_guard.py",
+    "src/core/indexing/indexer.py",
+    "src/core/indexing/freshness.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P14",
+   "kind": "positive",
+   "files": [
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AI_INSTALLATION_PROMPT.md",
+    "docs/archive/research/2026-07-09-model-comparison.md",
+    "AGENT_DIARY.md",
+    "docs/ru/UNIVERSAL_ENGINE_PLAN.md",
+    "AGENT_DIARY.md",
+    "WISDOM.md",
+    "tools/knowledge/PENDING_LEDGER.md"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P15",
+   "kind": "positive",
+   "files": [
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/core/lsp_client.py",
+    "src/mcp/tools/write_tools.py",
+    "src/core/code_health.py",
+    "src/mcp/tools/base.py",
+    "src/core/intelligence/tools_reg.py",
+    "src/core/auto_doc_updater.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "P16",
+   "kind": "positive",
+   "files": [
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py",
+    "src/core/artifact_paths.py"
+   ],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "A01",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/graph_adapter.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/mcp/tools/lifecycle_tools.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/graph_adapter.py"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "A02",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/search/graph_adapter_pure.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/graph_rag.py",
+    "src/core/graph_rag.py",
+    "src/core/search/graph_adapter.py",
+    "src/core/search/agentic_search.py",
+    "docs/archive/research/2026-07-09-provider-benchmark.md",
+    "AGENT_DIARY.md"
+   ],
+   "top1": false,
+   "any": true
+  },
+  {
+   "id": "A03",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/auto_doc_updater.py",
+    "src/core/intelligence/store.py",
+    "src/core/intelligence/store.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/mcp/tools/dev_tools.py",
+    "src/core/indexing/database_lock.py",
+    "src/mcp/tools/indexing_tools.py",
+    "src/core/search/agentic_search.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "A04",
+   "kind": "ambiguity",
+   "files": [
+    "src/core/indexing/indexer.py",
+    "src/core/di_container.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/indexing/symbol_index.py",
+    "src/core/search/agentic_search.py",
+    "scripts/diag_quality_hang.py",
+    "scripts/diag_quality_hang.py"
+   ],
+   "top1": false,
+   "any": false
+  },
+  {
+   "id": "N01",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N02",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N03",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  },
+  {
+   "id": "N04",
+   "kind": "negative",
+   "files": [],
+   "top1": true,
+   "any": true
+  }
+ ]
+}
