@@ -45,6 +45,23 @@ pinned by `frozen/MANIFEST.sha256`.
 `flaky` counts tasks whose `top1` or `any` moved between repeats of one arm:
 zero in this run.
 
+### Sampling error (Wilson 95%)
+
+```
+xerj/positive top1, control     5/16 = 0.312  [0.14, 0.56]
+xerj/positive top1, treatment   6/16 = 0.375  [0.18, 0.61]
+xerj/positive any@8            10/16 = 0.625  [0.39, 0.82]
+mcp_audit top1                  9/17 = 0.529  [0.31, 0.74]
+mcp_audit any@8                14/17 = 0.824  [0.59, 0.94]
+xerj/negative (no rows)          4/4 = 1.000  [0.51, 1.00]
+held-out top1 (external, 12)    11/12 = 0.917  [0.65, 0.99]
+```
+
+The intervals overlap: the gate's +1 task is **not distinguishable from zero**
+at n=16, and `4/4` negatives is not proof of 100%. That is why the result is
+reported per task and the delta is named as one task, not as a rate gain.
+Reproduce: `python experiments/xerj_2026_11/wilson.py`.
+
 **What changed:** exactly one task, top-1 only:
 
 ```
