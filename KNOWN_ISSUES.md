@@ -4,7 +4,7 @@
 > Формат: дата | что было | статус | fix
 
 ---
-## 2026-11-11 — `smoke_e2e` шаг 4 требует dense-индекс, дефолт репозитория — текстовый — 🟡
+## 2026-11-11 — `smoke_e2e` шаг 4 требует dense-индекс, дефолт репозитория — текстовый — 🟢
 
 - **Измерено:** `python scripts/smoke_e2e.py --project .` → шаг 4
   `❌ search error: There is no vector column in the data. Please specify the
@@ -13,24 +13,26 @@
   `MSCODEBASE_DENSE_OFF=true` (дефолт проекта).
 - **Не регресс:** шаг не зависит от `_abstains`; `--services-only` проходит
   (`embed dim=768`, `rerank top=1`).
-- **Лечение:** либо dense-сборка индекса (ML-тир, отдельно), либо честная
-  развилка в самом скрипте: `--services-only` при текстовом индексе вместо
-  падения. Не сделано (вне объёма).
+- **Fix:** шаг пробует вектор и при его отсутствии честно падает в текстовый
+  индекс SQLite (`chunks_fts`), называя режим в отчёте. Проверка:
+  `python scripts/smoke_e2e.py --project .` → `✅ SMOKE E2E: PASSED (проверок: 4)`,
+  шаг 4 `режим=text (vector: …); term=…, results=3`.
 
 ---
-## 2026-11-11 — 4 slow-теста LSP/VFS не проходят на `main` — 🟡
+## 2026-11-11 — 4 slow-теста LSP/VFS не проходили на `main` — 🟢
 
-- **Измерено (не наш регресс):** на `origin/main` (`74191a5`) падают
+- **Измерено (не наш регресс):** на `origin/main` (`74191a5`) падали
   `tests/test_lsp_vfs_indexing.py::TestLSPVFSIndexing::test_lsp_vfs_content_indexed_without_disk`,
   `…::test_lsp_vfs_content_beats_disk`, `…::test_indexed_at_timestamp`,
   `…::test_hash_based_on_content_not_disk` — все с
   `ValueError: Indexer requires an explicit WorkspaceSource`.
-- **Причина:** тесты конструируют `Indexer` без `source=`, а API давно требует
+- **Причина:** тесты конструируют `Indexer` без `source=`, а API требует
   explicit `WorkspaceSource`; маркер `slow` исключён `addopts`, поэтому дрейф не
-  видит ни pre-commit, ни CI.
-- **Перевывод:** `python -m pytest tests/test_lsp_vfs_indexing.py -o addopts="" -q`
-  в чистом worktree на `origin/main` → `4 failed, 3 skipped`.
-- **Не чинено** (вне ночного объёма): это долг тестов, а не продукта.
+  видел ни pre-commit, ни CI.
+- **Fix:** тестовый хелпер передаёт `LocalFsSource(project_path)`; проверка
+  `python -m pytest tests/test_lsp_vfs_indexing.py -o addopts="" -q` → `4 passed`.
+  Полный прогон с slow: `pytest tests/ -m "not integration and not benchmark"` →
+  `2560 passed, 10 skipped`.
 
 ---
 ## 2026-11-11 — E73: что осталось открытым после снятия ложного отказа — 🟡
