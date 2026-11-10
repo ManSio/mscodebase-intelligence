@@ -7,7 +7,11 @@ occurred hundreds of times (13 of 40 sqlalchemy commits, 8 of them hid the gold)
 
 from __future__ import annotations
 
-from src.mcp.tools.investigate_tool import _abstains
+import asyncio
+from pathlib import Path
+
+from src.core.di_container import ServiceCollection
+from src.mcp.tools.investigate_tool import InvestigateTool, _abstains
 
 
 def test_first_absent_but_another_present_does_not_abstain():
@@ -37,3 +41,47 @@ def test_the_subject_occurring_is_an_answer():
 
 def test_all_zero_with_extra_tokens_still_abstains():
     assert _abstains({"zz_a": 0, "zz_b": 0, "previously": 0}, False, False) is True
+
+
+def _fake_tool(tmp_path: Path) -> InvestigateTool:
+    """The stub used by tests/test_investigate.py: one search row, no symbols."""
+    tool = InvestigateTool(ServiceCollection())
+
+    async def _noop(*args, **kwargs):
+        return None
+
+    class _Searcher:
+        async def hybrid_search_async(self, query, limit=5, rerank=None):
+            return [{"file_path": "a.py", "line": 3, "text": "hit", "score": 1.0}]
+
+    class _Symbols:
+        def search_symbols(self, query, top_k=3):
+            return []
+
+        def has_symbol(self, name):
+            return False
+
+    class _Indexer:
+        project_path = tmp_path
+
+    tool.require_ready_project = _noop  # type: ignore[assignment]
+    tool.resolve_searcher = lambda **kw: _Searcher()  # type: ignore[assignment]
+    tool.resolve_symbol_index = lambda **kw: _Symbols()  # type: ignore[assignment]
+    tool.resolve_indexer = lambda **kw: _Indexer()  # type: ignore[assignment]
+    return tool
+
+
+def test_all_zero_identifiers_refuse_and_hand_back_the_next_call(tmp_path):
+    """The policy, end to end: nothing occurs -> no rows, and a machine-readable
+    `next:` call instead of a sentence the caller has to parse (E69, option C)."""
+    (tmp_path / "a.py").write_text("hit = 1\n", encoding="utf-8")
+    tool = _fake_tool(tmp_path)
+
+    out = asyncio.run(tool.execute(
+        query="where is zz_ghost_one and zz_ghost_two defined",
+        project_root=str(tmp_path),
+    ))
+
+    assert "results: 0" in out, out
+    assert "verdict: abstain" in out, out
+    assert "next: investigate(" in out, out

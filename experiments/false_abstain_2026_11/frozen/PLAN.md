@@ -68,6 +68,30 @@ list that was measured at 40/40 before (E66).
 - P2 < 19 -> fresh regression on the calibrated corpus: stop and investigate
   before shipping, even if P1 passes.
 
+## Postscriptum 2026-11-11 — the P4 bar was derived from the wrong population
+
+Written after the run, kept as a postscript rather than an edit of the bar.
+
+P4 was frozen as ">= 8 / 13 put the gold in top-5". That number came from the
+`include_neighbours=true` run of the same commits, which **bypasses the
+refusal**, while the change under test keeps the refusal for the all-zero case.
+Two of the thirteen commits have every identifier at zero and must stay refused:
+
+```
+749086adb0cc   all identifiers zero        rows=0 under the fix
+049ed1db162a   mapped_column.default_factory=0, mapped_column.default=0   rows=0
+```
+
+So the maximum reachable while honouring the owner's policy (option C, E69) is
+11/13, and the bar of 8 was unreachable by construction — a defect of this
+spec, not a property of the code.
+
+**P4 stays FAIL in the run log.** The bar is not edited and the result is not
+re-derived. The measured outcome (P1 17/40 from 11, P2 unchanged 19/71, P3 44/44
+silent, P4 6/13) is recorded in `REPORT.md` and in `EXPERIMENTS_LOG.md` as is;
+the disagreement between the frozen decision rule ("P4 < 8 -> revert") and P1 is
+what the ship decision has to answer, and it was answered by the owner.
+
 ## What would invalidate this
 
 - Editing the bar after seeing a number.
