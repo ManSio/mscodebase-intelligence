@@ -1,4 +1,37 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E66: generated 281-task panel — the instrument is calibrated
+
+**Design** (frozen before the run): tasks generated from the index, seed =
+`sha256(commit)`, so the panel is reproducible and changes only with the code.
+160 `name` + 40 `qualified` + 40 `negative` + the 41 existing anchors = 281.
+Symbols must have exactly one definition and a gold file that literally defines
+them (two index defects were found this way, see below).
+
+```
+bucket                    n   top1    any   chars/top1
+name                    160    154    157        2163
+qualified                40     38     40        2669
+negative                 40     40     40         332
+anchor:xerj/positive     16      6     10        5894
+anchor:mcp_audit/pos     17     11     14        3442
+```
+
+**Verdict:** S1-S4 all PASS. S3 is the claim that matters: the anchors
+reproduced E65's `weights` arm **exactly** (6/16 and 11/17), so the instrument
+is stable enough to compare experiments against.
+
+**What it does not say:** generated questions contain the identifier, so they
+measure the symbol channel, not prose. 0.963 is a regression detector ("exact
+names resolve"), not a quality headline; prose is covered by `hints` (E64).
+
+**Index defects found by the generator's own gold check:** the graph returns
+nodes whose file is not in the project (`src/sources/manifest/extract.py`), and
+it labels a call expression as a `Function` (`callable` in
+`di_container.py:160`). The evidence gate survives the second one — the row gets
+no `✓def` and the verdict is `caveat (0.40)` — but the symbol channel ranks a
+non-definition. `KNOWN_ISSUES.md` is at its 300-line limit, so both are recorded
+in the task state; the rotation is a separate task.
+
 ## [2026-11-10] — E65: fusion A/B — hand weights beat RRF by six tasks
 
 **Design** (frozen before the run, plus Amendment 1: latency is not a

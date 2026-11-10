@@ -1,0 +1,281 @@
+{"id": "G-N-risk_level", "bucket": "name", "kind": "positive", "question": "where is `risk_level` defined", "gold": ["src/core/test_impact.py"], "anchor": false}
+{"id": "G-N-apply", "bucket": "name", "kind": "positive", "question": "where is `apply` defined", "gold": ["src/core/silent_subprocess.py"], "anchor": false}
+{"id": "G-N-_url_hash", "bucket": "name", "kind": "positive", "question": "where is `_url_hash` defined", "gold": ["src/sources/git_url/__init__.py"], "anchor": false}
+{"id": "G-N-run_quiet_break_gate", "bucket": "name", "kind": "positive", "question": "where is `run_quiet_break_gate` defined", "gold": ["src/core/quiet_break_gate.py"], "anchor": false}
+{"id": "G-N-_collect_tools", "bucket": "name", "kind": "positive", "question": "where is `_collect_tools` defined", "gold": ["src/plugins/loader.py"], "anchor": false}
+{"id": "G-N-_get_models_dir", "bucket": "name", "kind": "positive", "question": "where is `_get_models_dir` defined", "gold": ["src/providers/reranker/llama_install.py"], "anchor": false}
+{"id": "G-N-on_step", "bucket": "name", "kind": "positive", "question": "where is `on_step` defined", "gold": ["tools/factory/cli.py"], "anchor": false}
+{"id": "G-N-_enable_ansi", "bucket": "name", "kind": "positive", "question": "where is `_enable_ansi` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-find_duplicates", "bucket": "name", "kind": "positive", "question": "where is `find_duplicates` defined", "gold": ["src/core/duplication.py"], "anchor": false}
+{"id": "G-N-_make_ack_token", "bucket": "name", "kind": "positive", "question": "where is `_make_ack_token` defined", "gold": ["src/core/modification_guard.py"], "anchor": false}
+{"id": "G-N-install_all", "bucket": "name", "kind": "positive", "question": "where is `install_all` defined", "gold": ["src/providers/reranker/llama_install.py"], "anchor": false}
+{"id": "G-N-_resolve_trust", "bucket": "name", "kind": "positive", "question": "where is `_resolve_trust` defined", "gold": ["src/plugins/loader.py"], "anchor": false}
+{"id": "G-N-references", "bucket": "name", "kind": "positive", "question": "where is `references` defined", "gold": ["tools/factory/plan.py"], "anchor": false}
+{"id": "G-N-format_incident", "bucket": "name", "kind": "positive", "question": "where is `format_incident` defined", "gold": ["src/utils/ui_formatter.py"], "anchor": false}
+{"id": "G-N-_prune_project_dirs", "bucket": "name", "kind": "positive", "question": "where is `_prune_project_dirs` defined", "gold": ["src/core/artifact_gc.py"], "anchor": false}
+{"id": "G-N-parse_jsonc", "bucket": "name", "kind": "positive", "question": "where is `parse_jsonc` defined", "gold": ["adapters/zed/zed_config.py"], "anchor": false}
+{"id": "G-N-run_bootstrap_pipeline", "bucket": "name", "kind": "positive", "question": "where is `run_bootstrap_pipeline` defined", "gold": ["src/core/bootstrap_pipeline.py"], "anchor": false}
+{"id": "G-N-load_plugin", "bucket": "name", "kind": "positive", "question": "where is `load_plugin` defined", "gold": ["src/plugins/loader.py"], "anchor": false}
+{"id": "G-N-get_onnx_models_base", "bucket": "name", "kind": "positive", "question": "where is `get_onnx_models_base` defined", "gold": ["src/core/artifact_paths.py"], "anchor": false}
+{"id": "G-N-_extract_zip", "bucket": "name", "kind": "positive", "question": "where is `_extract_zip` defined", "gold": ["src/sources/upload/__init__.py"], "anchor": false}
+{"id": "G-N-_normalize", "bucket": "name", "kind": "positive", "question": "where is `_normalize` defined", "gold": ["src/core/bootstrap_tests.py"], "anchor": false}
+{"id": "G-N-_file_fingerprint", "bucket": "name", "kind": "positive", "question": "where is `_file_fingerprint` defined", "gold": ["src/core/modification_guard.py"], "anchor": false}
+{"id": "G-N-_get_symbol_range", "bucket": "name", "kind": "positive", "question": "where is `_get_symbol_range` defined", "gold": ["src/mcp/tools/lsp_tools.py"], "anchor": false}
+{"id": "G-N-_extract_uv_lock", "bucket": "name", "kind": "positive", "question": "where is `_extract_uv_lock` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-_lsh_bands", "bucket": "name", "kind": "positive", "question": "where is `_lsh_bands` defined", "gold": ["src/core/duplication.py"], "anchor": false}
+{"id": "G-N-get_counters", "bucket": "name", "kind": "positive", "question": "where is `get_counters` defined", "gold": ["src/core/runtime_coordinator.py"], "anchor": false}
+{"id": "G-N-keep_in_range", "bucket": "name", "kind": "positive", "question": "where is `keep_in_range` defined", "gold": ["tools/knowledge/repoint_stale_refs.py"], "anchor": false}
+{"id": "G-N-has_instruction_risk", "bucket": "name", "kind": "positive", "question": "where is `has_instruction_risk` defined", "gold": ["src/core/instruction_scan.py"], "anchor": false}
+{"id": "G-N-get_verifier", "bucket": "name", "kind": "positive", "question": "where is `get_verifier` defined", "gold": ["src/core/intelligence/verify_on_read.py"], "anchor": false}
+{"id": "G-N-_parse_extensions", "bucket": "name", "kind": "positive", "question": "where is `_parse_extensions` defined", "gold": ["src/config/settings.py"], "anchor": false}
+{"id": "G-N-install_git_hooks", "bucket": "name", "kind": "positive", "question": "where is `install_git_hooks` defined", "gold": ["src/mcp/tools/dev_tools.py"], "anchor": false}
+{"id": "G-N-_norm_tokens", "bucket": "name", "kind": "positive", "question": "where is `_norm_tokens` defined", "gold": ["src/core/duplication.py"], "anchor": false}
+{"id": "G-N-_iter_nodes", "bucket": "name", "kind": "positive", "question": "where is `_iter_nodes` defined", "gold": ["src/core/language_imports.py"], "anchor": false}
+{"id": "G-N-_get_max_chunk_preview_len", "bucket": "name", "kind": "positive", "question": "where is `_get_max_chunk_preview_len` defined", "gold": ["src/providers/reranker/multi_provider.py"], "anchor": false}
+{"id": "G-N-_extract_composer_lock", "bucket": "name", "kind": "positive", "question": "where is `_extract_composer_lock` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-_digest", "bucket": "name", "kind": "positive", "question": "where is `_digest` defined", "gold": ["tools/factory/runtime.py"], "anchor": false}
+{"id": "G-N-set_idle_vor_callback", "bucket": "name", "kind": "positive", "question": "where is `set_idle_vor_callback` defined", "gold": ["src/core/task_queue.py"], "anchor": false}
+{"id": "G-N-_is_symbol_definition", "bucket": "name", "kind": "positive", "question": "where is `_is_symbol_definition` defined", "gold": ["src/core/search/engine.py"], "anchor": false}
+{"id": "G-N-_dedup_sections", "bucket": "name", "kind": "positive", "question": "where is `_dedup_sections` defined", "gold": ["src/mcp/tools/context_tool.py"], "anchor": false}
+{"id": "G-N-_incoming_callers", "bucket": "name", "kind": "positive", "question": "where is `_incoming_callers` defined", "gold": ["src/core/quiet_break_gate.py"], "anchor": false}
+{"id": "G-N-reset_counters", "bucket": "name", "kind": "positive", "question": "where is `reset_counters` defined", "gold": ["src/core/runtime_coordinator.py"], "anchor": false}
+{"id": "G-N-_module_names", "bucket": "name", "kind": "positive", "question": "where is `_module_names` defined", "gold": ["src/core/language_imports.py"], "anchor": false}
+{"id": "G-N-module_of", "bucket": "name", "kind": "positive", "question": "where is `module_of` defined", "gold": ["src/core/test_impact.py"], "anchor": false}
+{"id": "G-N-load_model", "bucket": "name", "kind": "positive", "question": "where is `load_model` defined", "gold": ["src/core/embedder/onnx_server.py"], "anchor": false}
+{"id": "G-N-get_commit_memory_dir", "bucket": "name", "kind": "positive", "question": "where is `get_commit_memory_dir` defined", "gold": ["src/core/artifact_paths.py"], "anchor": false}
+{"id": "G-N-_count_lines", "bucket": "name", "kind": "positive", "question": "where is `_count_lines` defined", "gold": ["src/core/code_health.py"], "anchor": false}
+{"id": "G-N-classify", "bucket": "name", "kind": "positive", "question": "where is `classify` defined", "gold": ["src/core/trust_boundary.py"], "anchor": false}
+{"id": "G-N-_default_client_caps", "bucket": "name", "kind": "positive", "question": "where is `_default_client_caps` defined", "gold": ["src/core/lsp_client.py"], "anchor": false}
+{"id": "G-N-_patch_dll_imports", "bucket": "name", "kind": "positive", "question": "where is `_patch_dll_imports` defined", "gold": ["src/providers/reranker/llama_install.py"], "anchor": false}
+{"id": "G-N-expand_ru_variants", "bucket": "name", "kind": "positive", "question": "where is `expand_ru_variants` defined", "gold": ["src/core/search/synonyms_ru.py"], "anchor": false}
+{"id": "G-N-_pkg_in_pool", "bucket": "name", "kind": "positive", "question": "where is `_pkg_in_pool` defined", "gold": ["src/core/intelligence/verify_on_read.py"], "anchor": false}
+{"id": "G-N-grep_fallback", "bucket": "name", "kind": "positive", "question": "where is `grep_fallback` defined", "gold": ["src/core/utils/grep_fallback.py"], "anchor": false}
+{"id": "G-N-_on_heartbeat", "bucket": "name", "kind": "positive", "question": "where is `_on_heartbeat` defined", "gold": ["src/mcp/server_factory.py"], "anchor": false}
+{"id": "G-N-validate", "bucket": "name", "kind": "positive", "question": "where is `validate` defined", "gold": ["tools/factory/plan.py"], "anchor": false}
+{"id": "G-N-exception_fields", "bucket": "name", "kind": "positive", "question": "where is `exception_fields` defined", "gold": ["src/core/reindex_ledger.py"], "anchor": false}
+{"id": "G-N-_ensure_data_root", "bucket": "name", "kind": "positive", "question": "where is `_ensure_data_root` defined", "gold": ["src/core/artifact_paths.py"], "anchor": false}
+{"id": "G-N-is_error_envelope", "bucket": "name", "kind": "positive", "question": "where is `is_error_envelope` defined", "gold": ["src/mcp/error_results.py"], "anchor": false}
+{"id": "G-N-get_config", "bucket": "name", "kind": "positive", "question": "where is `get_config` defined", "gold": ["src/config/settings.py"], "anchor": false}
+{"id": "G-N-set_locale", "bucket": "name", "kind": "positive", "question": "where is `set_locale` defined", "gold": ["src/utils/i18n.py"], "anchor": false}
+{"id": "G-N-register_intelligence_tools", "bucket": "name", "kind": "positive", "question": "where is `register_intelligence_tools` defined", "gold": ["src/core/intelligence/tools_reg.py"], "anchor": false}
+{"id": "G-N-_log_project_resolution_failure", "bucket": "name", "kind": "positive", "question": "where is `_log_project_resolution_failure` defined", "gold": ["src/core/project_resolution.py"], "anchor": false}
+{"id": "G-N-get_alert_store", "bucket": "name", "kind": "positive", "question": "where is `get_alert_store` defined", "gold": ["src/core/intelligence/alert_store.py"], "anchor": false}
+{"id": "G-N-is_whitelisted", "bucket": "name", "kind": "positive", "question": "where is `is_whitelisted` defined", "gold": ["src/core/quiet_break_gate.py"], "anchor": false}
+{"id": "G-N-is_external_or_stdlib", "bucket": "name", "kind": "positive", "question": "where is `is_external_or_stdlib` defined", "gold": ["src/core/search/graph_resolver.py"], "anchor": false}
+{"id": "G-N-flatten", "bucket": "name", "kind": "positive", "question": "where is `flatten` defined", "gold": ["tools/factory/plan.py"], "anchor": false}
+{"id": "G-N-_line_starts", "bucket": "name", "kind": "positive", "question": "where is `_line_starts` defined", "gold": ["src/mcp/tools/grep_tool.py"], "anchor": false}
+{"id": "G-N-iter_import_candidate_nodes", "bucket": "name", "kind": "positive", "question": "where is `iter_import_candidate_nodes` defined", "gold": ["src/core/language_imports.py"], "anchor": false}
+{"id": "G-N-_extract_key_terms", "bucket": "name", "kind": "positive", "question": "where is `_extract_key_terms` defined", "gold": ["src/core/search/utils.py"], "anchor": false}
+{"id": "G-N-is_active", "bucket": "name", "kind": "positive", "question": "where is `is_active` defined", "gold": ["src/core/embedder_lease.py"], "anchor": false}
+{"id": "G-N-_is_dataclass_decorator", "bucket": "name", "kind": "positive", "question": "where is `_is_dataclass_decorator` defined", "gold": ["src/core/bootstrap_entities.py"], "anchor": false}
+{"id": "G-N-register_all_tools", "bucket": "name", "kind": "positive", "question": "where is `register_all_tools` defined", "gold": ["src/mcp/server_tools.py"], "anchor": false}
+{"id": "G-N-_server_bin", "bucket": "name", "kind": "positive", "question": "where is `_server_bin` defined", "gold": ["src/core/lsp_client.py"], "anchor": false}
+{"id": "G-N-_safe_join", "bucket": "name", "kind": "positive", "question": "where is `_safe_join` defined", "gold": ["src/sources/upload/__init__.py"], "anchor": false}
+{"id": "G-N-_ledger_autosync_enabled", "bucket": "name", "kind": "positive", "question": "where is `_ledger_autosync_enabled` defined", "gold": ["src/core/auto_doc_updater.py"], "anchor": false}
+{"id": "G-N-expect", "bucket": "name", "kind": "positive", "question": "where is `expect` defined", "gold": ["tools/verification/g5_denominator.py"], "anchor": false}
+{"id": "G-N-get_bridge_dir", "bucket": "name", "kind": "positive", "question": "where is `get_bridge_dir` defined", "gold": ["src/core/lsp_project_bridge.py"], "anchor": false}
+{"id": "G-N-notify_change", "bucket": "name", "kind": "positive", "question": "where is `notify_change` defined", "gold": ["src/mcp/server_tools.py"], "anchor": false}
+{"id": "G-N-log_incident", "bucket": "name", "kind": "positive", "question": "where is `log_incident` defined", "gold": ["src/core/intelligence/tools_reg.py"], "anchor": false}
+{"id": "G-N-op_git", "bucket": "name", "kind": "positive", "question": "where is `op_git` defined", "gold": ["tools/factory/ops.py"], "anchor": false}
+{"id": "G-N-_project_name", "bucket": "name", "kind": "positive", "question": "where is `_project_name` defined", "gold": ["src/core/bootstrap_tests.py"], "anchor": false}
+{"id": "G-N-_llama_bin", "bucket": "name", "kind": "positive", "question": "where is `_llama_bin` defined", "gold": ["src/providers/reranker/llama_install.py"], "anchor": false}
+{"id": "G-N-_safe_shutdown", "bucket": "name", "kind": "positive", "question": "where is `_safe_shutdown` defined", "gold": ["src/cli.py"], "anchor": false}
+{"id": "G-N-_post", "bucket": "name", "kind": "positive", "question": "where is `_post` defined", "gold": ["tools/factory/brain.py"], "anchor": false}
+{"id": "G-N-format_eta", "bucket": "name", "kind": "positive", "question": "where is `format_eta` defined", "gold": ["src/utils/ui_formatter.py"], "anchor": false}
+{"id": "G-N-release", "bucket": "name", "kind": "positive", "question": "where is `release` defined", "gold": ["src/core/embedder_lease.py"], "anchor": false}
+{"id": "G-N-_extract_diff", "bucket": "name", "kind": "positive", "question": "where is `_extract_diff` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-_with_flags", "bucket": "name", "kind": "positive", "question": "where is `_with_flags` defined", "gold": ["src/core/silent_subprocess.py"], "anchor": false}
+{"id": "G-N-format_hotspots", "bucket": "name", "kind": "positive", "question": "where is `format_hotspots` defined", "gold": ["src/utils/ui_formatter.py"], "anchor": false}
+{"id": "G-N-run_bounded", "bucket": "name", "kind": "positive", "question": "where is `run_bounded` defined", "gold": ["src/core/run_bounded.py"], "anchor": false}
+{"id": "G-N-is_supported", "bucket": "name", "kind": "positive", "question": "where is `is_supported` defined", "gold": ["src/core/extensions.py"], "anchor": false}
+{"id": "G-N-step_zed", "bucket": "name", "kind": "positive", "question": "where is `step_zed` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-_reject_self_index_target", "bucket": "name", "kind": "positive", "question": "where is `_reject_self_index_target` defined", "gold": ["src/core/project_resolution.py"], "anchor": false}
+{"id": "G-N-_ast_blocks", "bucket": "name", "kind": "positive", "question": "where is `_ast_blocks` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-user_brief", "bucket": "name", "kind": "positive", "question": "where is `user_brief` defined", "gold": ["tools/factory/brain.py"], "anchor": false}
+{"id": "G-N-verdict_from_results", "bucket": "name", "kind": "positive", "question": "where is `verdict_from_results` defined", "gold": ["src/core/action_receipt.py"], "anchor": false}
+{"id": "G-N-_delayed_auto_index", "bucket": "name", "kind": "positive", "question": "where is `_delayed_auto_index` defined", "gold": ["src/mcp/server_factory.py"], "anchor": false}
+{"id": "G-N-format_receipt", "bucket": "name", "kind": "positive", "question": "where is `format_receipt` defined", "gold": ["src/core/action_receipt.py"], "anchor": false}
+{"id": "G-N-apply_bucket_weights", "bucket": "name", "kind": "positive", "question": "where is `apply_bucket_weights` defined", "gold": ["src/core/search/scoring.py"], "anchor": false}
+{"id": "G-N-_parse_iso_datetime", "bucket": "name", "kind": "positive", "question": "where is `_parse_iso_datetime` defined", "gold": ["src/core/search/utils.py"], "anchor": false}
+{"id": "G-N-_sanitize_error_message", "bucket": "name", "kind": "positive", "question": "where is `_sanitize_error_message` defined", "gold": ["src/core/error_handler.py"], "anchor": false}
+{"id": "G-N-_job_key", "bucket": "name", "kind": "positive", "question": "where is `_job_key` defined", "gold": ["src/mcp/tools/indexing_tools.py"], "anchor": false}
+{"id": "G-N-should_skip_file", "bucket": "name", "kind": "positive", "question": "where is `should_skip_file` defined", "gold": ["tools/stale_detector/stale_check.py"], "anchor": false}
+{"id": "G-N-_ips_are_global", "bucket": "name", "kind": "positive", "question": "where is `_ips_are_global` defined", "gold": ["src/sources/git_url/__init__.py"], "anchor": false}
+{"id": "G-N-apply_unified_diff", "bucket": "name", "kind": "positive", "question": "where is `apply_unified_diff` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-_git_diff", "bucket": "name", "kind": "positive", "question": "where is `_git_diff` defined", "gold": ["src/core/quiet_break_gate.py"], "anchor": false}
+{"id": "G-N-normalize_tool_name", "bucket": "name", "kind": "positive", "question": "where is `normalize_tool_name` defined", "gold": ["src/plugins/registry.py"], "anchor": false}
+{"id": "G-N-g3_generalization", "bucket": "name", "kind": "positive", "question": "where is `g3_generalization` defined", "gold": ["tools/verification/gates.py"], "anchor": false}
+{"id": "G-N-_import_entrypoint", "bucket": "name", "kind": "positive", "question": "where is `_import_entrypoint` defined", "gold": ["src/plugins/loader.py"], "anchor": false}
+{"id": "G-N-_ext_dir_from_install_path", "bucket": "name", "kind": "positive", "question": "where is `_ext_dir_from_install_path` defined", "gold": ["adapters/zed/zed_config.py"], "anchor": false}
+{"id": "G-N-_verify_ack_token", "bucket": "name", "kind": "positive", "question": "where is `_verify_ack_token` defined", "gold": ["src/core/modification_guard.py"], "anchor": false}
+{"id": "G-N-code_first_plan", "bucket": "name", "kind": "positive", "question": "where is `code_first_plan` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-get_system_summary", "bucket": "name", "kind": "positive", "question": "where is `get_system_summary` defined", "gold": ["src/providers/reranker/llama_install.py"], "anchor": false}
+{"id": "G-N-_prepend_code_name_matches", "bucket": "name", "kind": "positive", "question": "where is `_prepend_code_name_matches` defined", "gold": ["src/core/search/engine.py"], "anchor": false}
+{"id": "G-N-check_engine_compat", "bucket": "name", "kind": "positive", "question": "where is `check_engine_compat` defined", "gold": ["src/plugins/manifest.py"], "anchor": false}
+{"id": "G-N-check_disk_space", "bucket": "name", "kind": "positive", "question": "where is `check_disk_space` defined", "gold": ["src/core/artifact_paths.py"], "anchor": false}
+{"id": "G-N-_proxy", "bucket": "name", "kind": "positive", "question": "where is `_proxy` defined", "gold": ["src/plugins/registry.py"], "anchor": false}
+{"id": "G-N-get_shared_models_dir", "bucket": "name", "kind": "positive", "question": "where is `get_shared_models_dir` defined", "gold": ["src/core/artifact_paths.py"], "anchor": false}
+{"id": "G-N-format_report", "bucket": "name", "kind": "positive", "question": "where is `format_report` defined", "gold": ["src/core/doc_reference_l1.py"], "anchor": false}
+{"id": "G-N-resolve_mcp_exe", "bucket": "name", "kind": "positive", "question": "where is `resolve_mcp_exe` defined", "gold": ["src/core/process_titles.py"], "anchor": false}
+{"id": "G-N-get_actual_version", "bucket": "name", "kind": "positive", "question": "where is `get_actual_version` defined", "gold": ["tools/stale_detector/stale_check.py"], "anchor": false}
+{"id": "G-N-_start_zed_parent_watchdog", "bucket": "name", "kind": "positive", "question": "where is `_start_zed_parent_watchdog` defined", "gold": ["src/mcp/server_factory.py"], "anchor": false}
+{"id": "G-N-current_platform", "bucket": "name", "kind": "positive", "question": "where is `current_platform` defined", "gold": ["src/plugins/manifest.py"], "anchor": false}
+{"id": "G-N-_extract_identifier_tokens", "bucket": "name", "kind": "positive", "question": "where is `_extract_identifier_tokens` defined", "gold": ["src/core/search/engine.py"], "anchor": false}
+{"id": "G-N-_extract_package_json", "bucket": "name", "kind": "positive", "question": "where is `_extract_package_json` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-failing_test_id", "bucket": "name", "kind": "positive", "question": "where is `failing_test_id` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-run_task", "bucket": "name", "kind": "positive", "question": "where is `run_task` defined", "gold": ["tools/microtask_pipeline/engine.py"], "anchor": false}
+{"id": "G-N-referenced_modules", "bucket": "name", "kind": "positive", "question": "where is `referenced_modules` defined", "gold": ["src/core/test_impact.py"], "anchor": false}
+{"id": "G-N-_clear_memory", "bucket": "name", "kind": "positive", "question": "where is `_clear_memory` defined", "gold": ["src/mcp/server_factory.py"], "anchor": false}
+{"id": "G-N-_cache_key", "bucket": "name", "kind": "positive", "question": "where is `_cache_key` defined", "gold": ["src/core/search/engine.py"], "anchor": false}
+{"id": "G-N-get_runtime_status", "bucket": "name", "kind": "positive", "question": "where is `get_runtime_status` defined", "gold": ["src/core/intelligence/tools_reg.py"], "anchor": false}
+{"id": "G-N-_extract_bun_lock", "bucket": "name", "kind": "positive", "question": "where is `_extract_bun_lock` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-_sigmoid", "bucket": "name", "kind": "positive", "question": "where is `_sigmoid` defined", "gold": ["src/providers/reranker/multi_provider.py"], "anchor": false}
+{"id": "G-N-_build_minimal_env", "bucket": "name", "kind": "positive", "question": "where is `_build_minimal_env` defined", "gold": ["src/core/sandbox/executor.py"], "anchor": false}
+{"id": "G-N-section", "bucket": "name", "kind": "positive", "question": "where is `section` defined", "gold": ["src/utils/ui_formatter.py"], "anchor": false}
+{"id": "G-N-_parse_log_line", "bucket": "name", "kind": "positive", "question": "where is `_parse_log_line` defined", "gold": ["src/core/log_manager.py"], "anchor": false}
+{"id": "G-N-_extract_cargo_lock", "bucket": "name", "kind": "positive", "question": "where is `_extract_cargo_lock` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-_ensure_lsp", "bucket": "name", "kind": "positive", "question": "where is `_ensure_lsp` defined", "gold": ["src/mcp/tools/lsp_tools.py"], "anchor": false}
+{"id": "G-N-_build_vocabulary", "bucket": "name", "kind": "positive", "question": "where is `_build_vocabulary` defined", "gold": ["src/core/doc_reference_l1.py"], "anchor": false}
+{"id": "G-N-record_tool_result", "bucket": "name", "kind": "positive", "question": "where is `record_tool_result` defined", "gold": ["src/core/error_handler.py"], "anchor": false}
+{"id": "G-N-predict_root_cause", "bucket": "name", "kind": "positive", "question": "where is `predict_root_cause` defined", "gold": ["src/core/intelligence/tools_reg.py"], "anchor": false}
+{"id": "G-N-_open_table_calls_in", "bucket": "name", "kind": "positive", "question": "where is `_open_table_calls_in` defined", "gold": ["src/core/bootstrap_entities.py"], "anchor": false}
+{"id": "G-N-_print_tree", "bucket": "name", "kind": "positive", "question": "where is `_print_tree` defined", "gold": ["tools/factory/cli.py"], "anchor": false}
+{"id": "G-N-_trunc", "bucket": "name", "kind": "positive", "question": "where is `_trunc` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-platform_label", "bucket": "name", "kind": "positive", "question": "where is `platform_label` defined", "gold": ["src/core/platform_utils.py"], "anchor": false}
+{"id": "G-N-step_models", "bucket": "name", "kind": "positive", "question": "where is `step_models` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-_extract_go_mod", "bucket": "name", "kind": "positive", "question": "where is `_extract_go_mod` defined", "gold": ["src/core/deps/manifest/extract.py"], "anchor": false}
+{"id": "G-N-_prog", "bucket": "name", "kind": "positive", "question": "where is `_prog` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-_parse_entry", "bucket": "name", "kind": "positive", "question": "where is `_parse_entry` defined", "gold": ["src/core/bootstrap_tests.py"], "anchor": false}
+{"id": "G-N-_filter_by_time", "bucket": "name", "kind": "positive", "question": "where is `_filter_by_time` defined", "gold": ["src/core/search/utils.py"], "anchor": false}
+{"id": "G-N-schema_check", "bucket": "name", "kind": "positive", "question": "where is `schema_check` defined", "gold": ["src/core/search/cypher_schema.py"], "anchor": false}
+{"id": "G-N-apply_mcp_process_title", "bucket": "name", "kind": "positive", "question": "where is `apply_mcp_process_title` defined", "gold": ["src/core/process_titles.py"], "anchor": false}
+{"id": "G-N-_sha256_text", "bucket": "name", "kind": "positive", "question": "where is `_sha256_text` defined", "gold": ["src/mcp/tools/write_tools.py"], "anchor": false}
+{"id": "G-N-ensure_mcp_hardlink", "bucket": "name", "kind": "positive", "question": "where is `ensure_mcp_hardlink` defined", "gold": ["src/core/process_titles.py"], "anchor": false}
+{"id": "G-N-_run_trace", "bucket": "name", "kind": "positive", "question": "where is `_run_trace` defined", "gold": ["src/core/bootstrap_pipeline.py"], "anchor": false}
+{"id": "G-N-run_plan", "bucket": "name", "kind": "positive", "question": "where is `run_plan` defined", "gold": ["tools/factory/runtime.py"], "anchor": false}
+{"id": "G-N-_is_up_to_date", "bucket": "name", "kind": "positive", "question": "where is `_is_up_to_date` defined", "gold": ["install.py"], "anchor": false}
+{"id": "G-N-_is_complex_query", "bucket": "name", "kind": "positive", "question": "where is `_is_complex_query` defined", "gold": ["src/mcp/tools/search_tools.py"], "anchor": false}
+{"id": "G-N-get_hotspots", "bucket": "name", "kind": "positive", "question": "where is `get_hotspots` defined", "gold": ["src/core/intelligence/tools_reg.py"], "anchor": false}
+{"id": "G-N-_manifest_fallback", "bucket": "name", "kind": "positive", "question": "where is `_manifest_fallback` defined", "gold": ["src/sources/git_url/__init__.py"], "anchor": false}
+{"id": "G-N-_is_broken", "bucket": "name", "kind": "positive", "question": "where is `_is_broken` defined", "gold": ["src/core/doc_reference_l1.py"], "anchor": false}
+{"id": "G-Q-OnnxEmbedderClient.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `OnnxEmbedderClient.__init__` defined", "gold": ["src/core/embedder/onnx_client.py"], "anchor": false}
+{"id": "G-Q-PluginProcess.__exit__", "bucket": "qualified", "kind": "positive", "question": "where is `PluginProcess.__exit__` defined", "gold": ["src/plugins/proxy.py"], "anchor": false}
+{"id": "G-Q-ProjectContext._capture_memory", "bucket": "qualified", "kind": "positive", "question": "where is `ProjectContext._capture_memory` defined", "gold": ["src/core/intelligence/project_context.py"], "anchor": false}
+{"id": "G-Q-FTS5IndexManager.search_names", "bucket": "qualified", "kind": "positive", "question": "where is `FTS5IndexManager.search_names` defined", "gold": ["src/core/search/fts5_index.py"], "anchor": false}
+{"id": "G-Q-GraphQueryTool._execute_query", "bucket": "qualified", "kind": "positive", "question": "where is `GraphQueryTool._execute_query` defined", "gold": ["src/mcp/tools/graph_tools.py"], "anchor": false}
+{"id": "G-Q-RemoteEmbedder.set_circuit_breaker", "bucket": "qualified", "kind": "positive", "question": "where is `RemoteEmbedder.set_circuit_breaker` defined", "gold": ["src/providers/embedder/remote_embedder.py"], "anchor": false}
+{"id": "G-Q-PropertyGraph.import_compressed", "bucket": "qualified", "kind": "positive", "question": "where is `PropertyGraph.import_compressed` defined", "gold": ["src/core/graph.py"], "anchor": false}
+{"id": "G-Q-VerifyOnRead.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `VerifyOnRead.__init__` defined", "gold": ["src/core/intelligence/verify_on_read.py"], "anchor": false}
+{"id": "G-Q-ResourceMonitor._start_auto_logger", "bucket": "qualified", "kind": "positive", "question": "where is `ResourceMonitor._start_auto_logger` defined", "gold": ["src/core/indexing/resource_monitor.py"], "anchor": false}
+{"id": "G-Q-CodeParser._init_tree_sitter", "bucket": "qualified", "kind": "positive", "question": "where is `CodeParser._init_tree_sitter` defined", "gold": ["src/core/indexing/parser.py"], "anchor": false}
+{"id": "G-Q-ChangePreview._make_worktree", "bucket": "qualified", "kind": "positive", "question": "where is `ChangePreview._make_worktree` defined", "gold": ["src/core/change_preview.py"], "anchor": false}
+{"id": "G-Q-ProjectIntelligenceLayer._collect_signals", "bucket": "qualified", "kind": "positive", "question": "where is `ProjectIntelligenceLayer._collect_signals` defined", "gold": ["src/core/intelligence/layer.py"], "anchor": false}
+{"id": "G-Q-PluginProcess.call", "bucket": "qualified", "kind": "positive", "question": "where is `PluginProcess.call` defined", "gold": ["src/plugins/proxy.py"], "anchor": false}
+{"id": "G-Q-CypherParser.parse", "bucket": "qualified", "kind": "positive", "question": "where is `CypherParser.parse` defined", "gold": ["src/core/search/cypher_parser.py"], "anchor": false}
+{"id": "G-Q-CommitMemory.get_hotspots", "bucket": "qualified", "kind": "positive", "question": "where is `CommitMemory.get_hotspots` defined", "gold": ["src/core/commit_memory.py"], "anchor": false}
+{"id": "G-Q-PropertyGraph.get_meta", "bucket": "qualified", "kind": "positive", "question": "where is `PropertyGraph.get_meta` defined", "gold": ["src/core/graph.py"], "anchor": false}
+{"id": "G-Q-CypherParser._parse_return_items", "bucket": "qualified", "kind": "positive", "question": "where is `CypherParser._parse_return_items` defined", "gold": ["src/core/search/cypher_parser.py"], "anchor": false}
+{"id": "G-Q-_InterProcessLock.__exit__", "bucket": "qualified", "kind": "positive", "question": "where is `_InterProcessLock.__exit__` defined", "gold": ["src/providers/reranker/llama_runner.py"], "anchor": false}
+{"id": "G-Q-FTS5IndexManager.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `FTS5IndexManager.__init__` defined", "gold": ["src/core/search/fts5_index.py"], "anchor": false}
+{"id": "G-Q-SymbolIndexAdapter._hybrid_add_references", "bucket": "qualified", "kind": "positive", "question": "where is `SymbolIndexAdapter._hybrid_add_references` defined", "gold": ["src/core/search/graph_adapter.py"], "anchor": false}
+{"id": "G-Q-CommitMemory.get_significant_commits", "bucket": "qualified", "kind": "positive", "question": "where is `CommitMemory.get_significant_commits` defined", "gold": ["src/core/commit_memory.py"], "anchor": false}
+{"id": "G-Q-GetActionReceiptTool.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `GetActionReceiptTool.__init__` defined", "gold": ["src/mcp/tools/lifecycle_tools.py"], "anchor": false}
+{"id": "G-Q-SymbolIndexAdapter.get_repo_map", "bucket": "qualified", "kind": "positive", "question": "where is `SymbolIndexAdapter.get_repo_map` defined", "gold": ["src/core/search/graph_adapter.py"], "anchor": false}
+{"id": "G-Q-WorkspaceSource.watch", "bucket": "qualified", "kind": "positive", "question": "where is `WorkspaceSource.watch` defined", "gold": ["src/core/interfaces/workspace_source.py"], "anchor": false}
+{"id": "G-Q-ProjectIndexerRegistry.find_first_non_self_indexing", "bucket": "qualified", "kind": "positive", "question": "where is `ProjectIndexerRegistry.find_first_non_self_indexing` defined", "gold": ["src/core/indexing/project_indexer_registry.py"], "anchor": false}
+{"id": "G-Q-LspClient.document_symbols", "bucket": "qualified", "kind": "positive", "question": "where is `LspClient.document_symbols` defined", "gold": ["src/core/lsp_client.py"], "anchor": false}
+{"id": "G-Q-GenerateChunkSummariesTool.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `GenerateChunkSummariesTool.__init__` defined", "gold": ["src/mcp/tools/analysis_tools.py"], "anchor": false}
+{"id": "G-Q-GrepCodeTool._format", "bucket": "qualified", "kind": "positive", "question": "where is `GrepCodeTool._format` defined", "gold": ["src/mcp/tools/grep_tool.py"], "anchor": false}
+{"id": "G-Q-MCPTool.execute", "bucket": "qualified", "kind": "positive", "question": "where is `MCPTool.execute` defined", "gold": ["src/mcp/tools/base.py"], "anchor": false}
+{"id": "G-Q-LanceDBManager.to_pandas_async", "bucket": "qualified", "kind": "positive", "question": "where is `LanceDBManager.to_pandas_async` defined", "gold": ["src/core/indexing/db_manager.py"], "anchor": false}
+{"id": "G-Q-LlamaRunner.start_reranker", "bucket": "qualified", "kind": "positive", "question": "where is `LlamaRunner.start_reranker` defined", "gold": ["src/providers/reranker/llama_runner.py"], "anchor": false}
+{"id": "G-Q-ConsistencyTracker.mark_stale", "bucket": "qualified", "kind": "positive", "question": "where is `ConsistencyTracker.mark_stale` defined", "gold": ["src/core/consistency.py"], "anchor": false}
+{"id": "G-Q-GenerateChunkSummariesTool.execute", "bucket": "qualified", "kind": "positive", "question": "where is `GenerateChunkSummariesTool.execute` defined", "gold": ["src/mcp/tools/analysis_tools.py"], "anchor": false}
+{"id": "G-Q-SystemArtifacts.is_artifact", "bucket": "qualified", "kind": "positive", "question": "where is `SystemArtifacts.is_artifact` defined", "gold": ["src/core/system_artifacts.py"], "anchor": false}
+{"id": "G-Q-PureGraphMixin._graph_call_chain", "bucket": "qualified", "kind": "positive", "question": "where is `PureGraphMixin._graph_call_chain` defined", "gold": ["src/core/search/graph_adapter_pure.py"], "anchor": false}
+{"id": "G-Q-RuntimeCoordinator.__init__", "bucket": "qualified", "kind": "positive", "question": "where is `RuntimeCoordinator.__init__` defined", "gold": ["src/core/runtime_coordinator.py"], "anchor": false}
+{"id": "G-Q-MultiProjectSearcher.cross_repo_search", "bucket": "qualified", "kind": "positive", "question": "where is `MultiProjectSearcher.cross_repo_search` defined", "gold": ["src/core/multi_project_searcher.py"], "anchor": false}
+{"id": "G-Q-Indexer.to_pandas_async", "bucket": "qualified", "kind": "positive", "question": "where is `Indexer.to_pandas_async` defined", "gold": ["src/core/indexing/indexer.py"], "anchor": false}
+{"id": "G-Q-JobHistoryStore.load_history", "bucket": "qualified", "kind": "positive", "question": "where is `JobHistoryStore.load_history` defined", "gold": ["src/core/intelligence/store.py"], "anchor": false}
+{"id": "G-Q-LiveBuffer.keys", "bucket": "qualified", "kind": "positive", "question": "where is `LiveBuffer.keys` defined", "gold": ["src/sync/live_buffer.py"], "anchor": false}
+{"id": "G-X-000", "bucket": "negative", "kind": "negative", "question": "where is `zz_a81a24a0` defined", "gold": [], "anchor": false}
+{"id": "G-X-001", "bucket": "negative", "kind": "negative", "question": "where is `zz_22291929` defined", "gold": [], "anchor": false}
+{"id": "G-X-002", "bucket": "negative", "kind": "negative", "question": "where is `zz_65292eea` defined", "gold": [], "anchor": false}
+{"id": "G-X-003", "bucket": "negative", "kind": "negative", "question": "where is `zz_18b93f5d` defined", "gold": [], "anchor": false}
+{"id": "G-X-004", "bucket": "negative", "kind": "negative", "question": "where is `zz_6bdedec1` defined", "gold": [], "anchor": false}
+{"id": "G-X-005", "bucket": "negative", "kind": "negative", "question": "where is `zz_13d1081b` defined", "gold": [], "anchor": false}
+{"id": "G-X-006", "bucket": "negative", "kind": "negative", "question": "where is `zz_9f02e2ea` defined", "gold": [], "anchor": false}
+{"id": "G-X-007", "bucket": "negative", "kind": "negative", "question": "where is `zz_6b887ea5` defined", "gold": [], "anchor": false}
+{"id": "G-X-008", "bucket": "negative", "kind": "negative", "question": "where is `zz_1bac076b` defined", "gold": [], "anchor": false}
+{"id": "G-X-009", "bucket": "negative", "kind": "negative", "question": "where is `zz_08cbed4a` defined", "gold": [], "anchor": false}
+{"id": "G-X-010", "bucket": "negative", "kind": "negative", "question": "where is `zz_75dcb0a0` defined", "gold": [], "anchor": false}
+{"id": "G-X-011", "bucket": "negative", "kind": "negative", "question": "where is `zz_5d6e4f66` defined", "gold": [], "anchor": false}
+{"id": "G-X-012", "bucket": "negative", "kind": "negative", "question": "where is `zz_157e8328` defined", "gold": [], "anchor": false}
+{"id": "G-X-013", "bucket": "negative", "kind": "negative", "question": "where is `zz_8acc73df` defined", "gold": [], "anchor": false}
+{"id": "G-X-014", "bucket": "negative", "kind": "negative", "question": "where is `zz_6bb3df64` defined", "gold": [], "anchor": false}
+{"id": "G-X-015", "bucket": "negative", "kind": "negative", "question": "where is `zz_17a64366` defined", "gold": [], "anchor": false}
+{"id": "G-X-016", "bucket": "negative", "kind": "negative", "question": "where is `zz_a1a79c56` defined", "gold": [], "anchor": false}
+{"id": "G-X-017", "bucket": "negative", "kind": "negative", "question": "where is `zz_003eee6c` defined", "gold": [], "anchor": false}
+{"id": "G-X-018", "bucket": "negative", "kind": "negative", "question": "where is `zz_6212927d` defined", "gold": [], "anchor": false}
+{"id": "G-X-019", "bucket": "negative", "kind": "negative", "question": "where is `zz_4adc6132` defined", "gold": [], "anchor": false}
+{"id": "G-X-020", "bucket": "negative", "kind": "negative", "question": "where is `zz_0d6ce32c` defined", "gold": [], "anchor": false}
+{"id": "G-X-021", "bucket": "negative", "kind": "negative", "question": "where is `zz_25164ba3` defined", "gold": [], "anchor": false}
+{"id": "G-X-022", "bucket": "negative", "kind": "negative", "question": "where is `zz_28b1baa3` defined", "gold": [], "anchor": false}
+{"id": "G-X-023", "bucket": "negative", "kind": "negative", "question": "where is `zz_4c813e44` defined", "gold": [], "anchor": false}
+{"id": "G-X-024", "bucket": "negative", "kind": "negative", "question": "where is `zz_87920bdd` defined", "gold": [], "anchor": false}
+{"id": "G-X-025", "bucket": "negative", "kind": "negative", "question": "where is `zz_1614b192` defined", "gold": [], "anchor": false}
+{"id": "G-X-026", "bucket": "negative", "kind": "negative", "question": "where is `zz_f428c8c3` defined", "gold": [], "anchor": false}
+{"id": "G-X-027", "bucket": "negative", "kind": "negative", "question": "where is `zz_7d71074c` defined", "gold": [], "anchor": false}
+{"id": "G-X-028", "bucket": "negative", "kind": "negative", "question": "where is `zz_4732fe71` defined", "gold": [], "anchor": false}
+{"id": "G-X-029", "bucket": "negative", "kind": "negative", "question": "where is `zz_780f87c5` defined", "gold": [], "anchor": false}
+{"id": "G-X-030", "bucket": "negative", "kind": "negative", "question": "where is `zz_dcecd4d0` defined", "gold": [], "anchor": false}
+{"id": "G-X-031", "bucket": "negative", "kind": "negative", "question": "where is `zz_03b28aee` defined", "gold": [], "anchor": false}
+{"id": "G-X-032", "bucket": "negative", "kind": "negative", "question": "where is `zz_f59feb3e` defined", "gold": [], "anchor": false}
+{"id": "G-X-033", "bucket": "negative", "kind": "negative", "question": "where is `zz_2891965f` defined", "gold": [], "anchor": false}
+{"id": "G-X-034", "bucket": "negative", "kind": "negative", "question": "where is `zz_1f418482` defined", "gold": [], "anchor": false}
+{"id": "G-X-035", "bucket": "negative", "kind": "negative", "question": "where is `zz_b12ab15f` defined", "gold": [], "anchor": false}
+{"id": "G-X-036", "bucket": "negative", "kind": "negative", "question": "where is `zz_e11c4137` defined", "gold": [], "anchor": false}
+{"id": "G-X-037", "bucket": "negative", "kind": "negative", "question": "where is `zz_7638e5cc` defined", "gold": [], "anchor": false}
+{"id": "G-X-038", "bucket": "negative", "kind": "negative", "question": "where is `zz_b86f12b7` defined", "gold": [], "anchor": false}
+{"id": "G-X-039", "bucket": "negative", "kind": "negative", "question": "where is `zz_ef763cc1` defined", "gold": [], "anchor": false}
+{"id": "P01", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где определяется `build_call_graph` и что оно возвращает?", "gold": ["src/core/indexing/symbol_index.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P02", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Кто вызывает `get_impact_analysis`?", "gold": ["src/core/graph_rag.py", "src/core/modification_guard.py", "src/mcp/tools/investigate_tool.py", "src/mcp/tools/search_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P03", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?", "gold": ["src/mcp/server_tools.py", "src/mcp/tools/write_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P04", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где решается, нужно ли переиндексировать файл?", "gold": ["src/core/indexing/freshness.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P05", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где вычисляется путь `progress.json` вне проекта?", "gold": ["src/core/artifact_paths.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P06", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Какая функция возвращает путь прогресса?", "gold": ["src/core/artifact_paths.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P07", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где выдаётся и проверяется impact-токен?", "gold": ["src/core/modification_guard.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P08", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где в `investigate` появляется строка `degraded`?", "gold": ["src/mcp/tools/investigate_tool.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P09", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где определяется allowlist/профиль инструментов?", "gold": ["src/mcp/server_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P10", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где задан профиль ETA для `impact_analysis`?", "gold": ["src/core/eta_predictor.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P11", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где объявлен `SymbolIndexAdapter`?", "gold": ["src/core/search/graph_adapter.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P12", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где считается call chain?", "gold": ["src/core/indexing/symbol_index.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P13", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где хранится схема `file_hash` / `file_mtime_ns`?", "gold": ["src/core/indexing/db_manager.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P14", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Какой документ является каноном публичных чисел?", "gold": ["docs/FACTS.md"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P15", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где LSP-инструмент отправляет за ссылками?", "gold": ["src/mcp/tools/lsp_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "P16", "bucket": "anchor:xerj/positive", "kind": "positive", "question": "Где описан контракт «артефакты вне проекта»?", "gold": ["src/core/artifact_paths.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "A01", "bucket": "anchor:xerj/ambiguity", "kind": "ambiguity", "question": "Где реализован `build_call_graph`?", "gold": ["src/core/indexing/symbol_index.py", "src/core/search/graph_adapter.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "A02", "bucket": "anchor:xerj/ambiguity", "kind": "ambiguity", "question": "Где реализован `get_call_chain`?", "gold": ["src/core/indexing/symbol_index.py", "src/core/search/graph_adapter_pure.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "A03", "bucket": "anchor:xerj/ambiguity", "kind": "ambiguity", "question": "Где считается «устаревание» (staleness)?", "gold": ["src/core/auto_doc_updater.py", "src/core/indexing/freshness.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "A04", "bucket": "anchor:xerj/ambiguity", "kind": "ambiguity", "question": "Где определён `Indexer`?", "gold": ["src/core/indexing/indexer.py", "src/core/indexing/indexer_table.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "N01", "bucket": "anchor:xerj/negative", "kind": "negative", "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?", "gold": [], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "N02", "bucket": "anchor:xerj/negative", "kind": "negative", "question": "Где читается `XERJ_FACTS_MODEL_DIR`?", "gold": [], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "N03", "bucket": "anchor:xerj/negative", "kind": "negative", "question": "Где ключ подписи Corpus Hub?", "gold": [], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "N04", "bucket": "anchor:xerj/negative", "kind": "negative", "question": "Где `consensus_partner_agreement`?", "gold": [], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC01", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the on-demand rerank resolved", "gold": ["src/core/search/engine.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC02", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where does search_code dispatch by mode", "gold": ["src/mcp/tools/search_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC03", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the project state machine", "gold": ["src/core/indexing/project_indexer_registry.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC04", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "how is the knowledge gate K3 checked", "gold": ["tools/knowledge/check_knowledge.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC05", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where are public claims verified", "gold": ["tools/verification/verify_public_claims.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC06", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is install sync implemented", "gold": ["install.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC07", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "где решается включать ли реранк", "gold": ["src/core/search/engine.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC08", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "где проверяются публичные числа", "gold": ["tools/verification/verify_public_claims.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "MSC09", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "где переключается проект", "gold": ["src/mcp/tools/indexing_tools.py"], "anchor": true, "root": "D:\\Project\\MSCodeBase"}
+{"id": "BLA01", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the default line length defined", "gold": ["src/black/const.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\black"}
+{"id": "BLA02", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "how is source parsed into an ast", "gold": ["src/black/parsing.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\black"}
+{"id": "BLA03", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the cache directory chosen", "gold": ["src/black/cache.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\black"}
+{"id": "BLA04", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where does line wrapping decide parentheses", "gold": ["src/black/linegen.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\black"}
+{"id": "HTT01", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the /headers response built", "gold": ["httpbin/core.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\httpbin"}
+{"id": "HTT02", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "how does digest auth response work", "gold": ["httpbin/helpers.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\httpbin"}
+{"id": "HTT03", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where is the user agent endpoint defined", "gold": ["httpbin/core.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\httpbin"}
+{"id": "HTT04", "bucket": "anchor:mcp_audit/positive", "kind": "positive", "question": "where are cookies parsed", "gold": ["httpbin/core.py"], "anchor": true, "root": "D:\\Project\\bench_projects\\httpbin"}

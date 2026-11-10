@@ -1,0 +1,55 @@
+{
+ "panel": "tasks.jsonl",
+ "tasks": 281,
+ "invalid": 0,
+ "summary": {
+  "anchor:mcp_audit/positive": {
+   "n": 17,
+   "top1": 11,
+   "any": 14,
+   "chars_per_top1": 3441.7272727272725
+  },
+  "anchor:xerj/ambiguity": {
+   "n": 4,
+   "top1": 0,
+   "any": 2,
+   "chars_per_top1": NaN
+  },
+  "anchor:xerj/negative": {
+   "n": 4,
+   "top1": 4,
+   "any": 4,
+   "chars_per_top1": 358.75
+  },
+  "anchor:xerj/positive": {
+   "n": 16,
+   "top1": 6,
+   "any": 10,
+   "chars_per_top1": 5894.0
+  },
+  "name": {
+   "n": 160,
+   "top1": 154,
+   "any": 157,
+   "chars_per_top1": 2162.935064935065
+  },
+  "negative": {
+   "n": 40,
+   "top1": 40,
+   "any": 40,
+   "chars_per_top1": 332.0
+  },
+  "qualified": {
+   "n": 40,
+   "top1": 38,
+   "any": 40,
+   "chars_per_top1": 2668.9473684210525
+  }
+ },
+ "predictions": {
+  "S1 name top1 >= 0.60": true,
+  "S2 negatives empty >= 0.95": true,
+  "S3 anchors within +/-2": true,
+  "S4 qualified <= name": true
+ }
+}

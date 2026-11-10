@@ -47,6 +47,10 @@ CELLS = (
     ("E65 metamorphic top1, rrf", 4, 12),
     ("E65 metamorphic top1, norm", 5, 12),
     ("E65 negatives empty, weights", 4, 4),
+    ("E66 generated name top1", 154, 160),
+    ("E66 generated name any@8", 157, 160),
+    ("E66 generated qualified top1", 38, 40),
+    ("E66 generated negative empty", 40, 40),
 )
 
 
