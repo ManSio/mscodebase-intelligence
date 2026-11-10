@@ -1,0 +1,2927 @@
+{
+ "runs": 3,
+ "arms": {
+  "on": [
+   {
+    "id": "P01",
+    "kind": "positive",
+    "question": "Где определяется `build_call_graph` и что оно возвращает?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P02",
+    "kind": "positive",
+    "question": "Кто вызывает `get_impact_analysis`?",
+    "gold": [
+     "src/core/graph_rag.py",
+     "src/core/modification_guard.py",
+     "src/mcp/tools/investigate_tool.py",
+     "src/mcp/tools/search_tools.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P03",
+    "kind": "positive",
+    "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+    "gold": [
+     "src/mcp/server_tools.py",
+     "src/mcp/tools/write_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P04",
+    "kind": "positive",
+    "question": "Где решается, нужно ли переиндексировать файл?",
+    "gold": [
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "P05",
+    "kind": "positive",
+    "question": "Где вычисляется путь `progress.json` вне проекта?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P06",
+    "kind": "positive",
+    "question": "Какая функция возвращает путь прогресса?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "P07",
+    "kind": "positive",
+    "question": "Где выдаётся и проверяется impact-токен?",
+    "gold": [
+     "src/core/modification_guard.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P08",
+    "kind": "positive",
+    "question": "Где в `investigate` появляется строка `degraded`?",
+    "gold": [
+     "src/mcp/tools/investigate_tool.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P09",
+    "kind": "positive",
+    "question": "Где определяется allowlist/профиль инструментов?",
+    "gold": [
+     "src/mcp/server_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P10",
+    "kind": "positive",
+    "question": "Где задан профиль ETA для `impact_analysis`?",
+    "gold": [
+     "src/core/eta_predictor.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P11",
+    "kind": "positive",
+    "question": "Где объявлен `SymbolIndexAdapter`?",
+    "gold": [
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P12",
+    "kind": "positive",
+    "question": "Где считается call chain?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P13",
+    "kind": "positive",
+    "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+    "gold": [
+     "src/core/indexing/db_manager.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P14",
+    "kind": "positive",
+    "question": "Какой документ является каноном публичных чисел?",
+    "gold": [
+     "docs/FACTS.md"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "P15",
+    "kind": "positive",
+    "question": "Где LSP-инструмент отправляет за ссылками?",
+    "gold": [
+     "src/mcp/tools/lsp_tools.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "P16",
+    "kind": "positive",
+    "question": "Где описан контракт «артефакты вне проекта»?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "A01",
+    "kind": "ambiguity",
+    "question": "Где реализован `build_call_graph`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A02",
+    "kind": "ambiguity",
+    "question": "Где реализован `get_call_chain`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter_pure.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A03",
+    "kind": "ambiguity",
+    "question": "Где считается «устаревание» (staleness)?",
+    "gold": [
+     "src/core/auto_doc_updater.py",
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A04",
+    "kind": "ambiguity",
+    "question": "Где определён `Indexer`?",
+    "gold": [
+     "src/core/indexing/indexer.py",
+     "src/core/indexing/indexer_table.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 7,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N01",
+    "kind": "negative",
+    "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N02",
+    "kind": "negative",
+    "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N03",
+    "kind": "negative",
+    "question": "Где ключ подписи Corpus Hub?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "N04",
+    "kind": "negative",
+    "question": "Где `consensus_partner_agreement`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU1",
+    "kind": "positive",
+    "question": "где решается включать ли реранк",
+    "gold": [
+     "src/core/search/engine.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "MSCRU2",
+    "kind": "positive",
+    "question": "где проверяются публичные числа",
+    "gold": [
+     "tools/verification/verify_public_claims.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "MSCRU3",
+    "kind": "positive",
+    "question": "где переключается проект",
+    "gold": [
+     "src/mcp/tools/indexing_tools.py"
+    ],
+    "rows": 0,
+    "top1": false,
+    "any": false,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": false,
+      "any": false,
+      "gated": true
+     }
+    ]
+   }
+  ],
+  "off": [
+   {
+    "id": "P01",
+    "kind": "positive",
+    "question": "Где определяется `build_call_graph` и что оно возвращает?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P02",
+    "kind": "positive",
+    "question": "Кто вызывает `get_impact_analysis`?",
+    "gold": [
+     "src/core/graph_rag.py",
+     "src/core/modification_guard.py",
+     "src/mcp/tools/investigate_tool.py",
+     "src/mcp/tools/search_tools.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P03",
+    "kind": "positive",
+    "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+    "gold": [
+     "src/mcp/server_tools.py",
+     "src/mcp/tools/write_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P04",
+    "kind": "positive",
+    "question": "Где решается, нужно ли переиндексировать файл?",
+    "gold": [
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P05",
+    "kind": "positive",
+    "question": "Где вычисляется путь `progress.json` вне проекта?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P06",
+    "kind": "positive",
+    "question": "Какая функция возвращает путь прогресса?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P07",
+    "kind": "positive",
+    "question": "Где выдаётся и проверяется impact-токен?",
+    "gold": [
+     "src/core/modification_guard.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P08",
+    "kind": "positive",
+    "question": "Где в `investigate` появляется строка `degraded`?",
+    "gold": [
+     "src/mcp/tools/investigate_tool.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P09",
+    "kind": "positive",
+    "question": "Где определяется allowlist/профиль инструментов?",
+    "gold": [
+     "src/mcp/server_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P10",
+    "kind": "positive",
+    "question": "Где задан профиль ETA для `impact_analysis`?",
+    "gold": [
+     "src/core/eta_predictor.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P11",
+    "kind": "positive",
+    "question": "Где объявлен `SymbolIndexAdapter`?",
+    "gold": [
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P12",
+    "kind": "positive",
+    "question": "Где считается call chain?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P13",
+    "kind": "positive",
+    "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+    "gold": [
+     "src/core/indexing/db_manager.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P14",
+    "kind": "positive",
+    "question": "Какой документ является каноном публичных чисел?",
+    "gold": [
+     "docs/FACTS.md"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P15",
+    "kind": "positive",
+    "question": "Где LSP-инструмент отправляет за ссылками?",
+    "gold": [
+     "src/mcp/tools/lsp_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P16",
+    "kind": "positive",
+    "question": "Где описан контракт «артефакты вне проекта»?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A01",
+    "kind": "ambiguity",
+    "question": "Где реализован `build_call_graph`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A02",
+    "kind": "ambiguity",
+    "question": "Где реализован `get_call_chain`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter_pure.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A03",
+    "kind": "ambiguity",
+    "question": "Где считается «устаревание» (staleness)?",
+    "gold": [
+     "src/core/auto_doc_updater.py",
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A04",
+    "kind": "ambiguity",
+    "question": "Где определён `Indexer`?",
+    "gold": [
+     "src/core/indexing/indexer.py",
+     "src/core/indexing/indexer_table.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N01",
+    "kind": "negative",
+    "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N02",
+    "kind": "negative",
+    "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N03",
+    "kind": "negative",
+    "question": "Где ключ подписи Corpus Hub?",
+    "gold": [],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N04",
+    "kind": "negative",
+    "question": "Где `consensus_partner_agreement`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU1",
+    "kind": "positive",
+    "question": "где решается включать ли реранк",
+    "gold": [
+     "src/core/search/engine.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU2",
+    "kind": "positive",
+    "question": "где проверяются публичные числа",
+    "gold": [
+     "tools/verification/verify_public_claims.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU3",
+    "kind": "positive",
+    "question": "где переключается проект",
+    "gold": [
+     "src/mcp/tools/indexing_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   }
+  ],
+  "smart": [
+   {
+    "id": "P01",
+    "kind": "positive",
+    "question": "Где определяется `build_call_graph` и что оно возвращает?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P02",
+    "kind": "positive",
+    "question": "Кто вызывает `get_impact_analysis`?",
+    "gold": [
+     "src/core/graph_rag.py",
+     "src/core/modification_guard.py",
+     "src/mcp/tools/investigate_tool.py",
+     "src/mcp/tools/search_tools.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P03",
+    "kind": "positive",
+    "question": "Что сломается, если изменить сигнатуру `ModificationGuard`?",
+    "gold": [
+     "src/mcp/server_tools.py",
+     "src/mcp/tools/write_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P04",
+    "kind": "positive",
+    "question": "Где решается, нужно ли переиндексировать файл?",
+    "gold": [
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P05",
+    "kind": "positive",
+    "question": "Где вычисляется путь `progress.json` вне проекта?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P06",
+    "kind": "positive",
+    "question": "Какая функция возвращает путь прогресса?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P07",
+    "kind": "positive",
+    "question": "Где выдаётся и проверяется impact-токен?",
+    "gold": [
+     "src/core/modification_guard.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P08",
+    "kind": "positive",
+    "question": "Где в `investigate` появляется строка `degraded`?",
+    "gold": [
+     "src/mcp/tools/investigate_tool.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P09",
+    "kind": "positive",
+    "question": "Где определяется allowlist/профиль инструментов?",
+    "gold": [
+     "src/mcp/server_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P10",
+    "kind": "positive",
+    "question": "Где задан профиль ETA для `impact_analysis`?",
+    "gold": [
+     "src/core/eta_predictor.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P11",
+    "kind": "positive",
+    "question": "Где объявлен `SymbolIndexAdapter`?",
+    "gold": [
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P12",
+    "kind": "positive",
+    "question": "Где считается call chain?",
+    "gold": [
+     "src/core/indexing/symbol_index.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P13",
+    "kind": "positive",
+    "question": "Где хранится схема `file_hash` / `file_mtime_ns`?",
+    "gold": [
+     "src/core/indexing/db_manager.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P14",
+    "kind": "positive",
+    "question": "Какой документ является каноном публичных чисел?",
+    "gold": [
+     "docs/FACTS.md"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P15",
+    "kind": "positive",
+    "question": "Где LSP-инструмент отправляет за ссылками?",
+    "gold": [
+     "src/mcp/tools/lsp_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "P16",
+    "kind": "positive",
+    "question": "Где описан контракт «артефакты вне проекта»?",
+    "gold": [
+     "src/core/artifact_paths.py"
+    ],
+    "rows": 8,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A01",
+    "kind": "ambiguity",
+    "question": "Где реализован `build_call_graph`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A02",
+    "kind": "ambiguity",
+    "question": "Где реализован `get_call_chain`?",
+    "gold": [
+     "src/core/indexing/symbol_index.py",
+     "src/core/search/graph_adapter_pure.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": true,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A03",
+    "kind": "ambiguity",
+    "question": "Где считается «устаревание» (staleness)?",
+    "gold": [
+     "src/core/auto_doc_updater.py",
+     "src/core/indexing/freshness.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "caveat",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "A04",
+    "kind": "ambiguity",
+    "question": "Где определён `Indexer`?",
+    "gold": [
+     "src/core/indexing/indexer.py",
+     "src/core/indexing/indexer_table.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "answer",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N01",
+    "kind": "negative",
+    "question": "Где реализовано «согласие партнёрской модели» (`partner_agreement`)?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N02",
+    "kind": "negative",
+    "question": "Где читается `XERJ_FACTS_MODEL_DIR`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "N03",
+    "kind": "negative",
+    "question": "Где ключ подписи Corpus Hub?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": true,
+    "verdict": "ask_rewrite",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": true
+     }
+    ]
+   },
+   {
+    "id": "N04",
+    "kind": "negative",
+    "question": "Где `consensus_partner_agreement`?",
+    "gold": [],
+    "rows": 0,
+    "top1": true,
+    "any": true,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 0,
+      "top1": true,
+      "any": true,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU1",
+    "kind": "positive",
+    "question": "где решается включать ли реранк",
+    "gold": [
+     "src/core/search/engine.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU2",
+    "kind": "positive",
+    "question": "где проверяются публичные числа",
+    "gold": [
+     "tools/verification/verify_public_claims.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   },
+   {
+    "id": "MSCRU3",
+    "kind": "positive",
+    "question": "где переключается проект",
+    "gold": [
+     "src/mcp/tools/indexing_tools.py"
+    ],
+    "rows": 8,
+    "top1": false,
+    "any": false,
+    "gated": false,
+    "verdict": "abstain",
+    "per_run": [
+     {
+      "run": 1,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 2,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     },
+     {
+      "run": 3,
+      "rows": 8,
+      "top1": false,
+      "any": false,
+      "gated": false
+     }
+    ]
+   }
+  ]
+ }
+}

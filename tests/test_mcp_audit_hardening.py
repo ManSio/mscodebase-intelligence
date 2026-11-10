@@ -638,12 +638,36 @@ def test_backticked_cyrillic_prose_is_still_gated():
 
 
 def test_rewrite_gate_control_switch(monkeypatch):
-    from src.mcp.tools.investigate_tool import _rewrite_gate_enabled
+    from src.mcp.tools.investigate_tool import _rewrite_gate_mode
 
     monkeypatch.delenv("MSCODEBASE_ASK_REWRITE", raising=False)
-    assert _rewrite_gate_enabled() is True
+    assert _rewrite_gate_mode() == "smart"
     monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "0")
-    assert _rewrite_gate_enabled() is False
+    assert _rewrite_gate_mode() == "off"
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "1")
+    assert _rewrite_gate_mode() == "on"
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "smart")
+    assert _rewrite_gate_mode() == "smart"
+
+
+def test_smart_mode_gates_only_proper_noun_questions(monkeypatch):
+    from src.mcp.tools.investigate_tool import _asks_for_identifier
+
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "smart")
+
+    assert _asks_for_identifier("Где ключ подписи Corpus Hub?") is not None
+    assert _asks_for_identifier("Где описан контракт «артефакты вне проекта»?") is None
+    assert _asks_for_identifier("Где LSP-инструмент отправляет за ссылками?") is None
+    assert _asks_for_identifier("где переключается проект") is None
+
+    # The default is smart: a proper noun is the only thing that gates.
+    monkeypatch.delenv("MSCODEBASE_ASK_REWRITE", raising=False)
+    assert _asks_for_identifier("Где ключ подписи Corpus Hub?") is not None
+    assert _asks_for_identifier("Где описан контракт «артефакты вне проекта»?") is None
+
+    # Explicit `on` restores the broad 2026-11-09 rule.
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "1")
+    assert _asks_for_identifier("Где описан контракт «артефакты вне проекта»?") is not None
 
 
 def test_english_question_is_never_rewrite_gated():

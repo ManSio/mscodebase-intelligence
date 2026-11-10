@@ -1,4 +1,34 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E59: rewrite gate — `smart` default (keeps N03, restores P16)
+
+**Question:** the ask-for-identifier gate bought N03 (8 neighbour rows → 0) and
+hid P16, whose correct top-1 was already found. Can a rule keep the buy without
+the cost?
+
+**Design** (frozen in `evidence_gate/frozen/REWRITE.md`): 27 asks (XERJ 24 +
+3 RU), one process, arms `on`/`off`/`smart` interleaved, **3 repeats per arm**
+(per-task majority — retrieval order is not stable). `smart` gates only when the
+question also names a proper-noun-like Latin word (`[A-Z][a-z]{2,}`: `Corpus`,
+`Hub`).
+
+```
+arm     gated/27  nonneg top1  any    negative rows  RU any
+on           9        0.174    0.478         0         0.000
+off          0        0.217    0.522         8         0.000
+smart        1        0.217    0.522         0         0.000
+```
+
+**Verdict:** `smart` gates exactly one query (N03) and returns rows for the other
+26; `off`'s +1 is P16, and its rank is not stable (3/3 in the run, 0/5 in a
+repeat ten minutes later, same rows) — so the decision rests on the stable part:
+N03 preserved, no silence for the other 26, every non-answer carries a verdict.
+R1–R3 pass; R4 partial (rows restored, rank unstable); R5 failed as predicted —
+the RU questions miss the gold in every arm, so retrieval, not the gate, is the
+limit there.
+
+Default is now `smart`; `MSCODEBASE_ASK_REWRITE=1` restores the broad 2026-11-09
+rule and `=0` returns neighbours. Full: `evidence_gate/REPORT_REWRITE.md`.
+
 ## [2026-11-10] — E58: evidence gate — verify a row before presenting it
 
 **Question:** does a deterministic per-row verification (definition/ast/fresh/
@@ -13,15 +43,18 @@ have blamed the gate.
 
 ```
 bucket            n   top1 c  top1 t   any c  any t  flaky
-xerj/positive    16    0.188   0.250   0.562  0.562     0
+xerj/positive    16    0.250   0.312   0.625  0.625     0
 xerj/ambiguity    4    0.000   0.000   0.500  0.500     0
 xerj/negative     4    1.000   1.000   1.000  1.000     0
 mcp_audit/pos    17    0.412   0.412   0.824  0.824     0
-latency (n=123/arm): mean 2.21 -> 2.28 s (+0.07), p95 3.77 -> 3.84 (+0.07)
-determinism: original wording (4 fixed tasks) PASS; broadened wording FAIL
-             (MSC04's first neighbour moved between repeats); the gate is
-             deterministic on fixed rows (unit test, 10 repeats)
+latency (n=123/arm): mean 2.56 -> 2.60 s (+0.05), p95 3.68 -> 3.77 (+0.09)
+determinism: PASS, 41 tasks x 3 runs (0 flaky; an earlier run moved one
+             neighbour order and is kept in REPORT.md)
 ```
+
+Measured under the shipped rewrite default (`MSCODEBASE_ASK_REWRITE=smart`,
+E59): both arms include the four XERJ Russian prose questions the old `on` rule
+used to hide.
 
 **Changed tasks:** exactly one, top1 only — P01 (`build_call_graph`), where the
 verified declaration sat below rank 1. No `any` loss, no negative row, no

@@ -37,15 +37,17 @@ pinned by `frozen/MANIFEST.sha256`.
 
 | bucket | n | top1 control | top1 treatment | any control | any treatment | flaky tasks |
 |---|---:|---:|---:|---:|---:|---:|
-| xerj/positive | 16 | 0.188 | **0.250** | 0.562 | 0.562 | 0 |
+| xerj/positive | 16 | 0.250 | **0.312** | 0.625 | 0.625 | 0 |
 | xerj/ambiguity | 4 | 0.000 | 0.000 | 0.500 | 0.500 | 0 |
 | xerj/negative | 4 | 1.000 | 1.000 | 1.000 | 1.000 | 0 |
-| mcp_audit/positive | 17 | 0.412 | 0.412 | 0.824 | 0.824 | 1 |
+| mcp_audit/positive | 17 | 0.412 | 0.412 | 0.824 | 0.824 | 0 |
 
 `flaky` counts tasks whose `top1` or `any` moved between repeats of one arm:
-zero on XERJ, one on `mcp_audit` — MSC04, whose first row (a gold file) reached
-rank 1 in one of three runs, so its `top1` flipped. Majority over repeats keeps
-it a miss, and this is the same retrieval tie order that H6 describes.
+zero in this run (an earlier run had one, see H6).
+
+Measured under the shipped rewrite default (`MSCODEBASE_ASK_REWRITE=smart`,
+E59), so both arms include the four XERJ Russian prose questions that the old
+`on` rule used to hide.
 
 **What changed:** exactly one task, top-1 only:
 
@@ -57,12 +59,12 @@ A verified declaration existed below rank 1 and the promotion moved it up. No
 task lost `any`, no row set changed on negatives, no ambiguity gold was lost,
 and `mcp_audit` is identical in both arms.
 
-An earlier measurement showed a second gain (P07). That one was an artefact and
-is **not** claimed here: the promoted row was `impact = si.get_impact_analysis(...)`
-— a local variable named after the query word — and `impact` was counted as a
-call-graph edge. Both are fixed (assignment verification is module/class-level
-only; `impact` is a risk summary, not an edge), which is why the final number is
-+1, not +2.
+An earlier measurement (under the old `on` rewrite default) showed a second gain
+(P07). That one was an artefact and is **not** claimed: the promoted row was
+`impact = si.get_impact_analysis(...)` — a local variable named after the query
+word — and `impact` was counted as a call-graph edge. Both are fixed (assignment
+verification is module/class-level only; `impact` is a risk summary, not an
+edge).
 
 ## Kill criteria
 
@@ -73,19 +75,18 @@ only; `impact` is a risk summary, not an edge), which is why the final number is
 | H3 | `top1` does not drop | **pass** on the kill condition (+0.062 on xerj/positive, 0 elsewhere); the predicted mcp_audit improvement did **not** materialize (0.412 in both arms) |
 | H4 | `ambiguity` keeps both golds | **pass** (0.500 in both) |
 | H5 | latency mean ≤ +0.25 s, p95 ≤ +0.60 s | **pass** after one fix, see below |
-| H6 | determinism: repeats of a task give the same verdict and first row | **mixed** — original wording (4 fixed tasks) **passes**; the broadened §19.1 wording (all 41) fails on one neighbour order — see below |
+| H6 | determinism: repeats of a task give the same verdict and first row | **pass** in the final run (41 tasks × 3, 0 flaky); an earlier run moved one neighbour order — see below |
 
-**Overall:** H1–H5 pass under the frozen thresholds; H6 is mixed and explained
-below. No task lost a hit, no negative gained a row.
+**Overall:** H1–H6 pass under the frozen thresholds in the final run (H5 after
+one fix, see below). No task lost a hit, no negative gained a row.
 
-### H6: mixed, and the cause is upstream
+### H6: passed; an earlier run moved one neighbour order
 
 The frozen criterion names no task ids: *"two treatment runs on 4 fixed tasks
 give the same verdict and the same first row"*. Checked on the four intended
-tasks (P01, P02, N01, MSC01), all three repeats are identical, so that wording
-**passes**. While adding the §19.1 falsifier column the wording was broadened to
-*all* tasks; under the broader reading the last run moved the first row of
-`MSC04`:
+tasks (P01, P02, N01, MSC01), all three repeats are identical. While adding the
+§19.1 falsifier column the wording was broadened to *all* tasks; an **earlier**
+run under that reading moved the first row of `MSC04`:
 
 ```
 run1 abstain 0.10  run_all.py
@@ -93,14 +94,11 @@ run2 abstain 0.10  run_all.py
 run3 abstain 0.10  check_knowledge.py
 ```
 
-Verdict and confidence are identical in all three; only the ordering of two
-unverified neighbours changed (the third run put the gold file first, which is
-why its `top1` flips and the `flaky` column shows 1), and no channel is reported
-as degraded. The gate does not reorder on `abstain`/`caveat`, so this is the
-retrieval layer's tie order, not the gate's output. An earlier run passed the
-broadened check, which is why the repeats exist.
-
-The rule is now fixed at the layer it can control:
+Verdict and confidence were identical in all three; only the ordering of two
+unverified neighbours changed, and no channel was reported as degraded. The
+final run has zero flaky tasks. That instability is the retrieval layer's tie
+order — the gate does not reorder on `abstain`/`caveat` — and it is why repeats
+exist and why the gate has its own determinism guard:
 `test_assess_is_deterministic_on_fixed_rows` (10 repeats on fixed rows, one
 identical report). End-to-end ordering of neighbour rows stays a property of
 retrieval and is reported, not hidden.
@@ -115,19 +113,19 @@ is then authoritative (a declaration-shaped line inside a docstring is not a
 declaration). The frozen threshold was not touched. Final, with repeats:
 
 ```
-control    mean=2.21s  p95=3.77s  (n=123)
-treatment  mean=2.28s  p95=3.84s  (n=123)
-delta      mean=+0.07s p95=+0.07s
+control    mean=2.56s  p95=3.68s  (n=123)
+treatment  mean=2.60s  p95=3.77s  (n=123)
+delta      mean=+0.05s p95=+0.09s
 ```
 
 ## Verdict distribution (treatment, one run per task)
 
 | bucket | answer | caveat | abstain | ask_rewrite |
 |---|---:|---:|---:|---:|
-| xerj/positive | 3 | 2 | 6 | 5 |
+| xerj/positive | 3 | 2 | 11 | 0 |
 | xerj/ambiguity | 3 | 1 | 0 | 0 |
 | xerj/negative | 0 | 0 | 3 | 1 |
-| mcp_audit/positive | 4 | 4 | 6 | 3 |
+| mcp_audit/positive | 4 | 4 | 9 | 0 |
 
 Three of the four ambiguity tasks are `answer`; A03 ("staleness") is `caveat`
 because the question names a concept, not a symbol — the rows (`check_staleness`)
@@ -135,11 +133,15 @@ are occurrences, and the gate says so instead of pinning one as "the"
 definition. The four XERJ negatives are `abstain`/`ask_rewrite` with zero rows,
 i.e. the frozen "no false positive" rule still holds.
 
-The `mcp_audit` split shifts between measurements (5/5 → 4/6 caveat/abstain):
-those questions point at files that were being edited while the panels ran, so
-`fresh` correctly demotes them (`exact` + stale = 0.15 → `abstain`). The
-distribution is descriptive, not a metric; `top1`/`any` were stable across
-every run.
+The `mcp_audit` split shifts between measurements (4/4 → 4/4 → 4/9 answer to
+abstain over three runs): those questions point at files that were being edited
+while the panels ran, so `fresh` correctly demotes them (`exact` + stale =
+0.15 → `abstain`). The distribution is descriptive, not a metric; `top1`/`any`
+were stable across every run.
+
+Under the `smart` rewrite default no XERJ positive is `ask_rewrite` any more:
+the four Russian prose questions that the old `on` rule hid are back as
+`abstain` with neighbour rows and an explicit "no row carries evidence" note.
 
 ## Held-out panel (different corpora, tasks written before the gate existed)
 
@@ -187,6 +189,10 @@ comes back with `verdict: abstain` and rows marked as neighbours.
 
 - **Small panels.** One task is 6.25% of XERJ positives; the +0.0625 delta is
   exactly one task (P01). The per-task table is the real result, not the rate.
+- **Absolute rates drift with the index state.** P16 (a docs question in the
+  positive bucket) was retrievable during the run and is not in a later 5-repeat
+  check (0/5 for gold in top-8). It sits in both arms, so the delta is
+  unaffected; the bucket rates are a snapshot, and the P01 delta is the claim.
 - **Not blind.** P01/P07 were inspected during development (they motivated the
   promotion rule). The held-out external panel is the mitigation, and it shows
   no harm, but it is too easy to show a gain.

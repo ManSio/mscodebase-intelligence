@@ -2,13 +2,13 @@
  "xerj/positive": {
   "n": 16,
   "runs_per_task": 3,
-  "top1": 0.25,
-  "any": 0.562,
+  "top1": 0.312,
+  "any": 0.625,
   "verdicts": {
    "answer": 3,
    "caveat": 2,
-   "abstain": 6,
-   "ask_rewrite": 5,
+   "abstain": 11,
+   "ask_rewrite": 0,
    "": 0
   }
  },
@@ -47,15 +47,15 @@
   "verdicts": {
    "answer": 4,
    "caveat": 4,
-   "abstain": 6,
-   "ask_rewrite": 3,
+   "abstain": 9,
+   "ask_rewrite": 0,
    "": 0
   }
  },
  "latency": {
   "n": 123,
-  "mean": 2.28,
-  "p95": 3.841
+  "mean": 2.604,
+  "p95": 3.773
  },
  "invalid": 0
 }
