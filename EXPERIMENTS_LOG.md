@@ -24,9 +24,14 @@ sat at ranks 1-5, so the swaps were real and still neutral: 11/40 either way.
 The limiting factor is which distinct files rank where, not that one file filled
 several slots.
 
-**Side finding:** 6 of 20 sqlalchemy commits get an empty answer (0 rows), with
-and without the flag. On that repo the abstain is the bigger gap, and it is not
-addressed by this experiment.
+**Side finding, corrected:** 13 of the 40 solvable sqlalchemy commits get an
+empty answer (0 rows), with and without the flag. E73 traced that to a false
+refusal, not to an absent subject.
+
+The first draft said "6 of 20". That count came from the unfiltered raw-commit
+sample in `duplicate_positions.py`, which includes docs-only commits whose empty
+answer is correct; the script now applies the benchmark task filter and refuses
+to print a share on a different denominator.
 
 **Verdict:** negative result. The switch stays experimental and off; it is
 documented as such in all three `CONFIGURATION.md` files. "Dedup by file" must
