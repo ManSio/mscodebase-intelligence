@@ -1,4 +1,25 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E64: hints — the host is the multilingual layer
+
+**Question:** if the server does not carry language dictionaries, can the host
+close the prose gap by passing the identifiers it already knows?
+
+**Design:** `investigate(query, hints=[...])` — hints are used by the symbol and
+definition channels first and lift the `ask_rewrite` gate. Same frozen
+metamorphic triples (4 tasks x name / ru / en), run twice.
+
+```
+per form        no hints        name passed as hint
+name top1      3/4             3/4
+ru   top1      0/4             3/4
+en   top1      1/4             3/4
+any            4/4/2/4/2/4     4/4/4/4/4/4
+```
+
+**Verdict:** the language gap closes without a single dictionary entry. The
+remaining miss (T4) is an ambiguous gold. The queue drops "RU->EN lexicon" and
+"concept->symbol dictionary"; the contract replaces them.
+
 ## [2026-11-10] — E63: metamorphic triples — the gap is prose, not Russian
 
 **Design** (frozen in `experiments/xerj_2026_11/metamorphic/frozen/TASKS.md`):
