@@ -1,4 +1,42 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-11] — E72: file-level dedup changes the shape, not the score
+
+**Why:** on external repos the tool answers with chunks while grep ranks whole
+files, and 22-29% of answer rows repeated a file already shown. Hypothesis: that
+is the gap. Frozen spec written before the code:
+`experiments/file_dedup_2026_11/frozen/PLAN.md`.
+
+**Change under test:** `MSCODEBASE_FILE_DEDUP=file` — one row per file first,
+leftover rows fill the tail; off by default.
+
+```
+sqlalchemy, 40 commits      hit@5
+  flag off                     11        neighbours 19 · search 18 · grep 20
+  flag on                      11        (>=14 was the bar: FAILED)
+B1 dev, 71 commits        19/71 both ways (bar 19: PASS)
+usage probes (P3)         5/20 kept (bar 3 of 4 groups = 15/20: FAILED)
+flag off, 10 answers      sha256 identical to HEAD (P4: PASS)
+```
+
+The flag did work: on the same 20 commits duplicates went 25 -> 0
+(`experiments/file_dedup_2026_11/duplicate_positions.py`). 10 of those 25 repeats
+sat at ranks 1-5, so the swaps were real and still neutral: 11/40 either way.
+The limiting factor is which distinct files rank where, not that one file filled
+several slots.
+
+**Side finding, corrected:** 13 of the 40 solvable sqlalchemy commits get an
+empty answer (0 rows), with and without the flag. E73 traced that to a false
+refusal, not to an absent subject.
+
+The first draft said "6 of 20". That count came from the unfiltered raw-commit
+sample in `duplicate_positions.py`, which includes docs-only commits whose empty
+answer is correct; the script now applies the benchmark task filter and refuses
+to print a share on a different denominator.
+
+**Verdict:** negative result. The switch stays experimental and off; it is
+documented as such in all three `CONFIGURATION.md` files. "Dedup by file" must
+not be shipped, or claimed, as the explanation for the grep gap.
+
 ## [2026-11-10] — E71: a Gerrit `Change-Id` made the gate abstain on every commit
 
 **Found by** the sqlalchemy run of B2: tool 0/40 at hit@5 while neighbours got
