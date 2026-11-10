@@ -124,6 +124,13 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
   西里尔文问题：要求给出标识符，而不是编造。`MSCODEBASE_ASK_REWRITE=on` 会将此扩展到
   所有没有代码形态标识符的西里尔文问题；实测代价见
   `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md`；
+
+**与宿主的契约 —— hints。** 服务器不内置语言词典：宿主模型已经知道代码形态的名字，
+无论用户用什么语言提问。`investigate(query, hints=["get_progress_file"])` 会优先在
+符号与定义通道中使用它们，并且只要提供 hint 就解除 `ask_rewrite` 门槛。在四个任务上以
+「名称 / 俄语散文 / 英语散文」三种形式实测：无 hints 时 top-1 为 3/4、0/4、1/4；把名称作为
+hint 传入后为 3/4、3/4、3/4。剩下的未命中是 gold 存在歧义（两个真实定义），不是语言差异
+（`experiments/xerj_2026_11/metamorphic/REPORT.md`）。
 - `abstain` —— 没有任何一行携带证据（对象不出现且图不认识它时也是如此）。
 
 行标记是事实而非装饰：`✓def:class`、`✓def:function@368`（声明在第 368 行，结果行

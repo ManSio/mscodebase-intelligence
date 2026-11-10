@@ -55,6 +55,43 @@ def test_scripts_are_demoted_for_code_questions(monkeypatch):
     assert _bucket_penalty("scripts/monitor.py", "where is progress_file") == 0.0
 
 
+def test_hints_reach_the_symbol_channel_and_lift_the_gate(tmp_path):
+    """The host knows the language; it passes identifiers, the server uses them."""
+    tool = _fake_tool(tmp_path)
+    seen = []
+
+    class _Symbols:
+        def search_symbols(self, query, top_k=3):
+            seen.append(query)
+            return []
+
+    tool.resolve_symbol_index = lambda **kw: _Symbols()  # type: ignore[assignment]
+
+    out = asyncio.run(
+        tool.execute(
+            "где вычисляется путь прогресса",
+            project_root=str(tmp_path),
+            hints=["get_progress_file"],
+        )
+    )
+
+    assert "ask_rewrite" not in out
+    assert "get_progress_file" in seen
+
+
+def test_without_hints_the_same_question_still_asks_for_an_identifier(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("MSCODEBASE_ASK_REWRITE", "1")  # the broad rule
+    tool = _fake_tool(tmp_path)
+
+    out = asyncio.run(
+        tool.execute("где вычисляется путь прогресса", project_root=str(tmp_path))
+    )
+
+    assert "verdict: ask_rewrite" in out
+
+
 def test_empty_result_is_not_invented():
     tool = InvestigateTool(ServiceCollection())
     text = tool._format("nothing here", [], [], [], [])

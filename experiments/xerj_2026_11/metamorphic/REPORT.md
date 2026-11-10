@@ -27,6 +27,29 @@ per base
 | M3 | `en` is better than `ru` on ≥2 of 4 | **fail** — `en` is better on 1 (T3); `en` 1/4 vs `ru` 0/4 |
 | M4 | an `answer` verdict only for hits | **pass** in the observed rows |
 
+## Hints: the host is the multilingual layer
+
+The server should not carry dictionaries for every language. The host model
+already knows the code-shaped names, whatever language the user typed. With the
+name passed as a hint (`investigate(query, hints=["get_progress_file"])`) all
+three forms reach the same level:
+
+```
+per form, no hints        per form, name passed as hint
+  name 3/4 top1              name 3/4
+  ru   0/4 top1              ru   3/4
+  en   1/4 top1              en   3/4
+any: 4/4 · 2/4 · 2/4         any: 4/4 · 4/4 · 4/4
+```
+
+T4 stays 3/4 because its gold is ambiguous (two real definitions), not because
+of language. A hint also lifts the `ask_rewrite` gate: the host has named the
+subject, so the server can answer exactly.
+
+**Consequence for the plan:** the "RU→EN code lexicon" and "concept→symbol
+dictionary" items are dropped. The queue keeps only language-agnostic work:
+fusion ranking, measurement hygiene, and the hints contract as the bridge.
+
 ## What this changes
 
 The RU→EN lexicon is **not justified as a language fix**: English prose is as

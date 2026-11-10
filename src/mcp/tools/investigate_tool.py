@@ -212,7 +212,8 @@ def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
         "   ⚠️ В запросе нет идентификатора кода: латинского имени, "
         "`snake_case` или `CamelCase`.\n"
         "   Соседи не выдаются, чтобы не принять их за ответ. "
-        "Переформулируйте: `where is <identifier> defined`."
+        "Переформулируйте: `where is <identifier> defined` "
+        'или передайте hints=["<identifier>"] — хост знает язык, сервер нет.'
     )
 
 
@@ -484,13 +485,25 @@ class InvestigateTool(MCPTool):
         project_root: str = "",
         include_neighbours: bool = False,
         rerank: Optional[bool] = None,
+        hints: Optional[List[str]] = None,
     ) -> str:
+        """hints: identifiers/terms the HOST extracted from the question.
+
+        The server is language-agnostic on purpose: an agent that speaks
+        Chinese, Russian or English already knows the code-shaped names, so it
+        passes them here instead of the server carrying a dictionary per
+        language. A hint also lifts the ask-for-identifier gate, because the
+        question can now be answered exactly.
+        """
         query = (query or "").strip()
         if not query:
             return "❌ investigate: пустой запрос"
         _pr = project_root or None
         await self.require_ready_project(explicit_project_root=_pr)
         limit = max(3, min(int(limit), 20))
+        clean_hints = [
+            str(hint).strip() for hint in (hints or []) if str(hint).strip()
+        ][:_MAX_IDS]
         # Intent decides the order of the same hits (2026-11-08): "who calls X"
         # and "where is X defined" have the same identifiers and opposite
         # answers. The definition used to win both.
@@ -513,13 +526,18 @@ class InvestigateTool(MCPTool):
         asks_raises = "raise" in query.lower()
         root = Path(self.resolve_indexer(explicit_project_root=_pr).project_path).resolve()
 
-        identifiers = _identifiers(query)
+        # Hints first: the host knows the language, the server does not.
+        identifiers = list(
+            dict.fromkeys(clean_hints + _identifiers(query))
+        )[:_MAX_IDS]
         # Deterministic rewrite gate before any channel runs: a Russian
         # question without a code-shaped name cannot be answered exactly, and
-        # neighbours must not be presented as matches (XERJ N03).
-        rewrite = _asks_for_identifier(query)
-        if rewrite:
-            return rewrite
+        # neighbours must not be presented as matches (XERJ N03). A hint means
+        # the host DID name the subject, so the gate does not apply.
+        if not clean_hints:
+            rewrite = _asks_for_identifier(query)
+            if rewrite:
+                return rewrite
         searcher = self.resolve_searcher(explicit_project_root=_pr)
         symbol_index = self.resolve_symbol_index(explicit_project_root=_pr)
 

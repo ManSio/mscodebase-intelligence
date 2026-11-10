@@ -129,6 +129,15 @@ The verdict is printed as `verdict: answer (0.70) — class at file:line`:
   inventing one. `MSCODEBASE_ASK_REWRITE=on` broadens this to every Cyrillic
   question without a code token; the measured trade is in
   `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md`;
+
+**Host contract — hints.** The server does not carry language dictionaries; the
+host model already knows the code-shaped names, whatever language the user typed.
+`investigate(query, hints=["get_progress_file"])` uses them in the symbol and
+definition channels first, and a hint lifts the `ask_rewrite` gate. Measured on
+four tasks asked as name / Russian prose / English prose: without hints top-1 is
+3/4, 0/4, 1/4; with the name passed as a hint it is 3/4, 3/4, 3/4. The remaining
+miss is an ambiguous gold (two real definitions), not a language gap
+(`experiments/xerj_2026_11/metamorphic/REPORT.md`).
 - `abstain` — no row carries evidence (also when the subject does not occur and
   the graph does not know it).
 

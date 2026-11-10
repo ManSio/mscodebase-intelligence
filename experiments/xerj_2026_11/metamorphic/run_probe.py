@@ -43,6 +43,13 @@ def parse() -> list[dict]:
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hints", action="store_true",
+                        help="pass the name form's identifiers as hints")
+    args = parser.parse_args()
+
     from src.core.di_container import (
         IndexerFactoryKey,
         ProjectIndexerRegistry,
@@ -56,9 +63,22 @@ def main() -> int:
     )
     tool = InvestigateTool(services)
 
+    tasks = parse()
+    hint_for = {}
+    if args.hints:
+        from src.mcp.tools.investigate_tool import _identifiers
+
+        for task in tasks:
+            if task["form"] == "name":
+                hint_for[task["base"]] = _identifiers(task["question"])
+        print(f"hints: {hint_for}")
+
     results = []
-    for task in parse():
-        text = asyncio.run(tool.execute(query=task["question"], limit=8))
+    for task in tasks:
+        hints = hint_for.get(task["base"]) if args.hints else None
+        text = asyncio.run(
+            tool.execute(query=task["question"], limit=8, hints=hints)
+        )
         files = [f.replace("\\", "/") for _, f, _ in ROW_RE.findall(text)]
         top1 = bool(files) and files[0].endswith(task["gold"])
         any8 = any(f.endswith(task["gold"]) for f in files)
@@ -84,7 +104,11 @@ def main() -> int:
 
     import json
 
-    (HERE / "metamorphic_results.json").write_text(
+    out = HERE / (
+        "metamorphic_hints_results.json" if args.hints
+        else "metamorphic_results.json"
+    )
+    out.write_text(
         json.dumps(results, ensure_ascii=False, indent=1),
         encoding="utf-8", newline="",
     )
