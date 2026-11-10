@@ -1,0 +1,687 @@
+{
+ "tasks": 84,
+ "predictions": {
+  "T1": true,
+  "T2": true,
+  "T3": true,
+  "T4": true
+ },
+ "per_arm": {
+  "path": {
+   "G-N-risk_level": {
+    "top1": false,
+    "any": false
+   },
+   "G-N-module_of": {
+    "top1": false,
+    "any": false
+   },
+   "G-N-referenced_modules": {
+    "top1": false,
+    "any": false
+   },
+   "P01": {
+    "top1": true,
+    "any": true
+   },
+   "P02": {
+    "top1": true,
+    "any": true
+   },
+   "P03": {
+    "top1": false,
+    "any": false
+   },
+   "P04": {
+    "top1": false,
+    "any": false
+   },
+   "P05": {
+    "top1": true,
+    "any": true
+   },
+   "P06": {
+    "top1": false,
+    "any": false
+   },
+   "P07": {
+    "top1": false,
+    "any": true
+   },
+   "P08": {
+    "top1": true,
+    "any": true
+   },
+   "P09": {
+    "top1": false,
+    "any": true
+   },
+   "P10": {
+    "top1": false,
+    "any": true
+   },
+   "P11": {
+    "top1": true,
+    "any": true
+   },
+   "P12": {
+    "top1": false,
+    "any": true
+   },
+   "P13": {
+    "top1": false,
+    "any": false
+   },
+   "P14": {
+    "top1": false,
+    "any": false
+   },
+   "P15": {
+    "top1": false,
+    "any": false
+   },
+   "P16": {
+    "top1": true,
+    "any": true
+   },
+   "A01": {
+    "top1": false,
+    "any": true
+   },
+   "A02": {
+    "top1": false,
+    "any": true
+   },
+   "A03": {
+    "top1": false,
+    "any": false
+   },
+   "A04": {
+    "top1": false,
+    "any": false
+   },
+   "N01": {
+    "top1": true,
+    "any": true
+   },
+   "N02": {
+    "top1": true,
+    "any": true
+   },
+   "N03": {
+    "top1": true,
+    "any": true
+   },
+   "N04": {
+    "top1": true,
+    "any": true
+   },
+   "MSC01": {
+    "top1": true,
+    "any": true
+   },
+   "MSC02": {
+    "top1": true,
+    "any": true
+   },
+   "MSC03": {
+    "top1": true,
+    "any": true
+   },
+   "MSC04": {
+    "top1": false,
+    "any": true
+   },
+   "MSC05": {
+    "top1": true,
+    "any": true
+   },
+   "MSC06": {
+    "top1": false,
+    "any": true
+   },
+   "MSC07": {
+    "top1": false,
+    "any": false
+   },
+   "MSC08": {
+    "top1": false,
+    "any": false
+   },
+   "MSC09": {
+    "top1": false,
+    "any": false
+   },
+   "BLA01": {
+    "top1": true,
+    "any": true
+   },
+   "BLA02": {
+    "top1": true,
+    "any": true
+   },
+   "BLA03": {
+    "top1": true,
+    "any": true
+   },
+   "BLA04": {
+    "top1": true,
+    "any": true
+   },
+   "HTT01": {
+    "top1": false,
+    "any": true
+   },
+   "HTT02": {
+    "top1": true,
+    "any": true
+   },
+   "HTT03": {
+    "top1": true,
+    "any": true
+   },
+   "HTT04": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_default_client_caps": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_hotspots": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_runtime_status": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-schema_check": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-apply_mcp_process_title": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_enable_ansi": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_cache_key": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-CommitMemory.get_significant_commits": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-format_receipt": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-format_hotspots": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_is_complex_query": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_module_names": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_system_summary": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_start_zed_parent_watchdog": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-JobHistoryStore.load_history": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-register_all_tools": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_ensure_lsp": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-ConsistencyTracker.mark_stale": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-GraphQueryTool._execute_query": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-user_brief": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-PluginProcess.__exit__": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_line_starts": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_extract_go_mod": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_proxy": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_ensure_data_root": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_build_vocabulary": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-has_instruction_risk": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_run_trace": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-run_bootstrap_pipeline": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-iter_import_candidate_nodes": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-SystemArtifacts.is_artifact": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-_InterProcessLock.__exit__": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-ProjectContext._capture_memory": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_reject_self_index_target": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-LiveBuffer.keys": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_job_key": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_get_max_chunk_preview_len": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-CypherParser._parse_return_items": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-is_supported": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_collect_tools": {
+    "top1": true,
+    "any": true
+   }
+  },
+  "content": {
+   "G-N-risk_level": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-module_of": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-referenced_modules": {
+    "top1": true,
+    "any": true
+   },
+   "P01": {
+    "top1": true,
+    "any": true
+   },
+   "P02": {
+    "top1": true,
+    "any": true
+   },
+   "P03": {
+    "top1": false,
+    "any": false
+   },
+   "P04": {
+    "top1": false,
+    "any": false
+   },
+   "P05": {
+    "top1": true,
+    "any": true
+   },
+   "P06": {
+    "top1": false,
+    "any": false
+   },
+   "P07": {
+    "top1": false,
+    "any": true
+   },
+   "P08": {
+    "top1": true,
+    "any": true
+   },
+   "P09": {
+    "top1": false,
+    "any": true
+   },
+   "P10": {
+    "top1": false,
+    "any": true
+   },
+   "P11": {
+    "top1": true,
+    "any": true
+   },
+   "P12": {
+    "top1": false,
+    "any": true
+   },
+   "P13": {
+    "top1": false,
+    "any": false
+   },
+   "P14": {
+    "top1": false,
+    "any": false
+   },
+   "P15": {
+    "top1": false,
+    "any": false
+   },
+   "P16": {
+    "top1": true,
+    "any": true
+   },
+   "A01": {
+    "top1": false,
+    "any": true
+   },
+   "A02": {
+    "top1": false,
+    "any": true
+   },
+   "A03": {
+    "top1": false,
+    "any": false
+   },
+   "A04": {
+    "top1": false,
+    "any": false
+   },
+   "N01": {
+    "top1": true,
+    "any": true
+   },
+   "N02": {
+    "top1": true,
+    "any": true
+   },
+   "N03": {
+    "top1": true,
+    "any": true
+   },
+   "N04": {
+    "top1": true,
+    "any": true
+   },
+   "MSC01": {
+    "top1": true,
+    "any": true
+   },
+   "MSC02": {
+    "top1": true,
+    "any": true
+   },
+   "MSC03": {
+    "top1": true,
+    "any": true
+   },
+   "MSC04": {
+    "top1": false,
+    "any": true
+   },
+   "MSC05": {
+    "top1": true,
+    "any": true
+   },
+   "MSC06": {
+    "top1": false,
+    "any": true
+   },
+   "MSC07": {
+    "top1": false,
+    "any": false
+   },
+   "MSC08": {
+    "top1": false,
+    "any": false
+   },
+   "MSC09": {
+    "top1": false,
+    "any": false
+   },
+   "BLA01": {
+    "top1": true,
+    "any": true
+   },
+   "BLA02": {
+    "top1": true,
+    "any": true
+   },
+   "BLA03": {
+    "top1": true,
+    "any": true
+   },
+   "BLA04": {
+    "top1": true,
+    "any": true
+   },
+   "HTT01": {
+    "top1": false,
+    "any": true
+   },
+   "HTT02": {
+    "top1": true,
+    "any": true
+   },
+   "HTT03": {
+    "top1": true,
+    "any": true
+   },
+   "HTT04": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_default_client_caps": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_hotspots": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_runtime_status": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-schema_check": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-apply_mcp_process_title": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_enable_ansi": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_cache_key": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-CommitMemory.get_significant_commits": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-format_receipt": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-format_hotspots": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_is_complex_query": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_module_names": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-get_system_summary": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_start_zed_parent_watchdog": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-JobHistoryStore.load_history": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-register_all_tools": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_ensure_lsp": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-ConsistencyTracker.mark_stale": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-GraphQueryTool._execute_query": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-user_brief": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-PluginProcess.__exit__": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_line_starts": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_extract_go_mod": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_proxy": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_ensure_data_root": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_build_vocabulary": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-has_instruction_risk": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_run_trace": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-run_bootstrap_pipeline": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-iter_import_candidate_nodes": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-SystemArtifacts.is_artifact": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-_InterProcessLock.__exit__": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-ProjectContext._capture_memory": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_reject_self_index_target": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-LiveBuffer.keys": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_job_key": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_get_max_chunk_preview_len": {
+    "top1": true,
+    "any": true
+   },
+   "G-Q-CypherParser._parse_return_items": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-is_supported": {
+    "top1": true,
+    "any": true
+   },
+   "G-N-_collect_tools": {
+    "top1": true,
+    "any": true
+   }
+  }
+ }
+}
