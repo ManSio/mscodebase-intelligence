@@ -1,4 +1,23 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E69: an abstain that names the next call (option C)
+
+**Decision (owner):** keep `abstain` — never present an unverified row as an
+answer — but make the continuation machine-readable instead of a sentence.
+
+**Change:** on a withheld answer the tool prints
+`next: investigate(query="...", include_neighbours=true, limit=8)`; the rewrite
+gate prints the same shape with `hints=["<identifier>"]`. No row is added, the
+verdict is unchanged.
+
+**Measurement (B1 dev, 71):** hint emitted 36/36 abstains; default `hit@5` stays
+19/71 (no leak); following the hint recovers 18; panel total 37/71 `[0.41, 0.63]`
+against the neighbours arm's 38.
+
+**Caught before publishing:** the first run compared "18" against a panel-level
+threshold — a metric bug (18 is "among the 36 hinted", not "of 71"). The
+threshold was not moved; the metric was fixed and an assertion now prevents
+double counting.
+
 ## [2026-11-10] — E67: a production module was penalised as a test file
 
 **Bug (found by the E66 generator):** `_bucket_penalty` classifies by path, and
