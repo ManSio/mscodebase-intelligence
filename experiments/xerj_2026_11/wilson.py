@@ -35,6 +35,18 @@ CELLS = (
     ("held-out top1 (external, 12)", 11, 12),
     ("rewrite ON top1 (23 asks)", 4, 23),
     ("rewrite OFF/smart top1 (23 asks)", 5, 23),
+    ("E65 xerj top1, weights", 6, 16),
+    ("E65 xerj top1, rrf", 5, 16),
+    ("E65 xerj top1, norm", 6, 16),
+    ("E65 xerj any@8, weights", 10, 16),
+    ("E65 mcp_audit top1, weights", 11, 17),
+    ("E65 mcp_audit top1, rrf", 6, 17),
+    ("E65 mcp_audit top1, norm", 9, 17),
+    ("E65 mcp_audit any@8, rrf", 13, 17),
+    ("E65 metamorphic top1, weights", 4, 12),
+    ("E65 metamorphic top1, rrf", 4, 12),
+    ("E65 metamorphic top1, norm", 5, 12),
+    ("E65 negatives empty, weights", 4, 4),
 )
 
 

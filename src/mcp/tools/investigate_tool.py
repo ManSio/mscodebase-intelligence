@@ -400,6 +400,38 @@ def _search_row_to_item(row: Dict[str, Any], idx: int) -> Dict[str, Any]:
     }
 
 
+_RRF_K = 60
+# The largest weight any channel can carry: `_names` uses 3.0, so a "normalized"
+# weight cannot exceed 1.0 and the `name` channel does not get silently halved.
+_MAX_WEIGHT = 3.0
+_FUSION_MODES = ("weights", "rrf", "norm")
+
+
+def _fusion_mode() -> str:
+    """Merge formula, switchable so the frozen A/B (E65) runs one binary.
+
+    weights — rank = channel score + channel weight (the shipped default);
+    rrf     — rank = sum over channels of 1/(60 + rank inside that channel);
+    norm    — rank = 0.5 * score + 0.5 * (weight / max_weight).
+
+    Unknown or empty -> `weights`: a typo in an env var must never silently
+    change the shipped behaviour. The switch is process-global (the runner
+    executes arms sequentially); it is not a per-call option.
+    """
+    mode = (os.environ.get("MSCODEBASE_FUSION") or "").strip().lower()
+    return mode if mode in _FUSION_MODES else "weights"
+
+
+def _fusion_rank(item: Dict[str, Any], idx: int, mode: str) -> float:
+    score = float(item.get("score") or 0.0)
+    weight = float(item.get("weight") or 0.0)
+    if mode == "rrf":
+        return 1.0 / (_RRF_K + idx)
+    if mode == "norm":
+        return 0.5 * score + 0.5 * (weight / _MAX_WEIGHT)
+    return score + weight
+
+
 def _merge(
     items: Iterable[Dict[str, Any]],
     limit: int,
@@ -409,6 +441,11 @@ def _merge(
 ) -> List[Dict[str, Any]]:
     """Dedup by (file, line); keep the best rank and all channels.
 
+    The rank formula is `weights` unless `MSCODEBASE_FUSION` names another arm;
+    the policy on top of the merged row (definition demotion, non-answer bucket
+    penalty) is expressed on each arm's own scale, so its numbers differ while
+    its intent does not.
+
     `demote_definitions` is for "who calls X" questions: the definition is the
     wrong answer there. A small subtraction (0.4) was measured to change
     nothing — the definition still held 2.1 against a caller's 1.6 — so the
@@ -416,16 +453,28 @@ def _merge(
     it just cannot lead a question that asked for call sites.
     """
     merged: Dict[Tuple[str, int], Dict[str, Any]] = {}
+    votes: Dict[Tuple[str, int], set] = {}
+    mode = _fusion_mode()
+    seen_in_channel: Dict[str, int] = {}
     for item in items:
         file = _relpath(item.get("file") or item.get("file_path"), root)
         if not file:
             continue
         line = int(item.get("line") or 0)
         key = (file, line)
-        rank = float(item.get("score") or 0.0) + float(item.get("weight") or 0.0)
+        channels = set(item.get("channels") or [])
+        # Position inside its own channel: every channel appends its hits in
+        # its own order, so a per-channel counter is that channel's rank, which
+        # is what RRF needs instead of the hand weight. Channels write into one
+        # list concurrently, hence the counter is per channel (not per position
+        # in the list) and a channel can vote for a row only once.
+        channel = sorted(channels)[0] if channels else ""
+        idx = seen_in_channel.get(channel, 0)
+        if channel:
+            seen_in_channel[channel] = idx + 1
+        rank = _fusion_rank(item, idx, mode)
         defines = bool(item.get("defines"))
         current = merged.get(key)
-        channels = set(item.get("channels") or [])
         if current is None:
             merged[key] = {
                 "file": file,
@@ -437,9 +486,17 @@ def _merge(
                 "channels": channels,
                 "symbol": str(item.get("symbol") or ""),
             }
+            votes[key] = {channel} if channel else set()
         else:
+            if mode == "rrf":
+                # RRF sums one term per ranking that found the row; a second
+                # item from the same channel is the same ranking, not a vote.
+                if channel and channel not in votes[key]:
+                    current["rank"] += rank
+                    votes[key].add(channel)
+            else:
+                current["rank"] = max(current["rank"], rank)
             current["channels"] |= channels
-            current["rank"] = max(current["rank"], rank)
             current["defines"] = current.get("defines") or defines
             if not current["text"] and item.get("text"):
                 current["text"] = str(item["text"])[:200]
@@ -451,23 +508,35 @@ def _merge(
     # a demoted definition item and a full-weight search item, and the merge
     # keeps the maximum - which silently undid the demotion.
     if demote_definitions:
+        # The measured 0.5 is a weights-scale value. `norm` scores top out near
+        # 0.6 and a neighbour on the `references` profile can sit at 0.12, so
+        # any cap above that lets the definition lead again (found in review);
+        # RRF ranks are ~0.017, where 0.5 is a no-op. Both experimental arms
+        # therefore pin the definition to the tail, which is the policy.
+        cap = {"weights": 0.5, "norm": 0.0, "rrf": 0.0}[mode]
         for entry in merged.values():
             if entry.get("defines"):
-                entry["rank"] = min(entry["rank"], 0.5)
+                entry["rank"] = min(entry["rank"], cap)
 
     # Non-answer buckets (tests / docs / historical docs) stay in the answer
-    # as context and lose 2.0 rank on a code question; that moved them out of
-    # the top-5 on all three measured corpora (it is a subtraction, not a cap).
+    # as context and lose rank on a code question. The subtraction is measured
+    # on the weights scale (-1.5/-2.0); `norm` uses 0.4x of it, and on RRF those
+    # numbers would be a hard ban rather than the documented "not a cap", so
+    # there the bucket goes to the tail instead.
     for entry in merged.values():
         penalty = _bucket_penalty(entry["file"], query)
-        if penalty:
-            entry["rank"] += penalty
+        if not penalty:
+            continue
+        if mode == "rrf":
+            entry["rank"] = 0.0
+        else:
+            entry["rank"] += penalty * (1.0 if mode == "weights" else 0.4)
 
-    ranked = sorted(
-        merged.values(),
-        key=lambda r: (r["rank"], len(r["channels"])),
-        reverse=True,
-    )
+    # Deterministic tie-break: channels append concurrently, so equal ranks used
+    # to be ordered by arrival. Path order is stable across runs and identical
+    # in every arm (a stable sort keeps it inside each rank group).
+    ranked = sorted(merged.values(), key=lambda r: (r["file"], r["line"]))
+    ranked.sort(key=lambda r: (r["rank"], len(r["channels"])), reverse=True)
     return ranked[:limit]
 
 

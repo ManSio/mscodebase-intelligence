@@ -225,7 +225,11 @@ def test_merge_prefers_implementation_over_tests_for_code_question():
     tests_first = _merge(items, 5, root=None, query="where are the tests for X")
 
     assert code_first[0]["file"] == "src/x.py"
-    assert tests_first[0]["file"] == "tests/test_x.py"
+    # The claim is the penalty, not the order. For a tests question both rows
+    # keep full weight and tie; equal ranks used to follow arrival order, and
+    # are now ordered by path so a concurrent channel cannot flip them (E65).
+    assert [row["rank"] for row in tests_first] == [2.5, 2.5]
+    assert {row["file"] for row in tests_first} == {"src/x.py", "tests/test_x.py"}
 
 
 class _DocsStore:
