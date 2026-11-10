@@ -141,8 +141,44 @@ visible in the log before the crash; no code, arm or metric changed after that
 (the arms were frozen in Amendments 1-3 before the sealed run), so this is
 disclosed rather than "clean".
 
-### Re-measured after E67
+## B2 — external repository (`psf/requests`)
 
+Nothing in this run is ours: the repository, its history, its commit messages and
+the gold all come from other people. Same rule as B1; corpus at
+`e331a288` (2026-03-24), 64 files / 786 chunks, one index build (16 s).
+
+25 commits survived the filter (40 asked; no merges, ≤20 files, ≥1 `.py` outside
+`tests/` and `docs/`).
+
+```
+arm           hit@1  hit@5   95% CI
+grep              6     19   [0.57, 0.89]
+search            5     15   [0.41, 0.77]
+neighbours        9     13   [0.33, 0.70]
+tool              8     10   [0.23, 0.59]
+```
+
+**Our orchestration is last; plain grep is first.** On a 64-file repository a
+term-count ranking over file text is simply good: commit messages name functions
+and modules, and there are few enough files that counting works. The tool's
+demotions, gate and merge add nothing here and take something away.
+
+This is the most useful result of the day for honesty: the earlier claim "we
+beat grep on the generated panel (147/160 vs 157/160)" was about *symbol
+lookup*, not about localization, and it does not generalise to a small external
+repo.
+
+Caveats, stated rather than buried:
+
+- n = 25: one task is 4 points; the intervals overlap heavily between `search`
+  and `tool`, but grep's interval is above the tool's upper bound.
+- The grep baseline reads corpus files by path from the *repo's* `ls-files`, so
+  files created after the corpus commit are empty for it — that biases grep
+  **down**, and it still wins.
+- One repository, one pinned base. A second external repo is needed before this
+  is a claim about "small repos" in general.
+
+### Re-measured after E67
 The test-bucket fix (E67, merged as `092418a`) changed a bucket rule, so the dev
 split was re-run on the merged build: **identical** (`tool` 19, `neighbours` 38,
 `search` 22, `grep` 2; paired +16). The fix does not touch this benchmark, which

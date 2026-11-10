@@ -1,4 +1,27 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E70: external repo (psf/requests) — plain grep wins
+
+**Why:** B1 still lives in our own repository. Here the repo, history, messages
+and gold are all external; corpus pinned at `e331a288` (2026-03-24), 64 files,
+786 chunks.
+
+```
+arm           hit@1  hit@5   95% CI        (25 commits)
+grep              6     19   [0.57, 0.89]
+search            5     15   [0.41, 0.77]
+neighbours        9     13   [0.33, 0.70]
+tool              8     10   [0.23, 0.59]
+```
+
+**Verdict:** on a small repository the orchestration is last and grep is first.
+Our earlier "we beat grep" was about symbol lookup on a generated panel, not
+about commit localization; it does not generalise.
+
+**Caveats:** n=25 (one task = 4 points); the grep baseline reads corpus files by
+path from the repo's `ls-files`, so files created after the base are empty for
+it — that biases grep down, and it still wins; one repo and one base are not a
+claim about small repos in general.
+
 ## [2026-11-10] — E69: an abstain that names the next call (option C)
 
 **Decision (owner):** keep `abstain` — never present an unverified row as an
