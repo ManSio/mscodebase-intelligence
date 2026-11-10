@@ -1,4 +1,28 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E63: metamorphic triples — the gap is prose, not Russian
+
+**Design** (frozen in `experiments/xerj_2026_11/metamorphic/frozen/TASKS.md`):
+4 base tasks x (name / ru / en), same gold per task, 12 asks.
+
+```
+per form
+  name top1=3/4 any=4/4
+  ru   top1=0/4 any=2/4
+  en   top1=1/4 any=2/4
+```
+
+**Verdict:** M2 passes (prose is worse than the name), **M3 fails** (English
+prose 1/4 vs Russian 0/4). The gap is **prose -> identifier**, not language:
+"the decision to reindex a file" does not name `FreshnessChecker`, and neither
+does the Russian version. The RU->EN lexicon planned in the queue is therefore
+replaced by a language-agnostic prose->symbol bridge (bar unchanged: top-1 >=
+7/16, negative 4/4, any not lower).
+
+**T4 caveat:** `get_call_chain` has two real definitions
+(`PureGraphMixin.get_call_chain`, `SymbolIndex.get_call_chain`); the top-1 row
+is a declared method and the gold column picked one of the two. The lesson is
+about ambiguous gold (use an all-golds bucket), not about ranking.
+
 ## [2026-11-10] — E62: chunk-internal line locator; verdict no longer says "nothing" for the right file
 
 **Change:** a search row points at its chunk start; the term usually lives inside
