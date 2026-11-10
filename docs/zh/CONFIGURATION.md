@@ -57,6 +57,7 @@
 | `MSCODEBASE_EVIDENCE_GATE` | `true` | 校验 `investigate` 的每一行（definition/ast/fresh/graph）并打印确定性结论；`0` 恢复门控前行为 |
 | `MSCODEBASE_ASK_REWRITE` | `smart` | `on` —— 任何没有代码形态标识符的西里尔文问题都要求给出标识符；`smart` —— 仅当问题还包含类专有名词的拉丁词（XERJ N03）；`off` —— 返回邻居并带结论。实测：`experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md` |
 | `MSCODEBASE_FUSION` | `weights` | `investigate` 的合并公式：`weights` —— 通道得分 + 手工权重（默认发布）；`rrf` —— 对命中该行的通道求倒数秩之和；`norm` —— 两项都归一化到 [0, 1]。未知或空值回退到 `weights`。这是实验开关，不是调参旋钮：`experiments/xerj_2026_11/fusion/` |
+| `MSCODEBASE_FILE_DEDUP` | *（关）* | `investigate` 的作答顺序：`file` —— 每个文件先出一行，剩余行补到末尾；关 —— 发布顺序。未知或空值即为关。E72 实测：`sqlalchemy`（11/40）与 B1 dev（19/71）的 hit@5 均未变化，而“X 在哪里被使用”丢失了同一文件的行（20 个探针中保留 5 个）—— 这是实验开关，不是默认行为：`experiments/file_dedup_2026_11/` |
 | `MSCODEBASE_SCRIPTS_DEMOTE` | `true` | 对代码问题降低 `scripts/`、`examples/`、`benches/`、`fuzz/` 行的排名，与 tests、docs 相同。实测：XERJ P05 回到 top-1，`any` 无损失（`experiments/xerj_2026_11/probe_scripts_demote.py`） |
 
 无论这些开关如何设置，`EXPERIMENTS/**` 都会被 `FileGuard` 排除在索引之外：

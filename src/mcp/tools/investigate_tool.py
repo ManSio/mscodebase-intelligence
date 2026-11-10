@@ -512,6 +512,43 @@ def _fusion_rank(item: Dict[str, Any], idx: int, mode: str) -> float:
     return score + weight
 
 
+_FILE_DEDUP_MODES = ("file",)
+
+
+def _file_dedup_mode() -> str:
+    """Answer with files before repeating a file, switchable for E72.
+
+    The answer ranks chunks, but a "which file" question wants files: on
+    sqlalchemy 72 rows covered 51 files (0.71 files per row), so 29% of the
+    slots repeated a file already shown. Empty or unknown -> shipped order.
+    """
+    mode = (os.environ.get("MSCODEBASE_FILE_DEDUP") or "").strip().lower()
+    return mode if mode in _FILE_DEDUP_MODES else ""
+
+
+def _dedup_by_file(
+    ranked: List[Dict[str, Any]], limit: int
+) -> List[Dict[str, Any]]:
+    """One row per file first, then the leftover rows fill the tail.
+
+    The second pass is what keeps "where is X used" intact: when a question has
+    fewer distinct files than `limit`, every row survives as before.
+    """
+    head: List[Dict[str, Any]] = []
+    tail: List[Dict[str, Any]] = []
+    seen: set = set()
+    for row in ranked:
+        file = row.get("file") or ""
+        if file in seen:
+            tail.append(row)
+            continue
+        seen.add(file)
+        head.append(row)
+    if len(head) >= limit:
+        return head[:limit]
+    return head + tail[: limit - len(head)]
+
+
 def _merge(
     items: Iterable[Dict[str, Any]],
     limit: int,
@@ -617,6 +654,8 @@ def _merge(
     # in every arm (a stable sort keeps it inside each rank group).
     ranked = sorted(merged.values(), key=lambda r: (r["file"], r["line"]))
     ranked.sort(key=lambda r: (r["rank"], len(r["channels"])), reverse=True)
+    if _file_dedup_mode():
+        return _dedup_by_file(ranked, limit)
     return ranked[:limit]
 
 
