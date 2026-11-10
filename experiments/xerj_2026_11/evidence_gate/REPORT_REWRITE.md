@@ -62,6 +62,16 @@ A04     -00 -00 -00
 
 `smart` gates exactly one query (N03) and returns rows for the other 26.
 
+### Sampling error (Wilson 95%)
+
+```
+rewrite ON  top1, 23 asks   4/23 = 0.174  [0.07, 0.37]
+rewrite OFF top1, 23 asks   5/23 = 0.217  [0.10, 0.42]
+```
+
+The difference is one task and the intervals overlap; the `smart` decision does
+not rest on it (see below). Reproduce: `python experiments/xerj_2026_11/wilson.py`.
+
 ### The one difference between `smart` and `off` is P16, and its rank is not stable
 
 P16 is the only task where `smart`/`off` differ from `on` in the table. Rows are

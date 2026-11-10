@@ -24,6 +24,10 @@ abstain 6; mcp_audit 4 / 9 / 4. P05, P08, P09, P12 now report `caveat` with the
 matched line instead of `abstain` on the right file. P16 is still `abstain` —
 a docs question has no identifier to match, which is a limit, not a bug.
 
+**Sampling error:** control 5/16 = 0.312 [0.14, 0.56], treatment 6/16 = 0.375
+[0.18, 0.61]; the intervals overlap, so the gate's +1 task is not
+distinguishable from zero. `python experiments/xerj_2026_11/wilson.py`.
+
 ## [2026-11-10] — E61: demote `scripts/` for code questions (+1 top-1, no loss)
 
 **Question:** five XERJ ranking misses have the gold at ranks 2, 5, 2, 8, 3.
