@@ -1,4 +1,40 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E65: fusion A/B — hand weights beat RRF by six tasks
+
+**Design** (frozen before the run, plus Amendment 1: latency is not a
+criterion, owner decision): three arms in one binary via `MSCODEBASE_FUSION` —
+`weights` (shipped `score + weight`), `rrf` (reciprocal-rank sum, Cormack 2009),
+`norm` (both terms on [0,1]). 53 asks (XERJ 24 + mcp_audit 17 + metamorphic 12)
+x 3 arms x 3 repeats, arms rotated per task, per-task majority.
+
+```
+bucket                n   top1 weights/rrf/norm   any weights/rrf/norm
+xerj/positive        16    6/ 5/ 6               10/10/10
+mcp_audit/positive   17   11/ 6/ 9               14/13/14
+metamorphic/positive 12    4/ 4/ 5                8/ 7/ 8
+xerj/negative         4    4/ 4/ 4                4/ 4/ 4
+                                    top1 total: 21 / 15 / 20
+```
+
+**Verdict:** F1 FAIL (`MSC03` lost `any` on mcp_audit), F2 FAIL (`-6` top-1),
+F3 FAIL (`norm` +5 over RRF), F4 PASS. Per the frozen kill rule the shipped
+formula stays and ranking work ends. RRF discards the channel score (search's
+`1/(idx+1)` curve and the `+0.5` raise bonus) and lets consensus push
+declarations up; `norm` is stable row-to-row but still loses.
+
+**Four attempts, three aborted before publishing:** (1) demotion cap and an
+arrival-order tie-break made the arms incomparable; (2) the runner re-implemented
+scoring and scored every XERJ task (gold is a list) as a miss; (3) a review-driven
+"definition and symbol are one lookup" merge — they are two different searches —
+measured a formula that was not the frozen one, and it *masked* RRF's weakness
+(-2 instead of -6). Guards now abort on: invalid run, panel != frozen 53,
+switch that did not take effect, or an A/B where all arms return identical rows.
+
+**Observation, not a claim:** control reads `mcp_audit 11/17` here and `9/17` in
+E62; the only merge change between them is the tie-break. Reproduced twice (11/17
+in both runs of this experiment). Follow-up: re-run
+`evidence_gate/run_gate.py` on this build and compare with the stored E62 rows.
+
 ## [2026-11-10] — E64: hints — the host is the multilingual layer
 
 **Question:** if the server does not carry language dictionaries, can the host

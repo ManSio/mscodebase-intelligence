@@ -57,6 +57,7 @@ are gitignored.
 | `MSCODEBASE_LATE_ENRICHMENT` | `false` | Defer graph enrichment until after ranking |
 | `MSCODEBASE_EVIDENCE_GATE` | `true` | Verify each `investigate` row (definition/ast/fresh/graph) and print a deterministic verdict; `0` restores the pre-gate answer |
 | `MSCODEBASE_ASK_REWRITE` | `smart` | `on` — ask for an identifier whenever a Cyrillic question has no code token; `smart` — only when it also names a proper-noun-like Latin word (XERJ N03); `off` — return neighbours with a verdict. Measured: `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md` |
+| `MSCODEBASE_FUSION` | `weights` | merge formula for `investigate`: `weights` — channel score + hand weight (shipped); `rrf` — reciprocal-rank sum over the channels that found a row; `norm` — both terms on a [0, 1] scale. Unknown or empty falls back to `weights`. This is an experiment switch, not a tuning knob: `experiments/xerj_2026_11/fusion/` |
 | `MSCODEBASE_SCRIPTS_DEMOTE` | `true` | Penalise `scripts/`, `examples/`, `benches/`, `fuzz/` rows for code questions, like tests and docs. Measured: XERJ P05 top-1 recovered, no `any` lost (`experiments/xerj_2026_11/probe_scripts_demote.py`) |
 
 `EXPERIMENTS/**` is excluded from indexing by `FileGuard` regardless of these flags:

@@ -1,0 +1,1216 @@
+{
+ "measurement": "E65 fusion A/B, 3 runs, 53 tasks",
+ "table": {
+  "weights|xerj/positive": {
+   "n": 16,
+   "top1": 6,
+   "any": 10,
+   "flaky": 0
+  },
+  "weights|xerj/ambiguity": {
+   "n": 4,
+   "top1": 0,
+   "any": 2,
+   "flaky": 0
+  },
+  "weights|xerj/negative": {
+   "n": 4,
+   "top1": 4,
+   "any": 4,
+   "flaky": 0
+  },
+  "weights|mcp_audit/positive": {
+   "n": 17,
+   "top1": 11,
+   "any": 14,
+   "flaky": 0
+  },
+  "weights|metamorphic/positive": {
+   "n": 12,
+   "top1": 4,
+   "any": 8,
+   "flaky": 0
+  },
+  "rrf|xerj/positive": {
+   "n": 16,
+   "top1": 5,
+   "any": 10,
+   "flaky": 0
+  },
+  "rrf|xerj/ambiguity": {
+   "n": 4,
+   "top1": 0,
+   "any": 2,
+   "flaky": 0
+  },
+  "rrf|xerj/negative": {
+   "n": 4,
+   "top1": 4,
+   "any": 4,
+   "flaky": 0
+  },
+  "rrf|mcp_audit/positive": {
+   "n": 17,
+   "top1": 6,
+   "any": 13,
+   "flaky": 0
+  },
+  "rrf|metamorphic/positive": {
+   "n": 12,
+   "top1": 4,
+   "any": 7,
+   "flaky": 0
+  },
+  "norm|xerj/positive": {
+   "n": 16,
+   "top1": 6,
+   "any": 10,
+   "flaky": 0
+  },
+  "norm|xerj/ambiguity": {
+   "n": 4,
+   "top1": 0,
+   "any": 2,
+   "flaky": 0
+  },
+  "norm|xerj/negative": {
+   "n": 4,
+   "top1": 4,
+   "any": 4,
+   "flaky": 0
+  },
+  "norm|mcp_audit/positive": {
+   "n": 17,
+   "top1": 9,
+   "any": 14,
+   "flaky": 0
+  },
+  "norm|metamorphic/positive": {
+   "n": 12,
+   "top1": 5,
+   "any": 8,
+   "flaky": 0
+  }
+ },
+ "per_task": {
+  "weights": {
+   "P01": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P02": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P03": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P04": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P05": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P06": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P07": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P08": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P09": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P10": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P11": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P12": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P13": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P14": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P15": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P16": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "A01": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A02": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A03": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "A04": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "N01": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N02": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N03": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N04": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC05": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC06": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC07": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC08": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC09": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "BLA01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "HTT02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T1-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T1-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T1-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T2-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T3-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T3-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T3-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T4-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T4-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T4-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   }
+  },
+  "rrf": {
+   "P01": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P02": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P03": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P04": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P05": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P06": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P07": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P08": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P09": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P10": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P11": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P12": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P13": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P14": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P15": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P16": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "A01": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A02": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A03": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "A04": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "N01": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N02": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N03": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N04": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC05": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC06": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC07": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC08": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC09": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "BLA01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "BLA02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "BLA03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "HTT01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "HTT02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T1-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T1-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T1-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T2-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T3-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T3-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T3-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T4-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T4-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T4-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   }
+  },
+  "norm": {
+   "P01": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P02": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P03": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P04": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P05": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P06": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P07": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P08": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P09": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P10": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "P11": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P12": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "P13": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P14": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P15": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "P16": {
+    "panel": "xerj",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "A01": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A02": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "A03": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "A04": {
+    "panel": "xerj",
+    "kind": "ambiguity",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "N01": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N02": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N03": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "N04": {
+    "panel": "xerj",
+    "kind": "negative",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC05": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "MSC06": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "MSC07": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC08": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "MSC09": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "BLA01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "BLA03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "BLA04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT01": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "HTT02": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT03": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "HTT04": {
+    "panel": "mcp_audit",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T1-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T1-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T1-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T2-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   },
+   "T2-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T3-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T3-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T3-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T4-name": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": true,
+    "flaky": false
+   },
+   "T4-ru": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": true,
+    "any": true,
+    "flaky": false
+   },
+   "T4-en": {
+    "panel": "metamorphic",
+    "kind": "positive",
+    "top1": false,
+    "any": false,
+    "flaky": false
+   }
+  }
+ }
+}

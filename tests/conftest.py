@@ -67,3 +67,16 @@ def _reset_consistency_tracker():
     get_consistency_tracker().invalidate()
     yield
     get_consistency_tracker().invalidate()
+
+
+@pytest.fixture(autouse=True)
+def _fusion_default(monkeypatch):
+    """The suite must not depend on the shell: fusion defaults to `weights`.
+
+    `MSCODEBASE_FUSION` is a process-global experiment switch; without this an
+    exported variable makes local runs disagree with CI (found in review).
+    Tests that exercise another arm set it themselves — their `monkeypatch`
+    runs after this fixture, so it wins.
+    """
+    monkeypatch.delenv("MSCODEBASE_FUSION", raising=False)
+

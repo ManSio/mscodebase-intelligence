@@ -60,6 +60,7 @@
 | `MSCODEBASE_LATE_ENRICHMENT` | `false` | Отложить обогащение графом до конца ранжирования |
 | `MSCODEBASE_EVIDENCE_GATE` | `true` | Проверять каждую строку `investigate` (definition/ast/fresh/graph) и печатать детерминированный вердикт; `0` возвращает ответ до гейта |
 | `MSCODEBASE_ASK_REWRITE` | `smart` | `on` — просить идентификатор для любого кириллического вопроса без code-токена; `smart` — только если в нём есть proper-noun-подобное латинское слово (XERJ N03); `off` — возвращать соседей с вердиктом. Замер: `experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md` |
+| `MSCODEBASE_FUSION` | `weights` | формула слияния для `investigate`: `weights` — score канала + ручной вес (шипится); `rrf` — сумма обратных рангов по каналам, нашедшим строку; `norm` — оба слагаемых в [0, 1]. Неизвестное или пустое значение откатывается к `weights`. Это переключатель эксперимента, а не ручка настройки: `experiments/xerj_2026_11/fusion/` |
 | `MSCODEBASE_SCRIPTS_DEMOTE` | `true` | Понижать строки из `scripts/`, `examples/`, `benches/`, `fuzz/` на code-вопросах, как tests и docs. Замер: XERJ P05 вернулся в top-1, `any` не потерян (`experiments/xerj_2026_11/probe_scripts_demote.py`) |
 
 `EXPERIMENTS/**` исключён из индексации через `FileGuard` независимо от этих флагов:

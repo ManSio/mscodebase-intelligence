@@ -28,7 +28,7 @@ Predictions (frozen):
 | F2 | B improves `top1` by >= 2 tasks on the combined panel | PASS | `top1` gain <= 1 task |
 | F3 | C does not beat B on `top1` | PASS | C > B by >= 2 tasks |
 | F4 | no negative task gains a row | PASS | any negative row appears |
-| F5 | latency of B is within +0.05 s of A | PASS | above |
+| F5 | ~~latency of B is within +0.05 s of A~~ | **retired before the run** (Amendment 1) | — |
 
 Kill: F1 or F4 fails -> keep A. If F2 fails (gain <= 1 task), the weights are
 not the binding constraint and the next lever is the prose->symbol bridge, not
@@ -36,3 +36,21 @@ fusion.
 
 Thresholds are frozen before the first run; the merge formula is not tuned per
 query.
+
+## Amendment 1 — latency is not a criterion (owner decision, 2026-11-10)
+
+Recorded **before the first run**, so the freeze stays honest.
+
+The owner's rule: an agent task runs while the human does something else, and
+5-10 s is not a delay. Accuracy and quality decide; latency is a note, never a
+pass/fail. Consequences:
+
+- F5 is retired. Latency is still measured and printed for every arm, so a
+  regression would be visible, but no arm can win or lose on it.
+- Arms may use more expensive computation if it improves accuracy. A formula
+  that costs +2 s and gains one task is a win, not a tie.
+- The earlier speed comparison against XERJ (8-12 ms vs ~2.6 s per query) is
+  not a defect to close. It stays in the reports as context.
+
+The ranking question itself is unchanged: does the channel weight dominate the
+per-channel rank enough that ordering inside a channel stops mattering?
