@@ -7,8 +7,8 @@ Frozen before the run: `frozen/PLAN.md`. Panel generated from commit
 
 ```
 bucket                    n   top1    any   chars/top1   95% CI top1
-name                    160    154    157        2163    [0.92, 0.98]
-qualified                40     38     40        2669    [0.83, 0.99]
+name                    160    157    160        2121    [0.95, 0.99]
+qualified                40     38     40        2671    [0.83, 0.99]
 negative                 40     40     40         332    [0.91, 1.00]
 anchor:xerj/positive     16      6     10        5894    [0.18, 0.61]
 anchor:xerj/ambiguity     4      0      2         n/a    [0.00, 0.49]
@@ -24,7 +24,7 @@ estimate of answer cost per correct answer, **not** a tokenizer measurement.
 
 | # | Prediction | Result |
 |---|---|---|
-| S1 | generated `name` top-1 >= 0.60 | **PASS** — 154/160 = 0.963 |
+| S1 | generated `name` top-1 >= 0.60 | **PASS** — 157/160 = 0.981 |
 | S2 | negatives yield no rows on >= 0.95 | **PASS** — 40/40 |
 | S3 | anchors reproduce E65 `weights` within +/- 2 | **PASS, exactly** — xerj 6/16 and mcp_audit 11/17, the same two numbers |
 | S4 | `qualified` top-1 <= `name` top-1 | **PASS** — 0.950 <= 0.963 |
@@ -39,7 +39,7 @@ to compare against.
 **It does not mean "search is 96% accurate".** The generated questions contain
 the identifier, and the grep control below shows it: a plain `grep` reaches
 91.9% on the same `name` tasks. The number is a **regression detector**, not a
-quality claim — it says "exact names resolve, 154 of 160 times", and nothing
+quality claim — it says "exact names resolve, 157 of 160 times", and nothing
 about prose questions (`hints`, E64), ambiguous golds (XERJ A01-A04) or docs
 routing.
 
@@ -54,11 +54,11 @@ hit in path order:
 
 ```
 bucket       grep top1   tool top1   grep any   tool any
-name         147/160     154/160     160/160    157/160
+name         147/160     157/160     160/160    160/160
 qualified     23/40       38/40       33/40      40/40
 ```
 
-So the `name` bucket is close to a grep test (91.9% vs 96.3%), while `qualified`
+So the `name` bucket is close to a grep test (91.9% vs 98.1%), while `qualified`
 discriminates strongly (57.5% vs 95%). Read the headline rate with that in mind.
 
 **Selection bias** — 5958 graph symbols -> 5809 unique -> 2584 code-only ->
@@ -72,16 +72,20 @@ from this panel need 3 repeats, as in E65.
 
 ## The 6 misses, honestly
 
-Three of the six are one bug, not three retrieval misses: `risk_level`,
-`module_of` and `referenced_modules` all live in `src/core/test_impact.py`, and
-the bucket classifier penalises that production module by `-2.0` because its
-name starts with `test_`. Measured blast radius: 926 `.py` files, 271 match the
-test regex, 1 production module is misclassified. That is E67, with its own
-frozen bar.
+Three of the original six were one bug, not three retrieval misses:
+`risk_level`, `module_of` and `referenced_modules` live in
+`src/core/test_impact.py`, and the bucket classifier penalised that production
+module by `-2.0` because its name starts with `test_`. That was fixed as E67
+(`0/9 -> 9/9` on the three tasks), and this panel was re-run afterwards:
 
-The remaining three are ranking (`expect`, `CommitMemory.get_hotspots` found at
-row 2) and name resolution. The generator records ids, so the list is
-reproducible from the same commit.
+```
+before E67   name 154/160 top-1, 157/160 any@8
+after  E67   name 157/160 top-1, 160/160 any@8   (anchors unchanged)
+```
+
+The three that remain are ranking: `register_intelligence_tools`,
+`expect` and `CommitMemory.get_hotspots` (two of them are found at row 2). The
+generator records ids, so the list is reproducible from the same commit.
 
 
 ## Instrument findings (found while building the panel, not fixed here)
