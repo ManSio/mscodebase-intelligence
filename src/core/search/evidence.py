@@ -81,6 +81,9 @@ REFERENCE_WEIGHTS: Dict[str, float] = {
 ANSWER_DEFINITION = 0.60
 ANSWER_REFERENCE = 0.35
 CAVEAT = 0.25
+# A search row points at the chunk start; the term is usually inside. Bound the
+# scan so one huge chunk cannot turn verification into a file read of its own.
+_EXACT_WINDOW = 120
 
 
 def _weights_for(intent: str) -> Dict[str, float]:
@@ -365,6 +368,10 @@ class Candidate:
     # printing "✓def" on the row's line without this would be a small lie
     # (independent review, 2026-11-10).
     decl_line: int = 0
+    # The line where `exact` was found. A search row points at the chunk start;
+    # the term usually lives inside the chunk, and rendering the chunk start as
+    # the answer made a correct file look unverified (P05/P08/P16).
+    found_line: int = 0
 
     def marker(self) -> str:
         """Short, factual suffix for the rendered row."""
@@ -377,7 +384,12 @@ class Candidate:
             )
             marks.append(f"✓def:{self.signals['definition']}{where}")
         if "exact" in self.signals:
-            marks.append("✓exact")
+            where = (
+                f"@{self.found_line}"
+                if self.found_line and self.found_line != self.line
+                else ""
+            )
+            marks.append(f"✓exact{where}")
         if "fresh" not in self.signals and self.note:
             marks.append(f"⚠{self.note}")
         return "  " + " ".join(marks) if marks else ""
@@ -620,9 +632,40 @@ def assess(
         if decl:
             signals["definition"] = decl
 
-        if row_symbol and line_text:
-            if row_symbol in line_text:
-                signals["exact"] = "occurrence"
+        found_line = 0
+        if row_symbol:
+            if line_text and row_symbol in line_text:
+                found_line = line if line > 0 else decl_line
+            elif lines and line > 0:
+                # The row's line is the chunk start. Find the term inside the
+                # chunk instead of claiming "no evidence" for the right file
+                # (P05/P08/P16: the gold file was row 1, verdict said abstain).
+                end = int(row.get("end_line") or 0)
+                limit = min(end, len(lines), line + _EXACT_WINDOW)
+                for probe in range(line + 1, limit + 1):
+                    if row_symbol in lines[probe - 1]:
+                        found_line = probe
+                        break
+        if not found_line and lines:
+            # A question can name two identifiers ("where does investigate
+            # print degraded"): the answer is often the SECOND one. Definition
+            # verification stays on the first (strict), exact may use either.
+            for other in identifiers[1:3]:
+                if not other or other == row_symbol:
+                    continue
+                if line_text and other in line_text:
+                    found_line = line if line > 0 else decl_line
+                    break
+                end = int(row.get("end_line") or 0)
+                limit = min(end, len(lines), line + _EXACT_WINDOW)
+                for probe in range(line + 1, limit + 1):
+                    if other in lines[probe - 1]:
+                        found_line = probe
+                        break
+                if found_line:
+                    break
+        if found_line:
+            signals["exact"] = "occurrence"
         elif exact_channels and line <= 0:
             # No line to check (a line-less row): the channel itself guarantees
             # the match, so the weaker claim stands, and the verdict still says
@@ -660,6 +703,7 @@ def assess(
                 file=rel, line=line, text=str(row.get("text") or ""),
                 channels=channels, signals=signals, confidence=confidence,
                 note=note, snippet=snippet, decl_line=decl_line if decl else 0,
+                found_line=found_line,
             )
         )
         kept.append(index)
@@ -690,7 +734,7 @@ def assess(
     if best.confidence >= answer_floor and signal_present:
         report.verdict = "answer"
         promoted = " → promoted" if rank > 1 and intent != "references" else ""
-        where = best.decl_line or best.line
+        where = best.decl_line or best.found_line or best.line
         report.reason = (
             f"{best.signals.get(signal_present, signal_present)} at "
             f"{best.file}:{where} (row {rank}{promoted})"

@@ -394,6 +394,76 @@ def test_local_variable_line_is_exact_but_not_a_definition(tmp_path: Path):
     assert report.verdict == "caveat"  # evidence, but not a declaration
 
 
+def test_second_identifier_can_carry_the_exact_signal(tmp_path: Path):
+    """P08: "where does investigate print degraded" - `degraded` is second."""
+    _write(
+        tmp_path,
+        "mod.py",
+        "def run():\n    degraded: List[str] = []\n    return degraded\n",
+    )
+    store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
+
+    report = assess(
+        [{"file": "mod.py", "line": 1, "end_line": 3,
+          "text": "FILE: mod.py", "channels": {"search"}}],
+        root=tmp_path,
+        identifiers=["investigate", "degraded"],
+        store=store,
+    )
+
+    candidate = report.candidates[0]
+    assert candidate.signals["exact"] == "occurrence"
+    assert candidate.found_line == 2
+    assert report.verdict == "caveat"
+
+
+def test_chunk_start_finds_the_term_inside_the_chunk(tmp_path: Path):
+    """A search row points at the chunk start; the term lives inside it.
+
+    XERJ P05/P08/P16: the gold file was row 1 and the verdict said
+    `no verified candidate` because the chunk-start line does not contain the
+    term. The gate now locates it inside [line, end_line].
+    """
+    body = "\n".join(
+        ["# header"] + [f"value_{i} = {i}" for i in range(1, 11)]
+        + ["progress_file = compute()"] + [f"tail_{i} = {i}" for i in range(5)]
+    ) + "\n"
+    _write(tmp_path, "mod.py", body)
+    store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
+
+    report = assess(
+        [{"file": "mod.py", "line": 1, "end_line": 17,
+          "text": "FILE: mod.py", "channels": {"search"}}],
+        root=tmp_path,
+        identifiers=["progress_file"],
+        store=store,
+    )
+
+    candidate = report.candidates[0]
+    assert candidate.signals["exact"] == "occurrence"
+    assert candidate.found_line == 12
+    assert "✓exact@12" in candidate.marker()
+    assert report.verdict == "caveat"
+
+
+def test_the_inner_scan_is_bounded(tmp_path: Path):
+    """One huge chunk must not turn verification into a whole-file scan."""
+    body = "\n".join(f"value_{i} = {i}" for i in range(1, 300)) + "\n"
+    _write(tmp_path, "mod.py", body)
+    store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])
+
+    report = assess(
+        [{"file": "mod.py", "line": 1, "end_line": 299,
+          "text": "FILE: mod.py", "channels": {"search"}}],
+        root=tmp_path,
+        identifiers=["value_200"],
+        store=store,
+    )
+
+    assert "exact" not in report.candidates[0].signals
+    assert report.candidates[0].found_line == 0
+
+
 def test_python_definition_is_verified_by_ast(tmp_path: Path):
     _write(tmp_path, "mod.py", "def render():\n    return 1\n")
     store = _store_with(tmp_path, [_indexed_row(tmp_path, "mod.py")])

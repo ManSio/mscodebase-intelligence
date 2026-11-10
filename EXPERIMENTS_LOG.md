@@ -1,4 +1,29 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E62: chunk-internal line locator; verdict no longer says "nothing" for the right file
+
+**Change:** a search row points at its chunk start; the term usually lives inside
+the chunk. The gate now scans `[line, end_line]` (bounded at 120 lines) for the
+identifier and, when the first identifier misses, for the second one. The row
+renders the found line (`✓exact@5`), and the verdict becomes `caveat` instead of
+`abstain`. Definition verification stays on the first identifier.
+
+**Effect (E62, 3 repeats, current defaults):**
+
+```
+bucket            top1 c  top1 t   any c  any t
+xerj/positive      0.312   0.375   0.625  0.625
+xerj/ambiguity     0.000   0.000   0.500  0.500
+xerj/negative      1.000   1.000   1.000  1.000
+mcp_audit/pos      0.529   0.529   0.824  0.824
+latency: mean 2.57 -> 2.67 s (+0.10), p95 3.80 -> 3.90
+determinism: PASS, 41 tasks x 3 runs, 0 flaky
+```
+
+Verdict distribution (run 1 per task): xerj/positive answer 3 / caveat 7 /
+abstain 6; mcp_audit 4 / 9 / 4. P05, P08, P09, P12 now report `caveat` with the
+matched line instead of `abstain` on the right file. P16 is still `abstain` —
+a docs question has no identifier to match, which is a limit, not a bug.
+
 ## [2026-11-10] — E61: demote `scripts/` for code questions (+1 top-1, no loss)
 
 **Question:** five XERJ ranking misses have the gold at ranks 2, 5, 2, 8, 3.

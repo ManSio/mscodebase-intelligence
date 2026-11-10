@@ -2,22 +2,22 @@
  "measurement": "E60 (exact on the row's line), one run per task",
  "distribution": {
   "xerj/positive": {
-   "answer": 3,
-   "abstain": 9,
-   "caveat": 4
+   "answer": 9,
+   "abstain": 18,
+   "caveat": 21
   },
   "xerj/ambiguity": {
-   "answer": 3,
-   "caveat": 1
+   "answer": 9,
+   "caveat": 3
   },
   "xerj/negative": {
-   "abstain": 3,
-   "ask_rewrite": 1
+   "abstain": 9,
+   "ask_rewrite": 3
   },
   "mcp_audit/positive": {
-   "abstain": 7,
-   "caveat": 6,
-   "answer": 4
+   "caveat": 27,
+   "abstain": 12,
+   "answer": 12
   }
  }
 }

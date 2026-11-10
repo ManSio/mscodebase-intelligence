@@ -2,7 +2,7 @@
  "xerj/positive": {
   "n": 16,
   "runs_per_task": 3,
-  "top1": 0.25,
+  "top1": 0.312,
   "any": 0.625,
   "verdicts": {
    "answer": 0,
@@ -42,7 +42,7 @@
  "mcp_audit/positive": {
   "n": 17,
   "runs_per_task": 3,
-  "top1": 0.412,
+  "top1": 0.529,
   "any": 0.824,
   "verdicts": {
    "answer": 0,
@@ -54,8 +54,8 @@
  },
  "latency": {
   "n": 123,
-  "mean": 2.556,
-  "p95": 3.679
+  "mean": 2.572,
+  "p95": 3.798
  },
  "invalid": 0
 }

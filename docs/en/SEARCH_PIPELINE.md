@@ -133,11 +133,11 @@ The verdict is printed as `verdict: answer (0.70) — class at file:line`:
   the graph does not know it).
 
 Row markers are facts, not decoration: `✓def:class`, `✓def:function@368` (the
-declaration is at line 368, the row points at the chunk start), `✓exact`,
-`⚠stale` (the file changed after indexing), `⚠missing` (the index remembers a
-path the disk does not have), `⚠outside project` (never read). On a definition
-question a verified declaration is promoted above name matches; the promotion is
-stable and never drops a row.
+declaration is at line 368, the row points at the chunk start), `✓exact@211`
+(the term is at line 211 inside the chunk), `⚠stale` (the file changed after
+indexing), `⚠missing` (the index remembers a path the disk does not have),
+`⚠outside project` (never read). On a definition question a verified declaration
+is promoted above name matches; the promotion is stable and never drops a row.
 
 Control/treatment on the frozen XERJ and `mcp_audit` panels, with kill criteria
 frozen before the run: `experiments/xerj_2026_11/evidence_gate/REPORT.md`.
