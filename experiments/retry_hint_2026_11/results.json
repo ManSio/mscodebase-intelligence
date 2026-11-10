@@ -1,0 +1,12 @@
+{
+ "tasks": 71,
+ "emitted": 36,
+ "default_hit5": 19,
+ "recovered_hit5": 18,
+ "after_total_hit5": 37,
+ "predictions": {
+  "R1 default unchanged (19)": true,
+  "R2 hint coverage 100% of abstains": true,
+  "R3 default+hint >= 36": true
+ }
+}

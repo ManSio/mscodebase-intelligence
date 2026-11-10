@@ -16,6 +16,7 @@ item keeps the set of channels that found it, so the evidence is auditable.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import threading
@@ -215,6 +216,29 @@ def _needs_identifier_rewrite(query: str, identifiers: List[str]) -> str | None:
         "   Соседи не выдаются, чтобы не принять их за ответ. "
         "Переформулируйте: `where is <identifier> defined` "
         'или передайте hints=["<identifier>"] — хост знает язык, сервер нет.'
+        + _rewrite_hint(query)
+    )
+
+
+def _retry_hint(query: str, withheld: int, limit: int) -> str:
+    """Machine-readable continuation for a withheld answer (option C, E69).
+
+    The verdict stays `abstain`: unverified rows are never presented as an
+    answer. But the caller gets the exact call to make instead of a sentence it
+    has to parse — measured in E68, a single-shot caller does not act on prose.
+    """
+    return (
+        f"\nNeighbours withheld: {withheld} (unverified).\n"
+        f"next: investigate(query={json.dumps(query, ensure_ascii=False)}, "
+        f"include_neighbours=true, limit={limit})"
+    )
+
+
+def _rewrite_hint(query: str) -> str:
+    """Same shape for the rewrite gate: name the identifiers and the call."""
+    return (
+        f"\nnext: investigate(query={json.dumps(query, ensure_ascii=False)}, "
+        'hints=["<identifier>"])'
     )
 
 
@@ -1029,10 +1053,7 @@ class InvestigateTool(MCPTool):
             query, identifiers, merged, symbol_lines, degraded, exact, report
         )
         if withheld:
-            text += (
-                f"\nNeighbours withheld: {withheld}. "
-                "Pass include_neighbours=true to see them anyway."
-            )
+            text += _retry_hint(query, withheld, limit)
         return text
 
     def _format(
