@@ -1,4 +1,28 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-10] — E71: a Gerrit `Change-Id` made the gate abstain on every commit
+
+**Found by** the sqlalchemy run of B2: tool 0/40 at hit@5 while neighbours got
+18. Not a ranking result - `_identifiers` took the 40-char `Change-Id` hash as
+the first identifier, the gate counted `0` occurrences, and the answer was
+`abstain` on every commit that carried one.
+
+**Fix:** hashes (32+ hex, with or without the Gerrit `I` prefix) and commit
+trailers (`fixed`, `fixes`, `issue`, `closes`, `resolves`, `changelog`) are no
+longer identifiers; `close` stays, it is a real method name.
+
+```
+sqlalchemy, 40 commits   hit@5 before -> after
+tool                          0  ->  11
+neighbours                   18  ->  19
+search                       18  ->  18
+grep                         20  ->  20
+B1 dev (71)              19/38/22/2 -> identical
+```
+
+After the fix the tool is still below grep on this external repo (11 vs 20), so
+the small/medium-repo conclusion stands; what changed is that the abstain is no
+longer systematic.
+
 ## [2026-11-10] — E70: external repo (psf/requests) — plain grep wins
 
 **Why:** B1 still lives in our own repository. Here the repo, history, messages

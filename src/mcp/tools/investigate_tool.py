@@ -51,6 +51,10 @@ _PROFILES = {
 _MAX_IDS = 4
 _CHANNEL_TIMEOUT = 12.0
 _GREP_TIMEOUT = 15.0
+# Hashes are not identifiers: a Gerrit `Change-Id` (40 hex chars) or a commit
+# sha can never occur in the source, and counting them made the gate abstain on
+# every sqlalchemy commit (E71, external benchmark: 0/40 at hit@5).
+_HEX_TOKEN_RE = re.compile(r"^I?[0-9a-fA-F]{32,}$")
 _STOPWORDS = {
     "the", "and", "for", "how", "why", "what", "does", "used", "use", "where",
     "when", "which", "with", "from", "into", "that", "this", "files", "file",
@@ -58,6 +62,10 @@ _STOPWORDS = {
     "who", "whom", "whose", "defined", "definition", "define", "defines",
     "implemented", "implement", "implements", "located", "sits", "lives",
     "raises", "raise", "returns", "return", "callers", "caller", "usages",
+    # Commit trailers (Gerrit/GitHub) are not code names; counting them made the
+    # gate abstain on prose (E71). `close` is left out on purpose: it is a real
+    # method name.
+    "fixed", "fixes", "issue", "issues", "resolves", "closes", "changelog",
 }
 
 
@@ -89,6 +97,8 @@ def _identifiers(query: str) -> List[str]:
     for token in re.findall(r"[A-Za-z_][A-Za-z0-9_.]{2,}", query):
         token = token.strip(".")
         if not token or token.lower() in _STOPWORDS:
+            continue
+        if _HEX_TOKEN_RE.match(token):
             continue
         if token not in found:
             found.append(token)
