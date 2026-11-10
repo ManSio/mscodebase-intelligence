@@ -56,6 +56,7 @@
 | `MSCODEBASE_LATE_ENRICHMENT` | `false` | 把图富化推迟到排序之后 |
 | `MSCODEBASE_EVIDENCE_GATE` | `true` | 校验 `investigate` 的每一行（definition/ast/fresh/graph）并打印确定性结论；`0` 恢复门控前行为 |
 | `MSCODEBASE_ASK_REWRITE` | `smart` | `on` —— 任何没有代码形态标识符的西里尔文问题都要求给出标识符；`smart` —— 仅当问题还包含类专有名词的拉丁词（XERJ N03）；`off` —— 返回邻居并带结论。实测：`experiments/xerj_2026_11/evidence_gate/REPORT_REWRITE.md` |
+| `MSCODEBASE_SCRIPTS_DEMOTE` | `true` | 对代码问题降低 `scripts/`、`examples/`、`benches/`、`fuzz/` 行的排名，与 tests、docs 相同。实测：XERJ P05 回到 top-1，`any` 无损失（`experiments/xerj_2026_11/probe_scripts_demote.py`） |
 
 无论这些开关如何设置，`EXPERIMENTS/**` 都会被 `FileGuard` 排除在索引之外：
 冻结面板绝不应作为搜索命中出现。

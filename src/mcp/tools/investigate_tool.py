@@ -256,6 +256,7 @@ _TEST_PATH_RE = re.compile(
 )
 _DOC_PATH_RE = re.compile(r"(^|/)docs?/")
 _HISTORY_PATH_RE = re.compile(r"(^|/)docs?/(archive|research|blog)/")
+_SCRIPT_PATH_RE = re.compile(r"(^|/)(scripts|examples|benches|fuzz)/")
 _PROSE_FILE_RE = re.compile(r"\.(md|rst|txt)$", re.I)
 
 
@@ -348,6 +349,19 @@ def _bucket_penalty(file: str, query: str) -> float:
             value -= 1.5
     if _TEST_PATH_RE.search(file) and not _asks_for_tests(query):
         value -= 2.0
+    if (
+        _SCRIPT_PATH_RE.search(file)
+        and not _asks_for_tests(query)
+        and "script" not in (query or "").lower()
+    ):
+        # Same class as tests/docs: a helper script that happens to mention the
+        # name is not the implementation (XERJ P05/P12: scripts/monitor.py and
+        # scripts/dataflow_experiment.py led ahead of src/). Behind a switch
+        # until the panel measures it.
+        if os.getenv("MSCODEBASE_SCRIPTS_DEMOTE", "1").strip().lower() not in (
+            "0", "false", "off", "no",
+        ):
+            value -= 2.0
     return value
 
 

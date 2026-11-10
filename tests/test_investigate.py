@@ -37,6 +37,24 @@ def test_merge_dedups_and_keeps_channels():
     assert first["rank"] == 1.0
 
 
+def test_scripts_are_demoted_for_code_questions(monkeypatch):
+    """A helper script that mentions the name is not the implementation.
+
+    XERJ P05/P12: scripts/monitor.py and scripts/dataflow_experiment.py led
+    ahead of src/ for code questions; demoting them moved P05 to rank 1.
+    """
+    from src.mcp.tools.investigate_tool import _bucket_penalty
+
+    monkeypatch.setenv("MSCODEBASE_SCRIPTS_DEMOTE", "1")
+    assert _bucket_penalty("scripts/monitor.py", "where is progress_file") == -2.0
+    assert _bucket_penalty("src/core/artifact_paths.py",
+                           "where is progress_file") == 0.0
+    assert _bucket_penalty("scripts/monitor.py", "where is the script") == 0.0
+
+    monkeypatch.setenv("MSCODEBASE_SCRIPTS_DEMOTE", "0")
+    assert _bucket_penalty("scripts/monitor.py", "where is progress_file") == 0.0
+
+
 def test_empty_result_is_not_invented():
     tool = InvestigateTool(ServiceCollection())
     text = tool._format("nothing here", [], [], [], [])
