@@ -189,6 +189,10 @@ comes back with `verdict: abstain` and rows marked as neighbours.
 
 - **Small panels.** One task is 6.25% of XERJ positives; the +0.0625 delta is
   exactly one task (P01). The per-task table is the real result, not the rate.
+- **Absolute rates drift with the index state.** P16 (a docs question in the
+  positive bucket) was retrievable during the run and is not in a later 5-repeat
+  check (0/5 for gold in top-8). It sits in both arms, so the delta is
+  unaffected; the bucket rates are a snapshot, and the P01 delta is the claim.
 - **Not blind.** P01/P07 were inspected during development (they motivated the
   promotion rule). The held-out external panel is the mitigation, and it shows
   no harm, but it is too easy to show a gain.

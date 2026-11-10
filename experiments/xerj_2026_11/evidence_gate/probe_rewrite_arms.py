@@ -9,6 +9,7 @@ Run: python experiments/xerj_2026_11/evidence_gate/probe_rewrite_arms.py
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
@@ -93,38 +94,68 @@ def run_one(tool, item: dict, arm: str) -> dict:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--runs", type=int, default=3,
+                        help="repeats per arm (retrieval order is not stable)")
+    args = parser.parse_args()
     items = tasks()
-    print(f"tasks: {len(items)}; arms: {ARMS}")
+    print(f"tasks: {len(items)}; arms: {ARMS}; runs: {args.runs}")
     tools = _tools(items)
-    results: dict[str, list[dict]] = {arm: [] for arm in ARMS}
+    raw: dict[str, list[dict]] = {arm: [] for arm in ARMS}
     for position, item in enumerate(items):
-        order = ARMS[position % len(ARMS):] + ARMS[: position % len(ARMS)]
-        for arm in order:
-            row = run_one(tools[str(item["root"])], item, arm)
-            results[arm].append(row)
-            print(f"  {arm:<6} {item['id']:<5} rows={row['rows']} "
-                  f"top1={row['top1']} any={row['any']} "
-                  f"{row['verdict'] or '-':<11} {item['question'][:48]}")
+        for run_index in range(args.runs):
+            order = ARMS[position % len(ARMS):] + ARMS[: position % len(ARMS)]
+            if run_index % 2:
+                order = list(reversed(order))
+            for arm in order:
+                row = run_one(tools[str(item["root"])], item, arm)
+                row["run"] = run_index + 1
+                raw[arm].append(row)
+
+    results: dict[str, list[dict]] = {}
+    for arm, rows in raw.items():
+        per_task: dict[str, list[dict]] = {}
+        for row in rows:
+            per_task.setdefault(row["id"], []).append(row)
+        results[arm] = []
+        for task_id, runs in per_task.items():
+            def majority(key: str) -> bool:
+                return sum(bool(r[key]) for r in runs) * 2 > len(runs)
+            results[arm].append({
+                "id": task_id,
+                "kind": runs[0]["kind"],
+                "question": runs[0]["question"],
+                "gold": runs[0]["gold"],
+                "rows": max(r["rows"] for r in runs),
+                "top1": majority("top1"),
+                "any": majority("any"),
+                "gated": all(r["gated"] for r in runs),
+                "verdict": runs[0]["verdict"],
+                "per_run": [
+                    {"run": r["run"], "rows": r["rows"], "top1": r["top1"],
+                     "any": r["any"], "gated": r["gated"]}
+                    for r in runs
+                ],
+            })
 
     (HERE / "rewrite_arms.json").write_text(
-        json.dumps(results, ensure_ascii=False, indent=1),
+        json.dumps({"runs": args.runs, "arms": results}, ensure_ascii=False, indent=1),
         encoding="utf-8", newline="",
     )
 
-    print("\nsummary")
+    print("\nsummary (per-task majority over repeats)")
     for arm in ARMS:
         rows = results[arm]
         positives = [r for r in rows if r["kind"] != "negative"]
         negatives = [r for r in rows if r["kind"] == "negative"]
         ru = [r for r in rows if r["id"].startswith("MSCRU")]
-        neg_rows = sum(r["rows"] for r in negatives)
         print(f"  {arm:<6} gated={sum(r['gated'] for r in rows)}/{len(rows)} "
               f"nonneg top1={sum(r['top1'] for r in positives)/len(positives):.3f} "
               f"any={sum(r['any'] for r in positives)/len(positives):.3f} "
-              f"negative_rows={neg_rows} ru_any="
-              f"{sum(r['any'] for r in ru)/len(ru):.3f}")
+              f"negative_rows={sum(r['rows'] for r in negatives)} "
+              f"ru_any={sum(r['any'] for r in ru)/len(ru):.3f}")
 
-    print("\nper-task gate (on/off/smart) and hits (top1/any):")
+    print("\nper-task gate (on/off/smart) and majority hits (top1/any):")
     for task_id in [t["id"] for t in items]:
         cells = []
         for arm in ARMS:

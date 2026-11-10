@@ -25,6 +25,9 @@ retrieval layer in E58, not here):
 
 ## Result
 
+Per-task majority over **3 repeats per arm** (retrieval order is not stable;
+each arm ran the same 27 asks in rotated order):
+
 | arm | gated / 27 | non-negative top1 (n=23) | non-negative any (n=23) | negative rows (n=4) | RU any (n=3) |
 |---|---:|---:|---:|---:|---:|
 | `on` | 9 | 0.174 | 0.478 | 0 | 0.000 |
@@ -57,8 +60,22 @@ A03     -00 -00 -00
 A04     -00 -00 -00
 ```
 
-`smart` is **`off`'s positives plus `on`'s N03**: exactly one query is gated,
-and it is the one the rule exists for.
+`smart` gates exactly one query (N03) and returns rows for the other 26.
+
+### The one difference between `smart` and `off` is P16, and its rank is not stable
+
+P16 is the only task where `smart`/`off` differ from `on` in the table. Rows are
+stable (`8` every run for both); the *rank* is not:
+
+```
+3-run majority (this experiment):  off 3/3 hit, smart 3/3 hit
+5 repeats 10 minutes later:        off 0/5 hit, smart 0/5 hit (gold not in top-8)
+```
+
+The corpus/index was reindexed between the two checks (the host's freshness
+pass), and this docs question is sensitive to that. So the `+0.043` in the rates
+is an index-state sample, not a property of the rule. What is stable: `on` hides
+these questions, `smart`/`off` show the rows with a verdict.
 
 ## Frozen predictions
 
@@ -66,8 +83,8 @@ and it is the one the rule exists for.
 |---|---|---|
 | R1 | `smart` gates exactly one query (N03) | **pass** (1/27) |
 | R2 | `smart` keeps N03 at zero rows | **pass** (0) |
-| R3 | `smart` loses no hit vs `off` | **pass** (0.217 / 0.522 = `off`) |
-| R4 | `smart` restores P16 | **pass** (`-11`, rows present) |
+| R3 | `smart` loses no hit vs `off` | **pass** (0.217 / 0.522 = `off`, majority) |
+| R4 | `smart` restores P16 (top1 True, rows present) | **partial** — rows are restored and stable (8 every run); the rank is not (3/3 in this run, 0/5 ten minutes later) |
 | R5 | RU questions are un-gated in `smart` and still miss the gold | **FAIL as predicted** — un-gated, `any` 0.000; retrieval, not the gate, is the limit |
 
 ## Decision
@@ -76,11 +93,18 @@ Default changed to `smart`. `on` stays available (`MSCODEBASE_ASK_REWRITE=1`),
 `off` stays available (`=0`). The 2026-11-09 rule is not deleted; it is no
 longer the default.
 
+The decision does **not** rest on the +1 in the table. It rests on the stable
+part: `smart` keeps exactly the one behaviour the gate was built for (N03) and
+stops withholding rows for the other 26 questions, where `on` produced silence
+with no measured benefit. Every non-answer still carries a verdict, so a
+neighbour list is never presented as an answer.
+
 ## Threats
 
-- **One run per arm.** The rule is a pure function of the query string, so
-  repeats add nothing; the retrieval metrics still carry the channel noise that
-  E58 measures (flaky rows on MSC04).
+- **Three repeats per arm, majority.** The rule is a pure function of the query
+  string, so the gate itself is deterministic; the repeats exist because
+  retrieval is not (P16's rank moved between index states, and E58 saw MSC04's
+  neighbour order move between repeats).
 - **One panel, 27 asks.** The positives that `smart` restores are Russian prose
   questions; another panel could contain a question that names a proper noun
   for a real entity and is now gated ("Где Corpus Hub API?"). Mitigation: a

@@ -6,9 +6,10 @@ hid P16, whose correct top-1 was already found. Can a rule keep the buy without
 the cost?
 
 **Design** (frozen in `evidence_gate/frozen/REWRITE.md`): 27 asks (XERJ 24 +
-3 RU), one process, arms `on`/`off`/`smart` interleaved, one run each — the rule
-is a pure function of the query string. `smart` gates only when the question
-also names a proper-noun-like Latin word (`[A-Z][a-z]{2,}`: `Corpus`, `Hub`).
+3 RU), one process, arms `on`/`off`/`smart` interleaved, **3 repeats per arm**
+(per-task majority — retrieval order is not stable). `smart` gates only when the
+question also names a proper-noun-like Latin word (`[A-Z][a-z]{2,}`: `Corpus`,
+`Hub`).
 
 ```
 arm     gated/27  nonneg top1  any    negative rows  RU any
@@ -17,9 +18,13 @@ off          0        0.217    0.522         8         0.000
 smart        1        0.217    0.522         0         0.000
 ```
 
-**Verdict:** `smart` = `off`'s positives + `on`'s N03 (exactly one query gated,
-N03; P16 restored). R1–R4 pass; R5 failed as predicted — the RU questions miss
-the gold in every arm, so retrieval, not the gate, is the limit there.
+**Verdict:** `smart` gates exactly one query (N03) and returns rows for the other
+26; `off`'s +1 is P16, and its rank is not stable (3/3 in the run, 0/5 in a
+repeat ten minutes later, same rows) — so the decision rests on the stable part:
+N03 preserved, no silence for the other 26, every non-answer carries a verdict.
+R1–R3 pass; R4 partial (rows restored, rank unstable); R5 failed as predicted —
+the RU questions miss the gold in every arm, so retrieval, not the gate, is the
+limit there.
 
 Default is now `smart`; `MSCODEBASE_ASK_REWRITE=1` restores the broad 2026-11-09
 rule and `=0` returns neighbours. Full: `evidence_gate/REPORT_REWRITE.md`.
