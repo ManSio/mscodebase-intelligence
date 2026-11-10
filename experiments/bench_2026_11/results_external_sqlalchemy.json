@@ -1,0 +1,24 @@
+{
+ "repo": "sqlalchemy",
+ "base": "8b62343934387efcc68f02032fa6cc07ac65ba26",
+ "tasks": 40,
+ "table": {
+  "tool": {
+   "top1": 8,
+   "top5": 11
+  },
+  "neighbours": {
+   "top1": 11,
+   "top5": 19
+  },
+  "search": {
+   "top1": 12,
+   "top5": 18
+  },
+  "grep": {
+   "top1": 7,
+   "top5": 20
+  }
+ },
+ "invalid": 0
+}

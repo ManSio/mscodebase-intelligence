@@ -141,8 +141,40 @@ visible in the log before the crash; no code, arm or metric changed after that
 (the arms were frozen in Amendments 1-3 before the sealed run), so this is
 disclosed rather than "clean".
 
-## B2 — external repository (`psf/requests`)
+## B2 — external repository: `sqlalchemy` (the finding that mattered)
 
+679 `.py` files, corpus at `8b62343` (2026-09-24), 34 984 chunks, one index
+build (53 min). 40 commits.
+
+```
+                 hit@1  hit@5         hit@1  hit@5
+                 before E71                 after E71
+tool                 0      0              8     11
+neighbours          13     18             11     19
+search              12     18             12     18
+grep                 7     20              7     20
+```
+
+**The zero was a bug, not a small-repo effect.** `_identifiers` took the Gerrit
+`Change-Id` (a 40-char hash) as the first identifier, the gate counted
+`Iaf8be… = 0` occurrences, and every such commit abstained:
+
+```
+before: identifiers: Iaf8be4a9…, _ConnectionRecord.__close, run_scenario, Fixed
+        verdict: abstain (0.00)
+after:  identifiers: _ConnectionRecord.__close, run_scenario, AnyIO, sqlalchemy.testing.cancellation
+        verdict: answer (0.75), gold at row 2
+```
+
+E71 drops hashes (32+ hex, with or without the Gerrit `I` prefix) and commit
+trailers (`fixed`, `fixes`, `issue`, `closes`, …) from `_identifiers`; `close`
+stays, because it is a real method name. B1 dev is **identical** after the fix
+(19 / 38 / 22 / 2), so the calibrated corpus did not move.
+
+After the fix the tool is still below grep here (11 vs 20) — the small-repo
+conclusion from `requests` survives — but the catastrophic abstain is gone.
+
+## B2 — external repository (`psf/requests`)
 Nothing in this run is ours: the repository, its history, its commit messages and
 the gold all come from other people. Same rule as B1; corpus at
 `e331a288` (2026-03-24), 64 files / 786 chunks, one index build (16 s).
@@ -183,6 +215,24 @@ The test-bucket fix (E67, merged as `092418a`) changed a bucket rule, so the dev
 split was re-run on the merged build: **identical** (`tool` 19, `neighbours` 38,
 `search` 22, `grep` 2; paired +16). The fix does not touch this benchmark, which
 is what a classification change should look like.
+
+## Reproduce
+
+```
+# B1 corpus (this repo at the frozen base)
+git worktree add D:\Project\bench-B 7c2c7a3c6417539bc08f807d6790fe6e722d3a84
+python scripts/reindex_text_only.py --project D:\Project\bench-B
+python experiments/bench_2026_11/commit_tasks.py
+python experiments/bench_2026_11/run.py --split dev
+python experiments/bench_2026_11/run.py --split sealed --sealed   # once per release
+
+# B2 corpus (external)
+git clone https://github.com/psf/requests D:\Project\bench-ext\requests
+git -C D:\Project\bench-ext\requests worktree add D:\Project\bench-ext\req-B e331a288
+python scripts/reindex_text_only.py --project D:\Project\bench-ext\req-B
+python experiments/bench_2026_11/external.py --repo D:\Project\bench-ext\requests \
+    --corpus D:\Project\bench-ext\req-B --base e331a288 --limit 40
+```
 
 ## Threats
 
