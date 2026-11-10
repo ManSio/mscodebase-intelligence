@@ -1,0 +1,57 @@
+{
+ "split": "sealed",
+ "tasks": 37,
+ "dropped_unsolvable": 16,
+ "corpus_head": "7c2c7a3c6417539bc08f807d6790fe6e722d3a84",
+ "stats": {
+  "tool": {
+   "n": 37,
+   "top1": 2,
+   "top5": 7,
+   "any8": 7,
+   "mrr": 0.113,
+   "top5_ci": [
+    0.095,
+    0.342
+   ]
+  },
+  "neighbours": {
+   "n": 37,
+   "top1": 11,
+   "top5": 21,
+   "any8": 21,
+   "mrr": 0.41,
+   "top5_ci": [
+    0.409,
+    0.713
+   ]
+  },
+  "search": {
+   "n": 37,
+   "top1": 0,
+   "top5": 5,
+   "any8": 7,
+   "mrr": 0.062,
+   "top5_ci": [
+    0.059,
+    0.28
+   ]
+  },
+  "grep": {
+   "n": 37,
+   "top1": 0,
+   "top5": 1,
+   "any8": 1,
+   "mrr": 0.036,
+   "top5_ci": [
+    0.005,
+    0.138
+   ]
+  }
+ },
+ "paired_hit5": {
+  "tool_only": 16,
+  "search_only": 0
+ },
+ "invalid": 0
+}
