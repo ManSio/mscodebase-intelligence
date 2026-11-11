@@ -89,10 +89,34 @@ def _read_message(stream, timeout: float):
         return None
 
 
+def _stderr_drain(stream, sink) -> None:
+    """Keep reading stderr so the child never blocks on a full pipe.
+
+    Found 2026-11-12 on windows-latest: the startup log is larger than the pipe
+    buffer, the server blocked writing stderr and never answered `initialize`.
+    """
+    import threading
+
+    def _worker():
+        try:
+            for line in iter(stream.readline, ""):
+                sink.append(line.rstrip())
+        except (ValueError, OSError):
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def _probe(client: str, command: str, args: list[str], env: dict[str, str], timeout: int) -> str:
+    from collections import deque
+
     exe, cli_args, cli_env = _entry(client, command, args, env)
     full_env = os.environ.copy()
     full_env.update(cli_env)
+    # src/main.py:126 reads LOG_LEVEL; a quiet server keeps the stderr pipe from
+    # filling on a cold runner (the probe only needs the protocol answer).
+    full_env.setdefault("LOG_LEVEL", "WARNING")
+    stderr_tail: deque = deque(maxlen=20)
     with tempfile.TemporaryDirectory(prefix="mcp-snippet-", ignore_cleanup_errors=True) as cwd:
         proc = subprocess.Popen(
             [exe, *cli_args],
@@ -105,13 +129,14 @@ def _probe(client: str, command: str, args: list[str], env: dict[str, str], time
             encoding="utf-8",
             errors="replace",
         )
+        _stderr_drain(proc.stderr, stderr_tail)
         try:
             proc.stdin.write(json.dumps(INITIALIZE) + "\n")
             proc.stdin.flush()
             init = _read_message(proc.stdout, timeout)
             if not init or "result" not in init:
-                tail = (proc.stderr.readline() if proc.stderr else "") or ""
-                return f"FAIL: no initialize result ({tail.strip()})"
+                tail = " | ".join(stderr_tail) if stderr_tail else ""
+                return f"FAIL: no initialize result ({tail[-300:]})"
 
             proc.stdin.write(
                 json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n"
