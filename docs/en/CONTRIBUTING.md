@@ -35,9 +35,9 @@ python -m venv venv; venv\Scripts\activate; pip install -e ".[dev]"
 ```
 
 `pip install -e .` is enough for the text-first runtime. Models are optional and
-never download silently: `python install.py` asks before each download and
-accepts `--skip-models`; `--sync-only` copies code into the extension directory
-without touching pip or models.
+never download silently: `install.py` is text-first by default and only downloads
+with `--with-models` (`models_enabled`); `--sync-only` copies code into the install
+root without touching pip or models.
 
 ## 3. Tests and lint
 

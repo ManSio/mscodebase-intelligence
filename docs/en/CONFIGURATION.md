@@ -76,7 +76,7 @@ frozen panels must never appear as search hits.
 | `MSCODEBASE_LINK_TIMEOUT_SEC` | — | Graph link-pass budget |
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | Stall watchdog for long reindexes |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | Auto-disable IVF after N failed optimize/create |
-| `MSCODEBASE_MAX_FILE_SIZE_MB` (security) | `10` | Files above this are skipped |
+| `MAX_FILE_SIZE_MB` (security, no prefix — as read by `SecurityConfig`, `src/config/settings.py:425`) | `10` | Files above this are skipped |
 
 ## 5. Providers (all optional)
 
@@ -128,3 +128,17 @@ python -c "from src.config.settings import get_config; c=get_config(); print(c.s
 Config is built once per process: restart the MCP host after editing `.env`, then
 `get_health_report()` should show the new values (or at least not the old provider
 state).
+
+## 9. Code references (audited 2026-11-12)
+
+| Group | Where it is read |
+|---|---|
+| server/profile/storage (`MSCODEBASE_MCP_PROFILE`, `MSCODEBASE_DATA_DIR`, …) | `src/config/settings.py`, `src/mcp/server_tools.py::CORE_PROFILE`, `src/core/artifact_paths.py::get_data_root` |
+| retrieval defaults (`MSCODEBASE_DOCS_MARGIN`, `_ONDEMAND_RERANK_*`, `_CODE_BM25_*`) | `src/config/settings.py::SearchConfig` (lines 189–268) |
+| `MAX_FILE_SIZE_MB` (no prefix) | `src/config/settings.py::SecurityConfig` (line 425) |
+| plugin gates (`MSCODEBASE_STALE_GATE`, `_ISOLATION_GATE`, `_GATE_LOG`, `MSCODEBASE_PY`) | `.opencode/plugin/mscodebase_gate.ts` (lines 25–27) |
+| pre-commit budget (`MSCB_PRECOMMIT_FAST`, `MSCB_PRECOMMIT_GATE_TIMEOUT`) | `.githooks/pre-commit` (lines 33, 153) |
+
+`python scripts/check_docs_vs_config.py` fails when a name in this table stops
+existing in the code.
+

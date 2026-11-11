@@ -56,9 +56,9 @@ After editing `src/`, run `python install.py --sync-only` and restart the host.
 Rule of thumb: the text index is proportional to the indexed corpus and roughly
 an order of magnitude smaller than a vector index over the same corpus. The
 optional model directories dominate when they exist and are absent otherwise.
-`install.py` downloads models only when asked (`--skip-models`, or answering "no"
-to its prompt), so a text-only installation is the size of the code plus the
-chunk store.
+`install.py` downloads models only with `--with-models` (`models_enabled()` in
+`install.py`); the default is text-first with no prompt and no download, so a
+text-only installation is the size of the code plus the chunk store.
 
 `artifact_paths.check_disk_space()` warns when the data root has less than
 **500 MB** free (`MIN_FREE_DISK_MB`); the CI guard fails below 1 GB.

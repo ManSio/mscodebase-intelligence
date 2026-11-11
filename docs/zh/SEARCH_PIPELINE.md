@@ -170,3 +170,15 @@ hint 传入后为 3/4、3/4、3/4。剩下的未命中是 gold 存在歧义（�
    同一查询 → 是检索漏了，还是排序重排了？
 4. `investigate(...)` → 哪些通道找到了该文件（`[search]`、`[grep]`）？
 5. 检查日志尾部：`%LOCALAPPDATA%/mscodebase/logs/mcp_global.log`。
+
+## 9. 代码引用（2026-11-12 审计）
+
+| 本页断言 | 代码 |
+|---|---|
+| 超过 512 字符的查询被拒绝 | `src/mcp/tools/search_tools.py:288` |
+| `investigate` 通道权重（search 0.6、grep 0.3、tests 0.1、memory 0.4） | `src/mcp/tools/investigate_tool.py:44`、`:1025`、`:1041` |
+| 输出上限：8 行、每行 180 字符 | `src/mcp/tools/investigate_tool.py:681`、`:1191` |
+| 文档通道 margin，默认 4.0 | `src/config/settings.py::SearchConfig.docs_margin`（第 268 行） |
+| BM25 常量（`K1` 1.2、`B` 0.45） | `src/config/settings.py` 第 219、222 行 |
+| 请求守卫与 FTS5 候选生成 | `src/core/search/engine.py` |
+
