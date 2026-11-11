@@ -4,11 +4,13 @@
   <img src="../../logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
 </p>
 
-[🇬🇧 English](INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](../zh/INSTALL.md)
+[English](INSTALL.md) · [Русский](../ru/INSTALL.md) · [中文](../zh/INSTALL.md)
 
-> Rewritten 2026-11-08. The server is a local MCP server. **OpenCode is the primary
-> host**; the Zed extension is still supported. Model downloads are optional — the
-> default install is text-first and needs no embeddings, GPU or network.
+> Rewritten 2026-11-12 against `install.py` v3.2. The server is a local MCP server
+> and the installer is **host-neutral**: it creates a plain Python environment, and
+> any MCP host launches it. Zed is an optional adapter. The default install is
+> **text-first** — no embeddings, no GPU, no network and no model download unless you
+> ask for them.
 
 ---
 
@@ -19,45 +21,58 @@
 | OS | Windows 10+ (validated platform), Linux (CI), macOS |
 | Python | **3.14+** (only 3.14 is tested) |
 | RAM | 4 GB; 8 GB+ if you enable local models |
-| Disk | ~500 MB without models; up to ~2 GB with GGUF models |
-| Host | OpenCode (primary) or Zed, or any MCP client |
+| Disk | ~1.5 GB without models (venv dominates); +~650 MB with `--with-models` |
+| Host | OpenCode, Zed, Claude Code, Cursor or any MCP client |
 | Optional | LM Studio / Ollama / llama.cpp for rerank and the legacy dense path |
 
 Docker and WSL are not required on the development machine. The container build is a
 deployment option (`deploy/docker/`).
 
-## 2. Full install
+## 2. Install
 
 ```bash
 cd <repo-root>
-python install.py          # interactive: venv, pip, optional llama.cpp + models
+python install.py                     # venv + dependencies + code; text-first
+python install.py --with-models       # same + ONNX/GGUF models (~657 MB, network)
+python install.py --no-zed            # do not touch Zed settings at all
+python install.py --yes               # non-interactive: accept every step
 ```
 
 Windows also has `install.bat`; Linux/macOS have `install.sh`. The installer:
 
-1. checks Python and the environment;
-2. creates/updates the virtual environment and installs dependencies;
-3. optionally downloads llama.cpp and GGUF models;
-4. copies the code into the installed extension directory;
-5. writes `uninstall.bat`.
+1. stops stale MCP/llama processes so the new code is really the code that runs;
+2. creates/updates the virtual environment and installs the pinned dependencies;
+3. copies the code into the install root (`--sync-only` skips 1–2 and does just this);
+4. optionally (Zed adapter) writes the `context_servers` entry into `settings.json`;
+5. writes `uninstall.bat` / `uninstall.sh` into the install root.
 
-Without models the server still answers code questions — search falls back to
-SQLite FTS5/BM25 plus the graph.
+Default install root (the name is historical, nothing Zed-specific about the
+contents):
+
+```
+Windows : %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+macOS   : ~/Library/Application Support/Zed/extensions/mscodebase-intelligence
+Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
+```
+
+Relocate it with `MSCODEBASE_INSTALL_ROOT=<path>`; caches/logs/artifacts go to
+`MSCODEBASE_DATA_DIR` (default `%LOCALAPPDATA%\mscodebase`). What lands where, with
+measured sizes: [DATA_MAP.md](DATA_MAP.md).
+
+Without the installer (any manager that exposes console scripts, entry point
+`mscodebase-mcp = src.main:main`):
+
+```bash
+pipx install .      # or: uv tool install .
+```
 
 ## 3. Update loop (the part people get wrong)
 
 The installed copy lives outside the repository:
 
-```
-%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
-```
-
-The directory name is historical; OpenCode launches the same venv
-(`…\venv\Scripts\mscodebase-mcp.exe -u -m src.main`). Therefore:
-
 ```bash
 python install.py --sync-only    # copy code, drop __pycache__, no pip/models
-# then restart the host: the OpenCode session (or the Zed window)
+# then restart the host: the OpenCode session, the Zed window, the CLI process
 ```
 
 `--sync-only` (alias `--sync`) is the fast path after every source change. Skipping
@@ -66,28 +81,18 @@ installed location. Both are required.
 
 ## 4. Connect a host
 
-**OpenCode** — declare a local MCP server pointing at the installed venv:
+Do not hand-write the command: print it, then paste it into the host config.
 
-```jsonc
-"mcp": {
-  "mscodebase-intelligence": {
-    "type": "local",
-    "command": ["<ext-dir>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
-    "environment": {
-      "PYTHONPATH": "<ext-dir>",
-      "PROJECT_PATH": "${workspaceRoot}",
-      "PYTHONUTF8": "1"
-    }
-  }
-}
+```bash
+python install.py --print-config --client generic      # mcpServers-style hosts
+python install.py --print-config --client opencode
+python install.py --print-config --client zed
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
 ```
 
-**Zed** — the extension reads the same directory; no extra configuration beyond the
-extension itself.
-
-**Claude Code / VS Code / Cursor** — copy the shape from `adapters/clients/` and fill
-in the venv path, repo path and project path. See
-[CLIENTS.md](CLIENTS.md) for the full matrix.
+Per-client file names, copy-paste JSON and the launch check
+(`python scripts/verify_client_snippets.py`) are in [CLIENTS.md](CLIENTS.md).
 
 ## 5. Verify
 
@@ -109,7 +114,36 @@ python scripts/rebuild_graph.py                   # graph only
 Then restart the server so the new process opens the rebuilt stores. Measured numbers
 for this repository are in [FACTS.md](../FACTS.md).
 
-## 6. Optional providers
+## 6. What is on disk, and how to remove it
+
+```bash
+python install.py --doctor            # versions, paths, sizes, index state (--json)
+python install.py --clean --dry-run   # every artifact with its size; deletes nothing
+python install.py --clean             # asks for confirmation, then deletes
+python install.py --clean --yes       # no prompt (scripts)
+```
+
+`--clean` removes the install root (code + venv + models + uninstaller), the data
+root (`projects/`, `logs/`, `models/`, `repos/`) and the current project's
+`.mscodebase`, `.codebase_indices`, `.codebase`, `.codebase_models`. It refuses to
+delete a path that is the source checkout, a filesystem root or the home directory,
+and it reports any residue (locked files from a running host) with a non-zero exit
+code. Cache policies (log rotation, 7/30/90-day pruning, LRU(5)+24 h repo cache) are
+documented in [DATA_MAP.md](DATA_MAP.md).
+
+## 7. Uninstall
+
+```bash
+python install.py --clean --yes       # all layers, verified: 0 bytes left
+./uninstall.bat                       # Windows: generated by install.py step_uninst
+```
+
+The generated uninstaller kills the server processes and removes only the install
+root. `--clean` is the complete version. Neither touches your host config: delete the
+`mscodebase` entry from `settings.json` (Zed), `opencode.json` (OpenCode) or
+`.mcp.json` / `.cursor/mcp.json` yourself.
+
+## 8. Optional providers
 
 | Provider | Why | Where |
 |---|---|---|
@@ -121,18 +155,7 @@ for this repository are in [FACTS.md](../FACTS.md).
 None of them is needed for the default text-first answer. Provider settings:
 [CONFIGURATION.md](CONFIGURATION.md).
 
-## 7. Uninstall
-
-```bash
-./uninstall.bat             # Windows
-python install.py --uninstall
-```
-
-This removes the installed extension copy. Project data under
-`%LOCALAPPDATA%/mscodebase/` and the project's `.mscodebase/chunks.db` are separate;
-delete them manually if you want a clean slate.
-
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
@@ -141,3 +164,4 @@ delete them manually if you want a clean slate.
 | New code has no effect | no `--sync-only` and/or no host restart |
 | Server starts, tools time out | provider or LSP hanging — see [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) |
 | Windows console windows flashing | subprocess without `CREATE_NO_WINDOW` — see [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) |
+| `--clean` left files behind | a running host holds them (locks) — stop the host and re-run |

@@ -38,7 +38,7 @@ Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
 
 Перенести в любое место: `MSCODEBASE_INSTALL_ROOT=<path>`. Кэши, логи и артефакты
 проектов лежат отдельно (`MSCODEBASE_DATA_DIR`, по умолчанию
-`%LOCALAPPDATA%\mscodebase`).
+`%LOCALAPPDATA%\mscodebase`). Полный инвентарь — [DATA_MAP.md](DATA_MAP.md).
 
 Альтернатива без установщика (любой менеджер, дающий console scripts):
 

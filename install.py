@@ -12,6 +12,9 @@ it anywhere else.
 Non-interactive modes (no TUI, safe for scripts and tests):
     install.py --print-config [--client generic|opencode|zed|claude-code|cursor]
                                  print a ready-to-paste stdio snippet
+    install.py --doctor [--json]  versions, paths, sizes, index state
+    install.py --clean [--dry-run] [--yes]
+                                 remove every artifact this installer created
     install.py --help            list modes
 
 Design principles:
@@ -46,7 +49,10 @@ Changelog v3.1 -> v3.2 (G5 universal install + G6 data hygiene):
      машине без Zed и без adapters/ — адаптер подключается лениво внутри шагов.
   2. INSTALL_ROOT отвязан от Zed: MSCODEBASE_INSTALL_ROOT переопределяет каталог
      установки (историческое имя папки расширения остаётся только default).
-  3. Добавлены --print-config/--help: готовый stdio-сниппет для любого MCP-клиента.
+  3. Добавлены --print-config/--doctor/--clean/--help: сниппет для любого MCP-
+     клиента, инвентарь «что стоит и сколько весит», полное удаление по слоям.
+  4. Модели стали opt-in (--with-models): по умолчанию text-first, ни одного
+     сетевого запроса за модели во время установки.
 """
 
 import io
@@ -711,7 +717,12 @@ def step_llama(lines, lang):
 def step_gguf(lines, lang):
     """Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3.
 
+    G6: opt-in. Text-first — дефолт, поэтому без --with-models шаг ничего не
+    качает и не трогает диск.
     """
+    if not models_enabled():
+        lines.append((C.D, "· Skipped (text-first default; add --with-models)"))
+        return
 
     from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
@@ -764,7 +775,12 @@ def step_models(lines, lang):
     Проверяет по порядку: ZED_EXT_DIR -> общий кэш data_root/models -> PROJECT_ROOT.
     Найдено в (2) или (3) -> копирует в (1). Не найдено нигде -> скачивает.
 
+    G6: opt-in. Без --with-models шаг не делает сетевых запросов: дефолтная
+    установка text-first и весит без моделей.
     """
+    if not models_enabled():
+        lines.append((C.D, "· Skipped (text-first default; add --with-models)"))
+        return
     SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
     models = {
         "multilingual-e5-small-int8": ("keisuke-miyako/multilingual-e5-small-onnx-int8", "embedding", 113),
@@ -958,8 +974,63 @@ def zed_enabled(argv: Optional[list[str]] = None) -> bool:
     return "--no-zed" not in argv
 
 
+def models_enabled(argv: Optional[list[str]] = None) -> bool:
+    """Models are opt-in: text-first by default (G6).
+
+    `--skip-models`/`--no-models` stay accepted so old commands keep working.
+    """
+    argv = sys.argv if argv is None else argv
+    return "--with-models" in argv
 
 
+def _human_bytes(n: int) -> str:
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if size < 1024 or unit == "TB":
+            return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TB"
+
+
+def _usage(path: Path) -> tuple[int, int]:
+    """(bytes, files) под path; симлинки не разворачиваются, ошибки — не фатальны."""
+    if not path.exists():
+        return 0, 0
+    try:
+        if path.is_file():
+            return path.stat().st_size, 1
+    except OSError:
+        return 0, 0
+    total = files = 0
+    for root, _dirs, names in os.walk(path, followlinks=False):
+        for name in names:
+            fp = Path(root) / name
+            try:
+                total += fp.stat().st_size
+                files += 1
+            except OSError:
+                continue
+    return total, files
+
+
+def _data_root_readonly() -> Path:
+    """data_root без создания каталога (source of truth: src/core/artifact_paths.get_data_root).
+
+    Порядок источников повторяет artifact_paths: MSCODEBASE_DATA_DIR →
+    BASE_INDEX_DIR → платформенный default. Отличие только одно: doctor/clean
+    не должны создавать пустые каталоги, поэтому mkdir здесь не вызывается.
+    """
+    env = os.getenv("MSCODEBASE_DATA_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    legacy = os.getenv("BASE_INDEX_DIR", "").strip()
+    if legacy and Path(legacy).is_absolute():
+        return Path(legacy).expanduser()
+    if IS_WINDOWS:
+        return Path(os.environ.get("LOCALAPPDATA", "")) / "mscodebase"
+    xdg = os.environ.get("XDG_CACHE_HOME", "").strip()
+    base = Path(xdg) if xdg else Path.home() / ".cache"
+    return base / "mscodebase"
 
 
 def _mcp_launch_command(argv: list[str]) -> tuple[str, list[str]]:
@@ -1007,10 +1078,258 @@ def _print_config(client: str, project: Path, argv: list[str]) -> int:
     return 0
 
 
+def _count_chunks(db_path: Path) -> Optional[int]:
+    """Число чанков в SQLite-сторе; None — файла нет/схема не та."""
+    if not db_path.is_file():
+        return None
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+        try:
+            return int(conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0])
+        finally:
+            conn.close()
+    except Exception as e:
+        logger.debug("chunk count failed for %s: %s", db_path, e)
+        return None
 
 
+def _doctor_report(project: Path) -> dict:
+    """Inventory of everything this project puts on disk (G6).
+
+    Read-only: no directory is created. Sizes are measured, never estimated.
+    """
+    data_root = _data_root_readonly()
+    venv_python = PYTHON_EXE
+
+    raw_layers = [
+        ("install_root", INSTALL_ROOT),
+        ("data_root", data_root),
+        ("project_chunks", project / ".mscodebase"),
+        ("project_legacy_index", project / ".codebase_indices"),
+        ("project_legacy_codebase", project / ".codebase"),
+        ("project_models", project / ".codebase_models"),
+    ]
+
+    # Nested paths would be counted twice (e.g. data_root inside install_root).
+    seen: list[Path] = []
+    layers = []
+    for name, path in raw_layers:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if any(resolved == s or s in resolved.parents for s in seen):
+            continue
+        seen.append(resolved)
+        size, files = _usage(path)
+        layers.append(
+            {
+                "name": name,
+                "path": str(path),
+                "exists": path.exists(),
+                "bytes": size,
+                "files": files,
+            }
+        )
+
+    chunks_db = project / ".mscodebase" / "chunks.db"
+    chunks = _count_chunks(chunks_db)
+
+    zed_settings = None
+    try:
+        from adapters.zed.zed_config import get_zed_config_dir
+
+        zed_settings = str(get_zed_config_dir() / "settings.json")
+    except Exception as e:
+        logger.debug("zed adapter unavailable for doctor: %s", e)
+
+    venv_version = None
+    if venv_python.exists():
+        r = _run(f'"{venv_python}" --version', timeout=10)
+        if r and r.returncode == 0:
+            venv_version = r.stdout.strip()
+
+    return {
+        "python": {
+            "version": sys.version.split()[0],
+            "executable": sys.executable,
+            "venv_python": str(venv_python),
+            "venv_python_exists": venv_python.exists(),
+            "venv_version": venv_version,
+        },
+        "install_root": str(INSTALL_ROOT),
+        "data_root": str(data_root),
+        "layers": layers,
+        "index": {
+            "path": str(chunks_db),
+            "exists": chunks_db.exists(),
+            "chunks": chunks,
+        },
+        "host_config": {"zed_settings": zed_settings},
+        "total_bytes": sum(layer["bytes"] for layer in layers),
+        "total_files": sum(layer["files"] for layer in layers),
+    }
 
 
+def _doctor_cli(argv: list[str]) -> int:
+    project = Path.cwd()
+    report = _doctor_report(project)
+    if "--json" in argv:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return 0
+
+    print("MSCodeBase — installed state")
+    print(f"  python          {report['python']['version']}  ({report['python']['executable']})")
+    print(f"  install root    {report['install_root']}")
+    print(f"  data root       {report['data_root']}")
+    print()
+    for layer in report["layers"]:
+        mark = "+" if layer["exists"] else "-"
+        print(
+            f"  {mark} {layer['name']:<22} {_human_bytes(layer['bytes']):>9}"
+            f"  {layer['files']:>5} file(s)  {layer['path']}"
+        )
+    index = report["index"]
+    state = "missing" if not index["exists"] else (
+        "unreadable" if index["chunks"] is None else f"{index['chunks']} chunk(s)"
+    )
+    print(f"\n  index           {state}  ({index['path']})")
+    if report["host_config"]["zed_settings"]:
+        print(f"  zed settings    {report['host_config']['zed_settings']}")
+    print(
+        f"\n  total           {_human_bytes(report['total_bytes'])}"
+        f" over {report['total_files']} file(s)"
+    )
+    return 0
+
+
+def _clean_targets(project: Path) -> list[tuple[str, Path]]:
+    """Every layer an install can create, outermost first."""
+    return [
+        ("install_root", INSTALL_ROOT),
+        ("data_root", _data_root_readonly()),
+        ("project_chunks", project / ".mscodebase"),
+        ("project_legacy_index", project / ".codebase_indices"),
+        ("project_legacy_codebase", project / ".codebase"),
+        ("project_models", project / ".codebase_models"),
+    ]
+
+
+def _clean_refusal(path: Path) -> str:
+    """Why deleting path would be unsafe ('' = safe). Guards the source checkout."""
+    try:
+        resolved = path.resolve()
+    except OSError as e:
+        return f"unresolvable path ({e})"
+    if not resolved.exists():
+        return ""
+    if resolved == PROJECT_ROOT or resolved in PROJECT_ROOT.parents:
+        return "would delete the source checkout"
+    if resolved.parent == resolved:
+        return "filesystem root"
+    if resolved == Path.home().resolve():
+        return "home directory"
+    return ""
+
+
+def _clean_cli(argv: list[str]) -> int:
+    """Remove every artifact created by the installer, layer by layer."""
+    project = Path.cwd()
+    dry_run = "--dry-run" in argv
+    assume_yes = "--yes" in argv or "-y" in argv
+    as_json = "--json" in argv
+
+    plan = []
+    for name, path in _clean_targets(project):
+        size, files = _usage(path)
+        plan.append(
+            {
+                "name": name,
+                "path": str(path),
+                "exists": path.exists(),
+                "bytes": size,
+                "files": files,
+                "refusal": _clean_refusal(path),
+            }
+        )
+
+    existing = [item for item in plan if item["exists"]]
+    removed_bytes = 0
+
+    if not dry_run:
+        blocked = [item for item in existing if item["refusal"]]
+        if blocked:
+            for item in blocked:
+                print(f"  ! {item['name']}: {item['refusal']} — {item['path']}", file=sys.stderr)
+        if not assume_yes:
+            if not sys.stdin.isatty():
+                print(
+                    "refusing to delete without confirmation: re-run with --yes"
+                    " (or use --dry-run to see the list)",
+                    file=sys.stderr,
+                )
+                return 2
+            print("This will delete:")
+            for item in existing:
+                print(f"  - {item['name']:<22} {_human_bytes(item['bytes']):>9}  {item['path']}")
+            answer = input("Type 'yes' to delete everything listed above: ").strip().lower()
+            if answer != "yes":
+                print("aborted: nothing deleted")
+                return 1
+
+        for item in existing:
+            if item["refusal"]:
+                continue
+            path = Path(item["path"])
+            if path.is_dir():
+                _safe_rmtree(path)
+            else:
+                _safe_unlink(path)
+            removed_bytes += item["bytes"]
+
+    remaining = 0
+    remaining_detail = []
+    for name, path in _clean_targets(project):
+        size, _files = _usage(path)
+        remaining += size
+        if size:
+            remaining_detail.append((name, size, str(path)))
+
+    if as_json:
+        print(
+            json.dumps(
+                {
+                    "dry_run": dry_run,
+                    "targets": plan,
+                    "removed_bytes": removed_bytes,
+                    "remaining_bytes": remaining,
+                    "remaining": [
+                        {"name": n, "bytes": s, "path": p} for n, s, p in remaining_detail
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    else:
+        mode = "would remove" if dry_run else "removed"
+        for item in existing:
+            suffix = f"  SKIPPED: {item['refusal']}" if item["refusal"] else ""
+            print(
+                f"  {mode:<12} {item['name']:<22} {_human_bytes(item['bytes']):>9}"
+                f"  {item['path']}{suffix}"
+            )
+        print(f"\n  {mode}: {_human_bytes(removed_bytes) if not dry_run else _human_bytes(sum(i['bytes'] for i in existing))}")
+        print(f"  remaining: {_human_bytes(remaining)}")
+        for name, size, path in remaining_detail:
+            print(f"    · {name}: {_human_bytes(size)}  {path}")
+
+    if dry_run:
+        return 0
+    # Locked files (a running MCP host) leave residue; that is a real failure.
+    return 0 if remaining == 0 else 1
 
 
 def _print_help() -> int:
@@ -1022,7 +1341,13 @@ def _print_help() -> int:
         "  --print-config            print a stdio snippet for an MCP host\n"
         "      --client {generic,opencode,zed,claude-code,cursor}   (default: generic)\n"
         "      --python PATH         interpret the snippet around this interpreter\n"
+        "  --doctor                  versions, paths, sizes, index state (--json)\n"
+        "  --clean                   remove every artifact created by the installer\n"
+        "      --dry-run             list paths and sizes, delete nothing\n"
+        "      --yes                 skip the interactive confirmation\n"
+        "      --json                machine-readable report\n\n"
         "Install options:\n"
+        "  --with-models             download ONNX/GGUF models (default: text-first, no models)\n"
         "  --no-zed                  do not touch Zed settings; host-neutral install\n"
         "  --yes                     accept every step without prompts\n\n"
         "Environment:\n"
@@ -1034,7 +1359,7 @@ def _print_help() -> int:
 
 
 def _mode_from_argv(argv: list[str]) -> Optional[str]:
-    for mode in ("--print-config", "--help"):
+    for mode in ("--print-config", "--doctor", "--clean", "--help"):
         if mode in argv:
             return mode
     if "-h" in argv:
@@ -1119,6 +1444,10 @@ def main() -> None:
             idx = argv.index("--client")
             client = argv[idx + 1] if idx + 1 < len(argv) else ""
         sys.exit(_print_config(client, Path.cwd(), argv))
+    if mode == "--doctor":
+        sys.exit(_doctor_cli(argv))
+    if mode == "--clean":
+        sys.exit(_clean_cli(argv))
 
     _enable_ansi()
     lang = _detect_lang()

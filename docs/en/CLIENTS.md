@@ -36,7 +36,7 @@ Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
 
 Move it anywhere with `MSCODEBASE_INSTALL_ROOT=<path>`; caches, logs and per-project
 artifacts live elsewhere (`MSCODEBASE_DATA_DIR`, default `%LOCALAPPDATA%\mscodebase`).
-
+The full inventory is in [DATA_MAP.md](DATA_MAP.md).
 
 Alternative without the installer (any Python package manager that exposes console
 scripts):

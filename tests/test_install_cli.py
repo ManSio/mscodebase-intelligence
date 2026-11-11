@@ -1,4 +1,4 @@
-"""Red-first tests for the installer's host-neutral CLI (G5).
+"""Red-first tests for the installer's host-neutral CLI (G5/G6).
 
 Every check drives `install.py` as a subprocess with isolated roots
 (`MSCODEBASE_INSTALL_ROOT`, `MSCODEBASE_DATA_DIR`) so nothing touches the real
@@ -8,8 +8,10 @@ actually launched and must answer an MCP `initialize` request.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import textwrap
@@ -190,3 +192,204 @@ def test_generic_snippet_actually_starts_the_server(tmp_path):
                 break
     assert answer is not None, textwrap.shorten(out + err, 800)
     assert answer["result"]["serverInfo"]["name"], answer
+
+
+# ─── G6: --doctor ──────────────────────────────────────────────────────
+
+
+def make_install_artifacts(install_root: Path, data_dir: Path, project: Path) -> None:
+    project.mkdir(parents=True, exist_ok=True)
+    (install_root / "venv" / "Scripts").mkdir(parents=True)
+    (install_root / "venv" / "Scripts" / "python.exe").write_bytes(b"x" * 100)
+    (install_root / "src").mkdir()
+    (install_root / "src" / "main.py").write_text("print('hi')\n", encoding="utf-8")
+    (data_dir / "projects" / "deadbeef").mkdir(parents=True)
+    (data_dir / "projects" / "deadbeef" / "graph.db").write_bytes(b"g" * 200)
+    (data_dir / "logs").mkdir()
+    (data_dir / "logs" / "server.log").write_text("line\n" * 5, encoding="utf-8")
+    (project / ".mscodebase").mkdir()
+    conn = sqlite3.connect(project / ".mscodebase" / "chunks.db")
+    conn.execute("CREATE TABLE chunks (id TEXT, text TEXT)")
+    conn.executemany("INSERT INTO chunks VALUES (?, ?)", [("1", "a"), ("2", "b"), ("3", "c")])
+    conn.commit()
+    conn.close()
+
+
+def test_doctor_reports_layers_and_index(tmp_path):
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    make_install_artifacts(install_root, data_dir, project)
+
+    proc = run_install(
+        ["--doctor", "--json"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+    )
+    assert proc.returncode == 0, proc.stderr
+    report = json.loads(proc.stdout)
+
+    layers = {layer["name"]: layer for layer in report["layers"]}
+    assert layers["install_root"]["bytes"] > 0
+    assert layers["data_root"]["bytes"] > 0
+    assert layers["project_chunks"]["bytes"] > 0
+    assert report["index"]["chunks"] == 3
+    assert report["total_bytes"] >= 500
+
+
+def test_doctor_human_output_has_paths(tmp_path):
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    make_install_artifacts(install_root, data_dir, project)
+
+    proc = run_install(
+        ["--doctor"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert str(install_root) in proc.stdout
+    assert str(data_dir) in proc.stdout
+    assert "chunks" in proc.stdout.lower()
+
+
+# ─── G6: --clean ───────────────────────────────────────────────────────
+
+
+def test_clean_dry_run_removes_nothing(tmp_path):
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    make_install_artifacts(install_root, data_dir, project)
+
+    proc = run_install(
+        ["--clean", "--dry-run"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert str(install_root) in proc.stdout
+    assert str(data_dir) in proc.stdout
+    assert install_root.exists() and data_dir.exists()
+    assert (project / ".mscodebase" / "chunks.db").exists()
+
+
+def test_clean_without_confirmation_refuses(tmp_path):
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    make_install_artifacts(install_root, data_dir, project)
+
+    proc = run_install(
+        ["--clean"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+        stdin_text="",
+    )
+    assert proc.returncode == 2
+    assert "--yes" in (proc.stdout + proc.stderr)
+    assert install_root.exists() and data_dir.exists()
+
+
+def test_clean_yes_leaves_zero_residue(tmp_path):
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    make_install_artifacts(install_root, data_dir, project)
+
+    proc = run_install(
+        ["--clean", "--yes", "--json"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    report = json.loads(proc.stdout)
+    assert report["removed_bytes"] > 0
+    assert report["remaining_bytes"] == 0
+    assert not install_root.exists()
+    assert not (project / ".mscodebase").exists()
+    assert not (data_dir / "projects").exists()
+
+    after = run_install(
+        ["--doctor", "--json"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+    )
+    assert after.returncode == 0, after.stderr
+    assert json.loads(after.stdout)["total_bytes"] == 0
+
+
+# ─── G6: models are opt-in (text-first default) ────────────────────────
+
+
+def _install_module():
+    spec = importlib.util.spec_from_file_location("mscodebase_install", INSTALL_PY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_models_are_opt_in():
+    mod = _install_module()
+    assert mod.models_enabled([]) is False
+    assert mod.models_enabled(["--sync-only"]) is False
+    assert mod.models_enabled(["--with-models"]) is True
+
+
+def test_real_sync_install_then_doctor_then_clean_leaves_zero(tmp_path):
+    """DoD G6: a real install (--sync-only), doctor sees it, clean leaves nothing."""
+    install_root = tmp_path / "install"
+    data_dir = tmp_path / "data"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    install = run_install(
+        ["--sync-only"],
+        install_root=install_root,
+        data_dir=data_dir,
+        cwd=project,
+        timeout=300,
+    )
+    assert install.returncode == 0, install.stderr
+    assert (install_root / "install.py").is_file()
+    assert (install_root / "src" / "main.py").is_file()
+
+    doctor = run_install(["--doctor", "--json"], install_root=install_root, data_dir=data_dir, cwd=project)
+    assert doctor.returncode == 0, doctor.stderr
+    report = json.loads(doctor.stdout)
+    layers = {layer["name"]: layer for layer in report["layers"]}
+    assert layers["install_root"]["files"] > 100, layers["install_root"]
+    assert report["total_bytes"] > 1_000_000
+
+    clean = run_install(
+        ["--clean", "--yes", "--json"], install_root=install_root, data_dir=data_dir, cwd=project
+    )
+    assert clean.returncode == 0, clean.stdout + clean.stderr
+    assert json.loads(clean.stdout)["remaining_bytes"] == 0
+    assert not install_root.exists()
+
+
+@pytest.mark.parametrize("step_name", ["step_gguf", "step_models"])
+def test_text_first_default_skips_downloads(step_name, monkeypatch):
+    mod = _install_module()
+    step = getattr(mod, step_name)
+
+    def _boom(*_a, **_k):  # pragma: no cover - must never run
+        raise AssertionError("download attempted without --with-models")
+
+    monkeypatch.setattr(mod.sys, "argv", ["install.py"])
+    if step_name == "step_models":
+        monkeypatch.setattr(mod, "_download_onnx_models", _boom, raising=False)
+
+    lines: list[tuple[str, str]] = []
+    step(lines, "en")
+    joined = " ".join(text for _c, text in lines).lower()
+    assert "skip" in joined, lines
+    assert "--with-models" in joined, lines
