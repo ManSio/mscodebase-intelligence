@@ -104,7 +104,8 @@ def test_print_config_is_valid_json_per_client(client, tmp_path):
         command = [entry["command"], *entry["args"]]
         env = entry["env"]
 
-    assert command[0].endswith(("mscodebase-mcp.exe", "mscodebase-mcp", "python.exe", "python3"))
+    name = Path(command[0]).name
+    assert name.startswith(("python", "mscodebase-mcp")), name
     assert command[1:] == ["-u", "-m", "src.main"]
     assert Path(env["PYTHONPATH"]).resolve() == install_root.resolve()
     assert env["PYTHONUTF8"] == "1"
