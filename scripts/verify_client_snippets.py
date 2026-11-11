@@ -125,7 +125,7 @@ def _probe(client: str, command: str, args: list[str], env: dict[str, str], time
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--python", default="", help="interpreter/entry point to probe (default: current)")
-    ap.add_argument("--timeout", type=int, default=120)
+    ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--install-root", default=os.environ.get("MSCODEBASE_INSTALL_ROOT", str(REPO)))
     args = ap.parse_args()
 

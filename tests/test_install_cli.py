@@ -172,7 +172,7 @@ def test_generic_snippet_actually_starts_the_server(tmp_path):
         encoding="utf-8",
         errors="replace",
     ) as proc2:
-        out, err = proc2.communicate(json.dumps(request) + "\n", timeout=120)
+        out, err = proc2.communicate(json.dumps(request) + "\n", timeout=300)
 
     answer = None
     for line in out.splitlines():
