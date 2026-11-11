@@ -35,6 +35,24 @@ CLIENT_RE = re.compile(r"--client\s+([a-z][a-z0-9-]*)")
 
 DOC_GLOBS = ("README.md", "docs/*/INSTALL.md", "docs/*/CLIENTS.md", "docs/*/DATA_MAP.md", "docs/en/FAQ.md")
 
+# G7 DoD "no documentation section without a code reference": every canonical page
+# must cite at least one real code artefact. Section-level references are the
+# "Code references" tables inside those pages; this is the page-level floor.
+CANONICAL_GLOBS = (
+    "README.md",
+    "docs/*/ARCHITECTURE.md",
+    "docs/*/SEARCH_PIPELINE.md",
+    "docs/*/CONFIGURATION.md",
+    "docs/*/INSTALL.md",
+    "docs/*/CLIENTS.md",
+    "docs/*/DATA_MAP.md",
+    "docs/*/FAQ.md",
+)
+CODE_REF_RE = re.compile(
+    r"(src/[a-z0-9_/]+\.py|scripts/[a-z0-9_/]+\.py|install\.py|\.githooks/[a-z-]+|"
+    r"\.opencode/plugin/[a-z0-9_.-]+|adapters/[a-z0-9_/]+\.py)"
+)
+
 
 def install_flags(root: Path) -> set[str]:
     """Flags the installer actually knows about (string literals in install.py)."""
@@ -78,6 +96,15 @@ def check(root: Path) -> tuple[list[str], int]:
         for client in CLIENTS:
             if f"--client {client}" not in body:
                 problems.append(f"docs/en/CLIENTS.md: no copy-paste section for {client!r}")
+
+    # Page-level floor: a canonical page that cites no code cannot be verified.
+    canonical = sorted(
+        {p for pattern in CANONICAL_GLOBS for p in root.glob(pattern) if p.is_file()}
+    )
+    for path in canonical:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if not CODE_REF_RE.search(text):
+            problems.append(f"{path.relative_to(root)}: no code reference (file:symbol) anywhere")
 
     return problems, checked_flags
 

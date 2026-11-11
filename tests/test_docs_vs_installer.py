@@ -60,3 +60,35 @@ def test_empty_docs_corpus_is_not_a_pass(tmp_path):
     problems, checked = guard.check(tmp_path)
     assert checked == 0
     assert problems == ["no documentation found to check"]
+
+
+def test_canonical_page_without_code_reference_is_reported(tmp_path):
+    """G7 DoD: a page that cites no code cannot be verified against anything."""
+    (tmp_path / "install.py").write_text('KNOWN = "--print-config"\n', encoding="utf-8")
+    (tmp_path / "docs" / "en").mkdir(parents=True)
+    (tmp_path / "docs" / "en" / "ARCHITECTURE.md").write_text(
+        "# Architecture\n\nIt has layers and a toggle.\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "en" / "SEARCH_PIPELINE.md").write_text(
+        "# Pipeline\n\nSee `src/core/search/engine.py`.\n", encoding="utf-8"
+    )
+    (tmp_path / "docs" / "en" / "CLIENTS.md").write_text(
+        "\n".join(f"--client {c}" for c in guard.CLIENTS) + "\n`src/main.py`\n", encoding="utf-8"
+    )
+
+    problems, _checked = guard.check(tmp_path)
+    assert any("ARCHITECTURE.md: no code reference" in p for p in problems), problems
+    assert not any("SEARCH_PIPELINE.md: no code reference" in p for p in problems), problems
+
+
+def test_every_canonical_page_in_the_repo_cites_code():
+    pages = sorted(
+        {p for pattern in guard.CANONICAL_GLOBS for p in REPO.glob(pattern) if p.is_file()}
+    )
+    assert pages, "no canonical pages found"
+    offenders = [
+        str(p.relative_to(REPO))
+        for p in pages
+        if not guard.CODE_REF_RE.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+    assert offenders == [], offenders
