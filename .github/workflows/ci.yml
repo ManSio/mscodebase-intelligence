@@ -51,6 +51,12 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: Client snippets cold start (G5)
+        # Каждый сниппет из `install.py --print-config` запускается на чистом
+        # раннере: initialize + tools/list. Покрывает все 5 клиентов, включая
+        # не-Zed/не-OpenCode (generic, claude-code, cursor).
+        run: python scripts/verify_client_snippets.py --install-root .
+
       - name: Layer-boundary gate (Фаза 1 Universal Engine)
         # Три оси ТЗ: ADAPTER → TRANSPORT → SOURCE → CORE. Гейт не даёт
         # mcp/tools импортировать adapters/src.sources и core — adapters.*
