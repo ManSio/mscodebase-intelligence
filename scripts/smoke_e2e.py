@@ -27,6 +27,7 @@ Exit code: 0 = все проверки прошли; 1 = хотя бы одна 
 """
 
 import argparse
+import sqlite3
 import sys
 import time
 from pathlib import Path
@@ -161,6 +162,45 @@ def check_rerank() -> tuple[bool, str]:
         return False, f"rerank error: {e}"
 
 
+def _text_index_search(project: Path) -> tuple[bool, str]:
+    """Поиск по текстовому индексу (SQLite FTS5), когда векторов нет.
+
+    Дефолт репозитория — `MSCODEBASE_DENSE_OFF=true`: индекс собирается
+    `reindex_text_only.py`, и LanceDB-таблицы с векторами не существует.
+    Проверять «поиск работает» надо по тому индексу, который есть.
+    """
+    db = Path(project) / ".mscodebase" / "chunks.db"
+    if not db.is_file():
+        return False, f"текстового индекса нет: {db}"
+    con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True)
+    try:
+        probe = con.execute(
+            "select symbol_name from chunks "
+            "where symbol_name is not null and length(symbol_name) >= 4 limit 1"
+        ).fetchone()
+        term = probe[0] if probe else ""
+        if not term:
+            text = con.execute("select text from chunks limit 1").fetchone()
+            if not text:
+                return False, "текстовый индекс пуст"
+            term = next((w for w in str(text[0]).split() if len(w) > 3), "")
+        if not term:
+            return False, "не из чего выбрать пробный термин"
+        rows = con.execute(
+            "select file_path from chunks_fts "
+            "where chunks_fts match ? limit 3",
+            (f'"{term}"',),
+        ).fetchall()
+        ok = bool(rows)
+        sample = rows[0][0] if rows else ""
+        return ok, (f"term={term!r}, results={len(rows)}"
+                    f"{f' ({sample})' if sample else ''} {'✅' if ok else '❌'}")
+    except sqlite3.Error as e:
+        return False, f"text search error: {e}"
+    finally:
+        con.close()
+
+
 def check_search(project: Path) -> tuple[bool, str]:
     """Реальный векторный поиск по реальному индексу проекта (без моков).
 
@@ -168,11 +208,19 @@ def check_search(project: Path) -> tuple[bool, str]:
     PID-lock (он защищает запись; MCP другого окна держит lock — создание
     Indexer через DI упало бы «PID lock held», что и случилось в первом
     прогоне). Вектор запроса — реальный embed через llama.cpp (8080).
+
+    Если векторного индекса нет (дефолт `MSCODEBASE_DENSE_OFF=true`), шаг
+    проверяет текстовый индекс SQLite: падать на отсутствии вектора значило бы
+    требовать от дефолтной конфигурации чужой режим.
     """
+    from src.core.artifact_paths import get_db_path
+
+    vector_db = Path(str(get_db_path(project)))
+    if not vector_db.exists():
+        ok, detail = _text_index_search(project)
+        return ok, f"векторного индекса нет; {detail}"
     try:
         import lancedb
-
-        from src.core.artifact_paths import get_db_path
 
         # Корень БД = <index_dir>/index_<proj>_<hash>.db (внутри таблица codebase_chunks).
         # Ретри: LanceDB-манифест при конкурентной записи (живой MCP переиндексирует)
@@ -186,7 +234,8 @@ def check_search(project: Path) -> tuple[bool, str]:
                 break
             time.sleep(0.5)
         if not names:
-            return False, "в индексе нет таблиц (проект не индексирован)"
+            ok, detail = _text_index_search(project)
+            return ok, f"в векторной БД нет таблиц; {detail}"
         table = db.open_table(names[0])
         # Реальный embed запроса через llama.cpp
         r = httpx.post(
@@ -199,9 +248,12 @@ def check_search(project: Path) -> tuple[bool, str]:
         df = table.search(vec).limit(3).to_pandas()
         n = len(df)
         ok = n > 0
-        return ok, f"таблица={names[0]}, results={n} {'✅' if ok else '❌'}"
+        return ok, f"режим=vector, таблица={names[0]}, results={n} {'✅' if ok else '❌'}"
     except Exception as e:  # noqa: BLE001 — диагностика
-        return False, f"search error: {e}"
+        ok, detail = _text_index_search(project)
+        if ok:
+            return True, f"режим=text (vector: {str(e)[:120]}); {detail}"
+        return False, f"search error: {e}; {detail}"
 
 
 def main() -> int:

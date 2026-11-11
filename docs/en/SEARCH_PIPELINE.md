@@ -138,8 +138,8 @@ four tasks asked as name / Russian prose / English prose: without hints top-1 is
 3/4, 0/4, 1/4; with the name passed as a hint it is 3/4, 3/4, 3/4. The remaining
 miss is an ambiguous gold (two real definitions), not a language gap
 (`experiments/xerj_2026_11/metamorphic/REPORT.md`).
-- `abstain` — no row carries evidence (also when the subject does not occur and
-  the graph does not know it).
+- `abstain` — no row carries evidence (also when none of the extracted
+  identifiers occurs and the graph does not know the subject).
 
 Row markers are facts, not decoration: `✓def:class`, `✓def:function@368` (the
 declaration is at line 368, the row points at the chunk start), `✓exact@211`

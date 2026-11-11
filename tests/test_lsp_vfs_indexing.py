@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.core.indexing.indexer import Indexer
+from src.sources.local_fs import LocalFsSource
 
 pytestmark = pytest.mark.slow
 
@@ -39,6 +40,11 @@ class TestLSPVFSIndexing:
             file_guard=mock_file_guard,
             project_path=project_path,
             enable_summaries=False,
+            # core не конструирует источник сам: его передаёт composition root
+            # или тест (Фаза 2, гейт слоёв). Без него Indexer падает с
+            # ValueError — 4 slow-теста дрейфовали, потому что маркер `slow`
+            # исключён addopts и CI их не видел (KNOWN_ISSUES 2026-11-11).
+            source=LocalFsSource(project_path),
         )
         return indexer
 

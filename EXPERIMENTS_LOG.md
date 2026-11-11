@@ -1,4 +1,58 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-11] — E73/P5: removing the false refusal costs the requests panel nothing
+
+Rerun of B2 (`psf/requests`, 25 solvable commits, corpus `e331a288`, 786 chunks)
+with the E73 fix. Pre-registered bar: **tool hit@5 >= 10 / 25** — the value
+recorded for this panel in PR #110. No re-barring.
+
+```
+arm           hit@1  hit@5    PR #110 -> now
+tool              9     12        10 -> 12
+neighbours        9     13        13
+search            5     15        15
+grep              6     19        19
+invalid runs: 0
+```
+
+Bar passed; no arm lost a task. On this smaller repo the refusal was hiding two
+answers as well, so the fix is not a large-repo-only effect.
+
+Command:
+`python experiments/bench_2026_11/external.py --repo <bench>/requests --corpus <bench>/req-B --base e331a288 --limit 40`
+(`<bench>` = the directory with the external clones, see
+`experiments/bench_2026_11/REPORT.md` → Reproduce).
+
+## [2026-11-11] — E73: the first-token abstain refused answers the tool had found
+
+**Found by** the E72 follow-up. On the 40 solvable sqlalchemy commits, 13 answered
+nothing (`rows=0`, `abstain 0.00`) while the rows existed: `_abstains` decided
+"the subject does not occur" from the FIRST extracted identifier
+(`investigate_tool.py:138`), and on commit prose that token is an annotation or a
+type name: `_orm.registry=0` next to `Declarative=785`, `Databricks=0` next to
+`TypeError=290`.
+
+**Fix:** refuse only when NO identifier occurs. The policy (option C, E69) is
+untouched - 2 of the 13 still refuse because every token is absent.
+
+```
+sqlalchemy, 40 commits   hit@5   before 11 -> after 17   (bar >=15: PASS)
+B1 dev, 71 commits       19/71 both ways                 (bar 19: PASS)
+44 negative tasks        44/44 silent, no leak           (PASS)
+13 formerly-empty        6/13 recovered                  (bar 8: FAIL)
+```
+
+P4 was miscalibrated in my own spec: the bar of 8 came from an
+`include_neighbours=true` run, which bypasses the refusal, while the change keeps
+it. Two of the thirteen are the all-zero case and must stay refused, so the
+reachable maximum is 11/13. The gate is recorded as failed and NOT re-edited; the
+frozen rule says "P4 < 8 -> revert", its premise ("the first-token rule is not
+the cause") is contradicted by P1 (+6, no leak), so the ship decision is with the
+owner.
+
+**Still unexplained:** with the refusal removed, the same commit shows the gold
+in the top-5 under the bypass path but not in the normal answer for 2 cases
+beyond the all-zero pair - the evidence gate drops those rows. Not investigated.
+
 ## [2026-11-11] — E72: file-level dedup changes the shape, not the score
 
 **Why:** on external repos the tool answers with chunks while grep ranks whole

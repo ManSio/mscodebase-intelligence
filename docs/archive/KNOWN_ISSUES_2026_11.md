@@ -100,3 +100,62 @@ RU vs EN: rank-1 0.150 vs 0.250, к k=5 выравнивается (0.550)
 **Fix:** `embedding_dimension` брать из ответа сервера (или из модели), затем
 переиндексация; после — тот же `run_curve.py` в dense-режиме.
 
+
+---
+## 2026-10-25 — README rewritten; RU/ZH synchronized — 🟢
+- Root `README.md`, `docs/ru/README.md`, `docs/zh/README.md` now describe the
+  Phase 3 text-first runtime (SQLite/FTS5 + PropertyGraph, optional providers),
+  measured quality with methodology, limitations and bug-report protocol.
+- Old claims removed: LanceDB/vector as default, 65 visible tools, inconsistent
+  test counts, 95% quality implication.
+- Historical architecture/search docs carry a Phase 3 status banner; they are
+  not silently presented as current.
+
+---
+
+## 2026-10-25 — E57: auto docs routing by BM25 margin (no LLM) — 🟢
+- `docs_max - code_max > 4.0` -> docs channel, else code.
+- same-basename **0.688 → 0.792**, docs 5/8, **0 code false positives**;
+  code hit@1 0.825 unchanged; exact 0.708; p50 ~100 ms extra.
+- **Реализовано:** `MSCODEBASE_DOCS_MARGIN` (4.0), `Searcher.prefers_docs()`,
+  auto-ветка в `SearchCodeTool` при пустом `intent`; tests 27 pass.
+- Gold canonicalization (`docs/ru/X` for `docs/en/X`) всё ещё искажает exact.
+
+---
+
+## 2026-10-25 — E45: structured agent plan — +1 h1, p50 72 ms — 🟢 worth API
+- **План:** primary + must_include + symbols, один запрос, без multi-query RRF.
+- **Результат:** baseline 0.688/0.771/79ms; plan_must **0.708**/0.771/71ms; plan_full 0.708/0.771/72ms.
+- **Вердикт:** один primary + must_include — маленький реальный выигрыш; symbols не дают.
+  Внедрить как опциональные поля `search_code` + tool `plan_search`. 95% не закрывает.
+- **Артефакты:** `experiments/e45_agent_plan/`.
+
+---
+
+## 2026-10-25 — E39: Qwen3-Reranker-0.6B — 29–55 s, хуже — 🔴 rejected
+- **Пилот:** 16 запросов E30; demote vs Qwen3 top10/top20 на corrected index.
+- **Результат:** demote 0.625/0.688, 116 ms; Qwen3 top10 0.500/0.562, 28.9 s;
+  top20 0.438/0.562, 54.8 s. H1–H6 FAIL.
+- **Вердикт:** не usable на CPU; качество ниже deterministic. Reranking не рычаг.
+  Deterministic 0.688/0.771/84 ms — потолок на этой панели.
+- **Артефакты:** `experiments/e39_qwen3_rerank/`.
+
+---
+
+## 2026-10-25 — E38: BGE-reranker-base — хуже deterministic — 🔴 rejected
+- **Плечи:** demote / bge_base_top10 / top20 на 48 запросах E30 (corrected index).
+- **Результат:** demote 0.688/0.771, 84 ms; BGE-base top10 0.625/0.708, 3139 ms;
+  top20 0.583/0.688, 6028 ms. H7 PASS (лучше MiniLM); остальные FAIL.
+- **Вердикт:** generic cross-encoder out-of-domain для кода. Детерминированный pipeline 0.688/0.771/84 ms.
+  Reranking не рычаг; только Qwen3-Reranker-0.6B как пилот.
+- **Артефакты:** `experiments/e38_code_aware_rerank/`.
+
+---
+
+## 2026-10-25 — E37: chunking 32/64/128 — качество не меняется; P3 off — 🟢
+- **Результат:** current/split32/split64/split128 — все h1 0.688, h5 0.771, MRR 0.713.
+- Нарезка не узкое место; top-5 определяется file-level ranking. P3 off: p50 87 ms,
+  качество не падает. `MSCODEBASE_P3_ANCHOR=false` по умолчанию.
+- **Артефакты:** `experiments/e37_chunking/`.
+
+---

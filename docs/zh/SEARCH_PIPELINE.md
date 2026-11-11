@@ -131,7 +131,7 @@ docs_max − code_max > MSCODEBASE_DOCS_MARGIN (default 4.0)  → docs channel
 「名称 / 俄语散文 / 英语散文」三种形式实测：无 hints 时 top-1 为 3/4、0/4、1/4；把名称作为
 hint 传入后为 3/4、3/4、3/4。剩下的未命中是 gold 存在歧义（两个真实定义），不是语言差异
 （`experiments/xerj_2026_11/metamorphic/REPORT.md`）。
-- `abstain` —— 没有任何一行携带证据（对象不出现且图不认识它时也是如此）。
+- `abstain` —— 没有任何一行携带证据（当抽取出的标识符一个都不出现且图不认识该对象时也是如此）。
 
 行标记是事实而非装饰：`✓def:class`、`✓def:function@368`（声明在第 368 行，结果行
 指向分块开头）、`✓exact@211`（术语在分块内的第 211 行）、`⚠stale`（文件在索引后已改变）、
