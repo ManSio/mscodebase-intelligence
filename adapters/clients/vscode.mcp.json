@@ -3,10 +3,13 @@
   "servers": {
     "mscodebase": {
       "type": "stdio",
-      "command": "<path-to-venv>/Scripts/python.exe",
+      "command": "<install-root>/venv/Scripts/python.exe",
       "args": ["-m", "src.main"],
-      "env": { "PYTHONPATH": "<path-to-repo>" },
-      "cwd": "<path-to-project>"
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<path-to-project>",
+        "PYTHONUTF8": "1"
+      }
     },
     "mscodebase-remote": {
       "type": "http",

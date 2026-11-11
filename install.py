@@ -1,7 +1,18 @@
 """
-MSCodebase Intelligence — Installer & Updater v3.1
+MSCodebase Intelligence — Installer & Updater v3.2
 =================================================
 Robust TUI with error recovery, self-healing, and safe cross-platform I/O.
+
+Host-neutral since v3.2: the server is installed into a plain Python
+environment and any MCP host can launch it. Zed is an optional adapter, not a
+required step. The default install root keeps the historical Zed extension path
+so existing installs keep updating in place; set MSCODEBASE_INSTALL_ROOT to put
+it anywhere else.
+
+Non-interactive modes (no TUI, safe for scripts and tests):
+    install.py --print-config [--client generic|opencode|zed|claude-code|cursor]
+                                 print a ready-to-paste stdio snippet
+    install.py --help            list modes
 
 Design principles:
   - Every step wrapped in try/except with retry/skip/cancel
@@ -29,6 +40,13 @@ Changelog v3.0 -> v3.1 (все пункты — реальные баги, не 
      резолвится за пределы ZED_EXT_DIR.
   7. step_pip теперь предпочитает requirements-lock.txt, если он есть рядом с
      requirements.txt (совместимо с dependency-lock практикой, принятой в проекте).
+
+Changelog v3.1 -> v3.2 (G5 universal install + G6 data hygiene):
+  1. Zed больше не импортируется на верхнем уровне: install.py запускается на
+     машине без Zed и без adapters/ — адаптер подключается лениво внутри шагов.
+  2. INSTALL_ROOT отвязан от Zed: MSCODEBASE_INSTALL_ROOT переопределяет каталог
+     установки (историческое имя папки расширения остаётся только default).
+  3. Добавлены --print-config/--help: готовый stdio-сниппет для любого MCP-клиента.
 """
 
 import io
@@ -45,18 +63,34 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from adapters.zed.zed_config import get_zed_config_dir, patch_zed_settings
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-ZED_EXT_DIR = (
+
+# ─── Roots: server installation vs host adapter ─────────────────────────────
+# The installed copy is a plain Python environment. Nothing about it is
+# Zed-specific; the path below is only the historical default so that existing
+# installs keep updating in place. MSCODEBASE_INSTALL_ROOT moves it anywhere
+# (a neutral location, a CI temp dir, a per-user tools directory).
+LEGACY_INSTALL_ROOT = (
     Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")))
     / "Zed"
     / "extensions"
     / "mscodebase-intelligence"
 )
+
+
+def resolve_install_root() -> Path:
+    """INSTALL_ROOT from MSCODEBASE_INSTALL_ROOT, else the legacy Zed path."""
+    raw = os.environ.get("MSCODEBASE_INSTALL_ROOT", "").strip()
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return LEGACY_INSTALL_ROOT
+
+
+INSTALL_ROOT = resolve_install_root()
+ZED_EXT_DIR = INSTALL_ROOT  # legacy alias: the Zed extension reads this tree
 VENV_DIR = ZED_EXT_DIR / "venv"
 IS_WINDOWS = sys.platform == "win32"
 PYTHON_EXE = VENV_DIR / "Scripts" / "python.exe" if IS_WINDOWS else VENV_DIR / "bin" / "python3"
@@ -383,6 +417,19 @@ def _step(n: int):
 
 @_step(0)
 def step_zed(lines, lang):
+    """Optional host adapter: the Zed config directory only.
+
+    The server itself does not need Zed. On a machine without the adapter the
+    step is a no-op, not a failure (G5: server != host adapter).
+    """
+    if not zed_enabled():
+        lines.append((C.D, "· Skipped (--no-zed)"))
+        return
+    try:
+        from adapters.zed.zed_config import get_zed_config_dir
+    except Exception as e:  # adapter absent / broken: server still installs
+        lines.append((C.YEL, f"· Zed adapter unavailable ({e})"))
+        return
     zcd = get_zed_config_dir()
     zcd.mkdir(parents=True, exist_ok=True)
     lines.append((C.GRN, f"✓ {zcd}"))
@@ -662,7 +709,10 @@ def step_llama(lines, lang):
 
 @_step(7)
 def step_gguf(lines, lang):
-    """Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3."""
+    """Скачивает GGUF модели: multilingual-e5-small (embedder) + bge-reranker-v2-m3.
+
+    """
+
     from src.providers.reranker.llama_runner import is_model_downloaded, download_gguf_model, GGUF_MODELS, _get_models_dir
 
     all_ok = True
@@ -711,8 +761,9 @@ def step_gguf(lines, lang):
 def step_models(lines, lang):
     """Скачивает ONNX-модели: multilingual-e5-small-int8 (embedder) + bge-reranker-v2-m3.
 
-    Проверяет по порядку: ZED_EXT_DIR -> общий кэш ~/.cache/mscodebase -> PROJECT_ROOT.
+    Проверяет по порядку: ZED_EXT_DIR -> общий кэш data_root/models -> PROJECT_ROOT.
     Найдено в (2) или (3) -> копирует в (1). Не найдено нигде -> скачивает.
+
     """
     SHARED_DIR = Path.home() / ".cache" / "mscodebase" / "models"
     models = {
@@ -839,6 +890,18 @@ def step_zedcfg(lines, lang):
     # Имя exe — то, что показывает Task Manager (у pythonw нет консоли для
     # title): запускаемся через mscodebase-mcp.exe-хардлинк → pythonw.exe,
     # fallback — plain pythonw при ошибке создания линка.
+    #
+    # G5: шаг опционален. Любой другой хост получает конфиг через
+    # `install.py --print-config --client <...>`; отказ Zed-адаптера не роняет
+    # установку.
+    if not zed_enabled():
+        lines.append((C.D, "· Skipped (--no-zed)"))
+        return
+    try:
+        from adapters.zed.zed_config import patch_zed_settings
+    except Exception as e:
+        lines.append((C.YEL, f"· Zed adapter unavailable ({e})"))
+        return
     mcp_exe = str(_ensure_mcp_hardlink()) if IS_WINDOWS else str(MCP_PYTHON)
     cmd = f"{mcp_exe} -u -m src.main"
     if patch_zed_settings(
@@ -888,6 +951,97 @@ def _build_uninstaller() -> str:
     )
 
 
+# ─── Non-interactive modes: config snippet / doctor / clean ────────────────
+def zed_enabled(argv: Optional[list[str]] = None) -> bool:
+    """Zed adapter is opt-out: --no-zed keeps the install host-neutral."""
+    argv = sys.argv if argv is None else argv
+    return "--no-zed" not in argv
+
+
+
+
+
+
+def _mcp_launch_command(argv: list[str]) -> tuple[str, list[str]]:
+    """The exact command a host must run: installed entry point, else venv python.
+
+    `--python PATH` overrides the interpreter (used by the cold-start test and by
+    people who installed with pipx/uv, where `mscodebase-mcp` is on PATH).
+    """
+    if "--python" in argv:
+        idx = argv.index("--python")
+        if idx + 1 >= len(argv):
+            raise ValueError("--python needs a path")
+        return argv[idx + 1], ["-u", "-m", "src.main"]
+    for exe in (MCP_EXE, PYTHON_EXE):
+        try:
+            if Path(exe).exists():
+                return str(exe), ["-u", "-m", "src.main"]
+        except OSError:
+            continue
+    return sys.executable, ["-u", "-m", "src.main"]
+
+
+def _print_config(client: str, project: Path, argv: list[str]) -> int:
+    """Print a ready-to-paste stdio snippet for one MCP host."""
+    try:
+        from adapters.clients.snippets import CLIENTS, render_snippet
+    except Exception as e:  # pragma: no cover - adapters are shipped with the repo
+        print(f"error: client adapters unavailable: {e}", file=sys.stderr)
+        return 1
+
+    if client not in CLIENTS:
+        print(
+            f"error: unknown client '{client}'. Known: {', '.join(CLIENTS)}",
+            file=sys.stderr,
+        )
+        return 2
+
+    command, args = _mcp_launch_command(argv)
+    env = {
+        "PYTHONPATH": str(INSTALL_ROOT),
+        "PROJECT_PATH": str(project),
+        "PYTHONUTF8": "1",
+    }
+    print(render_snippet(client, command=command, args=args, env=env), end="")
+    return 0
+
+
+
+
+
+
+
+
+def _print_help() -> int:
+    print(
+        "usage: install.py [mode] [options]\n\n"
+        "Modes (no TUI):\n"
+        "  (default)                 interactive install: venv, pip, optional Zed adapter\n"
+        "  --sync-only               copy the current sources into the install root\n"
+        "  --print-config            print a stdio snippet for an MCP host\n"
+        "      --client {generic,opencode,zed,claude-code,cursor}   (default: generic)\n"
+        "      --python PATH         interpret the snippet around this interpreter\n"
+        "Install options:\n"
+        "  --no-zed                  do not touch Zed settings; host-neutral install\n"
+        "  --yes                     accept every step without prompts\n\n"
+        "Environment:\n"
+        "  MSCODEBASE_INSTALL_ROOT   where the installed copy lives\n"
+        "  MSCODEBASE_DATA_DIR       where caches/logs/project artifacts live\n"
+        "  PROJECT_PATH              project the host should index\n"
+    )
+    return 0
+
+
+def _mode_from_argv(argv: list[str]) -> Optional[str]:
+    for mode in ("--print-config", "--help"):
+        if mode in argv:
+            return mode
+    if "-h" in argv:
+        return "--help"
+    return None
+
+
 # ─── Main ──────────────────────────────────────────────────
 def _record_install_meta() -> None:
     """DEV-ONLY: метаданные для детекции рассинхрона source<->extension.
@@ -934,11 +1088,43 @@ def _record_install_meta() -> None:
         logger.debug("_record_install_meta failed: %s", e)
 
 
+def _utf8_stdout() -> None:
+    """UTF-8 stdout on Windows for every mode (paths and reports contain non-ASCII).
+
+    The TUI already did this; the non-interactive modes used to inherit cp1251
+    and crashed on the first non-ASCII byte (found 2026-11-12 on a Cyrillic path).
+    """
+    if not IS_WINDOWS:
+        return
+    try:
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
+        )
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
+        )
+    except Exception as e:  # noqa: BLE001 - never fail because of cosmetics
+        logger.debug("utf-8 stdout wrap failed: %s", e)
+
+
 def main() -> None:
+    argv = sys.argv[1:]
+    _utf8_stdout()
+    mode = _mode_from_argv(argv)
+    if mode == "--help":
+        sys.exit(_print_help())
+    if mode == "--print-config":
+        client = "generic"
+        if "--client" in argv:
+            idx = argv.index("--client")
+            client = argv[idx + 1] if idx + 1 < len(argv) else ""
+        sys.exit(_print_config(client, Path.cwd(), argv))
+
     _enable_ansi()
     lang = _detect_lang()
-    if IS_WINDOWS:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+    # stdout is already UTF-8: _utf8_stdout() ran at the top of main(). Re-wrapping
+    # here closed the previous wrapper's buffer (ValueError: I/O on closed file,
+    # found 2026-11-12 by the install→doctor→clean roundtrip).
 
     STEPS.sort(key=lambda x: x[0])
 
