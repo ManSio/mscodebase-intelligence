@@ -74,8 +74,8 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 🧭 investigate: `where is missing_widget implemented`
    identifiers: missing_widget, implemented
    results: 8
-   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
-   in the indexed code; the results below are neighbours, not matches.
+   ⚠️ exact: missing_widget=0, implemented=5 — the subject does not occur in
+   the indexed code; the rows below match the other identifiers, not the subject.
 ```
 
 必须始终成立的四条规则（守卫：`tests/test_no_silent_success.py`）：
@@ -85,7 +85,7 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 3. `latency_ms` 来自时钟：60 ms 的调用至少报 50，两种不同开销给出两个不同数字；
 4. 两个非精确通道指向同一位置只是相关性，不是证明：`exact:` 行不会因“一致”而改变。
 
-当第一个标识符在代码中**完全不存在**、且图也不知道该符号时，回答是拒绝，而不是邻居列表：
+当没有任何一个标识符出现在代码中、且图也不知道该符号时，回答是拒绝，而不是邻居列表：
 
 ```
 🧭 investigate: `where is missing_widget defined`
