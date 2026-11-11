@@ -23,6 +23,14 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
+# ENCODING SAFETY (Windows): the server's stderr tail is Russian, and a cp1252
+# console crashes the report with UnicodeEncodeError (windows-latest, 2026-11-12).
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
 from adapters.clients.snippets import CLIENTS, snapshot  # noqa: E402
 
 _TOP_LEVEL = {
