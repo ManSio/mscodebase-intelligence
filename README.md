@@ -34,6 +34,13 @@ The default runtime is **text-first**: SQLite FTS5/BM25 over parsed chunks plus
 a Tree-sitter/PropertyGraph index. Embeddings and rerankers are optional; no
 GPU, network or vector database is required to answer a code question.
 
+## Canonical repository
+
+`rag-mcp` in this project's documentation means **this** repository:
+<https://github.com/ManSio/mscodebase-intelligence> (MIT, branch `main`). The
+name is not unique on public hubs, so every `rag-mcp` mention in these docs
+refers only to the URL above.
+
 ## What works today
 
 | Area | What it does | Entry point |
