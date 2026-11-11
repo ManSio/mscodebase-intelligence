@@ -55,10 +55,13 @@ LIST_TOOLS = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
 
 def _entry(client: str, command: str, args: list[str], env: dict[str, str]) -> tuple[str, list[str], dict[str, str]]:
-    payload = snapshot(client, command=command, args=args, env=env)[_TOP_LEVEL[client]]["mscodebase"]
+    payload = snapshot(client, command=command, args=args, env=env)
     if client == "opencode":
-        return payload["command"][0], payload["command"][1:], payload["environment"]
-    return payload["command"], payload["args"], payload["env"]
+        # V2 nests the entry under mcp.servers.<name> (see adapters/clients/snippets.py).
+        entry = payload["mcp"]["servers"]["mscodebase"]
+        return entry["command"][0], entry["command"][1:], entry["environment"]
+    entry = payload[_TOP_LEVEL[client]]["mscodebase"]
+    return entry["command"], entry["args"], entry["env"]
 
 
 def _read_message(stream, timeout: float):
