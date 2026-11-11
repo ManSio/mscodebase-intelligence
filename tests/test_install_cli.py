@@ -8,6 +8,7 @@ actually launched and must answer an MCP `initialize` request.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -19,6 +20,13 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 INSTALL_PY = REPO / "install.py"
+
+
+def _install_module():
+    spec = importlib.util.spec_from_file_location("mscodebase_install", INSTALL_PY)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 SNIPPET_CLIENTS = ["generic", "opencode", "zed", "claude-code", "cursor"]
 
@@ -190,3 +198,32 @@ def test_generic_snippet_actually_starts_the_server(tmp_path):
                 break
     assert answer is not None, textwrap.shorten(out + err, 800)
     assert answer["result"]["serverInfo"]["name"], answer
+
+
+# ─── G5: --yes must run the steps, not skip all of them ────────────────
+
+
+def test_auto_yes_runs_each_step_once(monkeypatch):
+    """Regression: `range(0 if auto_yes else ...)` ran zero steps and marked all failed.
+
+    Found by a clean-room install (2026-11-12): `install.py --yes` printed the
+    summary box while creating nothing on disk.
+    """
+    mod = _install_module()
+    calls: list[str] = []
+
+    def _fake_step(lines, lang):
+        calls.append("ran")
+
+    monkeypatch.setattr(mod, "STEPS", [(0, "step_fake", _fake_step)])
+    monkeypatch.setattr(mod.sys, "argv", ["install.py", "--yes"])
+    monkeypatch.setattr(mod, "_enable_ansi", lambda: None)
+    monkeypatch.setattr(mod, "_utf8_stdout", lambda: None)
+    monkeypatch.setattr(mod, "_record_install_meta", lambda: None)
+    monkeypatch.setattr(mod, "_box", lambda *a, **k: None)
+    monkeypatch.setattr(mod, "_line", lambda *a, **k: None)
+
+    mod.main()
+
+    assert calls == ["ran"], "auto-yes marked the step failed instead of running it"
+
