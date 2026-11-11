@@ -22,8 +22,7 @@ Streamable-HTTP (`src/remote_main.py`) для docker/удалённого раз
 
 ```bash
 cd <repo-root>
-python install.py                     # venv + зависимости + код, text-first, без моделей
-python install.py --with-models       # то же + ONNX/GGUF модели (~657 МБ)
+python install.py                     # venv + зависимости + код (шаги моделей спрашивают)
 python install.py --no-zed            # не трогать настройки Zed вообще
 python install.py --sync-only         # после правки кода: только копирование кода
 ```

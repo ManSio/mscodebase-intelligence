@@ -1453,7 +1453,7 @@ def main() -> None:
     lang = _detect_lang()
     # stdout is already UTF-8: _utf8_stdout() ran at the top of main(). Re-wrapping
     # here closed the previous wrapper's buffer (ValueError: I/O on closed file,
-    # found 2026-11-12 by the install→doctor→clean roundtrip).
+    # found 2026-11-12 when the same wrap ran twice).
 
     STEPS.sort(key=lambda x: x[0])
 
@@ -1486,7 +1486,10 @@ def main() -> None:
         max_retries = 2
         step_status = "ok"
 
-        for attempt in range(0 if auto_yes else max_retries + 1):
+        # auto_yes means "no retry prompts", not "no steps": a zero-trip range()
+        # used to fall through to the for/else branch and mark every step failed
+        # without executing it (found 2026-11-12 by a clean-room install).
+        for attempt in range(1 if auto_yes else max_retries + 1):
             try:
                 fn(lines, lang)
                 if compact:
