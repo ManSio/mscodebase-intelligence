@@ -951,7 +951,7 @@ def _build_uninstaller() -> str:
     )
 
 
-# ─── Non-interactive modes: config snippet / doctor / clean ────────────────
+# ─── Non-interactive modes: config snippet (--print-config) ────────────────
 def zed_enabled(argv: Optional[list[str]] = None) -> bool:
     """Zed adapter is opt-out: --no-zed keeps the install host-neutral."""
     argv = sys.argv if argv is None else argv
@@ -1124,7 +1124,7 @@ def main() -> None:
     lang = _detect_lang()
     # stdout is already UTF-8: _utf8_stdout() ran at the top of main(). Re-wrapping
     # here closed the previous wrapper's buffer (ValueError: I/O on closed file,
-    # found 2026-11-12 by the install→doctor→clean roundtrip).
+    # found 2026-11-12 when the same wrap ran twice).
 
     STEPS.sort(key=lambda x: x[0])
 
