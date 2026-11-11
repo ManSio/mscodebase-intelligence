@@ -1776,3 +1776,12 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Корень:** я привёл `adapters/clients/*.json` к форме сгенерированного сниппета и добавил `-u`. Но эти JSON — публичный контракт адаптеров, и тест фиксирует именно его; генератор сниппетов (`install.py --print-config`) — отдельная сущность.
 **Fix:** в JSON возвращён `args: ["-m","src.main"]`, добавленные `PROJECT_PATH`/`PYTHONUTF8`/`<install-root>` оставлены. Тест не менялся (правило: не править проверку под код).
 **Урок:** «shape» клиентского конфига — такая же публичная поверхность, как имя инструмента; `-u` в документации и в генераторе не даёт права менять статический адаптер.
+
+## [2026-11-12] G5: холодный старт по README нашёл баг `--yes`
+**Симптом:** `install.py --yes --no-zed` печатал итоговую рамку «Next steps», но на диске не появлялось ничего: `venv python exists: False`, install root пуст. Установка «успешно» завершалась за 0 секунд.
+**Корень:** `for attempt in range(0 if auto_yes else max_retries + 1)` — при `--yes` `range(0)` не делает ни одной итерации, а ветка `for/else` помечает каждый шаг как failed, ни разу его не вызвав. Логика живёт с v3.0: все неинтерактивные установки (`--yes`) были пустыми.
+**Fix:** `range(1 if auto_yes else max_retries + 1)` + регрессионный тест `test_auto_yes_runs_each_step_once` (до фикса красный: фейковый шаг не вызывался).
+**Холодный старт (чистые временные `MSCODEBASE_INSTALL_ROOT`/`DATA_DIR`, `--no-zed`, без `--with-models`):** `install rc=0`, **12 ok / 0 skipped / 0 failed за 96 s**; venv Python 3.14.3; `src/main.py` и маркер на месте; **модельных каталогов нет** (`model dirs present: False`, install root 1.4 GB).
+**Два клиента не-Zed/не-OpenCode, ровно по `docs/en/CLIENTS.md`:** `.mcp.json` (Claude Code §3.4) и `.cursor/mcp.json` (Cursor §3.5) записаны из `--print-config`, запущены как есть → `MSCodebase Intelligence Server`, `tools=17`, `investigate` в списке (4.8 s и 4.2 s); `--doctor` на этом же каталоге: `install_root 1.4 GB / 28755 файлов`, `index 0 chunk(s)`.
+**Побочный вывод:** на ветке G5 (до G6) установщик ещё качает модели — README/CLIENTS G5-ветки обещали text-first и были приведены к фактическому поведению (`6010443`); text-first проверен на G6/G7.
+**Урок:** `--yes` значит «не спрашивать», а не «не делать»; нулевой `range()` плюс `for/else` выглядит безобидно на ревью и полностью ломает установку. Ни один тест не запускал установщик целиком — поймал только прогон по README в пустом каталоге.
