@@ -181,3 +181,15 @@ frozen before the run: `experiments/xerj_2026_11/evidence_gate/REPORT.md`.
    `grep_code(..., scope="all")` → did retrieval miss, or did ranking reorder?
 4. `investigate(...)` → which channels found the file (`[search]`, `[grep]`)?
 5. Check the log tail: `%LOCALAPPDATA%/mscodebase/logs/mcp_global.log`.
+
+## 9. Code references (audited 2026-11-12)
+
+| Claim in this page | Code |
+|---|---|
+| long query refused above 512 chars | `src/mcp/tools/search_tools.py:288` |
+| channel weights in `investigate` (search 0.6, grep 0.3, tests 0.1, memory 0.4) | `src/mcp/tools/investigate_tool.py:44`, `:1025`, `:1041` |
+| output cap: 8 rows, 180 chars per row | `src/mcp/tools/investigate_tool.py:681` (`limit: int = 8`), `:1191` (`[:180]`) |
+| docs routing margin, default 4.0 | `src/config/settings.py::SearchConfig.docs_margin` (line 268) |
+| BM25 constants (`K1` 1.2, `B` 0.45) | `src/config/settings.py` lines 219, 222 |
+| request guard, FTS5 candidate generation | `src/core/search/engine.py` |
+

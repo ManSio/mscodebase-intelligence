@@ -187,3 +187,15 @@ hints=["get_progress_file"])` использует их в символьном 
    переставило?
 4. `investigate(...)` → какие каналы нашли файл (`[search]`, `[grep]`)?
 5. Проверьте хвост лога: `%LOCALAPPDATA%/mscodebase/logs/mcp_global.log`.
+
+## 9. Ссылки на код (аудит 2026-11-12)
+
+| Утверждение на странице | Код |
+|---|---|
+| запрос длиннее 512 символов отклоняется | `src/mcp/tools/search_tools.py:288` |
+| веса каналов `investigate` (search 0.6, grep 0.3, tests 0.1, memory 0.4) | `src/mcp/tools/investigate_tool.py:44`, `:1025`, `:1041` |
+| потолок вывода: 8 строк, 180 символов | `src/mcp/tools/investigate_tool.py:681`, `:1191` |
+| margin документов, дефолт 4.0 | `src/config/settings.py::SearchConfig.docs_margin` (строка 268) |
+| константы BM25 (`K1` 1.2, `B` 0.45) | `src/config/settings.py` строки 219, 222 |
+| request guard и генерация кандидатов FTS5 | `src/core/search/engine.py` |
+

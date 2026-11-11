@@ -84,28 +84,38 @@ python install.py --print-config --client cursor
 
 ### 3.2 OpenCode
 
-文件：`opencode.json`（或全局 OpenCode 配置）。OpenCode 使用 `mcp` 键下的映射，
-`type: "local"`，命令是**一个数组**：
+文件：项目根目录或 `~/.config/opencode/` 下的 `opencode.json(c)`。OpenCode V2 把
+服务器名称放在 **`mcp.servers`** 之下 —— 扁平的 V1 形式 `mcp.<name>` 仍被接受
+（迁移兼容），但不是新配置的写法（来源：<https://opencode.ai/docs/mcp-servers>，
+"V2 does not place server names directly under `mcp`"）：
 
 ```json
 {
   "mcp": {
-    "mscodebase": {
-      "type": "local",
-      "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
-      "environment": {
-        "PYTHONPATH": "<install-root>",
-        "PROJECT_PATH": "<project>",
-        "PYTHONUTF8": "1"
+    "servers": {
+      "mscodebase": {
+        "type": "local",
+        "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+        "environment": {
+          "PYTHONPATH": "<install-root>",
+          "PROJECT_PATH": "<project>",
+          "PYTHONUTF8": "1"
+        }
       }
     }
   }
 }
 ```
 
-若宿主会展开工作区变量，`PROJECT_PATH` 可换成 `${workspaceRoot}`。项目级自动化在
-`.opencode/plugin/mscodebase_gate.ts` 与 `.opencode/command/*.md`（见
-[HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)）。
+也可以让 CLI 写入（会保留其它设置）：
+
+```bash
+opencode mcp add mscodebase -- <install-root>/venv/Scripts/mscodebase-mcp.exe -u -m src.main
+```
+
+若宿主会展开工作区变量，`PROJECT_PATH` 可替换为该变量。配置修改无需重启即生效
+（`/reload` 可强制重载）。项目级自动化在 `.opencode/plugin/mscodebase_gate.ts` 与
+`.opencode/command/*.md`（见 [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)）。
 
 ### 3.3 Zed（支持，但不是主要宿主）
 

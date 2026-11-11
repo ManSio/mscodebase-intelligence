@@ -87,28 +87,40 @@ python install.py --print-config --client cursor
 
 ### 3.2 OpenCode
 
-Файл: `opencode.json` (или глобальный конфиг OpenCode). OpenCode берёт карту под
-ключом `mcp` с `type: "local"` и **одним массивом команды**:
+Файл: `opencode.json(c)` в корне проекта или в `~/.config/opencode/`. OpenCode V2
+держит имена серверов под **`mcp.servers`** — плоская V1-форма `mcp.<name>` ещё
+принимается для миграции, но в новых конфигах не используется (источник:
+<https://opencode.ai/docs/mcp-servers>, «V2 does not place server names directly
+under `mcp`»):
 
 ```json
 {
   "mcp": {
-    "mscodebase": {
-      "type": "local",
-      "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
-      "environment": {
-        "PYTHONPATH": "<install-root>",
-        "PROJECT_PATH": "<project>",
-        "PYTHONUTF8": "1"
+    "servers": {
+      "mscodebase": {
+        "type": "local",
+        "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+        "environment": {
+          "PYTHONPATH": "<install-root>",
+          "PROJECT_PATH": "<project>",
+          "PYTHONUTF8": "1"
+        }
       }
     }
   }
 }
 ```
 
-`PROJECT_PATH` можно заменить переменной рабочего пространства (`${workspaceRoot}`),
-если хост её раскрывает. Проектная автоматика — `.opencode/plugin/mscodebase_gate.ts`
-и `.opencode/command/*.md` (см. [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
+Или пусть запишет CLI (сохраняет остальные настройки):
+
+```bash
+opencode mcp add mscodebase -- <install-root>/venv/Scripts/mscodebase-mcp.exe -u -m src.main
+```
+
+`PROJECT_PATH` можно заменить переменной рабочего пространства, если хост её
+раскрывает. Изменения конфига применяются без перезапуска (`/reload` — принудительно).
+Проектная автоматика — `.opencode/plugin/mscodebase_gate.ts` и
+`.opencode/command/*.md` (см. [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
 
 ### 3.3 Zed (поддерживается, но не основной)
 

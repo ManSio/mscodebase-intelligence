@@ -86,29 +86,40 @@ you want indexed (this is what `PROJECT_PATH` means).
 
 ### 3.2 OpenCode
 
-File: `opencode.json` (or the global OpenCode config). OpenCode takes a map under
-`mcp` with `type: "local"` and a **single command array**:
+File: `opencode.json(c)` at the project root or in `~/.config/opencode/`. OpenCode V2
+places server names under **`mcp.servers`** — the flat V1 layout `mcp.<name>` is still
+accepted for migrated configs but is not what new configs use
+(source: <https://opencode.ai/docs/mcp-servers>, "V2 does not place server names
+directly under `mcp`"):
 
 ```json
 {
   "mcp": {
-    "mscodebase": {
-      "type": "local",
-      "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
-      "environment": {
-        "PYTHONPATH": "<install-root>",
-        "PROJECT_PATH": "<project>",
-        "PYTHONUTF8": "1"
+    "servers": {
+      "mscodebase": {
+        "type": "local",
+        "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+        "environment": {
+          "PYTHONPATH": "<install-root>",
+          "PROJECT_PATH": "<project>",
+          "PYTHONUTF8": "1"
+        }
       }
     }
   }
 }
 ```
 
-`PROJECT_PATH` may be replaced by the host's workspace variable (`${workspaceRoot}`)
-where the host expands it. Project-local automation lives in
-`.opencode/plugin/mscodebase_gate.ts` and `.opencode/command/*.md`
-(see [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
+Or let the CLI write it (preserves unrelated settings):
+
+```bash
+opencode mcp add mscodebase -- <install-root>/venv/Scripts/mscodebase-mcp.exe -u -m src.main
+```
+
+`PROJECT_PATH` may be replaced by the host's workspace variable where the host
+expands it. Config changes reload without a restart (`/reload` forces it). Project
+automation lives in `.opencode/plugin/mscodebase_gate.ts` and
+`.opencode/command/*.md` (see [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
 
 ### 3.3 Zed (supported, not primary)
 

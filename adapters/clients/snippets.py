@@ -54,12 +54,18 @@ def snapshot(
     if client in ("generic", "claude-code", "cursor"):
         return {"mcpServers": {SERVER_NAME: server}}
     if client == "opencode":
+        # OpenCode V2: names live under mcp.servers, never directly under mcp.
+        # Source: https://opencode.ai/docs/mcp-servers ("V2 does not place server
+        # names directly under `mcp`"). The flat `mcp.<name>` layout of V1 is
+        # still accepted for migrated configs, but new configs use `servers`.
         return {
             "mcp": {
-                SERVER_NAME: {
-                    "type": "local",
-                    "command": [command, *args],
-                    "environment": env_dict,
+                "servers": {
+                    SERVER_NAME: {
+                        "type": "local",
+                        "command": [command, *args],
+                        "environment": env_dict,
+                    }
                 }
             }
         }

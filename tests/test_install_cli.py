@@ -69,6 +69,9 @@ def run_install(
 
 
 def entry_json(client: str, payload: dict) -> dict:
+    if client == "opencode":
+        # V2: mcp.servers.<name>
+        return payload["mcp"]["servers"]["mscodebase"]
     return payload[TOP_LEVEL_KEY[client]]["mscodebase"]
 
 
@@ -96,6 +99,7 @@ def test_print_config_is_valid_json_per_client(client, tmp_path):
         command = entry["command"]
         assert entry["type"] == "local"
         env = entry["environment"]
+        assert "servers" in payload["mcp"], "OpenCode V2 keeps servers under mcp.servers"
     elif client == "zed":
         command = [entry["command"], *entry["args"]]
         env = entry["env"]
