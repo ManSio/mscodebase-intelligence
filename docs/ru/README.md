@@ -86,17 +86,36 @@ investigate("как индексатор решает, что файл надо 
 
 ## Быстрый старт
 
-Требования: Windows — проверенная платформа; Python 3.14+; MCP-хост (**основной — OpenCode**, расширение Zed тоже работает).
+Требования: Windows — проверенная платформа; Python 3.14+; любой MCP-хост
+(OpenCode, Zed, Claude Code, Cursor или универсальный `mcpServers`-клиент).
 
 ```bash
 cd <repo-root>
-python install.py            # полная установка: venv, pip, опциональные модели
-python install.py --sync     # только код — в установленную копию
+python install.py                        # venv + зависимости + код: text-first, без моделей
+python install.py --with-models          # опционально: + ONNX/GGUF модели (~657 МБ)
+python install.py --sync                 # после правки кода — только копирование кода
 ```
 
-После `install.py` перезапустить хост: сессию OpenCode или окно Zed. Установленная
-копия лежит в `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`, и оба хоста
-запускают именно её venv. Проверка из панели агента:
+Установка нейтральна к хосту: на диск кладётся обычное Python-окружение (по умолчанию
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — имя историческое). Другой
+путь задаётся `MSCODEBASE_INSTALL_ROOT`. Затем напечатайте конфиг для своего хоста
+вместо того, чтобы писать его руками:
+
+```bash
+python install.py --print-config --client generic      # хосты формы mcpServers
+python install.py --print-config --client opencode
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+python install.py --print-config --client zed
+```
+
+Каждая команда печатает один JSON-объект: интерпретатор, `-u -m src.main`,
+`PYTHONPATH`, `PROJECT_PATH`, `PYTHONUTF8=1`; вставьте его в MCP-конфиг хоста.
+Секции для каждого клиента и проверка запуска
+(`python scripts/verify_client_snippets.py`) — в [docs/ru/CLIENTS.md](CLIENTS.md).
+После настройки перезапустите хост.
+
+Проверка из панели агента:
 
 ```text
 tool_help()                        # профиль, видимые и скрытые инструменты
@@ -244,7 +263,8 @@ python scripts/smoke_e2e.py --project .
 | [docs/FACTS.md](../FACTS.md) | Все публичные числа и команды перевывода |
 | [docs/ru/ARCHITECTURE.md](ARCHITECTURE.md) | Слои, DI, границы модулей, профиль инструментов |
 | [docs/ru/SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) | Retrieval, ранжирование, docs-роутинг, fan-out `investigate` |
-| [docs/ru/INSTALL.md](INSTALL.md) | Установка, цикл sync+restart, диагностика |
+| [docs/ru/INSTALL.md](INSTALL.md) | Установка, цикл sync+restart, doctor/clean, диагностика |
+| [docs/ru/DATA_MAP.md](DATA_MAP.md) | Каждый путь, созданный установщиком/сервером: размеры и политики хранения |
 | [docs/ru/CONFIGURATION.md](CONFIGURATION.md) | Все переменные окружения и их значения по умолчанию |
 | [docs/ru/CLIENTS.md](CLIENTS.md) | OpenCode, Zed, Claude Code, VS Code, CLI, Docker |
 | [docs/ru/HOOKS_AND_GATES.md](HOOKS_AND_GATES.md) | Хук OpenCode, 12 гейтов pre-commit, джобы CI |

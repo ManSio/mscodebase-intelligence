@@ -30,15 +30,17 @@ time; the download path does not compare them, so a hash here is a reference
 value, not a verified-pin. (The llama.cpp **binary** archive *is* hash-checked
 before extraction.)
 
-## 2. Method 1 — `install.py` (interactive)
+## 2. Method 1 — `install.py` (models are opt-in)
 
 ```bash
-python install.py
+python install.py --with-models
 ```
 
-12 steps. Network steps ask before they act:
+Without `--with-models` the installer is text-first: `step_models` and `step_gguf`
+return immediately (`install.py::models_enabled`), so no model is downloaded, no
+model directory is created and no prompt is shown. With `--with-models`:
 
-- ONNX models: *"Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)"*;
+- ONNX: `multilingual-e5-small-int8` (~113 MB) + `bge-reranker-v2-m3` (~544 MB);
 - GGUF + llama.cpp: the GGUF step downloads `multilingual-e5-small` and
   `bge-reranker-v2-m3` and the llama.cpp binary for the selected backend;
 - every step offers `[r]etry / [s]kip / [c]ancel` on failure.
@@ -47,13 +49,15 @@ Useful flags:
 
 | Flag | Effect |
 |---|---|
-| `--sync-only` / `--sync` | copy the code into the extension directory, touch nothing else (use this after editing `src/`) |
-| `--skip-models` / `--no-models` | skip the model steps entirely |
-| `--yes` / `-y` | answer yes instead of prompting |
+| `--sync-only` / `--sync` | copy the code into the install root, touch nothing else (use this after editing `src/`) |
+| `--with-models` | run the model steps (ONNX + GGUF); this is the only way to get them |
+| `--skip-models` / `--no-models` | accepted for old scripts; models are already skipped by default |
+| `--no-zed` | do not touch Zed settings (host-neutral install) |
+| `--yes` / `-y` | accept every step instead of prompting |
 | `--verbose` / `-v` | full step output instead of the compact view |
 
-Installation targets the extension directory
-`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`:
+Files land in the install root (`MSCODEBASE_INSTALL_ROOT`, default the historical
+extension directory `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`):
 
 - ONNX → `<ext>/.codebase_models/onnx/<slug>/model_quantized.onnx`
   (its specialised reranker subfolder uses `model.onnx`);
@@ -142,8 +146,8 @@ git-ignored (`.codebase_models/`, `models/`), so nothing appears in `git status`
 
 ---
 
-**Verified against:** `install.py` (`STEPS`, `step_models`, `step_gguf`,
-`--sync-only`, `--skip-models`, `--yes`, prompt strings),
+**Verified against:** `install.py` (`STEPS`, `models_enabled`, `step_models`,
+`step_gguf`, `--sync-only`, `--with-models`, `--skip-models`, `--yes`, `--no-zed`),
 `src/providers/reranker/llama_install.py` (`GGUF_MODELS` sizes/dims/SHA-256,
 `LLAMA_VERSION`, `LLAMA_PORT`, `DEFAULT_EMBEDDING_MODEL`, `resolve_ubatch`,
 `_patch_dll_imports`), `src/providers/reranker/llama_runner.py`

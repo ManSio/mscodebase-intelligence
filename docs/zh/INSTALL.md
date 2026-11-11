@@ -1,139 +1,162 @@
+# 安装 MSCodebase Intelligence
+
+> 翻译：2026-11-12，来源 docs/en/INSTALL.md。英文版为准。
+
 <p align="center">
   <img src="../../logo/baner.png" alt="MSCodeBase Banner" width="100%"/>
 </p>
 
 [🇬🇧 English](../en/INSTALL.md) • [🇷🇺 Русский](../ru/INSTALL.md) • [🇨🇳 中文](INSTALL.md)
 
-# 安装 MSCodebase Intelligence
-
-> 翻译：2026-11-08，来源 docs/en/INSTALL.md。英文版为准。
-
-> 2026-11-08 重写。本服务器是一个本地 MCP 服务器。**OpenCode 是主要宿主**；
-> Zed 扩展仍然受支持。模型下载是可选的 —— 默认安装是文本优先的，不需要
-> embedding、GPU 或网络。
+> 2026-11-12 依据 `install.py` v3.2 重写。服务器是本地 MCP 服务器，安装器
+> **与宿主无关**：它只创建普通 Python 环境，任何 MCP 宿主都能启动。Zed 是可选
+> 适配器。默认安装是 **text-first**：不使用嵌入、GPU、网络，除非明确要求，否则
+> 不下载任何模型。
 
 ---
 
-## 1. 环境要求
+## 1. 要求
 
 | 组件 | 要求 |
 |---|---|
-| 操作系统 | Windows 10+（已验证平台）、Linux（CI）、macOS |
-| Python | **3.14+**（仅测试过 3.14） |
+| 操作系统 | Windows 10+（验证平台）、Linux（CI）、macOS |
+| Python | **3.14+**（仅测试 3.14） |
 | 内存 | 4 GB；启用本地模型时 8 GB+ |
-| 磁盘 | 不含模型约 500 MB；含 GGUF 模型最多约 2 GB |
-| 宿主 | OpenCode（主要）或 Zed，或任意 MCP 客户端 |
-| 可选 | LM Studio / Ollama / llama.cpp，用于 rerank 和 legacy dense 路径 |
+| 磁盘 | 无模型约 1.5 GB（主要是 venv）；`--with-models` 再加约 650 MB |
+| 宿主 | OpenCode、Zed、Claude Code、Cursor 或任意 MCP 客户端 |
+| 可选 | LM Studio / Ollama / llama.cpp（重排与 legacy dense 路径） |
 
-开发机上不需要 Docker 和 WSL。容器构建是一种部署选项（`deploy/docker/`）。
+开发机不需要 Docker/WSL。容器构建是部署选项（`deploy/docker/`）。
 
-## 2. 完整安装
+## 2. 安装
 
 ```bash
 cd <repo-root>
-python install.py          # interactive: venv, pip, optional llama.cpp + models
+python install.py                     # venv + 依赖 + 代码；text-first
+python install.py --with-models       # 同上 + ONNX/GGUF 模型（约 657 MB，需网络）
+python install.py --no-zed            # 完全不修改 Zed 设置
+python install.py --yes               # 非交互：接受每个步骤
 ```
 
-Windows 还有 `install.bat`；Linux/macOS 有 `install.sh`。安装器会：
+Windows 另有 `install.bat`；Linux/macOS 有 `install.sh`。安装器会：
 
-1. 检查 Python 与环境；
-2. 创建/更新虚拟环境并安装依赖；
-3. 可选地下载 llama.cpp 和 GGUF 模型；
-4. 把代码复制到扩展安装目录；
-5. 写出 `uninstall.bat`。
+1. 结束旧的 MCP/llama 进程，确保运行的是新代码；
+2. 创建/更新虚拟环境并安装锁定依赖；
+3. 复制代码到安装根（`--sync-only` 跳过 1–2，只做这一步）；
+4. 可选（Zed 适配器）向 `settings.json` 写入 `context_servers` 条目；
+5. 在安装根写入 `uninstall.bat` / `uninstall.sh`。
 
-没有模型时服务器仍能回答代码问题 —— 搜索会回落到 SQLite FTS5/BM25 加图。
-
-## 3. 更新循环（最容易出错的部分）
-
-已安装的副本位于仓库之外：
+默认安装根（名字是历史遗留，内容与 Zed 无关）：
 
 ```
-%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+Windows : %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+macOS   : ~/Library/Application Support/Zed/extensions/mscodebase-intelligence
+Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
 ```
 
-该目录名是历史原因留下的；OpenCode 启动的是同一个 venv
-（`…\venv\Scripts\mscodebase-mcp.exe -u -m src.main`）。因此：
+用 `MSCODEBASE_INSTALL_ROOT=<path>` 可移动；缓存/日志/产物在
+`MSCODEBASE_DATA_DIR`（默认 `%LOCALAPPDATA%\mscodebase`）。各路径与实测大小：
+[DATA_MAP.md](DATA_MAP.md)。
+
+不用安装器（任何提供 console scripts 的管理器，入口点
+`mscodebase-mcp = src.main:main`）：
 
 ```bash
-python install.py --sync-only    # copy code, drop __pycache__, no pip/models
-# then restart the host: the OpenCode session (or the Zed window)
+pipx install .      # 或：uv tool install .
 ```
 
-`--sync-only`（别名 `--sync`）是每次源码改动后的快速路径。跳过重启会让旧进程继续
-运行；跳过同步则安装位置里仍是旧代码。两者都必须做。
+## 3. 更新循环（最容易出错的环节）
+
+安装副本不在仓库里：
+
+```bash
+python install.py --sync-only    # 复制代码、清 __pycache__，不装 pip/模型
+# 然后重启宿主：OpenCode 会话、Zed 窗口或 CLI 进程
+```
+
+`--sync-only`（别名 `--sync`）是改代码后的快速路径。不重启则旧进程继续运行；不
+sync 则安装位置仍是旧代码。两者都必需。
 
 ## 4. 连接宿主
 
-**OpenCode** —— 声明一个指向已安装 venv 的本地 MCP 服务器：
+不要手写命令 —— 打印出来再粘贴到宿主配置：
 
-```jsonc
-"mcp": {
-  "mscodebase-intelligence": {
-    "type": "local",
-    "command": ["<ext-dir>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
-    "environment": {
-      "PYTHONPATH": "<ext-dir>",
-      "PROJECT_PATH": "${workspaceRoot}",
-      "PYTHONUTF8": "1"
-    }
-  }
-}
+```bash
+python install.py --print-config --client generic      # mcpServers 风格宿主
+python install.py --print-config --client opencode
+python install.py --print-config --client zed
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
 ```
 
-**Zed** —— 扩展读取同一目录；除扩展本身外无需额外配置。
-
-**Claude Code / VS Code / Cursor** —— 从 `adapters/clients/` 复制配置形状，填入
-venv 路径、仓库路径和项目路径。完整矩阵见 [CLIENTS.md](CLIENTS.md)。
+各客户端的文件名、可复制 JSON 与启动校验
+（`python scripts/verify_client_snippets.py`）见 [CLIENTS.md](CLIENTS.md)。
 
 ## 5. 验证
 
-在 agent 面板中按以下顺序执行：
+在助手面板中依次执行：
 
 ```
-tool_help()                                   # profile + visible/hidden tools
-get_health_report()                           # index, providers, resources
+tool_help()                                   # 配置档 + 可见/隐藏工具
+get_health_report()                           # 索引、提供方、资源
 codebase(action="index", path="status")       # chunks > 0?
 ```
 
-如果文本索引缺失或过期：
+若文本索引缺失或过期：
 
 ```bash
-python scripts/reindex_text_only.py --project .   # chunks + graph, no embeddings
-python scripts/rebuild_graph.py                   # graph only
+python scripts/reindex_text_only.py --project .   # 分块 + 图，不用嵌入
+python scripts/rebuild_graph.py                   # 仅图
 ```
 
 然后重启服务器，让新进程打开重建后的存储。本仓库的实测数字见
 [FACTS.md](../FACTS.md)。
 
-## 6. 可选 provider
+## 6. 磁盘上有什么，以及如何清除
 
-| Provider | 用途 | 位置 |
-|---|---|---|
-| llama.cpp (GGUF) | 按需 rerank、legacy dense 路径 | `LLAMA_CPP_PORT` (8080)，reranker 8081 |
-| LM Studio | 通过 HTTP 提供 embedding/rerank | `LM_STUDIO_HOST:1234` |
-| Ollama | 通过 HTTP 提供 embedding/rerank | `OLLAMA_HOST:11434` |
-| basedpyright | 六个 `lsp_*` 工具 | PATH 或扩展 venv |
+```bash
+python install.py --doctor            # 版本、路径、大小、索引状态（--json）
+python install.py --clean --dry-run   # 列出每个产物及大小；不删除
+python install.py --clean             # 询问确认后删除
+python install.py --clean --yes       # 不询问（脚本）
+```
 
-默认的文本优先答案不需要其中任何一项。Provider 设置见
-[CONFIGURATION.md](CONFIGURATION.md)。
+`--clean` 删除安装根（代码 + venv + 模型 + 卸载器）、数据根
+（`projects/`、`logs/`、`models/`、`repos/`）以及当前项目的 `.mscodebase`、
+`.codebase_indices`、`.codebase`、`.codebase_models`。它拒绝删除源代码检出、文件
+系统根或用户主目录，并在有残留（被运行中的宿主锁定）时以非零码退出。缓存策略
+（日志轮转、7/30/90 天清理、克隆 LRU(5)+24 小时）见 [DATA_MAP.md](DATA_MAP.md)。
 
 ## 7. 卸载
 
 ```bash
-./uninstall.bat             # Windows
-python install.py --uninstall
+python install.py --clean --yes       # 所有层，已验证：剩余 0 字节
+./uninstall.bat                       # Windows：由 step_uninst 生成
 ```
 
-这会移除已安装的扩展副本。`%LOCALAPPDATA%/mscodebase/` 下的项目数据和项目的
-`.mscodebase/chunks.db` 是分开的；如需彻底干净，请手动删除它们。
+生成的卸载器只结束服务器进程并删除安装根；`--clean` 是完整版本。两者都不修改
+宿主配置：请自行从 `settings.json`（Zed）、`opencode.json`（OpenCode）或
+`.mcp.json` / `.cursor/mcp.json` 删除 `mscodebase` 条目。
 
-## 8. 故障排查
+## 8. 可选提供方
+
+| 提供方 | 用途 | 位置 |
+|---|---|---|
+| llama.cpp (GGUF) | 按需重排、legacy dense 路径 | `LLAMA_CPP_PORT`（8080）、重排 8081 |
+| LM Studio | HTTP 嵌入/重排 | `LM_STUDIO_HOST:1234` |
+| Ollama | HTTP 嵌入/重排 | `OLLAMA_HOST:11434` |
+| basedpyright | 六个 `lsp_*` 工具 | PATH 或扩展 venv |
+
+默认 text-first 回答不需要它们中的任何一个。提供方配置：
+[CONFIGURATION.md](CONFIGURATION.md)。
+
+## 9. 故障排查
 
 | 症状 | 可能原因 |
 |---|---|
-| 预期工具不出现 | `core` profile —— 运行 `tool_help()`，切换到 `full` |
-| 任何查询都“未找到” | 索引为空 —— 检查 `codebase(action="index", path="status")` |
-| 新代码没有生效 | 未执行 `--sync-only` 和/或未重启宿主 |
-| 服务器启动后工具超时 | provider 或 LSP 卡住 —— 见 [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) |
-| Windows 控制台窗口闪烁 | subprocess 未使用 `CREATE_NO_WINDOW` —— 见 [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) |
+| 缺少期望的工具 | `core` 档案 —— 运行 `tool_help()`，切换到 `full` |
+| 任何查询都"未找到" | 索引为空 —— 检查 `codebase(action="index", path="status")` |
+| 新代码没有效果 | 未执行 `--sync-only` 和/或未重启宿主 |
+| 服务器启动但工具超时 | 提供方或 LSP 挂起 —— 见 [GRACEFUL_DEGRADATION.md](GRACEFUL_DEGRADATION.md) |
+| Windows 弹出控制台窗口 | 子进程缺少 `CREATE_NO_WINDOW` —— 见 [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md) |
+| `--clean` 留下文件 | 被运行中的宿主锁定 —— 停止宿主后重试 |

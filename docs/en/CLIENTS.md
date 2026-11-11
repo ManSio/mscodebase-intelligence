@@ -1,96 +1,211 @@
 # Clients and deployment
 
-> Rewritten 2026-11-08. Describes how the server is launched by each host and what
-> `install.py` actually installs. Verified against `install.py`, `extension.toml`,
-> `adapters/clients/*`, `.opencode/plugin/`, and the live OpenCode config on the
-> development machine.
+> Rewritten 2026-11-12. Describes how the server is launched by each host and what
+> `install.py` actually installs. Verified against `install.py`, `adapters/clients/snippets.py`,
+> `src/main.py`, `extension.toml`, `.opencode/plugin/`, `tests/test_install_cli.py` and
+> `scripts/verify_client_snippets.py` (the last one starts the server from every snippet).
 
 ## 1. What the server is
 
-A Python MCP server (`src/main.py`) speaking stdio, plus an optional Streamable-HTTP
-entry point (`src/remote_main.py`) for the docker/remote deployment. It is not an
-editor plugin by itself — a host launches it and talks MCP.
+A Python MCP server (`src/main.py`, entry point `mscodebase-mcp = src.main:main` in
+`pyproject.toml`) speaking stdio, plus an optional Streamable-HTTP entry point
+(`src/remote_main.py`) for docker/remote deployment. It is not an editor plugin by
+itself — a host launches it and talks MCP.
 
-## 2. OpenCode (primary)
+Since v3.2 the installer is **host-neutral**: it puts a plain Python environment on
+disk and any MCP host can launch it. Zed is one adapter among several, not a required
+step.
 
-OpenCode starts the server as a local MCP server. On the development machine the
-entry looks like this (paths shortened):
+## 2. Install the server once
 
-```jsonc
-"mcp": {
-  "mscodebase-intelligence": {
-    "type": "local",
-    "command": [
-      "C:\\Users\\<user>\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\mscodebase-mcp.exe",
-      "-u", "-m", "src.main"
-    ],
-    "environment": {
-      "PYTHONPATH": "C:\\Users\\<user>\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence",
-      "PROJECT_PATH": "${workspaceRoot}",
-      "PYTHONUTF8": "1"
+```bash
+cd <repo-root>
+python install.py                     # venv + deps + code, text-first, no models
+python install.py --with-models       # same + ONNX/GGUF models (~657 MB)
+python install.py --no-zed            # do not touch Zed settings at all
+python install.py --sync-only         # after a code change: copy code only
+```
+
+Where it lands (default, historical path — nothing Zed-specific about the contents):
+
+```
+Windows : %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+macOS   : ~/Library/Application Support/Zed/extensions/mscodebase-intelligence
+Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
+```
+
+Move it anywhere with `MSCODEBASE_INSTALL_ROOT=<path>`; caches, logs and per-project
+artifacts live elsewhere (`MSCODEBASE_DATA_DIR`, default `%LOCALAPPDATA%\mscodebase`).
+The full inventory is in [DATA_MAP.md](DATA_MAP.md).
+
+Alternative without the installer (any Python package manager that exposes console
+scripts):
+
+```bash
+pipx install .        # or: uv tool install .
+mscodebase-mcp        # the entry point is now on PATH
+```
+
+## 3. Get the config for your host
+
+Do not hand-write the command and the environment — print them:
+
+```bash
+python install.py --print-config --client generic      # any mcpServers-style host
+python install.py --print-config --client opencode
+python install.py --print-config --client zed
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+```
+
+Each command prints one JSON object and nothing else, so it can be redirected:
+`python install.py --print-config --client cursor > .cursor/mcp.json`. The snippet
+contains the resolved interpreter, `-u -m src.main`, `PYTHONPATH`, `PROJECT_PATH` and
+`PYTHONUTF8=1`.
+
+### 3.1 Generic MCP client (`mcpServers`)
+
+File: wherever the host reads its MCP config. Replace `<project>` with the workspace
+you want indexed (this is what `PROJECT_PATH` means).
+
+```json
+{
+  "mcpServers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<project>",
+        "PYTHONUTF8": "1"
+      }
     }
   }
 }
 ```
 
-Two facts that matter:
+### 3.2 OpenCode
 
-1. The **installed copy** lives in the extension directory, not in the git checkout.
-   `install.py` is what puts current code there (see §5).
-2. The directory is named `…\Zed\extensions\…` for historical reasons. It is a plain
-   Python environment; OpenCode uses it the same way the Zed extension does.
+File: `opencode.json` (or the global OpenCode config). OpenCode takes a map under
+`mcp` with `type: "local"` and a **single command array**:
 
-Project-local configuration: `.opencode/plugin/mscodebase_gate.ts` (commit hooks) and
-`.opencode/command/*.md` (reusable agent commands). See
-[HOOKS_AND_GATES.md](HOOKS_AND_GATES.md).
+```json
+{
+  "mcp": {
+    "mscodebase": {
+      "type": "local",
+      "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+      "environment": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<project>",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}
+```
 
-## 3. Zed (supported, not primary)
+`PROJECT_PATH` may be replaced by the host's workspace variable (`${workspaceRoot}`)
+where the host expands it. Project-local automation lives in
+`.opencode/plugin/mscodebase_gate.ts` and `.opencode/command/*.md`
+(see [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
 
-The Zed extension (`extension.toml`, `__mscodebase_ext__.marker`) launches the same
-server from the same directory. Behaviour that is specific to Windows/Zed is
-documented in [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md); treat Zed as an
-alternative host, not the reference implementation.
+### 3.3 Zed (supported, not primary)
 
-## 4. Other MCP clients
+Either let the installer patch `settings.json` (default step, skip with `--no-zed`),
+or paste the printed snippet under `context_servers`:
 
-`adapters/clients/` contains ready shapes for stdio and Streamable-HTTP:
+```json
+{
+  "context_servers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+        "PYTHONUTF8": "1"
+      },
+      "enabled": true
+    }
+  }
+}
+```
 
-| File | Client | Section |
-|---|---|---|
-| `claude.code.mcp.json` | Claude Code / Desktop | `mcpServers` |
-| `vscode.mcp.json` | VS Code (`.vscode/mcp.json`) | `servers` |
+Keys match what `adapters/zed/zed_config.py::_make_server_entry` writes. Windows/Zed
+specifics: [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md).
 
-Fill in `<path-to-venv>`, `<path-to-repo>`, `<path-to-project>`. The HTTP variant
-points at `http://<host>:8089/mcp` and requires
-`Authorization: Bearer <MSCODEBASE_REMOTE_TOKEN>`; the remote server is built from
-`deploy/docker/`.
+### 3.4 Claude Code
 
-For scripts and CI there is no MCP at all:
+The file `.mcp.json` in the project root uses the same `mcpServers` shape as 3.1.
+The CLI form is equivalent:
 
 ```bash
-python -m src.cli <tool> '<json-args>' [--project <root>]
+claude mcp add-json mscodebase '{"command":"<install-root>/venv/Scripts/mscodebase-mcp.exe","args":["-u","-m","src.main"],"env":{"PYTHONPATH":"<install-root>","PROJECT_PATH":"<project>","PYTHONUTF8":"1"}}'
 ```
 
-The CLI uses the same DI container and tool classes; its dispatcher is a curated
-allowlist (`src/cli.py`), not the whole 69-tool surface.
+### 3.5 Cursor
 
-## 5. Installation and the update loop
+File: `.cursor/mcp.json` (or `~/.cursor/mcp.json` for all projects), same
+`mcpServers` shape as 3.1:
+
+```json
+{
+  "mcpServers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<project>",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}
+```
+
+## 4. Verify a snippet without the GUI
 
 ```bash
-python install.py            # interactive full install (venv, pip, llama.cpp, models)
-python install.py --sync-only  # code only: copy + drop __pycache__, no pip/models
+python scripts/verify_client_snippets.py --install-root <install-root>
 ```
 
-`install.py` copies `src/`, scripts and support files into
-`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` (or the platform equivalent)
-and keeps the extension venv. After a code change:
+It renders each client's snippet exactly as the installer does, launches that command
+in a throwaway directory, performs an MCP `initialize` + `tools/list` handshake and
+prints one line per client. Expected (measured 2026-11-12):
 
 ```
-edit → python install.py --sync-only → restart the host (OpenCode session / Zed window)
+generic      PASS: server=MSCodebase Intelligence Server tools=17
+opencode     PASS: server=MSCodebase Intelligence Server tools=17
+zed          PASS: server=MSCodebase Intelligence Server tools=17
+claude-code  PASS: server=MSCodebase Intelligence Server tools=17
+cursor       PASS: server=MSCodebase Intelligence Server tools=17
+```
+
+`tools=17` is the default `core` profile (69 are registered, 17 visible); see the
+profile table in the README.
+
+From the agent panel, in this order:
+
+```
+tool_help()                                   # profile + visible/hidden tools
+get_health_report()                           # index, providers, resources
+codebase(action="index", path="status")       # chunks > 0?
+```
+
+## 5. The update loop
+
+The installed copy is not the git checkout:
+
+```
+edit src/... -> python install.py --sync-only -> restart the host (session / window)
 ```
 
 Without the restart the old process keeps serving the old code; without the sync the
-new code is not on disk in the installed location. Both steps are required.
+new code is not on disk in the installed location. Both steps are required. Serving
+from a checkout instead? Point `command`/`PYTHONPATH` at the checkout and skip the
+sync step.
 
 ## 6. Remote / Docker
 
@@ -98,8 +213,30 @@ new code is not on disk in the installed location. Both steps are required.
 `deploy/docker/Dockerfile` + `docker-compose.yml` build the image, and CI runs a
 `docker-build` job. Docker is a deployment option, not a local requirement.
 
-## 7. Which client should a bug report mention
+```json
+{
+  "mcpServers": {
+    "mscodebase-remote": {
+      "type": "http",
+      "url": "http://<host>:8089/mcp",
+      "headers": { "Authorization": "Bearer <MSCODEBASE_REMOTE_TOKEN>" }
+    }
+  }
+}
+```
 
-State the host (OpenCode / Zed / Claude / VS Code / CLI), the profile
+## 7. Scripts and CI (no MCP at all)
+
+```bash
+python -m src.cli <tool> '<json-args>' [--project <root>]
+echo '<json>' | python -m src.cli <tool> -
+```
+
+The CLI uses the same DI container and tool classes; its dispatcher is a curated
+allowlist (`src/cli.py`), not the whole 69-tool surface.
+
+## 8. Which client should a bug report mention
+
+State the host (OpenCode / Zed / Claude Code / Cursor / generic / CLI), the profile
 (`core`/`full`), and how the server was launched. A report that omits these three
 cannot distinguish "tool hidden by the profile" from "tool broken".

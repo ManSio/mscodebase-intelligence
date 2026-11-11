@@ -1737,3 +1737,36 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Дефект (воспроизведён):** `lance error: query dim(768) doesn't match the column vector dim(384)`. Модель `embeddinggemma-2` отдаёт 768 (проверено `/v1/embeddings`), схема таблицы — 384 (осталась от e5-small). `.env`: `EMBEDDING_MODEL=embeddinggemma-2` при `MSCODEBASE_DENSE_OFF=true`.
 **Следствие:** переключать `DENSE_OFF=false` сейчас нельзя — сначала размерность из сервера + переиндексация, потом повторный `run_curve.py` в dense. Записано в KNOWN_ISSUES с точным сообщением.
 **Урок:** «включить dense и станет лучше» — непроверенная гипотеза; первый же замер дал паритет и конфигурационный дефект.
+
+## [2026-11-12] G5: установка отвязана от Zed — сниппет на клиента вместо ручного конфига
+**Симптом:** `install.py` v3.1 импортировал `adapters.zed.zed_config` на верхнем уровне и всегда писал конфиг Zed. На машине без Zed установка всё равно создавала `%APPDATA%/Zed`, а для Claude Code / Cursor / любого `mcpServers`-хоста команду и env приходилось собирать вручную по README (и она расходилась с кодом).
+**Корень:** установщик и хост-адаптер были одним целым: каталог установки = каталог расширения Zed, шаг 11 = патч `settings.json`, generic-клиентам нечего было скопировать.
+**Fix (v3.2):**
+1. `MSCODEBASE_INSTALL_ROOT` + `resolve_install_root()`; историческое имя папки остаётся только default, содержимое — обычный venv.
+2. Zed-адаптер импортируется лениво внутри `step_zed`/`step_zedcfg`, отказ адаптера не роняет установку; `--no-zed` — полностью нейтральный режим.
+3. `--print-config --client {generic,opencode,zed,claude-code,cursor}` → один JSON-объект; формы конвертов в `adapters/clients/snippets.py` (zed-ключи сверены с `_make_server_entry`).
+4. `scripts/verify_client_snippets.py`: рендерит сниппет каждого клиента, запускает его во временном каталоге и делает `initialize` + `tools/list`. Замер 2026-11-12: 5/5 `PASS ... tools=17`.
+**Проверка:** `tests/test_install_cli.py` (16 тестов, в т.ч. реальный хендшейк из напечатанного сниппета); мутационная проба — переименование `PYTHONPATH` в env дало 5 красных.
+**Найденный по ходу баг:** неинтерактивные режимы наследовали cp1251-stdout и падали на первом не-ASCII символе (`UnicodeEncodeError` на пути с кириллицей) — добавлен `_utf8_stdout()` для всех режимов, маркеры в отчёте сделаны ASCII.
+**Урок:** «поддержка любого клиента» проверяется запуском сниппета, а не валидностью JSON: часть конвертов отвечала только после того, как запрос пошёл после `initialized`.
+
+## [2026-11-12] G6: doctor/clean и text-first по умолчанию — «что стоит и сколько весит»
+**Симптом:** установщик предлагал ~657 МБ моделей при штатном `MSCODEBASE_DENSE_OFF=true`; команды «сколько это занимает и как убрать» не было; uninstaller существовал, но не был описан; лимиты кэшей жили в коде (`artifact_gc`, `log_manager`), а не в документации.
+**Fix:** `install.py --doctor [--json]` (слои: install root / data root / проектные артефакты, размеры через `os.walk`, число чанков из `chunks.db`, пути без создания каталогов) и `install.py --clean [--dry-run] [--yes] [--json]` с guard'ами (отказ на исходный чекаут, корень ФС, домашний каталог) и ненулевым exit при остатке (заблокированные файлы работающим хостом). Модели стали opt-in: `models_enabled()` + `--with-models`; `--skip-models/--no-models` остались совместимыми.
+**Замеры (реальная машина, 2026-11-12):** install root **2.7 GB / 21 372 файла**, data root **302.7 MB / 2 861 файл**, итого **3.0 GB / 24 233 файла**. `--sync-only` в пустой каталог: **871 файл / 18.7 MB за 3.1 с**.
+**Автотест DoD:** `tests/test_install_cli.py::test_real_sync_install_then_doctor_then_clean_leaves_zero` — реальный `--sync-only` → `--doctor --json` (install_root.files > 100) → `--clean --yes` → `remaining_bytes == 0`, каталог удалён. Синтетический кейс отдельно проверяет dry-run (ничего не удалено), отказ без `--yes` (exit 2) и `doctor` после clean (`total_bytes == 0`).
+**Найденный по ходу баг:** двойная обёртка stdout в UTF-8 (`_utf8_stdout()` в main + старый TUI-блок) закрывала буфер: `ValueError: I/O operation on closed file` на `--sync-only`. Убран дубль, оставлена одна обёртка на все режимы.
+**Урок:** «очистка по слоям» без dry-run и guard'ов — это удаление чужого кэша по недопониманию; ноль остатка надо доказывать на файловой системе (`remaining_bytes == 0`), а не на числе вызванных `rmtree`.
+
+## [2026-11-12] G7: документация = код — guard вместо обещаний
+**Симптом:** `docs/{en,ru,zh}/INSTALL.md` семь месяцев документировали `python install.py --uninstall` — флага никогда не существовало; INSTALL_MODELS/SYSTEM_REQUIREMENTS/CONTRIBUTING описывали «спросит перед загрузкой моделей», хотя дефолт качал их без вопроса; README перечислял 3 слоя данных из 4.
+**Fix:** правило в `AGENTS.md §8` (каждая изменённая строка docs → `файл:символ`) + чек-лист `.github/pull_request_template.md` + механический guard `scripts/check_docs_vs_installer.py`: каждый `install.py --flag` и `--client X` в `README.md`/`docs/*/{INSTALL,CLIENTS,DATA_MAP}.md`/`docs/en/FAQ.md` обязан существовать в `install.py`/`adapters/clients/snippets.py`; пустой корпус = exit 2 («не доказано»), а не «прошло».
+**Проверка:** `158 flag reference(s) checked, 0 problem(s)`; тот же guard на дореформенном `docs/en/INSTALL.md` из `main` даёт `✗ unknown installer flag --uninstall` (воспроизведение исходного дефекта). Тесты: `tests/test_docs_vs_installer.py`, 5/5.
+**Исправлено по коду:** INSTALL §7 (`--clean --yes`/uninstaller вместо `--uninstall`), INSTALL §2 и INSTALL_MODELS×3 (`--with-models` вместо prompt/`--skip-models`), SYSTEM_REQUIREMENTS×3, CONTRIBUTING×3, FAQ×3, README/README×2 (4 слоя + DATA_MAP), `adapters/clients/*.json` (`PROJECT_PATH`, `PYTHONUTF8`, `<install-root>`), `adapters/clients/README.md` (`cwd` → `PROJECT_PATH`), баннер в `AI_INSTALLATION_PROMPT.md`.
+**Урок:** «документация соответствует коду» проверяется только исполнением: guard ловит исчезнувшие флаги, но не смысл. Смысловые утверждения (модели по умолчанию, Zed-обязательность) нашлись ручной сверкой с `step_models`/`step_zedcfg`.
+
+## [2026-11-12] G5 addendum: полный suite поймал контракт адаптера
+**Симптом:** полный прогон (`2488 passed, 1 failed`) упал на `tests/test_cli.py::test_stdio_ref_valid_entrypoint`: `['-u','-m','src.main'] != ['-m','src.main']`.
+**Корень:** я привёл `adapters/clients/*.json` к форме сгенерированного сниппета и добавил `-u`. Но эти JSON — публичный контракт адаптеров, и тест фиксирует именно его; генератор сниппетов (`install.py --print-config`) — отдельная сущность.
+**Fix:** в JSON возвращён `args: ["-m","src.main"]`, добавленные `PROJECT_PATH`/`PYTHONUTF8`/`<install-root>` оставлены. Тест не менялся (правило: не править проверку под код).
+**Урок:** «shape» клиентского конфига — такая же публичная поверхность, как имя инструмента; `-u` в документации и в генераторе не даёт права менять статический адаптер.
