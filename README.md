@@ -117,8 +117,7 @@ Requirements: Windows is the validated platform; Python 3.14+; any MCP host
 
 ```bash
 cd <repo-root>
-python install.py                        # venv + deps + code: text-first, no models
-python install.py --with-models          # optional: + ONNX/GGUF models (~657 MB)
+python install.py                        # venv + deps + code (model steps ask first)
 python install.py --sync                 # code-only sync after a source change
 ```
 

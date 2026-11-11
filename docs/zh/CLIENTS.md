@@ -21,8 +21,7 @@ Streamable-HTTP 入口（`src/remote_main.py`），用于 docker/远程部署。
 
 ```bash
 cd <repo-root>
-python install.py                     # venv + 依赖 + 代码，text-first，无模型
-python install.py --with-models       # 同上 + ONNX/GGUF 模型（约 657 MB）
+python install.py                     # venv + 依赖 + 代码（模型步骤会询问）
 python install.py --no-zed            # 完全不修改 Zed 设置
 python install.py --sync-only         # 改代码后：仅复制代码
 ```

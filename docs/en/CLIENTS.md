@@ -20,8 +20,7 @@ step.
 
 ```bash
 cd <repo-root>
-python install.py                     # venv + deps + code, text-first, no models
-python install.py --with-models       # same + ONNX/GGUF models (~657 MB)
+python install.py                     # venv + deps + code (model steps ask first)
 python install.py --no-zed            # do not touch Zed settings at all
 python install.py --sync-only         # after a code change: copy code only
 ```
