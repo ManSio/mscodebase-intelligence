@@ -119,18 +119,35 @@ number and the command that regenerates it are listed in
 
 ## Quick start
 
-Requirements: Windows is the validated platform; Python 3.14+; an MCP host
-(**OpenCode is the primary one**, the Zed extension still works).
+Requirements: Windows is the validated platform; Python 3.14+; any MCP host
+(OpenCode, Zed, Claude Code, Cursor, or a generic `mcpServers` client).
 
 ```bash
 cd <repo-root>
-python install.py            # full install: venv, pip, optional models
-python install.py --sync     # code-only sync into the installed copy
+python install.py                        # venv + deps + code (model steps ask first)
+python install.py --sync                 # code-only sync after a source change
 ```
 
-Restart the host after `install.py` finishes (the OpenCode session, or the Zed
-window). The installed copy lives in `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`
-and both hosts launch that venv. Verify from the agent panel:
+The install is host-neutral: it writes a plain Python environment (default
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — the name is
+historical). Point it anywhere with `MSCODEBASE_INSTALL_ROOT`. Then print the
+config for your host instead of writing it by hand:
+
+```bash
+python install.py --print-config --client generic      # mcpServers-style hosts
+python install.py --print-config --client opencode
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+python install.py --print-config --client zed
+```
+
+Each prints one JSON object containing the interpreter, `-u -m src.main`,
+`PYTHONPATH`, `PROJECT_PATH` and `PYTHONUTF8=1`; paste it into the host's MCP
+config. Per-client copy-paste sections and the launch check
+(`python scripts/verify_client_snippets.py`) are in
+[docs/en/CLIENTS.md](docs/en/CLIENTS.md). Restart the host after configuring it.
+
+Verify from the agent panel:
 
 ```text
 tool_help()                        # profile, visible and hidden tools

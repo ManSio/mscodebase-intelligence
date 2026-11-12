@@ -51,6 +51,14 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: Client snippets cold start (G5)
+        # Каждый сниппет из `install.py --print-config` запускается на чистом
+        # раннере: initialize + tools/list. Покрывает все 5 клиентов, включая
+        # не-Zed/не-OpenCode (generic, claude-code, cursor). Таймаут 300s: на
+        # холодной машине сервер поднимает провайдеров дольше 60s (ONNX-ожидание
+        # в логах), и 120s оказалось мало на windows-latest (2026-11-12).
+        run: python scripts/verify_client_snippets.py --install-root "${{ github.workspace }}" --timeout 300
+
       - name: Layer-boundary gate (Фаза 1 Universal Engine)
         # Три оси ТЗ: ADAPTER → TRANSPORT → SOURCE → CORE. Гейт не даёт
         # mcp/tools импортировать adapters/src.sources и core — adapters.*
