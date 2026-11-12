@@ -25,6 +25,12 @@
 
 默认运行时是 **text-first**：对解析后的 chunk 使用 SQLite FTS5/BM25，加上 Tree-sitter/PropertyGraph 索引。嵌入与重排是可选的；回答代码问题不需要 GPU、网络或向量数据库。
 
+## 规范仓库
+
+本项目的文档中，`rag-mcp` 指 **本** 仓库：
+<https://github.com/ManSio/mscodebase-intelligence>（MIT，`main` 分支）。该名称在公共
+平台上并不唯一，因此本文档中所有 `rag-mcp` 的提及都只指向上面的 URL。
+
 ## 今天可用的能力
 
 | 领域 | 作用 | 入口 |

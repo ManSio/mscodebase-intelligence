@@ -93,7 +93,11 @@ def test_every_extracted_identifier_is_counted(tmp_path, slot):
     listed = [n.strip() for n in identifiers_line.split("identifiers:")[1].split(",")]
     assert listed[slot - 1] == present, identifiers_line
     assert "results: 0" not in out, out
-    assert "subject does not occur" not in out, out
+    # The exact line names the FIRST counted identifier, which may be an absent
+    # one; G1's "the subject does not occur" is then a correct statement about
+    # that name. What must never appear is a claim that the one name that DOES
+    # occur is absent.
+    assert f"{present}=0" not in out, out
 
 
 def _fake_tool(tmp_path: Path) -> InvestigateTool:
