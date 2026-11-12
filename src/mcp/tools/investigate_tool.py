@@ -820,7 +820,12 @@ class InvestigateTool(MCPTool):
             grep_root = Path(
                 self.resolve_indexer(explicit_project_root=_pr).project_path
             ).resolve()
-            idents = identifiers[:2]
+            # Every extracted identifier is counted, not just the first two:
+            # the refusal says "no identifier occurs", and a name at slot 3-4
+            # that does occur kept the answer empty (G2, review major 2). The
+            # walk, the read and the parse stay shared; only the regex passes
+            # grow, and `_MAX_IDS` bounds them at four.
+            idents = identifiers
             if not idents:
                 return
 
