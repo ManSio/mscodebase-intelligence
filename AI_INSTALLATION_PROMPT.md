@@ -1,5 +1,13 @@
 # 🤖 One-Prompt Install Manifest for Zed Agent
 
+> **Статус: Zed-специфичный сценарий (2026-08-12).** Актуальный, нейтральный к
+> хосту порядок описан в `docs/en/INSTALL.md` (v3.2). Отличия, которые этот текст
+> не отражает: установка больше не привязана к Zed (`MSCODEBASE_INSTALL_ROOT`,
+> `--no-zed`, `install.py --print-config --client …`), модели стали opt-in
+> (`--with-models`, `install.py::models_enabled`), а вместо ручного
+> `printf 's\nn\n' | python install.py` используются `--yes` и `--clean/--doctor`.
+> Проверить, что здесь устарело: `python scripts/check_docs_vs_installer.py`.
+
 > Версия: 3.5.0 | Дата: 2026-08-12
 >
 > Скопируй этот текст в чат Агента Zed (`Ctrl+Shift+P` → `Agent Panel: Toggle`)

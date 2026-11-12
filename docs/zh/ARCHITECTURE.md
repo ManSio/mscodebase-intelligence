@@ -140,3 +140,17 @@ replace/insert），带 preview 与 impact guard。
 - **向量存储：** LanceDB，仅在启用 dense 检索时使用。
 
 默认的文本优先路径不需要其中任何一项。
+
+## 9. 代码引用（2026-11-12 审计）
+
+| 本页断言 | 代码 |
+|---|---|
+| 入口先建 DI 再建服务器 | `src/main.py::main`、`src/mcp/server_factory.py::create_mcp_server`（第 156 行）、`src/core/di_container.py` |
+| 产物布局 | `src/core/artifact_paths.py::get_data_root`、`::project_hash`、`::get_graph_db_path`、`::get_logs_dir` |
+| 分块在 `<project>/.mscodebase/chunks.db` | `src/config/settings.py::SearchConfig.sqlite_chunks` |
+| `experiments/**` 不参与索引 | `src/core/indexing/file_guard.py` |
+| 检索实现 | `src/core/search/engine.py::Searcher` |
+| 解析与图 | `src/core/indexing/parser.py`、`src/core/graph.py` |
+| 配置档 `core` = 69 中的 17 | `src/mcp/server_tools.py::CORE_PROFILE`；`tools/list` 实测：17 / 69，2026-11-12 |
+| 可选 LSP 层 | `lsp_*` 工具，30 s 失败缓存（`src/config/settings.py::LSPConfig`） |
+

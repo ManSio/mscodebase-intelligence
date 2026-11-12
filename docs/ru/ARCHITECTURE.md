@@ -156,3 +156,17 @@ replace/insert) с preview и impact-guard.
 - **Векторное хранилище:** LanceDB, только когда включён dense-retrieval.
 
 Ни один из них не нужен для дефолтного text-first пути.
+
+## 9. Ссылки на код (аудит 2026-11-12)
+
+| Утверждение на странице | Код |
+|---|---|
+| точку входа строит сервер, сначала DI | `src/main.py::main`, `src/mcp/server_factory.py::create_mcp_server` (строка 156), `src/core/di_container.py` |
+| раскладка артефактов | `src/core/artifact_paths.py::get_data_root`, `::project_hash`, `::get_graph_db_path`, `::get_logs_dir` |
+| чанки в `<project>/.mscodebase/chunks.db` | `src/config/settings.py::SearchConfig.sqlite_chunks` |
+| `experiments/**` исключён из индексации | `src/core/indexing/file_guard.py` |
+| владелец поиска | `src/core/search/engine.py::Searcher` |
+| парсинг и граф | `src/core/indexing/parser.py`, `src/core/graph.py` |
+| профиль `core` = 17 из 69 | `src/mcp/server_tools.py::CORE_PROFILE`; замер `tools/list`: 17 / 69, 2026-11-12 |
+| опциональный LSP-слой | инструменты `lsp_*`, кеш отказов 30 с (`src/config/settings.py::LSPConfig`) |
+

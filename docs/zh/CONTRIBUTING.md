@@ -36,8 +36,8 @@ python -m venv venv; venv\Scripts\activate; pip install -e ".[dev]"
 ```
 
 文本优先的运行时只需要 `pip install -e .`。模型是可选的，且绝不会静默下载：
-`python install.py` 在每次下载前询问，并接受 `--skip-models`；`--sync-only` 只把
-代码复制进扩展目录，不碰 pip 也不碰模型。
+`install.py` 默认 text-first，只有 `--with-models` 才会下载（`models_enabled`）；
+`--sync-only` 只把代码复制进安装根，不碰 pip 也不碰模型。
 
 ## 3. 测试与 lint
 

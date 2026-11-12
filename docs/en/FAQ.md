@@ -118,7 +118,8 @@ instead.
 
 Yes. Nothing in the default path needs a GPU, a cloud API, or internet: FTS5,
 the AST graph, and tree-sitter parsing are all local. The only network use is
-downloading optional models (GGUF/ONNX via `install.py`) and the optional
+downloading optional models (`install.py --with-models`, off by default:
+`models_enabled()` in `install.py`) and the optional
 `tree-sitter-language-pack`, whose parsers are fetched on first use
 (`MSCODEBASE_LANGUAGE_PACK=true`). With that flag off, every grammar comes from
 a pinned wheel and no download happens.

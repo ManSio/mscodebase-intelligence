@@ -151,3 +151,19 @@ replace/insert) with preview and impact guards.
 - **Vector store:** LanceDB, only when dense retrieval is enabled.
 
 None of them is required for the default text-first path.
+
+## 9. Code references (audited 2026-11-12)
+
+Every claim above resolves to a symbol, not to prose. Audit table:
+
+| Claim in this page | Code |
+|---|---|
+| entry point builds the server, DI first | `src/main.py::main`, `src/mcp/server_factory.py::create_mcp_server` (line 156), `src/core/di_container.py` |
+| artifact layout (`<data_root>/projects/<hash8>/…`) | `src/core/artifact_paths.py::get_data_root`, `::project_hash`, `::get_graph_db_path`, `::get_logs_dir` |
+| text chunks in `<project>/.mscodebase/chunks.db` | `src/config/settings.py::SearchConfig.sqlite_chunks` (`MSCODEBASE_SQLITE_CHUNKS`) |
+| `experiments/**` excluded from indexing | `src/core/indexing/file_guard.py` |
+| retrieval owner | `src/core/search/engine.py::Searcher` |
+| parsing / graph | `src/core/indexing/parser.py`, `src/core/graph.py` |
+| profile `core` = 17 of 69 registered | `src/mcp/server_tools.py::CORE_PROFILE`; measured with `tools/list`: 17 (`core`) / 69 (`full`), 2026-11-12 |
+| optional LSP layer | `src/mcp/tools/` `lsp_*` tools, failure cache 30 s (`src/config/settings.py::LSPConfig`) |
+

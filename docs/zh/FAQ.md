@@ -109,7 +109,8 @@ Remove-Item "$env:LOCALAPPDATA\mscodebase\projects\<hash8>" -Recurse -Force
 ## 没有 GPU 或没有网络能运行吗？
 
 能。默认路径中没有任何东西需要 GPU、云 API 或互联网：FTS5、AST 图与 tree-sitter
-解析都在本地。唯一的网络用途是下载可选模型（通过 `install.py` 获取 GGUF/ONNX）
+解析都在本地。唯一的网络用途是下载可选模型（`install.py --with-models`，默认关闭：
+`install.py` 的 `models_enabled()`）
 以及可选的 `tree-sitter-language-pack`，其解析器在首次使用时抓取
 （`MSCODEBASE_LANGUAGE_PACK=true`）。关掉该开关后，所有语法都来自固定版本的
 wheel，不会发生任何下载。
