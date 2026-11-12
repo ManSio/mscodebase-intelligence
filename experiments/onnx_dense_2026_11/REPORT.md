@@ -74,6 +74,24 @@ its duration, so 2.18x is the wall-clock delta on this machine, not a clean A/B.
 The clean evidence for the padding effect is the 0.06 s vs ~6.4 s short-batch
 measurement and the 2.13x estimate on the corpus.
 
+## Quality panel (frozen 48-query set)
+
+Control: index built with fixed 512 padding, queries padded to 512.
+Treatment: index built with per-batch padding, queries dynamic.
+Both run the same hybrid `quality` path and the same text index; only the vector
+table and the query padding differ.
+
+```
+control    n=48 hit@1=0.562 hit@5=0.688 MRR=0.601 p50=274ms
+treatment  n=48 hit@1=0.583 hit@5=0.688 MRR=0.617 p50=258ms
+paired: hit@1 +1/-0, hit@5 0/0 (33/48 both), MRR +2/-0
+```
+
+No query became worse; one moved into the top-1 and two improved in rank. The
+panel is small, so this is "non-inferior on the frozen panel", not a general
+quality claim. Command: `experiments/onnx_dense_2026_11/quality_panel.py
+--arm control|treatment` with the matching `MSCODEBASE_DATA_DIR`.
+
 ## Correctness
 
 Per-batch padding changes the tensor width, so quantised inference is not
@@ -99,9 +117,11 @@ behaviour for deployments that must match an existing index exactly.
 
 ## Follow-ups
 
-1. Run the search-quality panel on a dynamic-padding index before making it the
-   only mode; keep `ONNX_FIXED_PADDING=512` until then.
+1. ~~Run the search-quality panel on a dynamic-padding index before making it
+   the only mode~~ — done: hit@5 33/48 in both arms, no losing query.
 2. Warm/cold build caching: a full rebuild still recomputes every chunk; the
    incremental path already skips unchanged files.
 3. Consider length-bucketed batching in the indexer instead of sorting by chars
    (token-aware), which would tighten batch maxima further.
+4. The 48-query panel is small; re-run `experiments/bench_2026_11` on a larger
+   corpus before removing `ONNX_FIXED_PADDING` from the compatibility surface.
