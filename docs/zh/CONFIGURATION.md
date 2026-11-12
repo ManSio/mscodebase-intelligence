@@ -90,6 +90,7 @@
 | `EMBEDDING_MODEL` / `MODEL_NAME` / `EMBEDDING_DIMENSION` | `qwen3-embedding` / `multilingual-e5-small-int8` / `384` | provider 模型选择 |
 | `MSCODEBASE_EMBEDDER_PROVIDER` | `auto` | 固定 embedder（`onnx`、`llama_cpp`、`lm_studio`、`ollama`）；外部端点仅在显式指定时使用 |
 | `MSCODEBASE_ONNX_PROVIDER` | — | 强制指定 ONNX 执行 provider |
+| `ONNX_FIXED_PADDING` | `0` | `512` 恢复旧的固定宽度 ONNX 输入（旧索引兼容）；`0` 按批次填充（更快） |
 | `MSCODEBASE_REMOTE_TOKEN` / `_REMOTE_RATE_LIMIT_RPS` | — | 远程 provider 认证与速率限制 |
 | `MSCODEBASE_LANGUAGE_PACK` | `false` | 启用 tree-sitter-language-pack（首次使用时下载 parser） |
 
