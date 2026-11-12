@@ -1143,11 +1143,20 @@ class InvestigateTool(MCPTool):
         if per:
             counts = ", ".join(f"{k}={v}" for k, v in list(per.items())[:3])
             subject = next(iter(per))
-            if per[subject] == 0 and merged:
+            anything = any(v > 0 for v in per.values())
+            if merged and per[subject] == 0 and not anything:
                 lines.append(
-                    f"   ⚠️ exact: {counts} — the first identifier does not occur "
-                    "in the indexed code; the results below are neighbours, not "
-                    "matches."
+                    f"   ⚠️ exact: {counts} — no identifier occurs in the indexed "
+                    "code; the results below are neighbours, not matches."
+                )
+            elif merged and per[subject] == 0:
+                # E73 recovered answer: the subject is absent, another identifier
+                # occurs. Calling those rows "neighbours" was false - they are
+                # exact hits for the other names (major 1 of the E73 review).
+                lines.append(
+                    f"   ⚠️ exact: {counts} — the subject does not occur in the "
+                    "indexed code; the rows below match the other identifiers, "
+                    "not the subject."
                 )
             else:
                 lines.append(f"   exact: {counts}")

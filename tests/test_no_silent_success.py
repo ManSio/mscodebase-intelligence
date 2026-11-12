@@ -81,7 +81,16 @@ def test_degraded_grep_makes_no_exact_claim_either_way():
     assert "exact:" not in text
 
 
-def test_no_exact_hits_says_the_results_are_neighbours():
+def test_subject_absent_with_other_hits_names_the_other_identifiers():
+    """Old contract (until 2026-11-12): "the results are neighbours, not matches".
+
+    It held while an absent subject meant the answer was withheld, so this branch
+    was unreachable. After E73 the answer is shown when another identifier
+    occurs, and on exactly this input the old wording is false: the row is
+    matched by `implemented`, not by the absent `ghost_symbol`. The contract is
+    now "name the subject, say what the rows do match"; the all-zero case keeps
+    the neighbours wording (see the next test).
+    """
     text = _format(
         merged=[
             {"file": "src/core/search/cypher_sql.py", "line": 278,
@@ -90,7 +99,30 @@ def test_no_exact_hits_says_the_results_are_neighbours():
         exact={"per": {"ghost_symbol": 0, "implemented": 5}},
     )
     assert "⚠️ exact: ghost_symbol=0" in text
-    assert "neighbours" in text
+    assert "not the subject" in text
+    assert "neighbours" not in text, text
+
+
+def test_recovered_answer_is_not_called_neighbours():
+    """E73 recovered answers: the subject is absent, another identifier occurs.
+
+    Old contract (in force until 2026-11-12): with `per={"ghost_symbol": 0,
+    "implemented": 5}` the answer had to say the rows "are neighbours, not
+    matches". That is false on exactly this input: the row is an exact hit for
+    the second identifier, and after E73 such answers are shown instead of being
+    withheld. The new contract names the subject and says which names the rows
+    do match.
+    """
+    text = _format(
+        merged=[
+            {"file": "lib/sqlalchemy/orm/decl_api.py", "line": 60,
+             "text": "class DeclarativeBase", "channels": {"grep"}},
+        ],
+        exact={"per": {"_orm.registry": 0, "Declarative": 785}},
+    )
+    assert "⚠️ exact: _orm.registry=0" in text
+    assert "neighbours" not in text, text
+    assert "not the subject" in text, text
 
 
 def test_agreement_between_non_exact_channels_is_not_confirmation():
