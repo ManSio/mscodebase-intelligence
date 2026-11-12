@@ -75,8 +75,8 @@ count per identifier — and says so when the subject itself occurs nowhere:
 🧭 investigate: `where is missing_widget implemented`
    identifiers: missing_widget, implemented
    results: 8
-   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
-   in the indexed code; the results below are neighbours, not matches.
+   ⚠️ exact: missing_widget=0, implemented=5 — the subject does not occur in
+   the indexed code; the rows below match the other identifiers, not the subject.
 ```
 
 Four rules that must stay true (guard: `tests/test_no_silent_success.py`):
@@ -89,7 +89,7 @@ Four rules that must stay true (guard: `tests/test_no_silent_success.py`):
 4. two non-exact channels naming the same place is correlation, not proof — the
    `exact:` line is not raised by agreement.
 
-When the first identifier occurs **nowhere** and the graph does not know the
+When no identifier occurs **anywhere** and the graph does not know the
 symbol either, the answer is a refusal, not a neighbour list:
 
 ```

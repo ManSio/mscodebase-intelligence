@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+
 from src.core.di_container import ServiceCollection
 from src.mcp.tools.investigate_tool import InvestigateTool, _abstains
 
@@ -49,6 +51,53 @@ def test_an_unknown_counter_never_becomes_a_refusal():
     assert _abstains({"a": None}, False, False) is False
     assert _abstains({"a": 0, "b": None}, False, False) is False
     assert _abstains({"a": -1}, False, False) is False
+
+
+def _g2_tokens(present_slot: int) -> list[str]:
+    """Four identifiers whose extraction order is fixed by length.
+
+    `_identifiers` sorts by (code_shape, length), so a longer name is always
+    ranked first. Padding the slots to 60/45/30/15 characters pins the position
+    of the one name that occurs, without touching the ranking code.
+    """
+    lengths = [60, 45, 30, 15]
+    tokens = []
+    for index, size in enumerate(lengths):
+        base = f"zz_{chr(ord('a') + index)}_"
+        suffix = "_present" if index + 1 == present_slot else ""
+        tokens.append(base + "q" * (size - len(base) - len(suffix)) + suffix)
+    return tokens
+
+
+@pytest.mark.parametrize("slot", [1, 2, 3, 4])
+def test_every_extracted_identifier_is_counted(tmp_path, slot):
+    """G2: `per` must cover every identifier `_identifiers` returns (up to 4).
+
+    Before this fix only the first two were counted, so a name at slot 3 or 4
+    that does occur could not stop the refusal: the answer was emptied while the
+    file that answers it was in the index. Slots 1-2 are the controls (they were
+    counted before and after).
+    """
+    names = _g2_tokens(slot)
+    present = names[slot - 1]
+    (tmp_path / "a.py").write_text(f"{present} = 1\n", encoding="utf-8")
+    tool = _fake_tool(tmp_path)
+
+    out = asyncio.run(tool.execute(
+        query="where is " + " ".join(names) + " defined",
+        project_root=str(tmp_path),
+    ))
+
+    identifiers_line = next(
+        (line for line in out.splitlines() if "identifiers:" in line), "")
+    listed = [n.strip() for n in identifiers_line.split("identifiers:")[1].split(",")]
+    assert listed[slot - 1] == present, identifiers_line
+    assert "results: 0" not in out, out
+    # The exact line names the FIRST counted identifier, which may be an absent
+    # one; G1's "the subject does not occur" is then a correct statement about
+    # that name. What must never appear is a claim that the one name that DOES
+    # occur is absent.
+    assert f"{present}=0" not in out, out
 
 
 def _fake_tool(tmp_path: Path) -> InvestigateTool:
