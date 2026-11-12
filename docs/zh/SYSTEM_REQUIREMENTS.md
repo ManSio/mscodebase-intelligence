@@ -55,8 +55,9 @@ OpenCode 直接启动 MCP 服务器：
 | `models/`（可选） | **839.4 MiB** | 为扩展复制的 GGUF 模型 |
 
 经验法则：文本索引与被索引语料成正比，并且大致比同一语料上的向量索引小一个数量级。
-可选模型目录在存在时占主导，不存在时为零。`install.py` 只在被要求时下载模型
-（`--skip-models`，或在其提示处回答 "no"），所以纯文本安装的体积 = 代码 + 块存储。
+可选模型目录在存在时占主导，不存在时为零。`install.py` 只在指定 `--with-models`
+时下载模型（`install.py` 的 `models_enabled()`）；默认 text-first，既不提示也不下载，
+所以纯文本安装的体积 = 代码 + 块存储。
 
 当 data root 的空闲空间低于 **500 MB** 时，`artifact_paths.check_disk_space()` 会
 警告（`MIN_FREE_DISK_MB`）；CI 守卫在低于 1 GB 时失败。`artifact_gc` 在启动 3 s

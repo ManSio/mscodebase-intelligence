@@ -79,7 +79,7 @@
 | `MSCODEBASE_LINK_TIMEOUT_SEC` | — | Бюджет прохода связывания графа |
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | Watchdog зависаний для долгих переиндексаций |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | Автоотключение IVF после N неудачных optimize/create |
-| `MSCODEBASE_MAX_FILE_SIZE_MB` (security) | `10` | Файлы больше этого пропускаются |
+| `MAX_FILE_SIZE_MB` (security, без префикса — так читает `SecurityConfig`, `src/config/settings.py:425`) | `10` | Файлы больше этого пропускаются |
 
 ## 5. Провайдеры (все опциональны)
 
@@ -132,3 +132,16 @@ python -c "from src.config.settings import get_config; c=get_config(); print(c.s
 Конфигурация строится один раз на процесс: перезапустите MCP-хост после правки
 `.env`, затем `get_health_report()` должен показать новые значения (или хотя бы
 не старое состояние провайдера).
+
+## 9. Ссылки на код (аудит 2026-11-12)
+
+| Группа | Где читается |
+|---|---|
+| server/profile/storage (`MSCODEBASE_MCP_PROFILE`, `MSCODEBASE_DATA_DIR`, …) | `src/config/settings.py`, `src/mcp/server_tools.py::CORE_PROFILE`, `src/core/artifact_paths.py::get_data_root` |
+| дефолты поиска (`MSCODEBASE_DOCS_MARGIN`, `_ONDEMAND_RERANK_*`, `_CODE_BM25_*`) | `src/config/settings.py::SearchConfig` (строки 189–268) |
+| `MAX_FILE_SIZE_MB` (без префикса) | `src/config/settings.py::SecurityConfig` (строка 425) |
+| гейты плагина (`MSCODEBASE_STALE_GATE`, `_ISOLATION_GATE`, `_GATE_LOG`, `MSCODEBASE_PY`) | `.opencode/plugin/mscodebase_gate.ts` (строки 25–27) |
+| бюджет pre-commit (`MSCB_PRECOMMIT_FAST`, `MSCB_PRECOMMIT_GATE_TIMEOUT`) | `.githooks/pre-commit` (строки 33, 153) |
+
+`python scripts/check_docs_vs_config.py` падает, если имя из этой таблицы
+перестаёт существовать в коде.

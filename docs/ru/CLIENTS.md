@@ -1,107 +1,252 @@
 # Клиенты и развёртывание
 
-> Перевод: 2026-11-08, источник — docs/en/CLIENTS.md. Английская версия — канон.
+> Перевод: 2026-11-12, источник — docs/en/CLIENTS.md. Английская версия — канон.
 
-> Переписано 2026-11-08. Описывает, как сервер запускается каждым хостом и что
-> на самом деле устанавливает `install.py`. Проверено по `install.py`, `extension.toml`,
-> `adapters/clients/*`, `.opencode/plugin/` и живому конфигу OpenCode на машине
-> разработки.
+> Переписано 2026-11-12. Описывает, как сервер запускается каждым хостом и что
+> на самом деле устанавливает `install.py`. Проверено по `install.py`,
+> `adapters/clients/snippets.py`, `src/main.py`, `extension.toml`,
+> `.opencode/plugin/`, `tests/test_install_cli.py` и
+> `scripts/verify_client_snippets.py` (последний запускает сервер из каждого сниппета).
 
 ## 1. Что такое сервер
 
-Python MCP-сервер (`src/main.py`), говорящий по stdio, плюс опциональная точка
-входа Streamable-HTTP (`src/remote_main.py`) для docker/удалённого развёртывания.
+Python MCP-сервер (`src/main.py`, entry point `mscodebase-mcp = src.main:main` в
+`pyproject.toml`), говорящий по stdio, плюс опциональная точка входа
+Streamable-HTTP (`src/remote_main.py`) для docker/удалённого развёртывания.
 Сам по себе он не плагин редактора — хост запускает его и общается по MCP.
 
-## 2. OpenCode (основной)
+С v3.2 установщик **нейтрален к хосту**: на диск кладётся обычное Python-окружение,
+и любой MCP-клиент может его запустить. Zed — один из адаптеров, не обязательный шаг.
 
-OpenCode запускает сервер как локальный MCP-сервер. На машине разработки запись
-выглядит так (пути сокращены):
+## 2. Установить сервер один раз
 
-```jsonc
-"mcp": {
-  "mscodebase-intelligence": {
-    "type": "local",
-    "command": [
-      "C:\\Users\\<user>\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\mscodebase-mcp.exe",
-      "-u", "-m", "src.main"
-    ],
-    "environment": {
-      "PYTHONPATH": "C:\\Users\\<user>\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence",
-      "PROJECT_PATH": "${workspaceRoot}",
-      "PYTHONUTF8": "1"
+```bash
+cd <repo-root>
+python install.py                     # venv + зависимости + код (шаги моделей спрашивают)
+python install.py --no-zed            # не трогать настройки Zed вообще
+python install.py --sync-only         # после правки кода: только копирование кода
+```
+
+Куда ставится (по умолчанию исторический путь; к Zed относится только имя):
+
+```
+Windows : %LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence
+macOS   : ~/Library/Application Support/Zed/extensions/mscodebase-intelligence
+Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
+```
+
+Перенести в любое место: `MSCODEBASE_INSTALL_ROOT=<path>`. Кэши, логи и артефакты
+проектов лежат отдельно (`MSCODEBASE_DATA_DIR`, по умолчанию
+`%LOCALAPPDATA%\mscodebase`). Полный инвентарь — [DATA_MAP.md](DATA_MAP.md).
+
+Альтернатива без установщика (любой менеджер, дающий console scripts):
+
+```bash
+pipx install .        # или: uv tool install .
+mscodebase-mcp        # entry point появляется в PATH
+```
+
+## 3. Получить конфиг для своего хоста
+
+Не пишите команду и окружение руками — напечатайте их:
+
+```bash
+python install.py --print-config --client generic      # любой mcpServers-хост
+python install.py --print-config --client opencode
+python install.py --print-config --client zed
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+```
+
+Каждая команда печатает один JSON-объект и ничего больше, поэтому вывод можно
+перенаправить: `python install.py --print-config --client cursor > .cursor/mcp.json`.
+В сниппете уже разрешённый интерпретатор, `-u -m src.main`, `PYTHONPATH`,
+`PROJECT_PATH` и `PYTHONUTF8=1`.
+
+### 3.1 Универсальный MCP-клиент (`mcpServers`)
+
+Файл: там, где хост читает свой MCP-конфиг. `<project>` — рабочее пространство,
+которое нужно индексировать (это и есть `PROJECT_PATH`).
+
+```json
+{
+  "mcpServers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<project>",
+        "PYTHONUTF8": "1"
+      }
     }
   }
 }
 ```
 
-Два факта, которые важны:
+### 3.2 OpenCode
 
-1. **Установленная копия** живёт в каталоге расширения, а не в git-чекауте.
-   Именно `install.py` кладёт туда актуальный код (см. §5).
-2. Каталог называется `…\Zed\extensions\…` по историческим причинам. Это обычное
-   окружение Python; OpenCode использует его так же, как расширение Zed.
+Файл: `opencode.json(c)` в корне проекта или в `~/.config/opencode/`. OpenCode V2
+держит имена серверов под **`mcp.servers`** — плоская V1-форма `mcp.<name>` ещё
+принимается для миграции, но в новых конфигах не используется (источник:
+<https://opencode.ai/docs/mcp-servers>, «V2 does not place server names directly
+under `mcp`»):
 
-Локальная для проекта конфигурация: `.opencode/plugin/mscodebase_gate.ts` (хуки
-коммитов) и `.opencode/command/*.md` (переиспользуемые команды агента). См.
-[HOOKS_AND_GATES.md](HOOKS_AND_GATES.md).
+```json
+{
+  "mcp": {
+    "servers": {
+      "mscodebase": {
+        "type": "local",
+        "command": ["<install-root>/venv/Scripts/mscodebase-mcp.exe", "-u", "-m", "src.main"],
+        "environment": {
+          "PYTHONPATH": "<install-root>",
+          "PROJECT_PATH": "<project>",
+          "PYTHONUTF8": "1"
+        }
+      }
+    }
+  }
+}
+```
 
-## 3. Zed (поддерживается, но не основной)
+Или пусть запишет CLI (сохраняет остальные настройки):
 
-Расширение Zed (`extension.toml`, `__mscodebase_ext__.marker`) запускает тот же
-сервер из того же каталога. Поведение, специфичное для Windows/Zed, описано в
-[ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md); относитесь к Zed как к
-альтернативному хосту, а не как к эталонной реализации.
+```bash
+opencode mcp add mscodebase -- <install-root>/venv/Scripts/mscodebase-mcp.exe -u -m src.main
+```
 
-## 4. Другие MCP-клиенты
+`PROJECT_PATH` можно заменить переменной рабочего пространства, если хост её
+раскрывает. Изменения конфига применяются без перезапуска (`/reload` — принудительно).
+Проектная автоматика — `.opencode/plugin/mscodebase_gate.ts` и
+`.opencode/command/*.md` (см. [HOOKS_AND_GATES.md](HOOKS_AND_GATES.md)).
 
-`adapters/clients/` содержит готовые формы для stdio и Streamable-HTTP:
+### 3.3 Zed (поддерживается, но не основной)
 
-| Файл | Клиент | Секция |
-|---|---|---|
-| `claude.code.mcp.json` | Claude Code / Desktop | `mcpServers` |
-| `vscode.mcp.json` | VS Code (`.vscode/mcp.json`) | `servers` |
+Либо установщик патчит `settings.json` (шаг по умолчанию, отключается `--no-zed`),
+либо вставьте напечатанный сниппет под `context_servers`:
 
-Подставьте `<path-to-venv>`, `<path-to-repo>`, `<path-to-project>`. HTTP-вариант
-указывает на `http://<host>:8089/mcp` и требует
-`Authorization: Bearer <MSCODEBASE_REMOTE_TOKEN>`; удалённый сервер собирается из
-`deploy/docker/`.
+```json
+{
+  "context_servers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "$ZED_WORKTREE_ROOT",
+        "PYTHONUTF8": "1"
+      },
+      "enabled": true
+    }
+  }
+}
+```
 
-Для скриптов и CI MCP вообще не нужен:
+Ключи совпадают с тем, что пишет `adapters/zed/zed_config.py::_make_server_entry`.
+Windows/Zed-особенности: [ZED_WINDOWS_QUIRKS.md](ZED_WINDOWS_QUIRKS.md).
+
+### 3.4 Claude Code
+
+Файл `.mcp.json` в корне проекта — та же форма `mcpServers`, что в 3.1.
+Эквивалентная CLI-форма:
+
+```bash
+claude mcp add-json mscodebase '{"command":"<install-root>/venv/Scripts/mscodebase-mcp.exe","args":["-u","-m","src.main"],"env":{"PYTHONPATH":"<install-root>","PROJECT_PATH":"<project>","PYTHONUTF8":"1"}}'
+```
+
+### 3.5 Cursor
+
+Файл: `.cursor/mcp.json` (или `~/.cursor/mcp.json` для всех проектов), форма
+`mcpServers` как в 3.1:
+
+```json
+{
+  "mcpServers": {
+    "mscodebase": {
+      "command": "<install-root>/venv/Scripts/mscodebase-mcp.exe",
+      "args": ["-u", "-m", "src.main"],
+      "env": {
+        "PYTHONPATH": "<install-root>",
+        "PROJECT_PATH": "<project>",
+        "PYTHONUTF8": "1"
+      }
+    }
+  }
+}
+```
+
+## 4. Проверить сниппет без GUI
+
+```bash
+python scripts/verify_client_snippets.py --install-root <install-root>
+```
+
+Скрипт рендерит сниппет каждого клиента ровно так же, как установщик, запускает эту
+команду во временном каталоге, делает MCP-хендшейк `initialize` + `tools/list` и
+печатает строку на клиента. Ожидаемо (замер 2026-11-12):
+
+```
+generic      PASS: server=MSCodebase Intelligence Server tools=17
+opencode     PASS: server=MSCodebase Intelligence Server tools=17
+zed          PASS: server=MSCodebase Intelligence Server tools=17
+claude-code  PASS: server=MSCodebase Intelligence Server tools=17
+cursor       PASS: server=MSCodebase Intelligence Server tools=17
+```
+
+`tools=17` — профиль `core` по умолчанию (зарегистрировано 69, видно 17); таблица
+профилей — в README.
+
+Из панели агента, по порядку:
+
+```
+tool_help()                                   # профиль + видимые/скрытые инструменты
+get_health_report()                           # индекс, провайдеры, ресурсы
+codebase(action="index", path="status")       # chunks > 0?
+```
+
+## 5. Цикл обновления
+
+Установленная копия — не git-чекаут:
+
+```
+правка src/... -> python install.py --sync-only -> перезапуск хоста (сессия / окно)
+```
+
+Без перезапуска старый процесс продолжает отдавать старый код; без sync нового кода
+нет в установленном месте. Нужны оба шага. Если сервер запускается прямо из чекаута —
+укажите его в `command`/`PYTHONPATH` и sync не нужен.
+
+## 6. Remote / Docker
+
+`src/remote_main.py` отдаёт Streamable HTTP с bearer-токеном;
+`deploy/docker/Dockerfile` + `docker-compose.yml` собирают образ, CI гоняет
+job `docker-build`. Docker — вариант развёртывания, не локальное требование.
+
+```json
+{
+  "mcpServers": {
+    "mscodebase-remote": {
+      "type": "http",
+      "url": "http://<host>:8089/mcp",
+      "headers": { "Authorization": "Bearer <MSCODEBASE_REMOTE_TOKEN>" }
+    }
+  }
+}
+```
+
+## 7. Скрипты и CI (без MCP)
 
 ```bash
 python -m src.cli <tool> '<json-args>' [--project <root>]
+echo '<json>' | python -m src.cli <tool> -
 ```
 
-CLI использует тот же DI-контейнер и те же классы инструментов; его диспетчер —
-отобранный allowlist (`src/cli.py`), а не вся поверхность из 69 инструментов.
+CLI использует тот же DI-контейнер и те же классы инструментов; диспетчер — это
+отобранный allowlist (`src/cli.py`), а не все 69 инструментов.
 
-## 5. Установка и цикл обновления
+## 8. Что указать в баг-репорте
 
-```bash
-python install.py            # interactive full install (venv, pip, llama.cpp, models)
-python install.py --sync-only  # code only: copy + drop __pycache__, no pip/models
-```
-
-`install.py` копирует `src/`, скрипты и вспомогательные файлы в
-`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` (или платформенный
-эквивалент) и сохраняет venv расширения. После изменения кода:
-
-```
-edit → python install.py --sync-only → restart the host (OpenCode session / Zed window)
-```
-
-Без перезапуска старый процесс продолжает отдавать старый код; без синхронизации
-нового кода нет на диске в установленном каталоге. Нужны оба шага.
-
-## 6. Удалённо / Docker
-
-`src/remote_main.py` открывает Streamable HTTP с аутентификацией по bearer-токену;
-`deploy/docker/Dockerfile` + `docker-compose.yml` собирают образ, а CI гоняет job
-`docker-build`. Docker — вариант развёртывания, а не локальное требование.
-
-## 7. Какого клиента указывать в отчёте о баге
-
-Укажите хост (OpenCode / Zed / Claude / VS Code / CLI), профиль
-(`core`/`full`) и то, как был запущен сервер. Отчёт без этих трёх пунктов не
-позволяет отличить «инструмент скрыт профилем» от «инструмент сломан».
+Укажите хост (OpenCode / Zed / Claude Code / Cursor / generic / CLI), профиль
+(`core`/`full`) и способ запуска сервера. Отчёт без этих трёх вещей не отличает
+«инструмент скрыт профилем» от «инструмент сломан».

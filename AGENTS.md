@@ -339,7 +339,17 @@ impact-guard).
 
 - **Канон:** `README.md` (EN) + `docs/ru/README.md` + `docs/zh/README.md`;
   `docs/en/ARCHITECTURE.md`, `docs/en/SEARCH_PIPELINE.md`, `docs/en/INSTALL.md`,
-  `docs/en/CONFIGURATION.md`, `docs/FACTS.md`.
+  `docs/en/CLIENTS.md`, `docs/en/DATA_MAP.md`, `docs/en/CONFIGURATION.md`,
+  `docs/FACTS.md`.
+- **Документация = код.** Каждое утверждение в `.md` выводимо из кода, и правка
+  документации в PR ссылается на факт кода (`файл:символ`), который она отражает.
+  Правка «только цифра» без ссылки отклоняется до коммита (чек-лист
+  `.github/pull_request_template.md`).
+- **Guard дрейфа флагов/клиентов:** `scripts/check_docs_vs_installer.py` — каждый
+  `--flag` и `--client X` из `README.md`/`docs/*/{INSTALL,CLIENTS,DATA_MAP}.md`
+  обязан существовать в `install.py`/`adapters/clients/snippets.py` (`tests/
+  test_docs_vs_installer.py`). Колонка **Entry point** в «What works today»
+  обязательна.
 - **Три языка обязательны** для канонических страниц: EN / RU / ZH. Перевод — полный
   документ, не фрагмент; заголовки и числа совпадают с EN.
 - **Числа** (инструменты, чанки, качество, тайминги) живут только в `docs/FACTS.md`

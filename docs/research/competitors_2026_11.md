@@ -1,6 +1,8 @@
 # Competitor profiles — refreshed 2026-11-11
 
-Scope: `synrag` and `rag-mcp`, requested for the 2026-11-11 overnight run.
+Scope: `synrag` and `rag-mcp` (the latter = this repository,
+<https://github.com/ManSio/mscodebase-intelligence>), requested for the
+2026-11-11 overnight run.
 Method: GitHub REST API (`/repos`, `/releases`, `/search/repositories`) and the
 README/release bodies of the repositories named below, fetched on 2026-11-11.
 Every figure is quoted **as the author states it**, together with the
@@ -50,12 +52,16 @@ the difference is over time and is not explained in either text.
 Consequence for reading: when citing synrag, quote the date as well as the
 figure, and never mix the two runs.
 
-## rag-mcp — the name is not unique
+## rag-mcp — canonical repository
 
-`GET /search/repositories?q=rag-mcp+in:name` returns **2,479 repositories** on
-2026-11-11. There is no single canonical project by that name, so a profile
-cannot be refreshed without the owner naming the repository. Nearest candidates
-by stars:
+`rag-mcp` in this project's documentation means **this** repository:
+<https://github.com/ManSio/mscodebase-intelligence> (MIT, branch `main`).
+Canonical mapping confirmed by the owner on 2026-11-12.
+
+The name itself is not unique: `GET /search/repositories?q=rag-mcp+in:name`
+returned **2,479 repositories** on 2026-11-11, which is why the mapping is
+written down instead of implied. For context only — none of these is what the
+docs mean by `rag-mcp` — the nearest candidates by stars:
 
 | Repository | Stars | Last push | Claims metrics? |
 |---|---:|---|---|
@@ -75,11 +81,7 @@ compare against and nothing to check.
    changed its value between the release note and the README. Our own rule
    (one page of numbers, each with its command) is the answer to exactly that
    failure mode.
-2. "rag-mcp" cannot be profiled until the repository is named — recorded as an
-   open question rather than guessed.
+2. `rag-mcp` resolves to <https://github.com/ManSio/mscodebase-intelligence>;
+   the README states the mapping so no mention is ambiguous.
 3. No competitor's number is used in our README, CHANGELOG or FACTS.
 
-## Open question for the owner
-
-Which repository is meant by `rag-mcp`? Until it is named, this file profiles
-the name space and the four nearest candidates, nothing more.

@@ -33,15 +33,17 @@ SHA-256 записаны для части записей (qwen3-embedding, bge-
 справочное значение, а не проверенный пин. (Архив **бинарника** llama.cpp,
 наоборот, проверяется по хэшу перед распаковкой.)
 
-## 2. Способ 1 — `install.py` (интерактивный)
+## 2. Способ 1 — `install.py` (модели по явному запросу)
 
 ```bash
-python install.py
+python install.py --with-models
 ```
 
-12 шагов. Сетевые шаги спрашивают перед действием:
+Без `--with-models` установщик text-first: `step_models` и `step_gguf` сразу
+возвращаются (`install.py::models_enabled`), поэтому не скачивается ни одна модель,
+не создаётся модельный каталог и не задаётся ни одного вопроса. С `--with-models`:
 
-- ONNX-модели: *«Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)»*;
+- ONNX: `multilingual-e5-small-int8` (~113 МБ) + `bge-reranker-v2-m3` (~544 МБ);
 - GGUF + llama.cpp: шаг GGUF скачивает `multilingual-e5-small` и
   `bge-reranker-v2-m3`, а также бинарник llama.cpp для выбранного бэкенда;
 - каждый шаг при сбое предлагает `[r]etry / [s]kip / [c]ancel`.
@@ -50,13 +52,15 @@ python install.py
 
 | Флаг | Эффект |
 |---|---|
-| `--sync-only` / `--sync` | скопировать код в каталог расширения, больше ничего не трогать (используйте после правки `src/`) |
-| `--skip-models` / `--no-models` | полностью пропустить шаги с моделями |
-| `--yes` / `-y` | отвечать «да» вместо вопроса |
+| `--sync-only` / `--sync` | скопировать код в каталог установки, больше ничего не трогать (после правки `src/`) |
+| `--with-models` | выполнить шаги с моделями (ONNX + GGUF); единственный способ их получить |
+| `--skip-models` / `--no-models` | принимаются для старых скриптов; по умолчанию модели и так пропускаются |
+| `--no-zed` | не трогать настройки Zed (нейтральная установка) |
+| `--yes` / `-y` | принимать каждый шаг вместо вопросов |
 | `--verbose` / `-v` | полный вывод шагов вместо компактного вида |
 
-Установка целенаправленно пишет в каталог расширения
-`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`:
+Файлы попадают в каталог установки (`MSCODEBASE_INSTALL_ROOT`, по умолчанию
+исторический `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`):
 
 - ONNX → `<ext>/.codebase_models/onnx/<slug>/model_quantized.onnx`
   (его специализированная подпапка реранкера использует `model.onnx`);

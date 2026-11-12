@@ -30,15 +30,17 @@ GGUF 表（`src/providers/reranker/llama_install.py` 中的 `GGUF_MODELS`）还�
 下载时写入日志；下载路径并不比对它们，所以这里的哈希是参考值，不是已验证的固定值。
 （llama.cpp **二进制**归档在解压前*确实*会做哈希校验。）
 
-## 2. 方法一 —— `install.py`（交互式）
+## 2. 方法一 —— `install.py`（模型需显式开启）
 
 ```bash
-python install.py
+python install.py --with-models
 ```
 
-12 个步骤。涉及网络的步骤在执行前会询问：
+不带 `--with-models` 时安装器为 text-first：`step_models` 与 `step_gguf` 立即返回
+（`install.py::models_enabled`），不下载任何模型、不创建模型目录、也不弹出任何提示。
+带 `--with-models` 时：
 
-- ONNX 模型：*"Download ONNX models (e5-small-int8 ~113 MB + reranker ~544 MB)? (Y/n)"*；
+- ONNX：`multilingual-e5-small-int8`（约 113 MB）+ `bge-reranker-v2-m3`（约 544 MB）；
 - GGUF + llama.cpp：GGUF 步骤下载 `multilingual-e5-small` 与
   `bge-reranker-v2-m3`，以及所选后端的 llama.cpp 二进制；
 - 每一步在失败时都提供 `[r]etry / [s]kip / [c]ancel`。
@@ -47,12 +49,15 @@ python install.py
 
 | 标志 | 作用 |
 |---|---|
-| `--sync-only` / `--sync` | 把代码复制进扩展目录，不碰其它任何东西（修改 `src/` 之后用这个） |
-| `--skip-models` / `--no-models` | 完全跳过模型步骤 |
-| `--yes` / `-y` | 直接回答 yes，而不是提示 |
+| `--sync-only` / `--sync` | 把代码复制进安装根，不碰其它任何东西（修改 `src/` 之后用这个） |
+| `--with-models` | 执行模型步骤（ONNX + GGUF）；获取模型的唯一途径 |
+| `--skip-models` / `--no-models` | 为旧脚本保留；默认已跳过 |
+| `--no-zed` | 不修改 Zed 设置（宿主中立安装） |
+| `--yes` / `-y` | 接受每个步骤，而不是提示 |
 | `--verbose` / `-v` | 输出完整步骤内容，而不是紧凑视图 |
 
-安装目标是扩展目录 `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`：
+文件写入安装根（`MSCODEBASE_INSTALL_ROOT`，默认历史路径
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`）：
 
 - ONNX → `<ext>/.codebase_models/onnx/<slug>/model_quantized.onnx`
   （其专用 reranker 子目录使用 `model.onnx`）；

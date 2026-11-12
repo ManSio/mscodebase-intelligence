@@ -25,6 +25,12 @@
 
 默认运行时是 **text-first**：对解析后的 chunk 使用 SQLite FTS5/BM25，加上 Tree-sitter/PropertyGraph 索引。嵌入与重排是可选的；回答代码问题不需要 GPU、网络或向量数据库。
 
+## 规范仓库
+
+本项目的文档中，`rag-mcp` 指 **本** 仓库：
+<https://github.com/ManSio/mscodebase-intelligence>（MIT，`main` 分支）。该名称在公共
+平台上并不唯一，因此本文档中所有 `rag-mcp` 的提及都只指向上面的 URL。
+
 ## 今天可用的能力
 
 | 领域 | 作用 | 入口 |
@@ -86,16 +92,33 @@ investigate("索引器如何决定重新索引一个文件")
 
 ## 快速开始
 
-要求：以 Windows 为验证平台；Python 3.14+；MCP 宿主（**主要是 OpenCode**，Zed 扩展也可用）。
+要求：以 Windows 为验证平台；Python 3.14+；任意 MCP 宿主（OpenCode、Zed、
+Claude Code、Cursor 或通用 `mcpServers` 客户端）。
 
 ```bash
 cd <repo-root>
-python install.py            # 完整安装：venv、pip、可选模型
-python install.py --sync     # 仅同步代码到已安装副本
+python install.py                        # venv + 依赖 + 代码：text-first，无模型
+python install.py --with-models          # 可选：+ ONNX/GGUF 模型（约 657 MB）
+python install.py --sync                 # 改代码后：仅复制代码
 ```
 
-`install.py` 完成后重启宿主：OpenCode 会话或 Zed 窗口。已安装副本位于
-`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`，两种宿主都启动该 venv。
+安装与宿主无关：磁盘上放置的是一个普通 Python 环境（默认
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`，名字是历史遗留）。
+用 `MSCODEBASE_INSTALL_ROOT` 可放到别处。然后让安装器打印配置，而不是手写：
+
+```bash
+python install.py --print-config --client generic      # mcpServers 风格宿主
+python install.py --print-config --client opencode
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+python install.py --print-config --client zed
+```
+
+每条命令只打印一个 JSON 对象：解释器、`-u -m src.main`、`PYTHONPATH`、
+`PROJECT_PATH`、`PYTHONUTF8=1`；粘贴到宿主的 MCP 配置中。各客户端的分节与启动校验
+（`python scripts/verify_client_snippets.py`）见 [docs/zh/CLIENTS.md](CLIENTS.md)。
+配置完成后重启宿主。
+
 在助手面板验证：
 
 ```text
@@ -243,7 +266,8 @@ python scripts/smoke_e2e.py --project .
 | [docs/FACTS.md](../FACTS.md) | 所有公开数字与复现命令 |
 | [docs/zh/ARCHITECTURE.md](ARCHITECTURE.md) | 分层、DI、模块边界、工具配置档 |
 | [docs/zh/SEARCH_PIPELINE.md](SEARCH_PIPELINE.md) | 检索、排序、文档路由、`investigate` fan-out |
-| [docs/zh/INSTALL.md](INSTALL.md) | 安装、sync+restart 循环、故障排查 |
+| [docs/zh/INSTALL.md](INSTALL.md) | 安装、sync+restart 循环、doctor/clean、故障排查 |
+| [docs/zh/DATA_MAP.md](DATA_MAP.md) | 安装器/服务器创建的每个路径：大小与保留策略 |
 | [docs/zh/CONFIGURATION.md](CONFIGURATION.md) | 所有环境变量及其默认值 |
 | [docs/zh/CLIENTS.md](CLIENTS.md) | OpenCode、Zed、Claude Code、VS Code、CLI、Docker |
 | [docs/zh/HOOKS_AND_GATES.md](HOOKS_AND_GATES.md) | OpenCode 钩子、12 个 pre-commit 门禁、CI 任务 |

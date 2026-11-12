@@ -75,7 +75,7 @@
 | `MSCODEBASE_LINK_TIMEOUT_SEC` | — | 图连边阶段预算 |
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | 长时间重建的停滞看门狗 |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | N 次 optimize/create 失败后自动关闭 IVF |
-| `MSCODEBASE_MAX_FILE_SIZE_MB`（security） | `10` | 超过此大小的文件会被跳过 |
+| `MAX_FILE_SIZE_MB`（security，无前缀 —— 由 `SecurityConfig` 读取，`src/config/settings.py:425`） | `10` | 超过此大小的文件会被跳过 |
 
 ## 5. Provider（全部可选）
 
@@ -126,3 +126,15 @@ python -c "from src.config.settings import get_config; c=get_config(); print(c.s
 
 配置在每个进程中只构建一次：修改 `.env` 后重启 MCP 宿主，随后
 `get_health_report()` 应显示新值（至少不应再显示旧的 provider 状态）。
+
+## 9. 代码引用（2026-11-12 审计）
+
+| 分组 | 读取位置 |
+|---|---|
+| server/profile/storage（`MSCODEBASE_MCP_PROFILE`、`MSCODEBASE_DATA_DIR` 等） | `src/config/settings.py`、`src/mcp/server_tools.py::CORE_PROFILE`、`src/core/artifact_paths.py::get_data_root` |
+| 检索默认值（`MSCODEBASE_DOCS_MARGIN`、`_ONDEMAND_RERANK_*`、`_CODE_BM25_*`） | `src/config/settings.py::SearchConfig`（第 189–268 行） |
+| `MAX_FILE_SIZE_MB`（无前缀） | `src/config/settings.py::SecurityConfig`（第 425 行） |
+| 插件门禁（`MSCODEBASE_STALE_GATE`、`_ISOLATION_GATE`、`_GATE_LOG`、`MSCODEBASE_PY`） | `.opencode/plugin/mscodebase_gate.ts`（第 25–27 行） |
+| pre-commit 预算（`MSCB_PRECOMMIT_FAST`、`MSCB_PRECOMMIT_GATE_TIMEOUT`） | `.githooks/pre-commit`（第 33、153 行） |
+
+当上表中的名称在代码里消失时，`python scripts/check_docs_vs_config.py` 会失败。

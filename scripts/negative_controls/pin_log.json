@@ -151,5 +151,14 @@
       "stale_detector": "2ccfb294583a201017e9118181cf94e53e5684095944f9e5831d9c33e9752ef0",
       "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
     }
+  },
+  {
+    "pinned_at_utc": "2026-11-12T19:27:15Z",
+    "reason": "stale_check.py: dependency pins (pkg==x.y.z) are not project versions - false drift on ru/zh SYSTEM_REQUIREMENTS; mutant still fails (rc=1, marker ok)",
+    "digests": {
+      "drift_gate": "a1110ab503285417fba8e5f76d2249f281ccb9a533a018ef827b851a58b3150f",
+      "stale_detector": "80a1ddead46c9e932cff812a126e81a0ef4a29f8c618b85608e07ab22e384fe9",
+      "dead_guard_classifier": "0913eb0455dad68770669b2aadb3e0759b3539f3ba5b35e0c79ce3bf755484d1"
+    }
   }
 ]

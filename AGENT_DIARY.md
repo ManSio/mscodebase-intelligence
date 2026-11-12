@@ -76,6 +76,23 @@
     планка была выведена из bypass-прогона), requests 10→12/25 при планке ≥10 (P5).
   - *Отклонено:* править планку P4; второй независимый ревью; менять семантику
     evidence-gate (это E74); дедуп по файлу как дефолт (E72 отрицательный).
+- **G1 (major 1) — предупреждение врало на восстановленных ответах (2026-11-12):**
+  - *Старый контракт:* при `per={"ghost_symbol":0,"implemented":5}` ответ обязан
+    был говорить «the results below are neighbours, not matches». Контракт жил с
+    2026-11-08 и был верен только потому, что такие ответы **обнулялись**: при
+    пустом `merged` ветка недостижима.
+  - *Почему врёт:* после E73 ответ показывается, если встречается хоть одно имя;
+    строка на экране — точное совпадение по `implemented`, а не сосед.
+  - *Fix:* две формулировки по факту — «no identifier occurs … neighbours» только
+    когда все счётчики нулевые, и «the subject does not occur … the rows below
+    match the other identifiers, not the subject» для восстановленного случая.
+  - *Проверка:* тест на красном
+    (`test_recovered_answer_is_not_called_neighbours` падал до правки), полный
+    прогон `2561 passed / 10 skipped` (было 2560 — падения нет), smoke PASSED,
+    ruff OK. Документация: пример вывода обновлён в en/ru/zh
+    `GRACEFUL_DEGRADATION.md`.
+  - *Осталось:* ничего по G1; сам контракт «ряды — соседи» сохранён для случая
+    «ни одно имя не встречается».
 - **Две ночные «дыры» закрыты (2026-11-11):**
   - *smoke_e2e шаг 4* падал `no vector column` на дефолтном текстовом индексе
     (`MSCODEBASE_DENSE_OFF=true`). Теперь шаг пробует вектор и честно падает в
@@ -107,6 +124,37 @@
   - *nit 4–6 исправлены в том же проходе:* `None`/отрицательные счётчики теперь
     fail-open («неизвестно» ≠ «отсутствует»), мёртвая ветка убрана.
   - P5 снят и записан до мержа: requests 10→12/25 при планке ≥10.
+- **После мержей 2026-11-12: main собран, доки проверены, аудит чист**
+  - *Мержи (по указанному порядку):* #116 → `a5135d0`, #115 → `83229e1`,
+    #117 → `183a5f0`, #118 → `8149cb2`, #120 → `64341de`, #121 → `6f60c51`,
+    #122 → `2edb807` (стек Goal 2 перебазирован на main перед мержем, без
+    force-push). Конфликты были только в `AGENT_DIARY.md` (обе записи
+    сохранены) и один интеграционный G1×G2 в `tests/test_false_abstain.py`:
+    проверка отсутствия фразы заменена на `<present>=0` (именно это ложно).
+  - *Планка тестов:* `pytest tests/ -m "not integration and not benchmark"` →
+    **2607 passed / 9 skipped** (было 2560/10; +47). `ruff_gate` OK,
+    `smoke_e2e --project .` PASSED (4 проверки, шаг 4 = text — дефолт).
+  - *Аудит документации:* `stale_detector` давал ложный дрейф на
+    `onnxruntime==1.27.0` в ru/zh `SYSTEM_REQUIREMENTS` (пин зависимости
+    сравнивался с версией проекта 3.5.0). Исправлено в
+    `tools/stale_detector/stale_check.py`: версия после `=`/`@`/`~`/`>`/`<`
+    не считается версией проекта; guard —
+    `tests/test_stale_detector_versions.py` (2 теста, red-first).
+    `stale_detector` → «Docs appear up to date»; negative control пере-пинен
+    (`negative_controls_runner.py --pin`, причина в `pin_log.json`),
+    `ALL PROVEN (3)`.
+  - *Остальные гейты аудита:* `check_docs_vs_installer` 155 флагов / 0 проблем;
+    `check_docs_vs_config` 66 переменных / 0 проблем; `check_known_issues` OK
+    (≤300 строк); `check_layer_boundaries` и `architecture_linter` — инварианты
+    соблюдены.
+  - *GitHub About:* описание переписано под текущий продукт (local-first,
+    text-first, BM25/FTS5 + AST graph), добавлены топики `local-first`,
+    `text-first`, `onnx`.
+  - *Побочная находка:* прогон тестов создал в корне каталог `MagicMock/`
+    (1732 файла `mock.project_path/*/chunks.db`, артефакт подменённого пути).
+    Из-за него `test_real_project_scan_without_venv` упирался в кап 10001.
+    Каталог удалён; тест, который пишет по `MagicMock`-пути, не найден —
+    записано как хвост (в CI чистый клон, поэтому зелено).
 - **G4-retry — dense-smoke на ONNX e5-small-int8, 384 (12→13.11.2026): DONE**
   - *Провайдер в прогоне:* `onnx:multilingual-e5-small-int8`, выход 384-d
     (закреплён `MSCODEBASE_EMBEDDER_PROVIDER=onnx`; :8080 и LM Studio в сборке
@@ -139,6 +187,48 @@
   - *Осталось:* сборка dense на CPU ~37 мин (не оптимизировалась); `auto`
     по-прежнему может переключиться на внешний провайдер — пинится только
     явным конфигом.
+- **G4 — dense-smoke: BLOCKED, минимальный репро (12→13.11.2026):**
+  - *Диск:* D: 28,5 GB свободно, C: 4,6 GB. Оценка артефакта: 7 278 чанков ×
+    768 float32 ≈ 22 MB сырых векторов + LanceDB-оверхед — места хватает.
+  - *Попытка 1 (штатное хранилище):* `index_project` при `MSCODEBASE_DENSE_OFF=false`
+    → `ValueError: lance error: Cannot cast to FixedSizeList(384): value at index 0
+    has length 768`. Причина: в `…/projects/bfe9644b/lancedb_v2/index_mscodebase_bfe9644b.db`
+    таблица `codebase_chunks` объявлена как `vector fixed_size_list<float>[384]`
+    и содержит **0 строк**, а текущий эмбеддер отдаёт 768.
+  - *Попытка 2 (изолированный корень, `MSCODEBASE_DATA_DIR=<temp>`):* схема
+    создаётся заново, но сборка встала на **18,6 MB**: повторяется
+    `llama.cpp embed error: [WinError 10061]` → `Embedder idle-unloaded/dead -
+    restarting`. Keeper-процесс, который держал :8080, был снят по таймауту
+    3600 s; авто-restart раннера уходит в idle-unload и темп не восстанавливает.
+  - *Что не проверено:* полный `smoke_e2e` на dense-индексе (шаг 4 = vector)
+    не достигнут. Дефолт продукта не менялся.
+  - *Что осталось (решение владельца):* какой размерности индекс у проекта —
+    384 или 768; затем либо пересоздать пустую `codebase_chunks` под 768,
+    либо поднять эмбеддер 384, и доделать сборку с живым эмбеддером.
+- **G3 — `rag-mcp` получил канонический адрес (12.11.2026):** имя не уникально
+  (2 479 репозиториев на hub, замер 11.11). Владелец подтвердил 12.11 канонику:
+  <https://github.com/ManSio/mscodebase-intelligence> (MIT, `main`). Блок
+  «Canonical repository» добавлен в README на трёх языках
+  (`README.md`, `docs/ru/README.md`, `docs/zh/README.md`), профиль
+  `docs/research/competitors_2026_11.md` переписан: секция «имя не уникально»
+  стала «канонический репозиторий», соседние кандидаты остались только как
+  контекст. Проверка: `git grep -n rag-mcp` — каждое упоминание рядом с URL
+  или внутри файла, где URL задан в заголовке.
+- **G2 (major 2) — «ни одно имя не встречается» было сильнее кода (2026-11-12):**
+  - *Дефект:* grep-канал считал вхождения только по `identifiers[:2]`, а
+    `_identifiers` отдаёт до 4 имён; отказ срабатывал, когда имена на слотах 3–4
+    встречаются. Слоты 1–2 работали как контроль.
+  - *Решение: вариант A* (код подтянут к сообщению, не наоборот). Обоснование:
+    новой зависимости нет, обход дерева/чтение/разбор уже общие — растут только
+    regex-проходы, и `_MAX_IDS=4` их ограничивает; вариант B («сузить текст»)
+    оставил бы ложный отказ при живом имени в индексе.
+  - *Fix:* `idents = identifiers[:2]` → `idents = identifiers` (правка E73 убрала
+    только причину «первое имя», а не «только два имени»).
+  - *Проверка:* параметризованный тест по слотам 1–4 (для 3–4 был красный до
+    правки), полный прогон `2564 passed / 10 skipped` (было 2560 — рост),
+    smoke PASSED, ruff OK.
+  - *Цена:* до 4 regex-проходов на файл вместо 2; замер не делался (ночь),
+    зафиксировано как хвост.
 - **E73 (ложный отказ):** `_abstains` решал «субъекта нет» по ПЕРВОМУ
   идентификатору; на прозе коммитов это `_orm.registry=0` при `Declarative=785`,
   и 13 из 40 коммитов sqlalchemy отвечали пустотой. Отказ теперь только когда не
@@ -1769,3 +1859,58 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Дефект (воспроизведён):** `lance error: query dim(768) doesn't match the column vector dim(384)`. Модель `embeddinggemma-2` отдаёт 768 (проверено `/v1/embeddings`), схема таблицы — 384 (осталась от e5-small). `.env`: `EMBEDDING_MODEL=embeddinggemma-2` при `MSCODEBASE_DENSE_OFF=true`.
 **Следствие:** переключать `DENSE_OFF=false` сейчас нельзя — сначала размерность из сервера + переиндексация, потом повторный `run_curve.py` в dense. Записано в KNOWN_ISSUES с точным сообщением.
 **Урок:** «включить dense и станет лучше» — непроверенная гипотеза; первый же замер дал паритет и конфигурационный дефект.
+## [2026-11-12] G5: установка отвязана от Zed — сниппет на клиента вместо ручного конфига
+**Симптом:** `install.py` v3.1 импортировал `adapters.zed.zed_config` на верхнем уровне и всегда писал конфиг Zed. На машине без Zed установка всё равно создавала `%APPDATA%/Zed`, а для Claude Code / Cursor / любого `mcpServers`-хоста команду и env приходилось собирать вручную по README (и она расходилась с кодом).
+**Корень:** установщик и хост-адаптер были одним целым: каталог установки = каталог расширения Zed, шаг 11 = патч `settings.json`, generic-клиентам нечего было скопировать.
+**Fix (v3.2):**
+1. `MSCODEBASE_INSTALL_ROOT` + `resolve_install_root()`; историческое имя папки остаётся только default, содержимое — обычный venv.
+2. Zed-адаптер импортируется лениво внутри `step_zed`/`step_zedcfg`, отказ адаптера не роняет установку; `--no-zed` — полностью нейтральный режим.
+3. `--print-config --client {generic,opencode,zed,claude-code,cursor}` → один JSON-объект; формы конвертов в `adapters/clients/snippets.py` (zed-ключи сверены с `_make_server_entry`).
+4. `scripts/verify_client_snippets.py`: рендерит сниппет каждого клиента, запускает его во временном каталоге и делает `initialize` + `tools/list`. Замер 2026-11-12: 5/5 `PASS ... tools=17`.
+**Проверка:** `tests/test_install_cli.py` (16 тестов, в т.ч. реальный хендшейк из напечатанного сниппета); мутационная проба — переименование `PYTHONPATH` в env дало 5 красных.
+**Найденный по ходу баг:** неинтерактивные режимы наследовали cp1251-stdout и падали на первом не-ASCII символе (`UnicodeEncodeError` на пути с кириллицей) — добавлен `_utf8_stdout()` для всех режимов, маркеры в отчёте сделаны ASCII.
+**Урок:** «поддержка любого клиента» проверяется запуском сниппета, а не валидностью JSON: часть конвертов отвечала только после того, как запрос пошёл после `initialized`.
+## [2026-11-12] G5: CI нашёл две вещи, которые локальный прогон не видел
+**1. Платформенная проверка в тесте.** `test_print_config_is_valid_json_per_client` требовал, чтобы команда оканчивалась на `python.exe|python3|mscodebase-mcp*`. На ubuntu `sys.executable` = `.../venv/bin/python` → 5 красных в `test` и в `clean-state` (там тот же suite из чистого клона). Fix: проверять `Path(command[0]).name.startswith(("python","mscodebase-mcp"))` — платформенно-нейтрально; реализация не менялась.
+**2. Холодная машина медленнее, чем ноутбук.** `scripts/verify_client_snippets.py` с таймаутом 120 s упал на `windows-latest` (шаг шёл ровно 121 s): первый запуск сервера на чистом раннере дольше 60 s (в логах — ожидание ONNX-сервера). Fix: таймаут по умолчанию 300 s, в CI передаётся `--timeout 300`; тот же запас в тесте-хендшейке.
+**Урок:** «зелёный локально» не переносится на CI автоматически: POSIX-имя интерпретатора и холодный старт — две вещи, которые видны только на чужой машине. Оба места были бы пойманы раньше, если бы холодный старт гонялся в CI с первого коммита (теперь гоняется — шаг `Client snippets cold start (G5)`).
+## [2026-11-12] G5: третья находка CI — забитый stderr-пайп, и зелёный прогон
+**Симптом:** шаг `Client snippets cold start (G5)` на `windows-latest` висел 20+ минут. Причина в самом скрипте: `proc.stderr.readline()` в ветке FAIL блокировал чтение, если сервер ничего не писал в stderr, а `stderr=PIPE` никто не вычитывал — при старте сервер пишет лог больше буфера пайпа (64 KB) и встаёт на записи в stderr, так и не ответив на `initialize`.
+**Fix:** `_stderr_drain()` — фоновый поток с ring-buffer на 20 строк (пайп всегда вычитывается, хвост попадает в сообщение FAIL), плюс `LOG_LEVEL=WARNING` для пробы (`src/main.py:126` читает эту переменную) — сервер не заливает пайп на холодной машине. `_read_message` остался ограниченным по времени.
+**Проверка:** локально 5/5 PASS, 13 s; CI run `43092017919` (head `20f287b`) — **7/7 jobs success**: `test` (ubuntu + windows), `clean-state`, `manifest-parity`, `secret-scan`, `docker-build`, `transport-equiv-e2e`.
+**Урок:** дочерний процесс с `stdout/stderr=PIPE` обязан иметь читателя на каждом пайпе; «я прочитаю stderr только при ошибке» — это дедлок, который воспроизводится только там, где логов больше буфера.
+
+## [2026-11-12] G6: doctor/clean и text-first по умолчанию — «что стоит и сколько весит»
+**Симптом:** установщик предлагал ~657 МБ моделей при штатном `MSCODEBASE_DENSE_OFF=true`; команды «сколько это занимает и как убрать» не было; uninstaller существовал, но не был описан; лимиты кэшей жили в коде (`artifact_gc`, `log_manager`), а не в документации.
+**Fix:** `install.py --doctor [--json]` (слои: install root / data root / проектные артефакты, размеры через `os.walk`, число чанков из `chunks.db`, пути без создания каталогов) и `install.py --clean [--dry-run] [--yes] [--json]` с guard'ами (отказ на исходный чекаут, корень ФС, домашний каталог) и ненулевым exit при остатке (заблокированные файлы работающим хостом). Модели стали opt-in: `models_enabled()` + `--with-models`; `--skip-models/--no-models` остались совместимыми.
+**Замеры (реальная машина, 2026-11-12):** install root **2.7 GB / 21 372 файла**, data root **302.7 MB / 2 861 файл**, итого **3.0 GB / 24 233 файла**. `--sync-only` в пустой каталог: **871 файл / 18.7 MB за 3.1 с**.
+**Автотест DoD:** `tests/test_install_cli.py::test_real_sync_install_then_doctor_then_clean_leaves_zero` — реальный `--sync-only` → `--doctor --json` (install_root.files > 100) → `--clean --yes` → `remaining_bytes == 0`, каталог удалён. Синтетический кейс отдельно проверяет dry-run (ничего не удалено), отказ без `--yes` (exit 2) и `doctor` после clean (`total_bytes == 0`).
+**Найденный по ходу баг:** двойная обёртка stdout в UTF-8 (`_utf8_stdout()` в main + старый TUI-блок) закрывала буфер: `ValueError: I/O operation on closed file` на `--sync-only`. Убран дубль, оставлена одна обёртка на все режимы.
+**Урок:** «очистка по слоям» без dry-run и guard'ов — это удаление чужого кэша по недопониманию; ноль остатка надо доказывать на файловой системе (`remaining_bytes == 0`), а не на числе вызванных `rmtree`.
+## [2026-11-12] G7: документация = код — guard вместо обещаний
+**Симптом:** `docs/{en,ru,zh}/INSTALL.md` семь месяцев документировали `python install.py --uninstall` — флага никогда не существовало; INSTALL_MODELS/SYSTEM_REQUIREMENTS/CONTRIBUTING описывали «спросит перед загрузкой моделей», хотя дефолт качал их без вопроса; README перечислял 3 слоя данных из 4.
+**Fix:** правило в `AGENTS.md §8` (каждая изменённая строка docs → `файл:символ`) + чек-лист `.github/pull_request_template.md` + механический guard `scripts/check_docs_vs_installer.py`: каждый `install.py --flag` и `--client X` в `README.md`/`docs/*/{INSTALL,CLIENTS,DATA_MAP}.md`/`docs/en/FAQ.md` обязан существовать в `install.py`/`adapters/clients/snippets.py`; пустой корпус = exit 2 («не доказано»), а не «прошло».
+**Проверка:** `158 flag reference(s) checked, 0 problem(s)`; тот же guard на дореформенном `docs/en/INSTALL.md` из `main` даёт `✗ unknown installer flag --uninstall` (воспроизведение исходного дефекта). Тесты: `tests/test_docs_vs_installer.py`, 5/5.
+**Исправлено по коду:** INSTALL §7 (`--clean --yes`/uninstaller вместо `--uninstall`), INSTALL §2 и INSTALL_MODELS×3 (`--with-models` вместо prompt/`--skip-models`), SYSTEM_REQUIREMENTS×3, CONTRIBUTING×3, FAQ×3, README/README×2 (4 слоя + DATA_MAP), `adapters/clients/*.json` (`PROJECT_PATH`, `PYTHONUTF8`, `<install-root>`), `adapters/clients/README.md` (`cwd` → `PROJECT_PATH`), баннер в `AI_INSTALLATION_PROMPT.md`.
+**Урок:** «документация соответствует коду» проверяется только исполнением: guard ловит исчезнувшие флаги, но не смысл. Смысловые утверждения (модели по умолчанию, Zed-обязательность) нашлись ручной сверкой с `step_models`/`step_zedcfg`.
+## [2026-11-12] G5 addendum: полный suite поймал контракт адаптера
+**Симптом:** полный прогон (`2488 passed, 1 failed`) упал на `tests/test_cli.py::test_stdio_ref_valid_entrypoint`: `['-u','-m','src.main'] != ['-m','src.main']`.
+**Корень:** я привёл `adapters/clients/*.json` к форме сгенерированного сниппета и добавил `-u`. Но эти JSON — публичный контракт адаптеров, и тест фиксирует именно его; генератор сниппетов (`install.py --print-config`) — отдельная сущность.
+**Fix:** в JSON возвращён `args: ["-m","src.main"]`, добавленные `PROJECT_PATH`/`PYTHONUTF8`/`<install-root>` оставлены. Тест не менялся (правило: не править проверку под код).
+**Урок:** «shape» клиентского конфига — такая же публичная поверхность, как имя инструмента; `-u` в документации и в генераторе не даёт права менять статический адаптер.
+
+## [2026-11-12] G5: холодный старт по README нашёл баг `--yes`
+**Симптом:** `install.py --yes --no-zed` печатал итоговую рамку «Next steps», но на диске не появлялось ничего: `venv python exists: False`, install root пуст. Установка «успешно» завершалась за 0 секунд.
+**Корень:** `for attempt in range(0 if auto_yes else max_retries + 1)` — при `--yes` `range(0)` не делает ни одной итерации, а ветка `for/else` помечает каждый шаг как failed, ни разу его не вызвав. Логика живёт с v3.0: все неинтерактивные установки (`--yes`) были пустыми.
+**Fix:** `range(1 if auto_yes else max_retries + 1)` + регрессионный тест `test_auto_yes_runs_each_step_once` (до фикса красный: фейковый шаг не вызывался).
+**Холодный старт (чистые временные `MSCODEBASE_INSTALL_ROOT`/`DATA_DIR`, `--no-zed`, без `--with-models`):** `install rc=0`, **12 ok / 0 skipped / 0 failed за 96 s**; venv Python 3.14.3; `src/main.py` и маркер на месте; **модельных каталогов нет** (`model dirs present: False`, install root 1.4 GB).
+**Два клиента не-Zed/не-OpenCode, ровно по `docs/en/CLIENTS.md`:** `.mcp.json` (Claude Code §3.4) и `.cursor/mcp.json` (Cursor §3.5) записаны из `--print-config`, запущены как есть → `MSCodebase Intelligence Server`, `tools=17`, `investigate` в списке (4.8 s и 4.2 s); `--doctor` на этом же каталоге: `install_root 1.4 GB / 28755 файлов`, `index 0 chunk(s)`.
+**Побочный вывод:** на ветке G5 (до G6) установщик ещё качает модели — README/CLIENTS G5-ветки обещали text-first и были приведены к фактическому поведению (`6010443`); text-first проверен на G6/G7.
+**Урок:** `--yes` значит «не спрашивать», а не «не делать»; нулевой `range()` плюс `for/else` выглядит безобидно на ревью и полностью ломает установку. Ни один тест не запускал установщик целиком — поймал только прогон по README в пустом каталоге.
+
+## [2026-11-12] Цель 2, закрытие хвостов перед мержем: Zed-путь, zh DATA_MAP, где живёт код, чем был `--yes` для CI
+**1. Zed-путь (единственный незакрытый пункт DoD G5) — проверен, регресса нет.** Реальный `install.py --yes` с перенаправленным `APPDATA` (временный профиль, настоящий `%APPDATA%\Zed\settings.json` не тронут — sha до/после совпал). Шаг `Step 11/12: Zed integration … ✓ MCP configured`; JSONC-файл сохранил `//`-комментарий, `/* */`-блок, trailing comma, чужой сервер и пользовательский ключ (7/7 проверок). Запись содержит ровно `command`/`args`(`-u -m src.main`)/`env`(`PYTHONPATH`, `PROJECT_PATH=$ZED_WORKTREE_ROOT`, `PYTHONUTF8=1`)/`enabled=true`, `context_servers_to_query` обновлён. Повторный `patch_zed_settings` идемпотентен (байты не изменились). Запуск записи из `settings.json` → `MSCodebase Intelligence Server`, `tools=17`, `investigate` на месте.
+**2. `zh/DATA_MAP.md` не потерян.** `gh pr diff 121 --name-only | grep DATA_MAP` → три строки: `docs/en/DATA_MAP.md`, `docs/ru/DATA_MAP.md`, `docs/zh/DATA_MAP.md` (15 файлов в PR #121). В отчёте §6 стояло {en,ru,zh} — соответствует.
+**3. Код установщика в диффах есть.** `gh pr diff 120 | grep auto_yes` → удалённая строка `range(0 if auto_yes …)`, добавленная `range(1 if auto_yes …)` и тест `test_auto_yes_runs_each_step_once`. `gh pr diff 121 | grep "def _"` → `models_enabled`, `_doctor_report`, `_doctor_cli`, `_clean_targets`, `_clean_cli` (имена не `cmd_*`; поиск по `cmd_clean|cmd_doctor` пуст по этой причине).
+**4. Гипотеза «clean-state до фикса валидировал пустую установку» — опровергнута.** `scripts/verify_clean_state.sh` вообще не вызывает `install.py`: он сам создаёт venv и делает `pip install -e .`; `grep "install.py --yes"` по `.github/` и `scripts/` пуст. Значит баг `--yes` с v3.0 не влиял ни на один прогон CI — ровно поэтому его никто и не поймал; поймал только ручной прогон по README.
+**Урок:** «CI зелёный» и «инструкция работает» — разные утверждения. Пока установщик не запускали как пользователь (по README, в пустом каталоге), его неинтерактивная ветка была мёртвой, а все гейты оставались зелёными.

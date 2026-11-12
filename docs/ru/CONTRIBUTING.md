@@ -37,9 +37,9 @@ python -m venv venv; venv\Scripts\activate; pip install -e ".[dev]"
 ```
 
 `pip install -e .` достаточно для text-first runtime. Модели опциональны и
-никогда не скачиваются молча: `python install.py` спрашивает перед каждым
-скачиванием и принимает `--skip-models`; `--sync-only` копирует код в каталог
-расширения, не трогая pip и модели.
+никогда не скачиваются молча: `install.py` по умолчанию text-first и качает модели
+только с `--with-models` (`models_enabled`); `--sync-only` копирует код в каталог
+установки, не трогая pip и модели.
 
 ## 3. Тесты и линт
 

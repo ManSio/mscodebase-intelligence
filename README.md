@@ -34,6 +34,13 @@ The default runtime is **text-first**: SQLite FTS5/BM25 over parsed chunks plus
 a Tree-sitter/PropertyGraph index. Embeddings and rerankers are optional; no
 GPU, network or vector database is required to answer a code question.
 
+## Canonical repository
+
+`rag-mcp` in this project's documentation means **this** repository:
+<https://github.com/ManSio/mscodebase-intelligence> (MIT, branch `main`). The
+name is not unique on public hubs, so every `rag-mcp` mention in these docs
+refers only to the URL above.
+
 ## What works today
 
 | Area | What it does | Entry point |
@@ -112,18 +119,35 @@ number and the command that regenerates it are listed in
 
 ## Quick start
 
-Requirements: Windows is the validated platform; Python 3.14+; an MCP host
-(**OpenCode is the primary one**, the Zed extension still works).
+Requirements: Windows is the validated platform; Python 3.14+; any MCP host
+(OpenCode, Zed, Claude Code, Cursor, or a generic `mcpServers` client).
 
 ```bash
 cd <repo-root>
-python install.py            # full install: venv, pip, optional models
-python install.py --sync     # code-only sync into the installed copy
+python install.py                        # venv + deps + code (model steps ask first)
+python install.py --sync                 # code-only sync after a source change
 ```
 
-Restart the host after `install.py` finishes (the OpenCode session, or the Zed
-window). The installed copy lives in `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`
-and both hosts launch that venv. Verify from the agent panel:
+The install is host-neutral: it writes a plain Python environment (default
+`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` — the name is
+historical). Point it anywhere with `MSCODEBASE_INSTALL_ROOT`. Then print the
+config for your host instead of writing it by hand:
+
+```bash
+python install.py --print-config --client generic      # mcpServers-style hosts
+python install.py --print-config --client opencode
+python install.py --print-config --client claude-code
+python install.py --print-config --client cursor
+python install.py --print-config --client zed
+```
+
+Each prints one JSON object containing the interpreter, `-u -m src.main`,
+`PYTHONPATH`, `PROJECT_PATH` and `PYTHONUTF8=1`; paste it into the host's MCP
+config. Per-client copy-paste sections and the launch check
+(`python scripts/verify_client_snippets.py`) are in
+[docs/en/CLIENTS.md](docs/en/CLIENTS.md). Restart the host after configuring it.
+
+Verify from the agent panel:
 
 ```text
 tool_help()                        # profile, visible and hidden tools
@@ -214,13 +238,21 @@ MCP host: OpenCode (primary) or Zed
   └── Optional      embedding providers, reranker, LSP rename
 ```
 
-Canonical data locations (outside the repository):
+Canonical data locations (four layers; full inventory with sizes and policies in
+[docs/en/DATA_MAP.md](docs/en/DATA_MAP.md)):
 
-- `%LOCALAPPDATA%/mscodebase/projects/<hash>/` — per-project graph, memory,
+- install root (`MSCODEBASE_INSTALL_ROOT`, default the historical Zed extension
+  directory) — the code copy, `venv/`, optional ONNX/GGUF models, uninstaller.
+- `%LOCALAPPDATA%/mscodebase/projects/<hash8>/` — per-project graph, memory,
   job state, commit memory, telemetry.
-- `%LOCALAPPDATA%/mscodebase/logs/` — server logs.
+- `%LOCALAPPDATA%/mscodebase/logs/` — server logs (2 MB × 3 rotation, 7-day retention).
+- `%LOCALAPPDATA%/mscodebase/models/`, `repos/` — shared model cache and LRU(5)+24 h
+  repo clones.
 - `<project>/.mscodebase/chunks.db` — the text chunk store used by the default
   search path.
+
+`python install.py --doctor` prints every layer with its measured size;
+`python install.py --clean --dry-run` lists what `--clean` would delete.
 
 LanceDB is part of the optional vector path and is not required by the default
 text-first configuration.
@@ -326,7 +358,8 @@ stale/empty index, and gold-label mismatch.
 | [docs/FACTS.md](docs/FACTS.md) | Every public number and the command that regenerates it |
 | [docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md) | Layers, DI, module boundaries, tool profile |
 | [docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md) | Retrieval, ranking, docs routing, investigate fan-out |
-| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, the sync/restart loop, troubleshooting |
+| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, the sync/restart loop, doctor/clean, troubleshooting |
+| [docs/en/DATA_MAP.md](docs/en/DATA_MAP.md) | Every path the installer/server creates, with sizes and retention policies |
 | [docs/en/CONFIGURATION.md](docs/en/CONFIGURATION.md) | Every environment variable and its default |
 | [docs/en/CLIENTS.md](docs/en/CLIENTS.md) | OpenCode, Zed, Claude Code, VS Code, CLI, Docker |
 | [docs/en/HOOKS_AND_GATES.md](docs/en/HOOKS_AND_GATES.md) | The OpenCode plugin, the 12 pre-commit gates, CI jobs |

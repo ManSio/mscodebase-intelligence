@@ -80,8 +80,8 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 🧭 investigate: `where is missing_widget implemented`
    identifiers: missing_widget, implemented
    results: 8
-   ⚠️ exact: missing_widget=0, implemented=5 — the first identifier does not occur
-   in the indexed code; the results below are neighbours, not matches.
+   ⚠️ exact: missing_widget=0, implemented=5 — the subject does not occur in
+   the indexed code; the rows below match the other identifiers, not the subject.
 ```
 
 Четыре правила, которые обязаны оставаться верными (guard:
@@ -95,7 +95,7 @@ SQLite FTS5 / BM25 → optional graph bucket → on-demand cosine rerank (top-N)
 4. совпадение двух неточных каналов на одном месте — корреляция, а не
    доказательство: строка `exact:` от согласия не меняется.
 
-Если первый идентификатор не встречается **нигде** и граф не знает такой символ,
+Если ни один идентификатор не встречается **нигде** и граф не знает такой символ,
 ответ — отказ, а не список соседей:
 
 ```
