@@ -107,6 +107,38 @@
   - *nit 4–6 исправлены в том же проходе:* `None`/отрицательные счётчики теперь
     fail-open («неизвестно» ≠ «отсутствует»), мёртвая ветка убрана.
   - P5 снят и записан до мержа: requests 10→12/25 при планке ≥10.
+- **G4-retry — dense-smoke на ONNX e5-small-int8, 384 (12→13.11.2026): DONE**
+  - *Провайдер в прогоне:* `onnx:multilingual-e5-small-int8`, выход 384-d
+    (закреплён `MSCODEBASE_EMBEDDER_PROVIDER=onnx`; :8080 и LM Studio в сборке
+    не участвовали). Сборка: **7307 чанков**, `fixed_size_list<float>[384]`,
+    **2210.8 s**, артефакт **73.3 MB** (temp data root).
+  - *Smoke на этом индексе:* `✅ SMOKE E2E: PASSED (4 проверки)`, шаг 4 =
+    `режим=vector, provider=onnx, dim=384, таблица=codebase_chunks, results=3`.
+  - *Корневая причина G4 (не Cast error):* в `_open_or_create_table` ширина
+    читалась из строки-сэмпла, а `_migrate_*` делали `table = table or
+    self.table`. Пустая LanceDB-таблица **falsy** → `AttributeError
+    'LanceDBManager' object has no attribute 'table'` → ловился как «таблица не
+    найдена» → проверка размерности не выполнялась, и 384-схема доживала до
+    записи 768-векторов.
+  - *Контракт размерности:* `src/core/indexing/dim_contract.py` — провайдер
+    объявляет ширину, схема строится от неё, перед записью/поиском
+    `require_dim_match(provider, provider_dim, schema_dim)`; несовпадение —
+    `EmbeddingDimMismatch` с именем провайдера и двумя числами. Пустая таблица
+    пересоздаётся (терять нечего), непустая — отказ (без молчаливого resize).
+    `db_writer` больше не паддит/обрезает вектор.
+  - *Ретраи:* `bounded_attempts` — 3 batch + 1 revive + 2 single, затем
+    `EmbedderUnavailable` с провайдером и последней ошибкой (BLOCKED), без
+    цикла idle-unload/restart. Покрыто red-first тестом.
+  - *Внешние эндпоинты:* при закреплённом провайдере сканер и probe :8080
+    отключены; `auto` сохраняет прежнее поведение. Тумблер —
+    `MSCODEBASE_EMBEDDER_PROVIDER` (документирован в CONFIGURATION en/ru/zh).
+  - *Проверка:* `pytest tests/ -m "not integration and not benchmark"` →
+    **2570 passed / 10 skipped** (было 2560; +10 новых), rc=0; `ruff_gate` OK;
+    smoke text-only PASSED. Найдено и закрыто 6 регрессий-мока (`provider_dim`
+    больше не считает `MagicMock` шириной 1).
+  - *Осталось:* сборка dense на CPU ~37 мин (не оптимизировалась); `auto`
+    по-прежнему может переключиться на внешний провайдер — пинится только
+    явным конфигом.
 - **E73 (ложный отказ):** `_abstains` решал «субъекта нет» по ПЕРВОМУ
   идентификатору; на прозе коммитов это `_orm.registry=0` при `Declarative=785`,
   и 13 из 40 коммитов sqlalchemy отвечали пустотой. Отказ теперь только когда не

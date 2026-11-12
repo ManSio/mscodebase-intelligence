@@ -88,6 +88,7 @@
 | `LM_STUDIO_HOST` / `LM_STUDIO_PORT` | `127.0.0.1` / `1234` | LM Studio provider |
 | `OLLAMA_HOST` / `OLLAMA_PORT` | `127.0.0.1` / `11434` | Ollama provider |
 | `EMBEDDING_MODEL` / `MODEL_NAME` / `EMBEDDING_DIMENSION` | `qwen3-embedding` / `multilingual-e5-small-int8` / `384` | provider 模型选择 |
+| `MSCODEBASE_EMBEDDER_PROVIDER` | `auto` | 固定 embedder（`onnx`、`llama_cpp`、`lm_studio`、`ollama`）；外部端点仅在显式指定时使用 |
 | `MSCODEBASE_ONNX_PROVIDER` | — | 强制指定 ONNX 执行 provider |
 | `MSCODEBASE_REMOTE_TOKEN` / `_REMOTE_RATE_LIMIT_RPS` | — | 远程 provider 认证与速率限制 |
 | `MSCODEBASE_LANGUAGE_PACK` | `false` | 启用 tree-sitter-language-pack（首次使用时下载 parser） |

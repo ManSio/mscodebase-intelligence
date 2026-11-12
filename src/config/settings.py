@@ -62,6 +62,16 @@ class EmbeddingConfig:
     embedding_dimension: int = field(
         default_factory=lambda: int(os.getenv("EMBEDDING_DIMENSION", "384"))
     )
+    # Which embedder this process may use. "auto" keeps the historical
+    # behaviour: the local ONNX model first, then local services that answer.
+    # Any explicit value pins the provider and disables the background scanner,
+    # so external endpoints (LM Studio :1234, llama-server :8080) are never
+    # picked up by accident. Dense builds use this to name their provider.
+    provider: str = field(
+        default_factory=lambda: os.getenv(
+            "MSCODEBASE_EMBEDDER_PROVIDER", "auto"
+        ).strip().lower()
+    )
     # Тумблер авто-запуска llama.cpp (embedder + reranker) при старте MCP.
     # По умолчанию авто-определение: если llama-server уже запущен на порту 8080,
     # включаем его автоматически. Иначе — выключаем.

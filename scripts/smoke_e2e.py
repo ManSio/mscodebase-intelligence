@@ -27,6 +27,7 @@ Exit code: 0 = все проверки прошли; 1 = хотя бы одна 
 """
 
 import argparse
+import os
 import sqlite3
 import sys
 import time
@@ -116,20 +117,53 @@ def check_services() -> dict:
     return report
 
 
-def check_embed() -> tuple[bool, str]:
-    """Реальный embed через llama.cpp REST API. Проверяет размерность."""
-    try:
-        r = httpx.post(
-            "http://127.0.0.1:8080/v1/embeddings",
-            json={"input": ["Проверка реального эмбеддинга smoke_e2e"]},
-            timeout=15.0,
+def _active_embedder() -> tuple[str, int, str]:
+    """Which embedder the smoke run must ask, from explicit configuration.
+
+    The script has no `--dense` flag on purpose: `MSCODEBASE_DENSE_OFF` picks
+    the tier, and `MSCODEBASE_EMBEDDER_PROVIDER` names the provider so a run
+    can never accidentally validate a different backend's width.
+    """
+    provider = os.getenv("MSCODEBASE_EMBEDDER_PROVIDER", "auto").strip().lower()
+    if provider == "onnx":
+        return "onnx", 384, "multilingual-e5-small-int8"
+    if provider in ("lm_studio", "ollama"):
+        return (
+            provider,
+            int(os.getenv("EMBEDDING_DIMENSION", "384")),
+            os.getenv("MODEL_NAME", "multilingual-e5-small-int8"),
         )
-        r.raise_for_status()
-        data = r.json()
-        vec = data["data"][0]["embedding"]
+    # auto / llama_cpp — исторический путь smoke: llama-server на :8080.
+    return "llama_cpp", int(os.getenv("EMBEDDING_DIMENSION", "768")), "embeddinggemma-2"
+
+
+def _embed_text(text: str) -> tuple[list[float], str, int]:
+    provider, expected_dim, model = _active_embedder()
+    if provider == "onnx":
+        from src.core.embedder.onnx_client import get_onnx_client
+
+        client = get_onnx_client(port=9876, model_name=model)
+        return client.embed(text), provider, expected_dim
+    url = (
+        "http://127.0.0.1:8080/v1/embeddings"
+        if provider == "llama_cpp"
+        else "http://127.0.0.1:1234/v1/embeddings"
+    )
+    r = httpx.post(url, json={"input": [text], "model": model}, timeout=30.0)
+    r.raise_for_status()
+    return r.json()["data"][0]["embedding"], provider, expected_dim
+
+
+def check_embed() -> tuple[bool, str]:
+    """Реальный embed через активный провайдер. Проверяет размерность."""
+    try:
+        vec, provider, expected = _embed_text("Проверка реального эмбеддинга smoke_e2e")
         dim = len(vec)
-        ok = dim == 768
-        return ok, f"dim={dim} (embeddinggemma-2: 768) {'✅' if ok else '❌'}"
+        ok = dim == expected
+        return ok, (
+            f"provider={provider}, dim={dim} (expected {expected}) "
+            f"{'✅' if ok else '❌'}"
+        )
     except Exception as e:  # noqa: BLE001 — диагностика
         return False, f"embed error: {e}"
 
@@ -207,13 +241,18 @@ def check_search(project: Path) -> tuple[bool, str]:
     Открываем LanceDB напрямую (lancedb.connect) — чтение не требует нашего
     PID-lock (он защищает запись; MCP другого окна держит lock — создание
     Indexer через DI упало бы «PID lock held», что и случилось в первом
-    прогоне). Вектор запроса — реальный embed через llama.cpp (8080).
+    прогоне). Вектор запроса — real embed активного провайдера
+    (`MSCODEBASE_EMBEDDER_PROVIDER`), ширина сверяется со схемой таблицы.
 
     Если векторного индекса нет (дефолт `MSCODEBASE_DENSE_OFF=true`), шаг
     проверяет текстовый индекс SQLite: падать на отсутствии вектора значило бы
     требовать от дефолтной конфигурации чужой режим.
     """
     from src.core.artifact_paths import get_db_path
+    from src.core.indexing.dim_contract import (
+        EmbeddingDimMismatch,
+        schema_vector_dim,
+    )
 
     vector_db = Path(str(get_db_path(project)))
     if not vector_db.exists():
@@ -237,18 +276,33 @@ def check_search(project: Path) -> tuple[bool, str]:
             ok, detail = _text_index_search(project)
             return ok, f"в векторной БД нет таблиц; {detail}"
         table = db.open_table(names[0])
-        # Реальный embed запроса через llama.cpp
-        r = httpx.post(
-            "http://127.0.0.1:8080/v1/embeddings",
-            json={"input": ["def __init__ class initialization"]},
-            timeout=15.0,
-        )
-        r.raise_for_status()
-        vec = r.json()["data"][0]["embedding"]
+        if table.count_rows() == 0:
+            # An empty vector table is not a dense index; the shipped default is
+            # text-only, so validate the text index instead of a width mismatch.
+            ok, detail = _text_index_search(project)
+            return ok, f"векторная таблица пуста; {detail}"
+        # Width contract first: a query must match the table's vector width.
+        # A mismatch is a named failure, not a silent text fallback (G4).
+        schema_dim = schema_vector_dim(table.schema)
+        vec, provider, _expected = _embed_text("def __init__ class initialization")
+        if schema_dim is None:
+            return False, "vector table has no fixed-size vector column"
+        if len(vec) != schema_dim:
+            raise EmbeddingDimMismatch(
+                f"provider '{provider}' returns {len(vec)}-d vectors, but "
+                f"the index is {schema_dim}-d; refusing to search a mixed index"
+            )
         df = table.search(vec).limit(3).to_pandas()
         n = len(df)
         ok = n > 0
-        return ok, f"режим=vector, таблица={names[0]}, results={n} {'✅' if ok else '❌'}"
+        return ok, (
+            f"режим=vector, provider={provider}, dim={len(vec)}, "
+            f"таблица={names[0]}, results={n} {'✅' if ok else '❌'}"
+        )
+    except EmbeddingDimMismatch as e:
+        # A vector index exists and its width is the contract: do not hide the
+        # failure behind a text fallback (that was G4's silent path).
+        return False, f"dimension contract: {e}"
     except Exception as e:  # noqa: BLE001 — диагностика
         ok, detail = _text_index_search(project)
         if ok:
@@ -265,8 +319,19 @@ def main() -> int:
 
     _setup_env()
     revision = get_revision()
+    provider, expected_dim, _model = _active_embedder()
+    if provider == "onnx":
+        # A pinned local provider is part of the run, not a precondition: bring
+        # it up before health so an idle-unloaded server is not a false FAIL.
+        try:
+            from src.core.embedder.onnx_client import get_onnx_client
+
+            get_onnx_client(port=9876, model_name=_model).ensure_server_running()
+        except Exception as exc:  # noqa: BLE001 — the embed step reports detail
+            print(f"   ⚠️ ONNX start failed: {exc}")
     print("🧪 Smoke E2E — реальные сервисы (без моков)")
     print(f"revision: {revision}")
+    print(f"embedder provider: {provider} (expected dim {expected_dim})")
     print("━" * 50)
     failures = 0
 
@@ -275,18 +340,18 @@ def main() -> int:
     svc = check_services()
     for name, status in svc.items():
         print(f"   {status} {name}")
-    # Обязательные live-сервисы (embedder=llama.cpp 8080, reranker 8081) —
-    # только их отсутствие валит smoke. onnx (9876) — альтернативный embedder-бэкенд,
-    # не обязателен, когда активен llama.cpp (информационно).
-    required = [n for n in ("embedder", "reranker") if svc.get(n) == "🔴"]
+    # The required health entry is the ACTIVE provider, not a fixed llama port:
+    # an ONNX dense run must not fail because :8080 is intentionally absent.
+    active_health = "onnx" if provider == "onnx" else "embedder"
+    required = [n for n in (active_health, "reranker") if svc.get(n) == "🔴"]
     if required:
         print(f"   ⚠️ Критичные сервисы не отвечают ({', '.join(required)}) — embed/rerank проверки могут упасть")
         failures += 1
-    elif svc.get("onnx") == "🔴":
-        print("   ℹ️ onnx — альтернативный embedder не запущен (активен llama.cpp); необязательный — пропускаю")
+    elif provider != "onnx" and svc.get("onnx") == "🔴":
+        print("   ℹ️ onnx — альтернативный embedder не запущен; необязательный — пропускаю")
 
     # 2. Embed
-    print("2. Реальный embed (llama.cpp):")
+    print(f"2. Реальный embed ({provider}, expected {expected_dim}-d):")
     ok, msg = check_embed()
     print(f"   {'✅' if ok else '❌'} {msg}")
     failures += 0 if ok else 1
