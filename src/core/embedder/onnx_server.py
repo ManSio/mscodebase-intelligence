@@ -37,6 +37,20 @@ _request_lock = threading.Lock()
 _shutdown_event = threading.Event()
 
 
+def _fixed_pad_length() -> int:
+    """Optional legacy mode: pad every text to this length (0 = per batch).
+
+    Some deployments want vectors bit-identical to builds made before the
+    per-batch padding change (2026-11-12). `ONNX_FIXED_PADDING=512` restores
+    that; default is dynamic padding, which keeps a batch's cost proportional
+    to its longest text.
+    """
+    try:
+        return max(0, int(os.getenv("ONNX_FIXED_PADDING", "0") or 0))
+    except ValueError:
+        return 0
+
+
 class OnnxHandler(BaseHTTPRequestHandler):
     """HTTP handler для эмбеддинг API."""
 
@@ -103,16 +117,15 @@ class OnnxHandler(BaseHTTPRequestHandler):
 
         # Токенизация через tokenizers (как в RemoteEmbedder)
         enc = tokenizer.encode(text, add_special_tokens=True)
-        # Padding/truncation до max_length
+        # Truncation только; padding для одного текста не нужен (G4 perf).
         ids = enc.ids[:max_length]
         attention_mask = enc.attention_mask[:max_length]
-        if len(ids) < max_length:
-            pad_len = max_length - len(ids)
-            ids = ids + [1] * pad_len  # pad_id = 1
-            attention_mask = attention_mask + [0] * pad_len
 
         # Подготовка входов для ONNX
-        seq_len = len(ids)
+        seq_len = max(len(ids), _fixed_pad_length())
+        if seq_len > len(ids):
+            ids = ids + [1] * (seq_len - len(ids))
+            attention_mask = attention_mask + [0] * (seq_len - len(attention_mask))
         onnx_inputs = {}
         for name in input_names:
             if name == "input_ids":
@@ -159,17 +172,25 @@ class OnnxHandler(BaseHTTPRequestHandler):
         for enc in encodings:
             ids = enc.ids[:max_length]
             mask = enc.attention_mask[:max_length]
-            if len(ids) < max_length:
-                pad_len = max_length - len(ids)
-                ids = ids + [1] * pad_len  # pad_id = 1
-                mask = mask + [0] * pad_len
             batch_ids.append(ids)
             batch_masks.append(mask)
+
+        # Pad to the LONGEST text in THIS batch, not to 512. The indexer sorts
+        # chunks by length, so a batch is homogeneous; fixed 512 padding made a
+        # 31-token chunk cost exactly as much as a 500-token one (measured
+        # 2026-11-12: every 32-text batch took ~6-8 s regardless of length).
+        # ONNX_FIXED_PADDING restores the legacy width for old-index parity.
+        max_len = max((len(ids) for ids in batch_ids), default=0)
+        if max_len == 0:
+            return []
+        seq_len = max(max_len, _fixed_pad_length())
+        pad_id = 1
+        batch_ids = [ids + [pad_id] * (seq_len - len(ids)) for ids in batch_ids]
+        batch_masks = [mask + [0] * (seq_len - len(mask)) for mask in batch_masks]
 
         batch_array = np.array(batch_ids, dtype=np.int64)
         mask_array = np.array(batch_masks, dtype=np.int64)
         batch_size = len(batch_ids)
-        seq_len = batch_array.shape[1]
         onnx_inputs = {}
         for name in input_names:
             if name == "input_ids":
@@ -285,9 +306,9 @@ def load_model(model_name: str):
     if not tokenizer_path.exists():
         raise FileNotFoundError(f"Tokenizer not found: {tokenizer_path}")
 
-    # Загружаем токенизатор
+    # Загружаем токенизатор. Padding — per-batch (в _embed_batch), не fixed
+    # 512: иначе короткий чанк стоит как 512-токенный (замер 2026-11-12).
     tokenizer = Tokenizer.from_file(str(tokenizer_path))
-    tokenizer.enable_padding(pad_token="<pad>", pad_id=1, length=512)
     tokenizer.enable_truncation(max_length=512)
 
     # Настройка ONNX Runtime
