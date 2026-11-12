@@ -26,6 +26,12 @@ import lancedb
 import pyarrow as pa
 
 from src.core.indexing.database_lock import DatabaseLock
+from src.core.indexing.dim_contract import (
+    EmbeddingDimMismatch,
+    provider_dim,
+    provider_label,
+    schema_vector_dim,
+)
 from src.core.indexing.index_guard import IndexGuard
 from src.core.platform_utils import to_win_long_path
 
@@ -54,6 +60,17 @@ class LanceDBManager:
         self.embedder = embedder
         self.project_path = project_path
         self.embedding_dim = embedding_dim
+        self.provider_name = provider_label(embedder)
+
+        # The schema is built from the provider's declared width; a caller that
+        # passes a different number is a bug, not a migration opportunity.
+        declared = provider_dim(embedder)
+        if declared is not None and declared != embedding_dim:
+            raise EmbeddingDimMismatch(
+                f"LanceDBManager: provider '{self.provider_name}' declares "
+                f"{declared}-d vectors, but the schema was requested at "
+                f"{embedding_dim}-d. Build the schema from the provider."
+            )
 
         # Async LanceDB (ленивая инициализация)
         self._async_db: Optional[Any] = None
@@ -200,38 +217,36 @@ class LanceDBManager:
 
             logger.info(f"Opened table: {self.table_name}")
 
-            # Dimension mismatch → recreate
-            _vec_field = next((f for f in table.schema if f.name == "vector"), None)
-            if _vec_field is not None:
-                stored_dim = 0
-                try:
-                    _t = _vec_field.type
-                    if hasattr(_t, 'value_type'):
-                        _vt = _t.value_type
-                        if hasattr(_vt, 'get_field'):
-                            stored_dim = _vt.get_field("item").type.list_size
-                except Exception as _dim_err:
-                    logger.debug(f"Schema extraction failed: {_dim_err}")
-
-                # Fallback: read a sample row to get actual vector length
-                if not stored_dim:
-                    try:
-                        sample = table.limit(1).to_list()
-                        if sample and "vector" in sample[0]:
-                            stored_dim = len(sample[0]["vector"])
-                    except Exception:
-                        pass
-
-                if stored_dim and stored_dim != self.embedding_dim:
+            # Dimension mismatch → the schema must follow the provider.
+            # Read the width from the SCHEMA, not from a sample row: an empty
+            # table has no rows, and that is how G4's 384-vs-768 mismatch
+            # reached LanceDB as a cast error instead of a named refusal.
+            stored_dim = schema_vector_dim(table.schema)
+            if stored_dim and stored_dim != self.embedding_dim:
+                rows = int(table.count_rows())
+                if rows == 0:
                     logger.warning(
-                        f"Dimension mismatch: index={stored_dim}, "
-                        f"embedder={self.embedding_dim}. Recreating..."
+                        "Dimension mismatch on an EMPTY table: schema=%sd, "
+                        "provider '%s'=%sd. Recreating the schema (no rows to lose).",
+                        stored_dim,
+                        self.provider_name,
+                        self.embedding_dim,
                     )
                     self.db.drop_table(self.table_name)
                     table = self.db.create_table(self.table_name, schema=schema)
-                    logger.info(f"Table recreated for {self.embedding_dim}dim")
                     self._needs_full_reindex = True
+                else:
+                    raise EmbeddingDimMismatch(
+                        f"vector schema is {stored_dim}-d with {rows} row(s), "
+                        f"but provider '{self.provider_name}' returns "
+                        f"{self.embedding_dim}-d vectors. Refusing to resize "
+                        "silently. Rebuild the index at the provider's width "
+                        f"(intel_reset_index) or start a {stored_dim}-d provider."
+                    )
 
+        except EmbeddingDimMismatch:
+            # A width mismatch is a named refusal, not a missing table.
+            raise
         except Exception as open_err:
             logger.debug(f"Table not found: {open_err}. Creating new.")
             try:
@@ -663,7 +678,10 @@ class LanceDBManager:
         table: открытая таблица (в _open_or_create_table self.table ещё не
         назначен — таблица живёт в локальной переменной).
         """
-        table = table or self.table
+        if table is None:
+            table = getattr(self, "table", None)
+        if table is None:
+            raise RuntimeError("_migrate_text_full_inplace: no table handle")
         if "text_full" in [f.name for f in table.schema]:
             return
         try:
@@ -682,7 +700,10 @@ class LanceDBManager:
 
         table: открытая таблица (см. _migrate_text_full_inplace).
         """
-        table = table or self.table
+        if table is None:
+            table = getattr(self, "table", None)
+        if table is None:
+            raise RuntimeError("_migrate_add_metadata_columns: no table handle")
         target = {f.name: f for f in self.schema}
         missing = [name for name in target if name not in existing_fields]
         if not missing:

@@ -90,6 +90,7 @@ path and LSP.
 | `LM_STUDIO_HOST` / `LM_STUDIO_PORT` | `127.0.0.1` / `1234` | LM Studio provider |
 | `OLLAMA_HOST` / `OLLAMA_PORT` | `127.0.0.1` / `11434` | Ollama provider |
 | `EMBEDDING_MODEL` / `MODEL_NAME` / `EMBEDDING_DIMENSION` | `qwen3-embedding` / `multilingual-e5-small-int8` / `384` | Provider model selection |
+| `MSCODEBASE_EMBEDDER_PROVIDER` | `auto` | Pin the embedder (`onnx`, `llama_cpp`, `lm_studio`, `ollama`); external endpoints are only used when named |
 | `MSCODEBASE_ONNX_PROVIDER` | — | Force a specific ONNX execution provider |
 | `MSCODEBASE_REMOTE_TOKEN` / `_REMOTE_RATE_LIMIT_RPS` | — | Remote provider auth and rate limit |
 | `MSCODEBASE_LANGUAGE_PACK` | `false` | Enable tree-sitter-language-pack (downloads parsers on first use) |

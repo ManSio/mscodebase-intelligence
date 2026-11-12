@@ -93,6 +93,7 @@ dense-пути и LSP.
 | `LM_STUDIO_HOST` / `LM_STUDIO_PORT` | `127.0.0.1` / `1234` | Провайдер LM Studio |
 | `OLLAMA_HOST` / `OLLAMA_PORT` | `127.0.0.1` / `11434` | Провайдер Ollama |
 | `EMBEDDING_MODEL` / `MODEL_NAME` / `EMBEDDING_DIMENSION` | `qwen3-embedding` / `multilingual-e5-small-int8` / `384` | Выбор модели провайдера |
+| `MSCODEBASE_EMBEDDER_PROVIDER` | `auto` | Закрепить эмбеддер (`onnx`, `llama_cpp`, `lm_studio`, `ollama`); внешние эндпоинты используются только по имени |
 | `MSCODEBASE_ONNX_PROVIDER` | — | Принудительно задать конкретный execution provider ONNX |
 | `MSCODEBASE_REMOTE_TOKEN` / `_REMOTE_RATE_LIMIT_RPS` | — | Аутентификация и лимит частоты для удалённого провайдера |
 | `MSCODEBASE_LANGUAGE_PACK` | `false` | Включить tree-sitter-language-pack (скачивает парсеры при первом использовании) |

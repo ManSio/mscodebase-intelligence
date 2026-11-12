@@ -124,6 +124,69 @@
   - *nit 4–6 исправлены в том же проходе:* `None`/отрицательные счётчики теперь
     fail-open («неизвестно» ≠ «отсутствует»), мёртвая ветка убрана.
   - P5 снят и записан до мержа: requests 10→12/25 при планке ≥10.
+- **После мержей 2026-11-12: main собран, доки проверены, аудит чист**
+  - *Мержи (по указанному порядку):* #116 → `a5135d0`, #115 → `83229e1`,
+    #117 → `183a5f0`, #118 → `8149cb2`, #120 → `64341de`, #121 → `6f60c51`,
+    #122 → `2edb807` (стек Goal 2 перебазирован на main перед мержем, без
+    force-push). Конфликты были только в `AGENT_DIARY.md` (обе записи
+    сохранены) и один интеграционный G1×G2 в `tests/test_false_abstain.py`:
+    проверка отсутствия фразы заменена на `<present>=0` (именно это ложно).
+  - *Планка тестов:* `pytest tests/ -m "not integration and not benchmark"` →
+    **2607 passed / 9 skipped** (было 2560/10; +47). `ruff_gate` OK,
+    `smoke_e2e --project .` PASSED (4 проверки, шаг 4 = text — дефолт).
+  - *Аудит документации:* `stale_detector` давал ложный дрейф на
+    `onnxruntime==1.27.0` в ru/zh `SYSTEM_REQUIREMENTS` (пин зависимости
+    сравнивался с версией проекта 3.5.0). Исправлено в
+    `tools/stale_detector/stale_check.py`: версия после `=`/`@`/`~`/`>`/`<`
+    не считается версией проекта; guard —
+    `tests/test_stale_detector_versions.py` (2 теста, red-first).
+    `stale_detector` → «Docs appear up to date»; negative control пере-пинен
+    (`negative_controls_runner.py --pin`, причина в `pin_log.json`),
+    `ALL PROVEN (3)`.
+  - *Остальные гейты аудита:* `check_docs_vs_installer` 155 флагов / 0 проблем;
+    `check_docs_vs_config` 66 переменных / 0 проблем; `check_known_issues` OK
+    (≤300 строк); `check_layer_boundaries` и `architecture_linter` — инварианты
+    соблюдены.
+  - *GitHub About:* описание переписано под текущий продукт (local-first,
+    text-first, BM25/FTS5 + AST graph), добавлены топики `local-first`,
+    `text-first`, `onnx`.
+  - *Побочная находка:* прогон тестов создал в корне каталог `MagicMock/`
+    (1732 файла `mock.project_path/*/chunks.db`, артефакт подменённого пути).
+    Из-за него `test_real_project_scan_without_venv` упирался в кап 10001.
+    Каталог удалён; тест, который пишет по `MagicMock`-пути, не найден —
+    записано как хвост (в CI чистый клон, поэтому зелено).
+- **G4-retry — dense-smoke на ONNX e5-small-int8, 384 (12→13.11.2026): DONE**
+  - *Провайдер в прогоне:* `onnx:multilingual-e5-small-int8`, выход 384-d
+    (закреплён `MSCODEBASE_EMBEDDER_PROVIDER=onnx`; :8080 и LM Studio в сборке
+    не участвовали). Сборка: **7307 чанков**, `fixed_size_list<float>[384]`,
+    **2210.8 s**, артефакт **73.3 MB** (temp data root).
+  - *Smoke на этом индексе:* `✅ SMOKE E2E: PASSED (4 проверки)`, шаг 4 =
+    `режим=vector, provider=onnx, dim=384, таблица=codebase_chunks, results=3`.
+  - *Корневая причина G4 (не Cast error):* в `_open_or_create_table` ширина
+    читалась из строки-сэмпла, а `_migrate_*` делали `table = table or
+    self.table`. Пустая LanceDB-таблица **falsy** → `AttributeError
+    'LanceDBManager' object has no attribute 'table'` → ловился как «таблица не
+    найдена» → проверка размерности не выполнялась, и 384-схема доживала до
+    записи 768-векторов.
+  - *Контракт размерности:* `src/core/indexing/dim_contract.py` — провайдер
+    объявляет ширину, схема строится от неё, перед записью/поиском
+    `require_dim_match(provider, provider_dim, schema_dim)`; несовпадение —
+    `EmbeddingDimMismatch` с именем провайдера и двумя числами. Пустая таблица
+    пересоздаётся (терять нечего), непустая — отказ (без молчаливого resize).
+    `db_writer` больше не паддит/обрезает вектор.
+  - *Ретраи:* `bounded_attempts` — 3 batch + 1 revive + 2 single, затем
+    `EmbedderUnavailable` с провайдером и последней ошибкой (BLOCKED), без
+    цикла idle-unload/restart. Покрыто red-first тестом.
+  - *Внешние эндпоинты:* при закреплённом провайдере сканер и probe :8080
+    отключены; `auto` сохраняет прежнее поведение. Тумблер —
+    `MSCODEBASE_EMBEDDER_PROVIDER` (документирован в CONFIGURATION en/ru/zh).
+  - *Проверка:* `pytest tests/ -m "not integration and not benchmark"` →
+    **2570 passed / 10 skipped** (было 2560; +10 новых), rc=0; `ruff_gate` OK;
+    smoke text-only PASSED. Найдено и закрыто 6 регрессий-мока (`provider_dim`
+    больше не считает `MagicMock` шириной 1).
+  - *Осталось:* сборка dense на CPU ~37 мин (не оптимизировалась); `auto`
+    по-прежнему может переключиться на внешний провайдер — пинится только
+    явным конфигом.
 - **G4 — dense-smoke: BLOCKED, минимальный репро (12→13.11.2026):**
   - *Диск:* D: 28,5 GB свободно, C: 4,6 GB. Оценка артефакта: 7 278 чанков ×
     768 float32 ≈ 22 MB сырых векторов + LanceDB-оверхед — места хватает.

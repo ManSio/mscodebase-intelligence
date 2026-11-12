@@ -11,6 +11,13 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
+from src.core.indexing.dim_contract import (
+    provider_dim,
+    provider_label,
+    require_dim_match,
+    schema_vector_dim,
+)
+
 __all__ = [
     "LanceDBWriter",
 ]
@@ -61,10 +68,27 @@ class LanceDBWriter:
             )
             return []
 
-        _target_dim = self.embedder.embedding_dim or 768
+        _target_dim = schema_vector_dim(getattr(self.table, "schema", None))
+        if _target_dim is None:
+            _target_dim = getattr(self.embedder, "embedding_dim", None)
+        _declared_dim = provider_dim(self.embedder) or _target_dim
+        require_dim_match(
+            provider=provider_label(self.embedder),
+            provider_dim=_declared_dim,
+            schema_dim=_target_dim,
+            where=f"write_records({rel_path_str})",
+        )
+        _target_dim = int(_target_dim)
         for i, vec in enumerate(embeddings):
             if len(vec) != _target_dim:
-                embeddings[i] = vec[:_target_dim] + [0.0] * (_target_dim - len(vec))
+                # Was: pad/truncate to the schema width. That hides a provider
+                # swap and stores vectors under the wrong promise (G4).
+                require_dim_match(
+                    provider=provider_label(self.embedder),
+                    provider_dim=len(vec),
+                    schema_dim=_target_dim,
+                    where=f"write_records({rel_path_str}, chunk {i})",
+                )
             # Guard: проверка нормы вектора (если norm=0, эмбеддер не работал)
             _norm_sq = sum(v*v for v in embeddings[i])
             if _norm_sq < 1e-9:

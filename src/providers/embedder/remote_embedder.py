@@ -13,6 +13,7 @@ from typing import Any, List, Optional
 import httpx
 
 from src.config.settings import get_config
+from src.core.indexing.dim_contract import EmbedderUnavailable, bounded_attempts
 from src.core.interfaces import IEmbedder
 from src.core.platform_utils import get_extension_dir
 from src.providers.reranker.llama_install import LLAMA_EMBED_MAX_TOKENS
@@ -130,6 +131,10 @@ class RemoteEmbedder(IEmbedder):
         self.model_name = config.embedding.model_name
 
         self._breaker = breaker
+        # Explicit provider selection. "auto" keeps the legacy probing order;
+        # anything else pins the provider so a dense build cannot silently end
+        # up on an external endpoint with a different width.
+        self.provider_preference = getattr(config.embedding, "provider", "auto") or "auto"
         # The schema and the query vector must agree; the config default is not
         # the model's dimension (measured 2026-11-08: 384 vs 768).
         self.embedding_dim = model_dimension(
@@ -162,9 +167,12 @@ class RemoteEmbedder(IEmbedder):
         # server runs embeddinggemma-2): the only reliable answer is the server.
         # Measured 2026-11-08: config said 384, the model returned 768, and dense
         # search raised "query dim(768) doesn't match the column vector dim(384)".
-        probed = self._probe_server_dimension()
-        if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
-            self.embedding_dim = probed
+        # Only probe an external llama endpoint when it is allowed to answer:
+        # with a pinned provider, a stray :8080 must not rewrite the width.
+        if self.provider_preference in ("auto", "llama_cpp"):
+            probed = self._probe_server_dimension()
+            if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
+                self.embedding_dim = probed
 
         # llama.cpp idle timeout
         self._llama_idle_timeout = 300
@@ -194,12 +202,13 @@ class RemoteEmbedder(IEmbedder):
         # with a different width (measured 2026-11-08: file 384, server 768).
         # Env still wins, and a probe that needs a moment does not block startup.
         if not os.getenv("EMBEDDING_DIMENSION", "").strip():
-            live_dim = self._probe_server_dimension()
-            if live_dim and live_dim != self.embedding_dim:
-                logger.info(
-                    f"embedding_dim {self.embedding_dim} -> {live_dim} (live server)"
-                )
-                self.embedding_dim = live_dim
+            if self.provider_preference in ("auto", "llama_cpp"):
+                live_dim = self._probe_server_dimension()
+                if live_dim and live_dim != self.embedding_dim:
+                    logger.info(
+                        f"embedding_dim {self.embedding_dim} -> {live_dim} (live server)"
+                    )
+                    self.embedding_dim = live_dim
 
         # Shadow Canary: эталонные пары запрос→чанк
         self._canary_pairs: List[dict] = []
@@ -537,16 +546,22 @@ class RemoteEmbedder(IEmbedder):
         self._init_thread.start()
 
         # Запуск фонового сканера доступности провайдера (LM Studio/Ollama).
-        # Сканер работает ВСЕГДА: он либо подтверждает LM Studio
-        # (если _init_provider_async его нашёл), либо ищет его, если
-        # текущий режим != "lm_studio".
+        # Только в auto: явно выбранный провайдер не должен подменяться
+        # ответившим внешним эндпоинтом (у него может быть другая ширина).
         self._scanner_stop = threading.Event()
-        self._scanner_thread = threading.Thread(
-            target=self._provider_scanner_loop,
-            name="mscodebase-provider-scanner",
-            daemon=True,
-        )
-        self._scanner_thread.start()
+        if self.provider_preference == "auto":
+            self._scanner_thread = threading.Thread(
+                target=self._provider_scanner_loop,
+                name="mscodebase-provider-scanner",
+                daemon=True,
+            )
+            self._scanner_thread.start()
+        else:
+            self._scanner_thread = None
+            logger.info(
+                "Embedding provider pinned to '%s' — background scanner disabled",
+                self.provider_preference,
+            )
 
         # Фоновая предзагрузка ONNX через 15 сек после старта.
         # К этому моменту MCP сервер уже инициализирован, а модель
@@ -603,8 +618,21 @@ class RemoteEmbedder(IEmbedder):
         """Фоновая предзагрузка ONNX модели через 15 сек после старта MCP.
 
         Отключает себя, если llama.cpp работает — ONNX не нужен in-process.
+        При явном выборе провайдера подмены нет: pinned onnx → грузим ONNX,
+        pinned external → предзагрузка не нужна вовсе.
         """
         import time as _time
+
+        _pref = getattr(self, "provider_preference", "auto")
+        if _pref not in ("auto", "onnx"):
+            return
+        if _pref == "onnx":
+            self._init_onnx()
+            if self._onnx_client is not None:
+                with self._mode_lock:
+                    self.mode = "onnx"
+                logger.info("✅ ONNX предзагружен (провайдер закреплён: onnx)")
+            return
 
         # Ждём до 60 секунд пока llama.cpp запустится (он стартует через _warmup_embedder)
         # Проверяем каждые 5 секунд — если появился, отменяем ONNX загрузку
@@ -711,6 +739,19 @@ class RemoteEmbedder(IEmbedder):
                     return str(candidate)
         return None
 
+    @property
+    def provider_name(self) -> str:
+        """Name of the provider that answers: mode + model, e.g. `onnx:...`.
+
+        Used by the dimension contract so a mismatch names the real backend
+        instead of "embedder".
+        """
+        mode = getattr(self, "mode", "unknown")
+        model = getattr(self, "_model_name", None) or getattr(
+            self, "model_name", ""
+        )
+        return f"{mode}:{model}" if model else str(mode)
+
     def get_model_info(self) -> dict:
         """Возвращает информацию о текущей модели эмбеддера."""
         # Если ONNX загружен — показываем реальную модель
@@ -728,6 +769,47 @@ class RemoteEmbedder(IEmbedder):
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
+            pref = getattr(self, "provider_preference", "auto")
+
+            # ═══ Explicit provider: no probing of anything else ═══
+            if pref == "onnx":
+                self._init_onnx()
+                with self._mode_lock:
+                    if self._onnx_client is not None:
+                        self.mode = "onnx"
+                        self._preferred_mode = "onnx"
+                        logger.info("✅ ONNX Client запущен (provider=onnx)!")
+                    else:
+                        self.mode = "fallback"
+                        logger.error(
+                            "❌ provider='onnx' запрошен, но ONNX-сервер недоступен. "
+                            "Внешние эндпоинты не подставляются без явного конфига."
+                        )
+                return
+            if pref in ("llama_cpp", "lm_studio", "ollama"):
+                checker = {
+                    "llama_cpp": self._check_llama_cpp,
+                    "lm_studio": self._check_lm_studio_raw,
+                    "ollama": self._check_ollama,
+                }[pref]
+                if checker():
+                    with self._mode_lock:
+                        self.mode = pref
+                    logger.info("✅ Провайдер '%s' доступен (pinned).", pref)
+                else:
+                    with self._mode_lock:
+                        self.mode = "fallback"
+                    logger.error(
+                        "❌ provider='%s' запрошен, но эндпоинт не отвечает. "
+                        "Другие провайдеры не подставляются без явного конфига.",
+                        pref,
+                    )
+                return
+            if pref not in ("auto", ""):
+                logger.warning(
+                    "Unknown MSCODEBASE_EMBEDDER_PROVIDER='%s' — using auto", pref
+                )
+
             # ═══ E5-base ONNX Runtime/OpenVINO (in-process) ═══
             _provider = os.getenv("ONNX_PROVIDERS", "cpu").lower()
 
@@ -1043,8 +1125,9 @@ class RemoteEmbedder(IEmbedder):
     ) -> List[List[float]]:
         """Пакетное получение векторов через активный провайдер.
 
-        НИКОГДА не меняет mode. Если провайдер недоступен —
-        возвращает нулевые векторы (режим не сбрасывается).
+        НИКОГДА не меняет mode. Если провайдер недоступен после ограниченных
+        ретраев — поднимает `EmbedderUnavailable` с именем провайдера и
+        последней ошибкой (BLOCKED), а не крутит restart-цикл.
         """
         if not texts:
             return []
@@ -1057,58 +1140,57 @@ class RemoteEmbedder(IEmbedder):
             # Truncate inputs to 512 tokens for llama.cpp (model's max context)
             texts = self._truncate_for_llama(texts)
             import time as _retry_time
-            # Level 1: batch retry (3 attempts with backoff)
-            for _attempt in range(3):
+
+            provider = f"llama_cpp:{getattr(self, 'model_name', '')}"
+
+            def _touch_llama() -> None:
+                self._llama_last_used = time.time()
                 try:
-                    payload = {"input": texts}
-                    r = self._http_client.post(self.llama_cpp_url, json=payload)
-                    if r.status_code == 200:
-                        data = r.json().get("data", [])
-                        if data:
-                            data = sorted(data, key=lambda x: x.get("index", 0))
-                            self._llama_last_used = time.time()
-                            try:
-                                from src.providers.reranker.llama_runner import get_global_runner
-                                get_global_runner()._last_embedder_use = time.time()
-                            except Exception:
-                                pass
-                            return [item["embedding"] for item in data]
-                        else:
-                            logger.warning("llama.cpp: 200 OK but empty data")
-                    elif r.status_code == 500 and _attempt < 2:
-                        _wait = 1 + _attempt * 2
-                        logger.warning(f"llama.cpp: HTTP 500, retry {_attempt+1}/2, wait {_wait}s")
-                        _retry_time.sleep(_wait)
-                        continue
-                    else:
-                        logger.warning(f"llama.cpp: HTTP {r.status_code}")
-                except Exception as _exc:
-                    if _attempt < 2:
-                        _retry_time.sleep(1)
-                        continue
-                    logger.warning(f"llama.cpp embed error: {_exc}")
-            # ─── Level 1.5: embedder мог быть выгружен по idle-timeout ───
-            # llama_runner сам убивает llama-server через EMBEDDER_IDLE_TIMEOUT
-            # (free RAM), поднимать обратно обязан клиент. Иначе :8080 мёртв →
-            # WinError 10061 → поштучные ретраи → search_code таймаутит
-            # (инцидент 2026-09-22: max 27s, attempts 2/2).
+                    from src.providers.reranker.llama_runner import get_global_runner
+                    get_global_runner()._last_embedder_use = time.time()
+                except Exception:
+                    pass
+
+            def _one_batch(_attempt: int) -> List[List[float]]:
+                r = self._http_client.post(self.llama_cpp_url, json={"input": texts})
+                if r.status_code != 200:
+                    raise EmbedderUnavailable(f"llama.cpp HTTP {r.status_code}")
+                data = r.json().get("data", [])
+                if not data:
+                    raise EmbedderUnavailable("llama.cpp 200 OK but empty data")
+                data = sorted(data, key=lambda x: x.get("index", 0))
+                _touch_llama()
+                return [item["embedding"] for item in data]
+
+            # Level 1: a fixed number of batch attempts, then one revive, then
+            # a bounded per-item pass. The old loop could keep bouncing
+            # "embed error -> idle-unload -> restart" (G4 night run); a retry
+            # policy must end in a named BLOCKED answer with the provider.
+            batch_error: Exception | None = None
+            try:
+                return bounded_attempts(
+                    _one_batch,
+                    attempts=3,
+                    provider=provider,
+                    label="embed_batch",
+                    backoff=(1.0, 2.0),
+                    sleep=_retry_time.sleep,
+                )
+            except EmbedderUnavailable as _batch_err:
+                batch_error = _batch_err
+                logger.warning(
+                    "llama.cpp embed failed after 3 bounded attempts: %s", _batch_err
+                )
+
+            # Level 1.5: the embedder may have been unloaded by idle-timeout.
+            # One revive, one retry — not a restart loop.
             if self._revive_llama_cpp():
                 try:
-                    r = self._http_client.post(self.llama_cpp_url, json={"input": texts})
-                    if r.status_code == 200:
-                        data = r.json().get("data", [])
-                        if data:
-                            data = sorted(data, key=lambda x: x.get("index", 0))
-                            self._llama_last_used = time.time()
-                            try:
-                                from src.providers.reranker.llama_runner import get_global_runner
-                                get_global_runner()._last_embedder_use = time.time()
-                            except Exception:
-                                pass
-                            return [item["embedding"] for item in data]
+                    return _one_batch(0)
                 except Exception as _revive_exc:
                     logger.warning(f"llama.cpp retry after revive failed: {_revive_exc}")
-            # Level 2: single-item retry for each failed text
+
+            # Level 2: single-item retry for each failed text.
             logger.warning(f"Batch failed, retrying {len(texts)} items individually")
             results = [None] * len(texts)
             for idx, text in enumerate(texts):
@@ -1120,21 +1202,18 @@ class RemoteEmbedder(IEmbedder):
                             data = r.json().get("data", [])
                             if data:
                                 results[idx] = data[0]["embedding"]
-                                self._llama_last_used = time.time()
-                                try:
-                                    from src.providers.reranker.llama_runner import (
-                                        get_global_runner,
-                                    )
-                                    get_global_runner()._last_embedder_use = time.time()
-                                except Exception:
-                                    pass
+                                _touch_llama()
                                 break
                         _retry_time.sleep(1)
                     except Exception:
                         _retry_time.sleep(1)
                 if results[idx] is None:
-                    logger.warning(f"Chunk {idx} failed all retries, zero vector")
-                    raise RuntimeError(f"Embedding failed for chunk {idx} after all retries")
+                    raise EmbedderUnavailable(
+                        f"embed_batch: provider '{provider}' failed for chunk {idx} "
+                        f"after 3 batch attempts + 1 revive + 2 single attempts "
+                        f"(last error: {batch_error}). BLOCKED, not restarted forever."
+                    ) from batch_error
+            return results
             return results
 
         # ═══ LM Studio ═══

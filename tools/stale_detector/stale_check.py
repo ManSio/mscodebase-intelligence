@@ -192,6 +192,14 @@ def scan_doc(doc_path: Path, project_root: Path, actual_version: str,
         for m in re.finditer(r'(?:v?)(\d+\.\d+\.\d+)', line):
             ver = m.group(1)
 
+            # A dependency/environment pin (`onnxruntime==1.27.0`,
+            # `python@3.14`) is not the project version. Comparing it with
+            # pyproject's version produced a false drift on ru/zh
+            # SYSTEM_REQUIREMENTS (2026-11-12).
+            prefix = line[: m.start()].rstrip()
+            if prefix.endswith(("=", "@", "~", ">", "<", "^", "!")):
+                continue
+
             # Skip excluded patterns (IP, dates, Zed versions)
             if is_excluded_version(ver, config.version_exclude_patterns):
                 continue
