@@ -238,13 +238,21 @@ MCP host: OpenCode (primary) or Zed
   └── Optional      embedding providers, reranker, LSP rename
 ```
 
-Canonical data locations (outside the repository):
+Canonical data locations (four layers; full inventory with sizes and policies in
+[docs/en/DATA_MAP.md](docs/en/DATA_MAP.md)):
 
-- `%LOCALAPPDATA%/mscodebase/projects/<hash>/` — per-project graph, memory,
+- install root (`MSCODEBASE_INSTALL_ROOT`, default the historical Zed extension
+  directory) — the code copy, `venv/`, optional ONNX/GGUF models, uninstaller.
+- `%LOCALAPPDATA%/mscodebase/projects/<hash8>/` — per-project graph, memory,
   job state, commit memory, telemetry.
-- `%LOCALAPPDATA%/mscodebase/logs/` — server logs.
+- `%LOCALAPPDATA%/mscodebase/logs/` — server logs (2 MB × 3 rotation, 7-day retention).
+- `%LOCALAPPDATA%/mscodebase/models/`, `repos/` — shared model cache and LRU(5)+24 h
+  repo clones.
 - `<project>/.mscodebase/chunks.db` — the text chunk store used by the default
   search path.
+
+`python install.py --doctor` prints every layer with its measured size;
+`python install.py --clean --dry-run` lists what `--clean` would delete.
 
 LanceDB is part of the optional vector path and is not required by the default
 text-first configuration.
@@ -350,7 +358,8 @@ stale/empty index, and gold-label mismatch.
 | [docs/FACTS.md](docs/FACTS.md) | Every public number and the command that regenerates it |
 | [docs/en/ARCHITECTURE.md](docs/en/ARCHITECTURE.md) | Layers, DI, module boundaries, tool profile |
 | [docs/en/SEARCH_PIPELINE.md](docs/en/SEARCH_PIPELINE.md) | Retrieval, ranking, docs routing, investigate fan-out |
-| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, the sync/restart loop, troubleshooting |
+| [docs/en/INSTALL.md](docs/en/INSTALL.md) | Installation, the sync/restart loop, doctor/clean, troubleshooting |
+| [docs/en/DATA_MAP.md](docs/en/DATA_MAP.md) | Every path the installer/server creates, with sizes and retention policies |
 | [docs/en/CONFIGURATION.md](docs/en/CONFIGURATION.md) | Every environment variable and its default |
 | [docs/en/CLIENTS.md](docs/en/CLIENTS.md) | OpenCode, Zed, Claude Code, VS Code, CLI, Docker |
 | [docs/en/HOOKS_AND_GATES.md](docs/en/HOOKS_AND_GATES.md) | The OpenCode plugin, the 12 pre-commit gates, CI jobs |

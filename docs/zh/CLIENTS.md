@@ -36,7 +36,7 @@ Linux   : ~/.local/share/zed/extensions/mscodebase-intelligence
 
 用 `MSCODEBASE_INSTALL_ROOT=<path>` 可放到任意位置。缓存、日志与项目产物在别处
 （`MSCODEBASE_DATA_DIR`，默认 `%LOCALAPPDATA%\mscodebase`）。完整清单见
-
+[DATA_MAP.md](DATA_MAP.md)。
 
 不用安装器的替代方式（任何提供 console scripts 的包管理器）：
 
