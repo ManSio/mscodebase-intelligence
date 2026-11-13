@@ -321,7 +321,8 @@ impact-guard).
    пропускается автоматически.
 7. CI проверен не «на словах»: `gh run list --branch <ветка>` и
    `gh run view <id> --log-failed`. Джобы: `test` (ubuntu + windows, Python 3.14),
-   `clean-state`, `manifest-parity`, `docker-build`, `transport-equiv-e2e`.
+   `clean-state`, `manifest-parity`, `docker-build`, `transport-equiv-e2e`; шаг
+   `Docs references` внутри `test` проверяет дифф документации (§8).
 8. Для изменений в индексе/провайдерах — живой smoke:
    `python scripts/smoke_e2e.py --project .` (реальные сервисы, без моков).
 9. `bash scripts/verify_clean_state.sh` (clone + venv + install + полный прогон) →
@@ -345,6 +346,19 @@ impact-guard).
   документации в PR ссылается на факт кода (`файл:символ`), который она отражает.
   Правка «только цифра» без ссылки отклоняется до коммита (чек-лист
   `.github/pull_request_template.md`).
+- **Guard изменения docs:** `scripts/check_docs_refs.py --base <sha>` (шаг CI
+  `Docs references`; локально вручную `--staged`) требует, чтобы изменённый `.md`
+  добавил **проверяемую** ссылку: существующий путь внутри репо (`.githooks/…` тоже),
+  `path::symbol` — символ **объявлен** в файле (`def`/`class`/присваивание), а не
+  упомянут; `path:NNN` — строка в пределах файла; `install.py --flag` — флаг известен;
+  имя переменной, которое код **читает** из окружения (`os.getenv`/`process.env`).
+  Косметика допускается только в файле, который уже ссылался на код и не вносит новых
+  утверждений (новая цифра/путь/флаг; перенесённая строка с уже существующей цифрой —
+  не новое утверждение). Тесты: `tests/test_docs_refs_gate.py` (35), включая матрицу
+  обхода: выдуманный путь/символ/флаг/переменная, префикс реального имени, `::return`,
+  traversal, junction, C-quoted не-ASCII путь, лимиты 200 файлов/20 000 строк.
+  Гейт доказывает существование факта, **не** его релевантность утверждению —
+  эту границу держит ревьюер.
 - **Guard дрейфа флагов/клиентов:** `scripts/check_docs_vs_installer.py` — каждый
   `--flag` и `--client X` из `README.md`/`docs/*/{INSTALL,CLIENTS,DATA_MAP}.md`
   обязан существовать в `install.py`/`adapters/clients/snippets.py` (`tests/
