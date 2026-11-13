@@ -4,6 +4,49 @@
 > Формат записей не меняется; ссылки на них — по дате и заголовку.
 
 ---
+## 2026-11-11 — `smoke_e2e` шаг 4 требует dense-индекс, дефолт репозитория — текстовый — 🟢
+
+- **Измерено:** `python scripts/smoke_e2e.py --project .` → шаг 4
+  `❌ search error: There is no vector column in the data. Please specify the
+  vector column name for vector search`; `.mscodebase/` содержит только
+  `chunks.db`, потому что индекс собран `scripts/reindex_text_only.py` при
+  `MSCODEBASE_DENSE_OFF=true` (дефолт проекта).
+- **Не регресс:** шаг не зависит от `_abstains`; `--services-only` проходит
+  (`embed dim=768`, `rerank top=1`).
+- **Fix:** шаг пробует вектор и при его отсутствии честно падает в текстовый
+  индекс SQLite (`chunks_fts`), называя режим в отчёте. Проверка:
+  `python scripts/smoke_e2e.py --project .` → `✅ SMOKE E2E: PASSED (проверок: 4)`,
+  шаг 4 `режим=text (vector: …); term=…, results=3`.
+---
+## 2026-11-11 — 4 slow-теста LSP/VFS не проходили на `main` — 🟢
+
+- **Измерено (не наш регресс):** на `origin/main` (`74191a5`) падали
+  `tests/test_lsp_vfs_indexing.py::TestLSPVFSIndexing::test_lsp_vfs_content_indexed_without_disk`,
+  `…::test_lsp_vfs_content_beats_disk`, `…::test_indexed_at_timestamp`,
+  `…::test_hash_based_on_content_not_disk` — все с
+  `ValueError: Indexer requires an explicit WorkspaceSource`.
+- **Причина:** тесты конструируют `Indexer` без `source=`, а API требует
+  explicit `WorkspaceSource`; маркер `slow` исключён `addopts`, поэтому дрейф не
+  видел ни pre-commit, ни CI.
+- **Fix:** тестовый хелпер передаёт `LocalFsSource(project_path)`; проверка
+  `python -m pytest tests/test_lsp_vfs_indexing.py -o addopts="" -q` → `4 passed`.
+  Полный прогон с slow: `pytest tests/ -m "not integration and not benchmark"` →
+  `2560 passed, 10 skipped`.
+---
+## 2026-11-09 — RU→EN: перевод сильнее dense; ревью поймало 2 ложных доказательства — 🟢
+
+- **Замер (12 вопросов, 2 репо):** RU-лексика 2/12, слепой EN-перевод 12/12,
+  dense 768 8/12, перевод без реранка 12/12 за 14 мс — `ru_vs_dense/REPORT.md`.
+- **После ревью:** матчер gold считал тест-файл реализацией (C 9→8); `dense_score
+  is not None` всегда истинно → `>0`; negative control был литералом → проверяет
+  текст и падает. Guard: `matcher_selftest.py`, `negative_control.py --arm A|C`.
+- **Границы:** hard subset = 1/12; старые 4/5 и 5/5 superseded.
+- **Gate-долги:** WISDOM test count обновлён (2317 collected). K3 `P-006` был не
+  ошибкой реестра, а устаревшим путём гейта: протокол v2 перенёс реестр в
+  `agent_docs/pitfalls-registry.md`, а гейт читал старый `skills/...`. Исправлено
+  в `tools/knowledge/check_knowledge.py` (оба пути, новый первым; K7 читает таблицу).
+
+---
 ## 2026-11-08 (позже) — четыре «открытых пункта» закрыты, найден дефект frozen-gold — 🟢
 
 Продолжение записи ниже: по каждому пункту — внешний источник, атака, замер.
