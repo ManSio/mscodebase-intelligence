@@ -149,7 +149,7 @@ Two repositories I did not write. No cache here — the external runner rebuilds
 
 `deb5ff4` reproduces the November numbers exactly — 12 and 17, the values in `docs/FACTS.md` §7, and 17 twice in two control runs.
 
-The +1 on `requests` is one task up and none down. The +1 on `sqlalchemy` is **two up and one down** — a commit the old gate found is now missed — and the rejects are not individually explained.
+The +1 on `requests` is one task up and none down. The +1 on `sqlalchemy` is **two up and one down** — the one that flipped down is `f1693787ade6`, a commit the old gate found and the new one misses — and neither the two recoveries nor the loss is individually explained.
 
 grep still wins on both, 19 vs 13 and 20 vs 18. That is a ranking gap. It is not a cache, it is not a policy, and I have not fixed it.
 
@@ -159,7 +159,7 @@ The objection I could not answer with more of the same panel: *you found the def
 
 That is fair, and it is worth being precise about who is contaminated. `sqlalchemy` is where defects 1 and 2 were **discovered**. `requests` was only used to **verify** a fix designed elsewhere. The dev panel is the product's own code. So exactly one of my external numbers was ever quasi-clean, and it was worth one task.
 
-So I cloned `pallets/click` for this test and nothing else. Corpus frozen at `7df2f82` (2026-07-16), index built once (138 files, 2,149 chunks, 71 s), 35 solvable commits, same panel builder, same two code states:
+So I cloned `pallets/click` for this test and nothing else. Corpus frozen at `7df2f82` (2026-07-16), index built once (138 files, 2,149 chunks, 71.5 s), 35 solvable commits, same panel builder, same two code states:
 
 | click (35 solvable) | hit@1 | hit@5 |
 |---|---:|---:|
