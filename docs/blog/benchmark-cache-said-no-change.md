@@ -1,16 +1,26 @@
 ---
-title: "My Benchmark Said 'No Change' Three Times. It Was Reading a Cache Committed to Git."
+title: "My Benchmark Finished in 0.2 Minutes. The Number Was a File Read."
 published: false
-description: "0.2 minutes, identical numbers. My harness resumed from a 71-row capture in git. Cleared, the same panel reads 19 → 32 → 38 across five code states — and six of those tasks came back from one list slice."
+description: "A benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file in git — and I published them three times. Cleared: 19 → 32 → 38."
 tags: devtools, testing, python, ai
 cover_image: https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png
 ---
 
 > **Part 5 of: [MSCodeBase Intelligence — Field Notes](https://github.com/ManSio/mscodebase-intelligence/tree/main/docs/blog)** — *[Part 1: PageRank](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) · [Part 2: Silent Vector Contamination](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7) · [Part 3: Verify-on-Read](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · [Part 4: Bootstrap Pipeline](https://dev.to/mansio/from-a-test-suite-trace-to-a-search-signal-the-bootstrap-pipeline-story-407b) · **Part 5 (this post)**
 
-> **TL;DR:** my benchmark printed the same numbers for four days because it was resuming from a 71-row capture file committed to git. With the cache cleared, the same panel on the same machine reads **19 → 32 → 38** across five code states. The number I published as a design trade-off was a disk read — and six of those tasks came back when a two-item list slice was fixed.
+> **TL;DR:** a benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file committed to git, and I published them three times as a design trade-off. With the cache cleared, the same panel reads **19 → 32 → 38** across five code states — and six of those tasks came back from one two-item list slice.
 
 ![A terminal that says "resuming: 71 tasks already captured" next to 19 → 38 and "0.2 min vs 6.1 min"](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png)
+
+You have shipped this: a test suite that goes green in four seconds, a CI job that always passes, a dashboard that hasn't moved in a week. Nothing is broken, exactly. Nothing ran, either.
+
+Mine was a benchmark. On 14 November it finished in **0.2 minutes** and printed the same four numbers it had printed four days earlier — every digit, every arm. I looked at the table, felt pleased that the result was *stable*, and moved on.
+
+It was reading a file. A 71-row capture of finished tasks, committed to git. The harness resumed from it, skipped all 71 tasks, and reprinted November's answers. The line that said so — `resuming: 71 tasks already captured` — was the third line of its own output. I read the table at the bottom and not the sentence at the top.
+
+What makes this worth a post is not the cache. It is what the cache was hiding: for four days I had published a number that described a product I no longer shipped — and that number said something flattering. My tool was *honest*, and honesty cost recall. A design trade-off I could defend in a comment thread. It was a disk read.
+
+This post is the 48 hours in which that number came apart: the re-run, the four bugs it was covering, and the one task it still costs.
 
 ## What I set out to test
 
@@ -161,7 +171,7 @@ So I cloned `pallets/click` for this test and nothing else. Corpus frozen at `7d
 
 Three tasks up, none down. At hit@5 that is **+8.6%**, against **+8.5%** on the dev panel (6 of 71): the same rate, on a repository that had no part in designing the fix. On `sqlalchemy` and `requests` the identical change was worth one task each — the difference is the corpus, not the code.
 
-The control arms did not move (30 / 14 / 29 in both runs), so this is the gate again, not retrieval. And grep ties the tool at 29 here: on a repository with short, keyword-rich commit messages, grep is a genuinely strong baseline.
+The control arms did not move (30 / 14 / 29 in both runs), so this is the gate again, not retrieval. And grep ties the tool at hit@5 here (29 each) while losing at hit@1 (17 vs 22) — the first corpus in this series where the tool is not behind grep.
 
 This is the only number in the post that nothing I wrote before it could have shaped.
 
