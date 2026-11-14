@@ -1,4 +1,59 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-14] — E74: the dev panel was replaying a committed capture
+
+**Found by** a re-run: `run.py --split dev` finished in **0.2 min** and printed the
+11 Nov numbers digit for digit.
+
+**Cause:** `run.py` resumes from `results_dev.partial.jsonl` (71 rows, tracked in
+git since `e033edc`). Every later run skipped all 71 tasks and reprinted the
+captured answers, so E71's "`identical`" and E73's "19/71 both ways" are cache
+replays, not measurements. The capture itself was produced 2026-11-10 18:36,
+before both November gate fixes.
+
+```
+dev (n=71), tool hit@5      wall clock   code state
+  cache from 10 Nov    19     0.2 min      replay, no task executed
+  deb5ff4              32    13.5 min      two November gate fixes
+  b9f91c4              32     7.7 min      + message wording (text only)
+  f3b0cc4              38     7.7 min      + all four identifiers counted
+  HEAD                 38     6.1 min      + onnx padding + vector schema
+paired: 13 up / 0 down (cache -> deb5ff4); 6 up / 0 down (deb5ff4 -> HEAD)
+control arms unchanged at every point: search 11/22/29, grep 0/2/6
+decomposition: wording 0, identifiers +6, retrieval 0
+```
+
+Every cold-cache run was validated before being accepted: `resumed: 0` lines and
+elapsed > 3 min. Wall clock is not a performance claim — the 13.5 min run shared
+the machine with a full pytest and several ONNX start timeouts.
+
+**Rejected before use:** the first series attempt passed 8-character SHAs to
+`git worktree add`; the worktree was never created and the script silently ran
+`run.py` from the main checkout, which resumed the cache and printed HEAD's
+numbers in 0.2 min for two commits that were never checked out. Caught by
+`elapsed < 1 min`; the rerun used full SHAs and asserted `git rev-parse HEAD`
+before every run.
+
+**External** (no cache — tasks are rebuilt from git each run): at `deb5ff4`
+requests 12/25, sqlalchemy 17/40 (17 in two separate control runs); at HEAD
+13/25 and 18/40. Control arms `search` 15/18 and `grep` 19/20 are identical in
+both — the change did not touch retrieval.
+
+**Consequence:** the published "the default answers less than plain search" and
+the report's "−33 tasks of 108 solvable" describe the 10 Nov product. On HEAD the
+default and the bypass arm are both **38/71 at hit@5** (`any@8` 43 vs 44), so the
+refusal policy costs one task on this panel, not eighteen. The four defects it
+was hiding: `3a3f46a` (Change-Id), `deb5ff4` (first token), `b9f91c4` (message
+called a real hit a neighbour), `f3b0cc4` (counted 2 of 4 identifiers).
+
+**Open:** `neighbours` moved 37 → 38 between two identical control runs — the
+noise floor is ±1 task and it covers the external +1. Both control runs hit the
+ONNX fallback ("server did not start in 60s"), the HEAD run did not; `search` is
+identical throughout, so retrieval is unaffected, but the environment is not
+fully excluded.
+
+**Not fixed (owner's call):** `--resume` defaults on, and the partial capture is
+tracked in git; a clone reproduces November in 0.2 minutes without warning.
+
 ## [2026-11-11] — E73/P5: removing the false refusal costs the requests panel nothing
 
 Rerun of B2 (`psf/requests`, 25 solvable commits, corpus `e331a288`, 786 chunks)
