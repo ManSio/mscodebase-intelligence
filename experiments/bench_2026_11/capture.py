@@ -36,8 +36,18 @@ def load_capture(path: Path, resume: bool) -> tuple[list[dict], set[str]]:
         return [], set()
 
     rows: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip():
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
             rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            print(
+                f"capture {path.name} is corrupt at line {number} ({exc.msg}): "
+                "dropping it and running the panel from scratch",
+                flush=True,
+            )
+            path.unlink(missing_ok=True)
+            return [], set()
     print(f"resuming: {len(rows)} tasks already captured", flush=True)
     return rows, {row["id"] for row in rows}

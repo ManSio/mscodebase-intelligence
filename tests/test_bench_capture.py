@@ -56,3 +56,16 @@ def test_without_resume_the_stale_capture_is_dropped(tmp_path: Path) -> None:
     assert rows == [], "a default run must not reuse captured rows"
     assert done == set()
     assert not path.exists(), "the stale capture must be dropped, not appended to"
+
+
+def test_corrupt_capture_is_dropped_not_fatal(tmp_path: Path) -> None:
+    """A run killed mid-write leaves a half line; that is what resume is for."""
+    path = tmp_path / "results_dev.partial.jsonl"
+    path.write_text('{"id": "a1", "tool_top5": false}\n{"id": "b2", "tool_top5": tru',
+                    encoding="utf-8")
+
+    rows, done = _capture_module().load_capture(path, resume=True)
+
+    assert rows == [], "a half-written capture must not be half-used"
+    assert done == set()
+    assert not path.exists(), "the corrupt capture must be dropped, not retried forever"
