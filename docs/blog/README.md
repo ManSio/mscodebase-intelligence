@@ -14,7 +14,7 @@
 | 2 | [Silent Vector Contamination](silent-vector-contamination.md) | Concurrent-эмбеддинги: 0 ошибок, чужие векторы | published |
 | 3 | [Verify-on-Read](verify-on-read.md) | Память агента: честный UNKNOWN vs структурная догадка | published (dev.to) · source-material локально |
 | 4 | [Bootstrap Pipeline](bootstrap-pipeline.md) | Trace test-suite → TESTS-рёбра → потребитель в поиске: полная история Exp 7→16→E17, широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%), языковое покрытие (Python 34%, Go/TS 0%), red team 5/5 | draft · полная история · воспроизводимо |
-| 5 | [Benchmark cache](benchmark-cache-said-no-change.md) | Харнесс отдавал старые числа из кэша, закоммиченного в git: та же панель 19 → 32 → 38 на трёх состояниях кода; четыре дефекта в гейте отказа, два найдены ревью; разбор — [RU](benchmark-cache-said-no-change.ru-breakdown.md) | draft · перепрогон 2026-11-14 |
+| 5 | [Benchmark cache](benchmark-cache-said-no-change.md) | Харнесс отдавал старые числа из кэша, закоммиченного в git: одна панель, пять точек — 19 (кэш) → 32 → 32 → 38 → 38; декомпозиция показала, что весь разрыв дал один срез `identifiers[:2]`; разбор — [RU](benchmark-cache-said-no-change.ru-breakdown.md) | draft · перепрогон 2026-11-14 · обложка + график |
 
 ## Как читать серию
 
