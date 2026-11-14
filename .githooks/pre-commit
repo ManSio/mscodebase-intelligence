@@ -26,6 +26,7 @@ import os
 import subprocess
 import sys
 import time
+import signal
 from pathlib import Path
 
 # Per-gate budget. 900s is the historical value (documented flakiness at 300s);
@@ -36,6 +37,49 @@ GATE_TIMEOUT = int(os.environ.get("MSCB_PRECOMMIT_GATE_TIMEOUT", "900"))
 # global `subprocess` module — a global patch leaks into every other test in
 # the same worker (CI: 14 unrelated failures).
 Popen = subprocess.Popen
+_RUN = subprocess.run
+
+
+def _spawn_kwargs() -> dict:
+    """A gate must be a process-group leader, so a timeout can kill its tree."""
+    if sys.platform == "win32":
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    return {"start_new_session": True}
+
+
+def _kill_tree(proc) -> None:
+    """Kill the gate and every descendant it spawned.
+
+    proc.kill() alone kills only the direct child. Observed 2026-11-14: a
+    timed-out commit left `verify_diary -> pytest tests/` running for 10+
+    minutes; the orphan then competed with the next run and made a fast test
+    look like an 11-minute hang. On Windows the tree needs taskkill /T; on
+    POSIX the child is a session leader, so killpg reaches the group.
+    """
+    poll = getattr(proc, "poll", None)
+    if poll is not None and poll() is not None:
+        return
+    pid = getattr(proc, "pid", None)
+    if pid is not None:
+        try:
+            if sys.platform == "win32":
+                _RUN(["taskkill", "/PID", str(pid), "/T", "/F"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     check=False, timeout=15)
+            else:
+                os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
 
 
 # §9 п.9 (ENCODING SAFETY): при выводе emoji-строк из stdout скриптов
@@ -84,20 +128,19 @@ def run_script(script_path: str, label: str, extra_args: list[str] | None = None
         stderr=subprocess.DEVNULL,
         encoding="utf-8",
         errors="replace",
-        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+        **_spawn_kwargs(),
     )
-    # Таймаут-запас: verify_diary гоняет gate-zero (полный pytest ~108-130s под
-    # нагрузкой) — кап 120s давал флаки TimeoutExpired на коммитах (2026-08-08);
-    # 300→900 (2026-08-24): сюита выросла (live-sync + predict-наборы), 300s
-    # начал флакать при параллельной нагрузке.
+    # A timed-out gate is a verdict, not a claim about suite speed. The old
+    # "~108-130s" note stopped being true as the suite grew to 2528 tests, and
+    # on 2026-11-14 a loaded machine took 1092s for gate-zero. Keep the budget
+    # generous; the correctness requirement is that the tree is killed.
     try:
         stdout, _ = proc.communicate(timeout=GATE_TIMEOUT)
     except subprocess.TimeoutExpired:
         # Раньше это было необработанное исключение: хук умирал с трейсбеком и
         # БЕЗ вердикта — его путали с «гейт сломан» и обходили через --no-verify.
         # Таймаут — это вердикт: называем гейт, который не ответил.
-        proc.kill()
-        proc.communicate()
+        _kill_tree(proc)
         print(f"  ❌ {label}: TIMEOUT >{GATE_TIMEOUT}s — гейт не ответил, вердикта нет",
               flush=True)
         return False
