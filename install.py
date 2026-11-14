@@ -710,7 +710,13 @@ def step_llama(lines, lang):
         except Exception as e:
             lines.append((C.YEL, f"⚠ Не удалось скопировать в расширение: {e}"))
     else:
-        lines.append((C.YEL, "⚠ Не удалось скачать llama.cpp (будет ONNX)"))
+        # Раньше здесь был жёлтый «⚠ Не удалось скачать» и шаг считался ok —
+        # установка рапортовала `0 failed`, оставляя пользователя без движка
+        # (2026-11-14: неверный пин SHA256 отбивал архив, а итог был зелёным).
+        raise RuntimeError(
+            "llama.cpp не установлен: скачивание или проверка SHA256 не прошла "
+            "(подробности в логе выше)"
+        )
 
 
 @_step(7)
@@ -766,6 +772,9 @@ def step_gguf(lines, lang):
 
     if all_ok:
         lines.append((C.GRN, "✅ GGUF модели готовы — llama.cpp embedder + reranker"))
+    else:
+        # Та же честность, что и в step_llama: не «ok» с жёлтой строкой.
+        raise RuntimeError("часть GGUF моделей не скачана (см. лог выше)")
 
 
 @_step(8)
@@ -1432,7 +1441,7 @@ def _utf8_stdout() -> None:
         logger.debug("utf-8 stdout wrap failed: %s", e)
 
 
-def main() -> None:
+def main() -> int:
     argv = sys.argv[1:]
     _utf8_stdout()
     mode = _mode_from_argv(argv)
@@ -1463,7 +1472,7 @@ def main() -> None:
         step_copy([], lang)
         _record_install_meta()
         print("✅ Sync done. Restart the MCP host (OpenCode session or Zed window) to apply.")
-        return
+        return 0
 
     _box(
         "",
@@ -1557,11 +1566,13 @@ def main() -> None:
     print(f"\n  {C.D}Extension: {ZED_EXT_DIR}{C.R}")
     print(f"  {C.D}Python:    {PYTHON_EXE}{C.R}")
     print()
+    # Ненулевой код при провале шага: раньше exit code всегда был 0 (2026-11-14).
+    return 1 if has_err else 0
 
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except KeyboardInterrupt:
         print(f"\n  {C.RED}Aborted by user.{C.R}")
         sys.exit(1)

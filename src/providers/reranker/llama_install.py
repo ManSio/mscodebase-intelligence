@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
 import shutil
@@ -607,41 +608,108 @@ def _patch_dll_imports(dll_dir: Path) -> int:
 #   python -c "import hashlib; print(hashlib.sha256(open('llama-...zip','rb').read()).hexdigest())"
 # Если проверка не проходит — бинарник не будет установлен.
 # win-cpu-x64 + win-vulkan-x64: посчитаны 2026-07-11 для b9940.
+# sha256 опубликованного ассета (источник: GitHub API, поле `digest` у asset).
+# 2026-11-14: оба Windows-хэша были неверны с первого коммита — установщик
+# скачивал ПРАВИЛЬНЫЙ архив, отбивал его по своему же пину и рапортовал успех.
+# Проверка: `gh api repos/ggml-org/llama.cpp/releases/tags/<ver> --jq '.assets[] | {name,digest}'`.
+# При пересборке релиза ассет получает новый digest — таблицу надо обновить
+# (проверка ниже сверит с GitHub и подскажет актуальное значение).
 LLAMA_BIN_SHA256 = {
-    # Windows — хэши проверены
-    "win-cpu-x64": "d5d7248c7aacaeb0c8f15311acb0f1081874aa7a5de55843702e9e2394a05788",
-    "win-vulkan-x64": "036835f0adb53b5d48444ab9adb7c29fff898be6fa74f7f9fc15f674ea38b153",
-    # macOS/Linux — TODO: вычислить и добавить хэши перед установкой на этих платформах
+    "win-cpu-x64": "a23e548c6b3525c38bcfeceaff919786ae06741857043cb670279b70100e5483",
+    "win-vulkan-x64": "5c71e7b749697da4a8d46e9ee55486845cbba27c9dfbecb4007f31ba6610d523",
+    # macOS/Linux — пин не задан: проверка идёт по GitHub digest, без него — fail closed
     "macos-arm64": None,
     "macos-x64": None,
     "ubuntu-x64": None,
 }
 
 
+def _discard(path: Path) -> None:
+    """Удаляет файл, не падая: на Windows он может быть занят другим хэндлом.
+
+    Ревью 2026-11-14: в ветке ошибки `part.unlink()` сам бросал PermissionError
+    (WinError 32) при параллельной загрузке — наружу уходило не `False`, а
+    исключение, и `.part` оставался.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.debug("не удалось удалить %s: %s", path, exc)
+
+
+def _github_asset_digest(asset_name: str) -> str | None:
+    """sha256 из GitHub API для ассета текущего релиза; None, если недоступно."""
+    url = f"https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/{LLAMA_VERSION}"
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "mscodebase-installer"},
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        for asset in payload.get("assets", []):
+            if asset.get("name") == asset_name:
+                digest = str(asset.get("digest") or "")
+                if digest.startswith("sha256:"):
+                    return digest.split(":", 1)[1].lower()
+                return None
+    except Exception as exc:
+        logger.debug("GitHub digest недоступен для %s: %s", asset_name, exc)
+    return None
+
+
 def _verify_archive_sha256(archive_path: Path, tag: str) -> bool:
     """Проверяет SHA256 скачанного архива.
 
-    Если хэш для платформы не задан — установка блокируется (fail closed).
-    Безопасность: неизвестный бинарник НЕ запускаем.
+    Источник истины: пин `LLAMA_BIN_SHA256[tag]`, если он задан; иначе — `digest`
+    ассета из GitHub API. Если пин устарел (пересборка релиза), но GitHub
+    подтверждает фактический хэш — установка продолжается с предупреждением.
+    Если подтвердить нечем — установка блокируется (fail closed).
     """
-    expected = LLAMA_BIN_SHA256.get(tag)
-    if not expected:
-        logger.error(
-            f"🚫 SHA256 для {tag} не задан в LLAMA_BIN_SHA256. "
-            f"Установка заблокирована. Вычислите хэш и добавьте в словарь."
-        )
-        return False
     try:
         actual = hashlib.sha256(archive_path.read_bytes()).hexdigest()
-        if actual == expected:
-            logger.info(f"✅ SHA256 {tag}: {actual[:16]}... совпадает")
-            return True
-        logger.error(f"❌ SHA256 не совпадает! Ожидался {expected}, получен {actual[:16]}...")
-        archive_path.unlink()
-        return False
     except Exception as e:
         logger.error(f"❌ Ошибка проверки SHA256: {e}")
         return False
+
+    expected = LLAMA_BIN_SHA256.get(tag)
+    if expected:
+        if actual == expected:
+            logger.info(f"✅ SHA256 {tag}: {actual[:16]}... совпадает")
+            return True
+        published = _github_asset_digest(archive_path.name)
+        if published and actual == published:
+            logger.warning(
+                "⚠️ пин LLAMA_BIN_SHA256[%s] устарел: в таблице %s…, GitHub %s… — "
+                "обновите словарь (иначе следующая проверка снова пойдёт в сеть)",
+                tag, expected[:12], actual[:12],
+            )
+            return True
+        logger.error(
+            "❌ SHA256 не совпадает! пин %s…, GitHub %s…, получен %s…",
+            expected[:12], (published or "недоступен")[:12], actual[:12],
+        )
+        _discard(archive_path)
+        return False
+
+    published = _github_asset_digest(archive_path.name)
+    if published:
+        if actual == published:
+            logger.info(f"✅ SHA256 {tag}: подтверждён GitHub digest ({actual[:16]}...)")
+            return True
+        logger.error(
+            "❌ SHA256 не совпадает с GitHub digest! ожидали %s…, получен %s…",
+            published[:12], actual[:12],
+        )
+        _discard(archive_path)
+        return False
+
+    logger.error(
+        f"🚫 SHA256 для {tag} не задан, и GitHub digest недоступен. "
+        f"Установка заблокирована. Проверьте сеть или добавьте хэш в LLAMA_BIN_SHA256."
+    )
+    _discard(archive_path)
+    return False
 
 
 def download_llama_binary(progress_cb=None) -> bool:
@@ -794,7 +862,7 @@ def _download_gguf_via_urllib(info: dict, gguf_path: Path, progress_cb=None) -> 
                     )
         expected = str(info.get("sha256") or "").lower()
         if expected and digest.hexdigest() != expected:
-            part.unlink(missing_ok=True)
+            _discard(part)
             logger.error(
                 "❌ SHA256 не совпал для %s: ожидали %s…, получили %s…",
                 gguf_path.name, expected[:16], digest.hexdigest()[:16],
@@ -808,7 +876,7 @@ def _download_gguf_via_urllib(info: dict, gguf_path: Path, progress_cb=None) -> 
             progress_cb(100, f"{gguf_path.name} — готов")
         return True
     except Exception as exc:
-        part.unlink(missing_ok=True)
+        _discard(part)
         logger.error("❌ Ошибка скачивания GGUF %s через urllib: %s", gguf_path.name, exc)
         if progress_cb:
             progress_cb(0, f"Ошибка: {exc}")
