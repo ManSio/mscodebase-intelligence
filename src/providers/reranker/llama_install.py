@@ -14,7 +14,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import re
 import shutil
 import struct
 import subprocess
@@ -94,6 +93,45 @@ def _detect_platform() -> tuple:
     return "win-cpu-x64", ".exe", ".zip", cpu_info  # fallback
 
 
+def _windows_ram_gb() -> int | None:
+    """Физическая память через WinAPI. Без `wmic`: на Windows 11 24H2 его нет."""
+    try:
+        import ctypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return None
+        return int(status.ullTotalPhys) // (1024**3)
+    except Exception:
+        return None
+
+
+def _windows_cpu_name() -> str:
+    """Имя CPU из реестра. Без `wmic` (удалён в Windows 11 24H2) и без процесса."""
+    try:
+        import winreg
+
+        key = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as handle:
+            return str(winreg.QueryValueEx(handle, "ProcessorNameString")[0]).strip()
+    except Exception:
+        return ""
+
+
 def _detect_cpu() -> dict:
     """Детектит возможности CPU.
 
@@ -125,12 +163,8 @@ def _detect_cpu() -> dict:
     # RAM
     try:
         if sys.platform == "win32":
-            out = subprocess.check_output(
-                ["wmic", "memorychip", "get", "capacity"], timeout=5,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).decode("utf-8", errors="replace")
-            total_bytes = sum(int(x) for x in re.findall(r"\d+", out) if len(x) > 5)
-            info["ram_gb"] = total_bytes // (1024**3)
+            # 8 — тот же консервативный дефолт, что был при отказе wmic
+            info["ram_gb"] = _windows_ram_gb() or 8
         elif sys.platform == "darwin":
             out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], timeout=5)
             info["ram_gb"] = int(out.strip()) // (1024**3)
@@ -147,14 +181,7 @@ def _detect_cpu() -> dict:
     # CPU name
     try:
         if sys.platform == "win32":
-            out = subprocess.check_output(
-                ["wmic", "cpu", "get", "name"], timeout=5,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).decode("utf-8", errors="replace")
-            for line in out.splitlines():
-                if line.strip() and "Name" not in line:
-                    info["name"] = line.strip()
-                    break
+            info["name"] = _windows_cpu_name() or info["name"]
         elif sys.platform == "darwin":
             out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=5)
             info["name"] = out.decode("utf-8", errors="replace").strip()
@@ -164,9 +191,8 @@ def _detect_cpu() -> dict:
                     if line.startswith("model name"):
                         info["name"] = line.split(":")[1].strip()
                         break
-    except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+    except Exception:
+        logger.debug("CPU name detection failed", exc_info=True)
     # CPU features через python
     cpu_name = info["name"].lower()
 
@@ -224,9 +250,8 @@ def _is_windows_insider() -> bool:
         if len(parts) >= 3:
             build = int(parts[2])
             return build >= 26000
-    except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+    except Exception:
+        logger.debug("Windows version probe failed", exc_info=True)
     return False
 
 
@@ -364,38 +389,56 @@ def _gguf_path(model_key: str) -> Path:
 # Измерено E19 (Vega 6 iGPU, 271M embed): CPU быстрее (789 vs 591 tok/s) —
 # выигрыш 2-5x реален только на дискретных GPU; на shared-memory iGPU
 # дефолт CPU корректен. Детекция остаётся opt-in через LLAMA_BACKEND=vulkan.
-_HAVE_VULKAN = False
-if sys.platform == "win32":
+
+
+def _detect_vulkan(has_binary: bool | None = None) -> bool:
+    """Есть ли Vulkan-сборка и рабочий GPU; при успехе включает LLAMA_BACKEND=vulkan.
+
+    `has_binary=False` — сборки нет, пробу не запускаем вовсе: раньше импорт
+    модуля звал `vulkaninfo` на любой машине с vulkan-1.dll, включая установщик
+    (`python install.py`), и печатал предупреждение, если пробы нет.
+    Недоступная проба — `debug`, а не `warning`: это нормальный случай.
+    """
+    if sys.platform != "win32":
+        return False
+    if has_binary is None:
+        has_binary = _llama_bin_vulkan().exists()
+    if not has_binary:
+        return False
     try:
-        _vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
-        if _vk_dll.exists():
-            import subprocess as _sp
-            # §5.16: Popen + communicate вместо run(capture_output=True, text=True) —
-            # text=True декодирует stdout через locale (cp1251) и крашит reader-поток
-            # на UTF-8 выводе vulkaninfo (UnicodeDecodeError, мусор в логе).
-            _vk_proc = _sp.Popen(
-                ["vulkaninfo", "--summary"],
-                stdout=_sp.PIPE,
-                stderr=_sp.DEVNULL,
-                stdin=_sp.DEVNULL,
-                creationflags=0x08000000,  # CREATE_NO_WINDOW
-            )
-            try:
-                _vk_bytes, _ = _vk_proc.communicate(timeout=5)
-            except Exception:
-                _vk_proc.kill()
-                _vk_bytes = b""
-            _vk_text = _vk_bytes.decode("utf-8", errors="replace")
-            if "GPU0" in _vk_text and "PHYSICAL_DEVICE_TYPE" in _vk_text:
-                _vk_bin = _get_vulkan_dir() / f"llama-server{_EXE_SUFFIX}"
-                if _vk_bin.exists():
-                    _HAVE_VULKAN = True
-                    os.environ.setdefault("LLAMA_BACKEND", "vulkan")
-                    logger.info("🖥️ Vulkan GPU detected — using GPU for embeddings")
-                else:
-                    logger.info("🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
-    except Exception as _e:
-        logger.warning(f"Vulkan detection failed: {_e}")
+        vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
+        if not vk_dll.exists():
+            return False
+        # §5.16: Popen + communicate вместо run(capture_output=True, text=True) —
+        # text=True декодирует stdout через locale (cp1251) и крашит reader-поток
+        # на UTF-8 выводе vulkaninfo (UnicodeDecodeError, мусор в логе).
+        proc = subprocess.Popen(
+            ["vulkaninfo", "--summary"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+        try:
+            raw, _ = proc.communicate(timeout=5)
+        except Exception:
+            proc.kill()
+            raw = b""
+        text = raw.decode("utf-8", errors="replace")
+        if "GPU0" in text and "PHYSICAL_DEVICE_TYPE" in text:
+            os.environ.setdefault("LLAMA_BACKEND", "vulkan")
+            logger.info("🖥️ Vulkan GPU detected — using GPU for embeddings")
+            return True
+        return False
+    except FileNotFoundError:
+        logger.debug("vulkaninfo not found — Vulkan detection skipped")
+        return False
+    except Exception as exc:
+        logger.debug("Vulkan detection failed: %s", exc)
+        return False
+
+
+_HAVE_VULKAN = _detect_vulkan()
 
 
 # ─── Установка ──────────────────────────────────────────────────
@@ -713,6 +756,65 @@ def download_llama_binary(progress_cb=None) -> bool:
         return False
 
 
+# База HF: в тестах подменяется на локальный сервер (MSCODEBASE_HF_BASE_URL),
+# чтобы скачивание проверялось без сети.
+HF_BASE_URL = os.getenv("MSCODEBASE_HF_BASE_URL", "https://huggingface.co").rstrip("/")
+
+
+def _download_gguf_via_urllib(info: dict, gguf_path: Path, progress_cb=None) -> bool:
+    """Скачивание GGUF без huggingface_hub: urllib + sha256, атомарная запись.
+
+    Установщик (`python install.py --with-models`) работает интерпретатором
+    пользователя, где huggingface_hub нет: пакет ставится позже в venv
+    расширения (шаг 6). Раньше здесь стоял безусловный
+    `from huggingface_hub import hf_hub_download`, и обещанного комментарием
+    fallback не существовало — шаг 8 падал ModuleNotFoundError (2026-11-14).
+    """
+    import urllib.request
+    from urllib.parse import quote
+
+    url = f"{HF_BASE_URL}/{info['repo']}/resolve/main/{quote(info['file'])}"
+    part = gguf_path.with_suffix(gguf_path.suffix + ".part")
+    digest = hashlib.sha256()
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp, open(part, "wb") as out:
+            total = int(resp.headers.get("Content-Length") or 0)
+            done = 0
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+                digest.update(chunk)
+                done += len(chunk)
+                if progress_cb and total > 0:
+                    progress_cb(
+                        int(done * 100 / total),
+                        f"{gguf_path.name} ({done / 1048576:.0f}MB/{total / 1048576:.0f}MB)",
+                    )
+        expected = str(info.get("sha256") or "").lower()
+        if expected and digest.hexdigest() != expected:
+            part.unlink(missing_ok=True)
+            logger.error(
+                "❌ SHA256 не совпал для %s: ожидали %s…, получили %s…",
+                gguf_path.name, expected[:16], digest.hexdigest()[:16],
+            )
+            if progress_cb:
+                progress_cb(0, "Ошибка: SHA256 не совпал")
+            return False
+        part.replace(gguf_path)
+        logger.info("✅ GGUF модель скачана: %s", gguf_path)
+        if progress_cb:
+            progress_cb(100, f"{gguf_path.name} — готов")
+        return True
+    except Exception as exc:
+        part.unlink(missing_ok=True)
+        logger.error("❌ Ошибка скачивания GGUF %s через urllib: %s", gguf_path.name, exc)
+        if progress_cb:
+            progress_cb(0, f"Ошибка: {exc}")
+        return False
+
+
 def download_gguf_model(model_key: str, progress_cb=None) -> bool:
     """Скачивает GGUF модель из Hugging Face."""
     models_dir = _get_models_dir()
@@ -725,8 +827,13 @@ def download_gguf_model(model_key: str, progress_cb=None) -> bool:
         logger.info(f"✅ GGUF модель уже скачана: {gguf_path.name}")
         return True
 
-    # Скачиваем через huggingface_hub (если есть) или urllib
-    from huggingface_hub import hf_hub_download
+    # huggingface_hub есть не всегда: установщик работает интерпретатором
+    # пользователя, пакет ставится позже в venv расширения. Без него — urllib.
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        logger.info("huggingface_hub недоступен — скачиваю GGUF через urllib")
+        return _download_gguf_via_urllib(info, gguf_path, progress_cb)
 
     logger.info(f"⬇️  Скачиваю GGUF: {info['repo']}/{info['file']}")
 

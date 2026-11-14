@@ -50,8 +50,6 @@ from ctypes import wintypes
 from pathlib import Path
 from typing import Any, Optional
 
-import httpx
-
 from src.providers.reranker.llama_install import (  # noqa: F401 — explicit compat
     # Конфигурация
     _IS_INSIDER,
@@ -79,6 +77,21 @@ from src.providers.reranker.llama_install import (  # noqa: F401 — explicit co
 )
 
 logger = logging.getLogger("mscodebase_server.llama_runner")
+
+
+def _httpx():
+    """httpx нужен только сетевым вызовам рантайма (health/embeddings/rerank).
+
+    Импорт ленивый намеренно: `install.py` импортирует этот модуль в том
+    интерпретаторе, которым его запустили. На шаге 7 (`llama.cpp engine`) ему
+    нужны только `download_llama_binary`/`is_installed`, а они на stdlib
+    (urllib). Top-level `import httpx` валил установку
+    `No module named 'httpx'` для `python install.py` системным Python
+    (2026-11-14), хотя зависимости проекта живут в venv расширения.
+    """
+    import httpx
+
+    return httpx
 
 
 def _ubatch_arg(model_key: str) -> str:
@@ -1208,7 +1221,7 @@ class LlamaRunner:
 
             # Ждём /health
             t0 = time.time()
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with _httpx().AsyncClient(timeout=2.0) as client:
                 for i in range(self._startup_timeout):
                     await asyncio.sleep(1)
                     try:
@@ -1460,7 +1473,7 @@ class LlamaRunner:
 
         try:
 
-            async with httpx.AsyncClient(timeout=2.0) as c:
+            async with _httpx().AsyncClient(timeout=2.0) as c:
 
                 r = await c.get(f'http://{self._host}:{port}/health')
 
@@ -1478,7 +1491,7 @@ class LlamaRunner:
 
         try:
 
-            r = httpx.get(f'http://{self._host}:{port}/health', timeout=2.0)
+            r = _httpx().get(f'http://{self._host}:{port}/health', timeout=2.0)
 
             return r.status_code == 200
 
@@ -1540,7 +1553,7 @@ class LlamaRunner:
 
         try:
 
-            async with httpx.AsyncClient(timeout=2.0) as client:
+            async with _httpx().AsyncClient(timeout=2.0) as client:
 
                 r = await client.get(f"{self.base_url}/health")
 
@@ -1581,7 +1594,7 @@ class LlamaRunner:
 
         try:
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with _httpx().AsyncClient(timeout=30.0) as client:
 
                 r = await client.post(
 
@@ -1621,7 +1634,7 @@ class LlamaRunner:
 
         try:
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with _httpx().AsyncClient(timeout=30.0) as client:
 
                 r = await client.post(
 
