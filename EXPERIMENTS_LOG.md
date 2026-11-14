@@ -1,4 +1,36 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-14] — E75: an untouched third repo (`pallets/click`) — the fix holds
+
+**Why:** every panel so far was my own repo, or `sqlalchemy`, where two of the
+four defects were *found*. A reviewer's fair objection: the fixes were measured
+on code that shaped them. `click` was cloned for this test only.
+
+**Corpus:** frozen at `7df2f82` (2026-07-16), index built once — 138 files,
+2,149 chunks, 71.5 s. Panel: 35 solvable commits, `external.py --limit 40`;
+no capture, because the external runner rebuilds every task from git each run.
+
+```
+click (35)              hit@1  hit@5
+  tool at deb5ff4          21     26
+  tool at HEAD             22     29
+  neighbours at HEAD       23     30
+  search channel            2     14
+  grep                     17     29
+paired tool@5: 3 up / 0 down
+```
+
+At hit@5 that is +8.6%, against +8.5% on the dev panel (6 of 71): the same rate
+on a repository that had no part in designing the fix. Control arms are
+identical in both runs. On this repo the tool ties grep at hit@5 (29 each) and
+leads at hit@1 (22 vs 17) — the first corpus in the series where it is not
+behind grep.
+
+**Limits:** n=35; 3 up / 0 down is p≈0.125 by a one-sided sign test — suggestive,
+not significant on its own. Its value is provenance, not power.
+
+**Artifact:** `experiments/bench_2026_11/results_external_click.json`; the corpus
+lives outside the repository (`bench-ext/click-B`).
+
 ## [2026-11-14] — E74: the dev panel was replaying a committed capture
 
 **Found by** a re-run: `run.py --split dev` finished in **0.2 min** and printed the
@@ -13,14 +45,21 @@ before both November gate fixes.
 ```
 dev (n=71), tool hit@5      wall clock   code state
   cache from 10 Nov    19     0.2 min      replay, no task executed
-  deb5ff4              32    13.5 min      two November gate fixes
-  b9f91c4              32     7.7 min      + message wording (text only)
+  deb5ff4              32    ~6 min*       two November gate fixes
+  b9f91c4              32    13.5 min      + message wording (text only)
   f3b0cc4              38     7.7 min      + all four identifiers counted
   HEAD                 38     6.1 min      + onnx padding + vector schema
 paired: 13 up / 0 down (cache -> deb5ff4); 6 up / 0 down (deb5ff4 -> HEAD)
 control arms unchanged at every point: search 11/22/29, grep 0/2/6
 decomposition: wording 0, identifiers +6, retrieval 0
 ```
+
+`*` the two `deb5ff4` control runs were not timed by a script; both finished
+inside one six-minute window, so "~6 min" is an observation, not a measurement.
+The 13.5-minute run is `b9f91c4`, and it shared the machine with a full pytest.
+
+External per-task pairs (tool hit@5): `requests` 1 up / 0 down; `sqlalchemy`
+2 up / 1 down (down = `f1693787ade6`); `click` 3 up / 0 down.
 
 Every cold-cache run was validated before being accepted: `resumed: 0` lines and
 elapsed > 3 min. Wall clock is not a performance claim — the 13.5 min run shared
@@ -51,8 +90,10 @@ ONNX fallback ("server did not start in 60s"), the HEAD run did not; `search` is
 identical throughout, so retrieval is unaffected, but the environment is not
 fully excluded.
 
-**Not fixed (owner's call):** `--resume` defaults on, and the partial capture is
-tracked in git; a clone reproduces November in 0.2 minutes without warning.
+**Not fixed then (fixed on 2026-11-14 by `c93fda8`):** `--resume` used to default on
+and the partial capture is still tracked in git. Reuse is now opt-in, a corrupt
+capture is dropped instead of crashing, and `tests/test_bench_capture.py` covers
+both. A clone still receives the file; it needs `--resume` to be read.
 
 ## [2026-11-11] — E73/P5: removing the false refusal costs the requests panel nothing
 

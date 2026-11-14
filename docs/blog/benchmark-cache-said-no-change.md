@@ -8,7 +8,7 @@ cover_image: https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/ma
 
 > **Part 5 of: [MSCodeBase Intelligence — Field Notes](https://github.com/ManSio/mscodebase-intelligence/tree/main/docs/blog)** — *[Part 1: PageRank](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) · [Part 2: Silent Vector Contamination](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7) · [Part 3: Verify-on-Read](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · [Part 4: Bootstrap Pipeline](https://dev.to/mansio/from-a-test-suite-trace-to-a-search-signal-the-bootstrap-pipeline-story-407b) · **Part 5 (this post)**
 
-> **TL;DR:** a benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file committed to git, and I published them three times as a design trade-off. With the cache cleared, the same panel reads **19 → 32 → 38** across five code states — and six of those tasks came back from one two-item list slice.
+> **TL;DR:** a benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file committed to git, and I published them three times as a design trade-off. With the cache cleared, the same panel reads **19 → 32 → 38** across four code states plus one replay — and six of those tasks came back from one two-item list slice.
 
 ![A terminal that says "resuming: 71 tasks already captured" next to 19 → 38 and "0.2 min vs 6.1 min"](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png)
 
@@ -110,7 +110,7 @@ Same machine, same index, same 71 tasks, cache cleared where it says so:
 | what was measured | tool hit@5 | wall clock |
 |---|---:|---:|
 | captured rows from 10 Nov, replayed on HEAD | 19 | 0.2 min |
-| code at `deb5ff4` (11 Nov), cache cleared | **32** | 6.1 min |
+| code at `deb5ff4` (11 Nov), cache cleared | **32** | ~6 min |
 | HEAD (14 Nov), cache cleared | **38** | 6.1 min |
 
 ![Bar chart: tool hit@5 on the dev panel at five points, 19 cached rows, 32 at deb5ff4, 32 after the wording fix, 38 after the identifier fix, 38 at HEAD](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-bars.png)
@@ -147,7 +147,7 @@ Two repositories I did not write. No cache here — the external runner rebuilds
 | search channel (control) | 15 | 18 |
 | grep (floor) | 19 | 20 |
 
-`deb5ff4` reproduces the November numbers exactly — 12 and 17, the values in my facts file, and 17 twice in two control runs.
+`deb5ff4` reproduces the November numbers exactly — 12 and 17, the values in `docs/FACTS.md` §7, and 17 twice in two control runs.
 
 The +1 on `requests` is one task up and none down. The +1 on `sqlalchemy` is **two up and one down** — a commit the old gate found is now missed — and the rejects are not individually explained.
 
@@ -182,12 +182,12 @@ The first version of this post said I could not attribute the +19. Then I ran th
 | point | what changed in the product | tool hit@5 | wall clock |
 |---|---|---:|---:|
 | cached rows | nothing — a replay of 10 Nov | 19 | 0.2 min |
-| `deb5ff4` | hashes are not identifiers; refusal needs *no* identifier | **32** | 6.0 min |
+| `deb5ff4` | hashes are not identifiers; refusal needs *no* identifier | **32** | ~6 min* |
 | `b9f91c4` | the warning stops calling a real hit a neighbour | 32 | 13.5 min |
 | `f3b0cc4` | the grep channel counts all four identifiers, not two | **38** | 7.7 min |
 | HEAD | + ONNX batch padding, + vector-schema width | 38 | 6.1 min |
 
-*Wall clock here is not a performance claim: the 13.5-minute cross-check shared the machine with the full test suite and several ONNX start timeouts.*
+*Wall clock here is not a performance claim: the two `deb5ff4` controls were not timed by a script (they finished inside one six-minute window), and the 13.5-minute run is `b9f91c4`, which shared the machine with the full test suite.*
 
 Read it as a decomposition:
 
@@ -212,7 +212,7 @@ grep                      0      2      6   0.051
 
 **hit@5 identical, `any@8` differs by one task.** That is the measured cost of the refusal policy: one task in seventy-one. The report's -33 was measured against the 10 November code and does not describe what ships today.
 
-`one task` and `eighteen` are not the same claim, and I have published both in the last four days.
+`one task` and the report's `-33 tasks of 108 solvable` are not the same claim, and I have published both in the last four days.
 
 ## Reproduce
 
@@ -232,7 +232,7 @@ Two guards before you trust the output:
 
 The `cd` and the `rev-parse` are not decoration. Miss the `cd` and you run the harness of whatever repository you were standing in — which is exactly how my first attempt at this series produced two "runs" of a commit that was never checked out.
 
-The panel also needs its corpus. `run.py` hardcodes it near the top (line 36) to a `bench-B` worktree sitting next to the repository — a worktree of this repository at the frozen base, indexed once:
+The panel also needs its corpus. `run.py` hardcodes it near the top (line 37) to a `bench-B` worktree sitting next to the repository — a worktree of this repository at the frozen base, indexed once:
 
 ```bash
 git worktree add ../bench-B 7c2c7a3c6417539bc08f807d6790fe6e722d3a84
@@ -294,6 +294,6 @@ No AI detectors were consulted in the making of this disclosure. They have enoug
 
 ---
 
-> **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What each fix is actually worth" sections.
+> **Disclaimer & Status:** field notes from a public experiment, not a "feature advertisement": figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What each fix is actually worth" sections.
 
 *Raw artifacts: `experiments/bench_2026_11/` — the November capture as committed in `e033edc`, the fresh run outputs, both external result files and `REPORT.md`. The controls ran in a worktree at `deb5ff4`, `b9f91c4` and `f3b0cc4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
