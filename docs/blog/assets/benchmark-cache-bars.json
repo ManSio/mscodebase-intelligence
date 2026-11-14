@@ -1,10 +1,55 @@
 {
   "points": [
-    {"label": "cached rows", "sub": "no run", "value": 19, "color": [139, 148, 158]},
-    {"label": "deb5ff4", "sub": "2 gate fixes", "value": 32, "color": [240, 180, 90]},
-    {"label": "+ wording", "sub": "b9f91c4", "value": 32, "color": [245, 200, 120]},
-    {"label": "+ 4 idents", "sub": "f3b0cc4", "value": 38, "color": [61, 220, 132]},
-    {"label": "HEAD", "sub": "+ retrieval", "value": 38, "color": [43, 180, 105]}
+    {
+      "label": "cached rows",
+      "sub": "no run",
+      "value": 19,
+      "color": [
+        139,
+        148,
+        158
+      ]
+    },
+    {
+      "label": "deb5ff4",
+      "sub": "2 gate fixes",
+      "value": 32,
+      "color": [
+        240,
+        180,
+        90
+      ]
+    },
+    {
+      "label": "+ wording",
+      "sub": "b9f91c4",
+      "value": 32,
+      "color": [
+        245,
+        200,
+        120
+      ]
+    },
+    {
+      "label": "+ 4 idents",
+      "sub": "f3b0cc4",
+      "value": 38,
+      "color": [
+        61,
+        220,
+        132
+      ]
+    },
+    {
+      "label": "HEAD",
+      "sub": "+ retrieval",
+      "value": 38,
+      "color": [
+        43,
+        180,
+        105
+      ]
+    }
   ],
-  "title": "tool hit@5, dev panel (n=71) — cold cache at every point"
+  "title": "tool hit@5, dev panel (n=71) — one bar is a replay, four are cold runs"
 }

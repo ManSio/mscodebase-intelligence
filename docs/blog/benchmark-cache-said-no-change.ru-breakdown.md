@@ -122,6 +122,23 @@ blocker'ов: своя панель выдана за чужую; `+16 of 37` �
 | цитата «If a run finishes suspiciously fast» как «уже записанное» | `git grep` не находит её нигде, кроме черновика → переписано как правило «ввожу сейчас» |
 | «+6 = заслуга гейта» | в диапазоне ONNX и vector, не изолировано |
 
+**Раунд 3 (атака на пост, картинки и оформление): 31 находка — 7 blocker, 13 major, 11 nit.** Закрыто:
+
+| Находка | Как закрыто |
+|---|---|
+| Таблица «10 November» — из до-редакционной панели (neighbours 37, search 24) | заменена на закоммиченный кэш: 38 и 22, с явной сноской о расхождении с E68 |
+| «P2: 5 below plain search» при search = 22 | переписано: 19 против 22 = 3 ниже; про «5» сказано, откуда оно |
+| «Тот же HEAD-код даёт 19» | «та же команда на HEAD печатает 19 — из файла, записанного старым кодом» |
+| Red Team: «любой клон получает ноябрь» (настоящее время) | «между 10 и 14 ноября»; файл трекается, но без `--resume` не читается |
+| Reproduce не создавал корпус и не делал `cd` | добавлены `git worktree add ../bench-B` + reindex + `cd` + `rev-parse` |
+| `git show … \| git hash-object` даёт `ad163f73…` | заменено на python-однострочник (проверено: `71395d45…`) |
+| Заголовок графика «cold cache at every point» над баром «cached rows» | «one bar is a replay, four are cold runs» |
+| BOM в начале файла (frontmatter мог не распарситься) | убран |
+| Время 13.5 мин приписано `deb5ff4` | 13.5 у `b9f91c4`, 7.7 у `f3b0cc4` |
+| Disclaimer ссылался на несуществующую секцию | «What each fix is actually worth» |
+
+Открытым остаётся только внешнее: **обе картинки отдают 404**, пока коммиты не запушены.
+
 ---
 
 ## 6. Ошибки, найденные в твоих файлах
@@ -226,7 +243,7 @@ git show HEAD:experiments/bench_2026_11/tasks.jsonl | git hash-object --stdin
 отбракована и заменена отрисовкой из реальных чисел.
 
 - `docs/blog/assets/benchmark-cache-cover.png` — 1000×420 (размер обложки dev.to)
-- `docs/blog/assets/benchmark-cache-bars.png` — 1000×380, три бара: 19 / 32 / 38
+- `docs/blog/assets/benchmark-cache-bars.png` — 1000×400, пять баров: 19 / 32 / 32 / 38 / 38
 
 `cover_image` и картинки в тексте ссылаются на
 `raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/...` — как в твоих

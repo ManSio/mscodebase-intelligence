@@ -1,14 +1,14 @@
-﻿---
+---
 title: "My Benchmark Said 'No Change' Three Times. It Was Reading a Cache Committed to Git."
 published: false
-description: "0.2 minutes, identical numbers. My harness resumed from a 71-row capture in git. Cleared, the same panel reads 19 → 32 → 38 across five code states, and one list slice accounts for the whole gap."
+description: "0.2 minutes, identical numbers. My harness resumed from a 71-row capture in git. Cleared, the same panel reads 19 → 32 → 38 across five code states — and six of those tasks came back from one list slice."
 tags: devtools, testing, python, ai
 cover_image: https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png
 ---
 
-> **Part 5 of: [MSCodeBase Intelligence — Field Notes](https://github.com/ManSio/mscodebase-intelligence/tree/main/docs/blog)** — *[Part 1: PageRank](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) · [Part 2: Silent Vector Contamination](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7) · [Part 3: Verify-on-Read](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · [Part 4: Bootstrap Pipeline](https://dev.to/mansio/from-a-test-suite-trace-to-a-search-signal-the-bootstrap-pipeline-story-407b) · Part 5*
+> **Part 5 of: [MSCodeBase Intelligence — Field Notes](https://github.com/ManSio/mscodebase-intelligence/tree/main/docs/blog)** — *[Part 1: PageRank](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) · [Part 2: Silent Vector Contamination](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7) · [Part 3: Verify-on-Read](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · [Part 4: Bootstrap Pipeline](https://dev.to/mansio/from-a-test-suite-trace-to-a-search-signal-the-bootstrap-pipeline-story-407b) · **Part 5 (this post)**
 
-> **TL;DR:** my benchmark printed the same numbers for four days because it was resuming from a 71-row capture file committed to git. With the cache cleared, the same panel on the same machine reads **19 → 32 → 38** across five code states. The number I published as a design trade-off was a disk read — and the fix that closes the gap is a two-item list slice.
+> **TL;DR:** my benchmark printed the same numbers for four days because it was resuming from a 71-row capture file committed to git. With the cache cleared, the same panel on the same machine reads **19 → 32 → 38** across five code states. The number I published as a design trade-off was a disk read — and six of those tasks came back when a two-item list slice was fixed.
 
 ![A terminal that says "resuming: 71 tasks already captured" next to 19 → 38 and "0.2 min vs 6.1 min"](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png)
 
@@ -36,11 +36,13 @@ The dev split, 71 solvable tasks:
 | arm | hit@1 | hit@5 | any@8 |
 |---|---:|---:|---:|
 | tool (default) | 12 | **19** | 23 |
-| tool + neighbours | 24 | 37 | 44 |
-| search channel alone | 10 | 24 | 29 |
+| tool + neighbours | 24 | 38 | 44 |
+| search channel alone | 11 | 22 | 29 |
 | grep (floor) | 0 | 2 | 6 |
 
-Both pre-registered bars failed, in the gate's own words: **P1 FAIL (default 0.268 < 0.35)** and **P2 FAIL (default is 5 below plain search on dev)**.
+These are the numbers in the committed capture — the same four rows the replay prints today. (The `E68` log entry was written from an earlier run of the same panel and says 37 and 24; the capture and `REPORT.md` agree on 38 and 22, and the capture is the thing that was replayed, so I quote the capture.)
+
+Both pre-registered bars failed: **P1 FAIL (default 0.268 < 0.35)**, and on dev the default answers 19 where the plain search channel answers 22 — the log's own words are "5 below plain search", which uses its `search = 24` row.
 
 So I did what a benchmark owner should do: I classified the misses. All 52 of them:
 
@@ -103,7 +105,7 @@ Same machine, same index, same 71 tasks, cache cleared where it says so:
 
 ![Bar chart: tool hit@5 on the dev panel at five points, 19 cached rows, 32 at deb5ff4, 32 after the wording fix, 38 after the identifier fix, 38 at HEAD](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-bars.png)
 
-The first row is the tell. **19 came from a file, not from a run.** The same HEAD code that scores 38 in six minutes scores 19 in twelve seconds, because twelve seconds is how long it takes to read 71 answers off a disk.
+The first row is the tell. **19 came from a file, not from a run.** The same command, on the same HEAD code, prints 19 in twelve seconds — because those numbers were written by an older product and stored on disk. Twelve seconds is how long it takes to read 71 answers back.
 
 Paired at hit@5, task by task: cached rows vs `deb5ff4` — **13 up, 0 down**; `deb5ff4` vs HEAD — **6 up, 0 down**.
 
@@ -148,8 +150,8 @@ The first version of this post said I could not attribute the +19. Then I ran th
 | point | what changed in the product | tool hit@5 | wall clock |
 |---|---|---:|---:|
 | cached rows | nothing — a replay of 10 Nov | 19 | 0.2 min |
-| `deb5ff4` | hashes are not identifiers; refusal needs *no* identifier | **32** | 13.5 min |
-| `b9f91c4` | the warning stops calling a real hit a neighbour | 32 | 7.7 min |
+| `deb5ff4` | hashes are not identifiers; refusal needs *no* identifier | **32** | 6.0 min |
+| `b9f91c4` | the warning stops calling a real hit a neighbour | 32 | 13.5 min |
 | `f3b0cc4` | the grep channel counts all four identifiers, not two | **38** | 7.7 min |
 | HEAD | + ONNX batch padding, + vector-schema width | 38 | 6.1 min |
 
@@ -162,7 +164,7 @@ Read it as a decomposition:
 - **The two retrieval commits are worth zero here.** ONNX batch padding and vector-schema width cannot move a text-index panel, and they didn't.
 - **The 13 tasks between the cached rows and `deb5ff4` belong to the two November gate fixes as a pair.** Splitting them costs two more runs of six minutes; I did not do it, so they stay a pair.
 
-That is the whole trade-off I published, at the bottom of a list slice.
+Six of those nineteen tasks — the part I had published as a design trade-off — were at the bottom of a list slice. The other thirteen belong to the two November fixes I still did not split.
 
 ## What the policy actually costs
 
@@ -182,22 +184,35 @@ grep                      0      2      6   0.051
 
 ## Reproduce
 
-One panel, one command per point. The cache is opt-in now, so a cold run is the default:
+One panel, two runners. A cold run is the default now — the cache is opt-in:
 
 ```bash
-git worktree add ../wt-<full-sha> <full-sha>   # deb5ff4, b9f91c4, f3b0cc4
+git worktree add ../wt-deb5ff4 deb5ff4536cdd2f960faba686e35b4b4c4443250
+cd ../wt-deb5ff4
+git rev-parse HEAD                      # must print deb5ff4536...
 python experiments/bench_2026_11/run.py --split dev
 ```
 
 Two guards before you trust the output:
 
 1. `resuming:` must not appear anywhere in it. If it does, you are reading a file, not a run.
-2. Anything under three minutes did not execute 71 tasks.
+2. A run that finishes in under three minutes did not execute 71 tasks.
 
-The panel is frozen: `tasks.jsonl` hashes to `71395d45…`, the first line of `MANIFEST.sha256`, and the corpus is a worktree at `7c2c7a3`. On Windows, hash the blob, not the checkout — `core.autocrlf` will give you a different digest and make it look like the panel changed:
+The `cd` and the `rev-parse` are not decoration. Miss the `cd` and you run the harness of whatever repository you were standing in — which is exactly how my first attempt at this series produced two "runs" of a commit that was never checked out.
+
+The panel also needs its corpus. `run.py` hardcodes it near the top (line 36) to a `bench-B` worktree sitting next to the repository — a worktree of this repository at the frozen base, indexed once:
 
 ```bash
-git show HEAD:experiments/bench_2026_11/tasks.jsonl | git hash-object --stdin
+git worktree add ../bench-B 7c2c7a3c6417539bc08f807d6790fe6e722d3a84
+python scripts/reindex_text_only.py --project ../bench-B
+```
+
+Keep the corpus anywhere you like, but change that line, or the run stops with `project_path does not exist`.
+
+The panel is frozen: `tasks.jsonl` hashes to `71395d45…`, the first line of `MANIFEST.sha256`. Hash its **blob**, not your checkout: on Windows `core.autocrlf` rewrites line endings, and a PowerShell pipe re-encodes the stream, so the obvious `git show … | git hash-object` returns a different digest and makes it look like the panel was swapped:
+
+```bash
+python -c "import hashlib,subprocess as s;print(hashlib.sha256(s.run(['git','show','HEAD:experiments/bench_2026_11/tasks.jsonl'],capture_output=True).stdout).hexdigest())"
 ```
 
 The external arms need no capture at all: `external.py` rebuilds every task from `git log` and `git show` on each run, which is why they are the part of this benchmark that cannot replay an old answer.
@@ -205,18 +220,18 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 ## Red Team
 
 - **The dev panel is not held out.** The gate defects were found on `sqlalchemy` and in code review, then measured on dev. The +13 and the +6 are in-sample.
-- **My harness's noise floor is one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. So ±1 is noise, and the +1 on each external repo sits exactly on that floor.
-- **Environment is not fully excluded.** Both control runs fell back to a degraded ONNX path ("server did not start in 60s"); the HEAD run did not. The search arm is identical everywhere, which suggests retrieval was untouched — but "suggests" is the word, and I did not get a HEAD run under fallback.
+- **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it.
+- **Environment is not excluded, but it is bounded.** Every cold run except HEAD fell back to a degraded ONNX path ("server did not start in 60s") — including `f3b0cc4`, which fell back and still scored 38, exactly like HEAD without the fallback. The fallback does not move this panel; the search arm is identical in every run. What I did not do is force a fallback on HEAD to close it symmetrically.
 - **The 19 was a real measurement once.** It describes the product on 10 November. It was never a measurement of the code I shipped on 11 November, and both facts are true at the same time.
 - **CIs overlap.** 32/71 is [0.34, 0.57], 38/71 is [0.42, 0.65]. The paired direction is what carries the claim, not the interval.
 - **n=25 on `requests`.** One task is four percentage points. The +1 there is the smallest possible effect — it could be luck.
-- **A committed cache is a reproducibility landmine.** Anyone who clones this repo and runs the harness gets my November answers, in 0.2 minutes, with a `resuming` line they can read past just as easily as I did.
+- **A committed capture was a reproducibility landmine.** Between 10 and 14 November, anyone who cloned this repo and ran the harness got my November answers in 0.2 minutes, with a `resuming` line they could read past just as easily as I did. The file is still tracked; the harness no longer reads it without `--resume`.
 
 ## What I changed
 
 The harness now refuses to replay itself. Reuse is opt-in:
 
-```text
+```bash
 python experiments/bench_2026_11/run.py --split dev            # runs all 71 tasks
 python experiments/bench_2026_11/run.py --split dev --resume   # continues a dead run
 ```
@@ -247,6 +262,6 @@ No AI detectors were consulted in the making of this disclosure. They have enoug
 
 ---
 
-> **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What I cannot attribute" sections.
+> **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What each fix is actually worth" sections.
 
 *Raw artifacts: `experiments/bench_2026_11/` — the November capture as committed in `e033edc`, the fresh run outputs, both external result files and `REPORT.md`. The controls ran in a worktree at `deb5ff4`, `b9f91c4` and `f3b0cc4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
