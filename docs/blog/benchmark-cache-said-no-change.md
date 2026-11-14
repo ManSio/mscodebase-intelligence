@@ -87,7 +87,7 @@ for task in tasks:
 
 Note the `print`. The harness told me, in plain text, on line three of its own output: **`resuming: 71 tasks already captured`**. I read the table at the bottom and skipped the sentence at the top. That is the whole failure, and it is not subtle.
 
-`results_dev.partial.jsonl` is tracked in git (commit `e033edc`), 71 rows, one per task. Every clone and every fresh checkout started with November's answers already "captured", and `run.py` faithfully skipped the work and printed them back.
+`results_dev.partial.jsonl` has been tracked in git since commit `e033edc` — 71 rows, one per task. Every clone made between 10 and 14 November started with November's answers already "captured", and `run.py` faithfully skipped the work and printed them back. The file is still tracked; it now holds today's rows, and the harness does not read it without `--resume`.
 
 I did not notice for four days, because the numbers looked *stable*. Stable is exactly what a cache is.
 
@@ -249,4 +249,4 @@ No AI detectors were consulted in the making of this disclosure. They have enoug
 
 > **Disclaimer & Status:** draft (source-material for the article). This is not a "feature advertisement", but an honest engineering story: figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What I cannot attribute" sections.
 
-*Raw artifacts: `experiments/bench_2026_11/` — the captured rows (`results_dev.partial.jsonl`, 71, commit `e033edc`), the fresh run outputs, both external result files and `REPORT.md`. The control ran in a worktree at `deb5ff4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
+*Raw artifacts: `experiments/bench_2026_11/` — the November capture as committed in `e033edc`, the fresh run outputs, both external result files and `REPORT.md`. The controls ran in a worktree at `deb5ff4`, `b9f91c4` and `f3b0cc4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
