@@ -68,6 +68,15 @@ def main() -> int:
     args = parser.parse_args()
 
     repo, corpus = Path(args.repo), Path(args.corpus)
+    corpus_head = _git(corpus, "rev-parse", "HEAD").strip()
+    base_head = _git(repo, "rev-parse", f"{args.base}^{{commit}}").strip()
+    if not corpus_head or corpus_head != base_head:
+        print(
+            f"ABORT: corpus HEAD {corpus_head[:12] or '?'} != base {base_head[:12] or '?'}"
+            " — the fixes would already be in the index and the panel would measure itself",
+            flush=True,
+        )
+        return 2
     tasks = _tasks(repo, args.base, args.limit)
     print(f"repo={repo.name} base={args.base[:12]} tasks={len(tasks)}", flush=True)
 

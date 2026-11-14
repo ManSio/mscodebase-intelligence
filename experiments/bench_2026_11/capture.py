@@ -49,5 +49,12 @@ def load_capture(path: Path, resume: bool) -> tuple[list[dict], set[str]]:
             )
             path.unlink(missing_ok=True)
             return [], set()
+    unique = {}
+    for row in rows:
+        unique.setdefault(row["id"], row)
+    if len(unique) != len(rows):
+        print(f"capture {path.name}: {len(rows) - len(unique)} duplicate rows ignored",
+              flush=True)
+        rows = list(unique.values())
     print(f"resuming: {len(rows)} tasks already captured", flush=True)
     return rows, {row["id"] for row in rows}

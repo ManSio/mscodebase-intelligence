@@ -69,3 +69,14 @@ def test_corrupt_capture_is_dropped_not_fatal(tmp_path: Path) -> None:
     assert rows == [], "a half-written capture must not be half-used"
     assert done == set()
     assert not path.exists(), "the corrupt capture must be dropped, not retried forever"
+
+
+def test_duplicate_rows_are_counted_once(tmp_path: Path) -> None:
+    """Appending runs to the same file must not double the denominator."""
+    path = tmp_path / "results_dev.partial.jsonl"
+    _write_capture(path, ["a1", "a1", "b2"])
+
+    rows, done = _capture_module().load_capture(path, resume=True)
+
+    assert [row["id"] for row in rows] == ["a1", "b2"]
+    assert done == {"a1", "b2"}
