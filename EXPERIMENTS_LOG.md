@@ -253,6 +253,12 @@ grep (floor)            0      2      6          0.028            0.027
 **Verdict:** P1 FAIL (default 0.268 < 0.35), P2 FAIL (default is **5 below**
 plain search on dev), P3 PASS, P4 PASS (dev/sealed within 0.10 for both arms).
 
+**Superseded (2026-11-14, E74):** the two dev cells above are from an earlier run of
+this panel — `neighbours 37`, `search 24`. The capture committed in `e033edc` and
+`REPORT.md` both read **neighbours 38, search 22** at hit@5, and the replay prints
+those. P1 and P2 stand as verdicts; "5 below" is 3 below on the committed panel
+(19 vs 22). Do not quote 37/24 without this line.
+
 **Cause, measured:** 36 of 52 default misses are `abstain` with zero rows — the
 message names things the commit introduces, so the gate finds no occurrence and
 withholds the eight neighbours it already computed. Turning them on recovers
