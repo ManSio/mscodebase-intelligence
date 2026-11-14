@@ -14,6 +14,7 @@
 | 2 | [Silent Vector Contamination](silent-vector-contamination.md) | Concurrent-эмбеддинги: 0 ошибок, чужие векторы | published |
 | 3 | [Verify-on-Read](verify-on-read.md) | Память агента: честный UNKNOWN vs структурная догадка | published (dev.to) · source-material локально |
 | 4 | [Bootstrap Pipeline](bootstrap-pipeline.md) | Trace test-suite → TESTS-рёбра → потребитель в поиске: полная история Exp 7→16→E17, широкая панель 35 запросов (hit@1=94.3%, TESTS-signal=97.1%), языковое покрытие (Python 34%, Go/TS 0%), red team 5/5 | draft · полная история · воспроизводимо |
+| 5 | [grep Beat My Code Search](grep-beat-my-code-search.md) | Внешний бенчмарк commit-localization: grep побеждает (19/25 и 20/40), 36 из 52 промахов — отказы, два бага в своём гейте; разбор — [RU](grep-beat-my-code-search.ru-breakdown.md) | draft · числа из E68–E73 |
 
 ## Как читать серию
 
