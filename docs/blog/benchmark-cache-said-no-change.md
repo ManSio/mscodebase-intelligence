@@ -16,7 +16,7 @@ cover_image: https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/ma
 
 I build MSCodeBase, an MCP server that indexes a repository and answers questions about the code. The claim behind it is narrow and testable: *it finds things grep can't.*
 
-The benchmark asks it to localize a commit. The query is the commit message, the gold is `git show --name-only` — the files that commit actually touched — and the corpus is a worktree frozen at a base commit, so the fix being searched for is not in the index. Three corpora: my own repo frozen at `7c2c7a3`, plus `psf/requests` and `sqlalchemy`, which I did not write.
+The benchmark asks it to localize a commit. The query is the commit message, the gold is `git show --name-only` — the files that commit actually touched — and the corpus is a worktree frozen at a base commit, so the fix being searched for is not in the index. Three corpora: my own repo frozen at `7c2c7a3`, plus `psf/requests` and `sqlalchemy`, which I did not write. A fourth, `pallets/click`, joins later as a genuinely untouched test.
 
 The panel is 174 commits in `(B, HEAD]`. 66 tasks whose answer files were created *after* `B` are unsolvable by construction — dropped, and counted, so the denominator stays visible. 108 solvable, split 71 dev / 37 sealed by date. The panel hash is in `MANIFEST.sha256` and it has not changed through any of this.
 
@@ -143,6 +143,28 @@ The +1 on `requests` is one task up and none down. The +1 on `sqlalchemy` is **t
 
 grep still wins on both, 19 vs 13 and 20 vs 18. That is a ranking gap. It is not a cache, it is not a policy, and I have not fixed it.
 
+## Out of sample, on a repo I had never opened
+
+The objection I could not answer with more of the same panel: *you found the defects on `sqlalchemy` and measured the fix on your own repo.*
+
+That is fair, and it is worth being precise about who is contaminated. `sqlalchemy` is where defects 1 and 2 were **discovered**. `requests` was only used to **verify** a fix designed elsewhere. The dev panel is the product's own code. So exactly one of my external numbers was ever quasi-clean, and it was worth one task.
+
+So I cloned `pallets/click` for this test and nothing else. Corpus frozen at `7df2f82` (2026-07-16), index built once (138 files, 2,149 chunks, 71 s), 35 solvable commits, same panel builder, same two code states:
+
+| click (35 solvable) | hit@1 | hit@5 |
+|---|---:|---:|
+| tool at `deb5ff4` | 21 | 26 |
+| tool at HEAD | **22** | **29** |
+| neighbours (bypass), HEAD | 23 | 30 |
+| search channel | 2 | 14 |
+| grep | 17 | 29 |
+
+Three tasks up, none down. At hit@5 that is **+8.6%**, against **+8.5%** on the dev panel (6 of 71): the same rate, on a repository that had no part in designing the fix. On `sqlalchemy` and `requests` the identical change was worth one task each — the difference is the corpus, not the code.
+
+The control arms did not move (30 / 14 / 29 in both runs), so this is the gate again, not retrieval. And grep ties the tool at 29 here: on a repository with short, keyword-rich commit messages, grep is a genuinely strong baseline.
+
+This is the only number in the post that nothing I wrote before it could have shaped.
+
 ## What each fix is actually worth
 
 The first version of this post said I could not attribute the +19. Then I ran the intermediate commits: cold cache, same machine, same index, same day, 71 tasks each, none of them resumed.
@@ -219,8 +241,8 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 
 ## Red Team
 
-- **The dev panel is not held out.** The gate defects were found on `sqlalchemy` and in code review, then measured on dev. The +13 and the +6 are in-sample.
-- **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it.
+- **The dev panel is not held out — and now I can say by how much.** `sqlalchemy` is where two defects were *found* (contaminated), `requests` only verified a fix designed elsewhere, and the dev panel is my own code. The untouched test is `click`: +3 tasks, 3 up / 0 down, +8.6% against +8.5% on dev. That does not make the dev number out-of-sample; it makes the *effect* reproduce somewhere the fixes never saw.
+- **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it. The paired directions are what carry the rest: **13 up / 0 down** (p ≈ 0.0001) and **6 up / 0 down** (p ≈ 0.016) by a one-sided sign test, and `click` adds **3 up / 0 down** (p ≈ 0.125).
 - **Environment is not excluded, but it is bounded.** Every cold run except HEAD fell back to a degraded ONNX path ("server did not start in 60s") — including `f3b0cc4`, which fell back and still scored 38, exactly like HEAD without the fallback. The fallback does not move this panel; the search arm is identical in every run. What I did not do is force a fallback on HEAD to close it symmetrically.
 - **The 19 was a real measurement once.** It describes the product on 10 November. It was never a measurement of the code I shipped on 11 November, and both facts are true at the same time.
 - **CIs overlap.** 32/71 is [0.34, 0.57], 38/71 is [0.42, 0.65]. The paired direction is what carries the claim, not the interval.

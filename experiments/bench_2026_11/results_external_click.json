@@ -1,0 +1,24 @@
+{
+ "repo": "click",
+ "base": "7df2f82305f20f1611a9668b38d26933b648d807",
+ "tasks": 35,
+ "table": {
+  "tool": {
+   "top1": 22,
+   "top5": 29
+  },
+  "neighbours": {
+   "top1": 23,
+   "top5": 30
+  },
+  "search": {
+   "top1": 2,
+   "top5": 14
+  },
+  "grep": {
+   "top1": 17,
+   "top5": 29
+  }
+ },
+ "invalid": 0
+}
