@@ -10,6 +10,7 @@ Root conftest.py — adds project root to sys.path so `from src.*` imports work.
 в свой tmp_path, который pytest удаляет автоматически.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -80,3 +81,75 @@ def _fusion_default(monkeypatch):
     """
     monkeypatch.delenv("MSCODEBASE_FUSION", raising=False)
 
+
+
+# --- One suite per tree -------------------------------------------------------
+# Observed 2026-11-14: a timed-out commit left `verify_diary -> pytest` running,
+# then a second full suite started. The two competed for CPU; a test that takes
+# <0.01s alone was reported at 654s, and the run looked like a hang. The OS
+# releases this lock when the process dies, so a crash cannot leave it stale.
+
+SUITE_LOCK = PROJECT_ROOT / ".pytest_cache" / "suite.lock"
+_LOCK_INHERITED = "MSCB_SUITE_LOCK_INHERITED"
+
+
+def _acquire_file_lock(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(path, "a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"x")
+            handle.flush()
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return None
+    return handle
+
+
+def _release_file_lock(handle) -> None:
+    try:
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+    finally:
+        handle.close()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _one_suite_per_tree():
+    """Refuse to start a second pytest on the same checkout.
+
+    A nested pytest spawned by a test inherits MSCB_SUITE_LOCK_INHERITED=1 and
+    skips the check, so `test_bootstrap_pipeline` still works.
+    """
+    if os.environ.get(_LOCK_INHERITED) == "1":
+        yield
+        return
+    handle = _acquire_file_lock(SUITE_LOCK)
+    if handle is None:
+        pytest.exit(
+            "Another pytest run already holds .pytest_cache/suite.lock. Two suites on "
+            "one tree make timings meaningless and can race on shared temp data. Wait "
+            "for it to finish; if no run is active, delete the file and retry.",
+            returncode=3,
+        )
+    os.environ[_LOCK_INHERITED] = "1"
+    try:
+        yield
+    finally:
+        os.environ.pop(_LOCK_INHERITED, None)
+        _release_file_lock(handle)

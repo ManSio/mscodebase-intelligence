@@ -136,3 +136,24 @@ def test_ensure_server_running_concurrent_single_launch():
         assert not errors
         assert launch.call_count == 1, "Сервер должен запускаться ровно один раз"
         assert all(results), "Все потоки должны получить успех"
+
+def test_ensure_server_running_gives_up_when_the_launch_lock_is_held(monkeypatch):
+    """A leaked thread must not turn the next call into an indefinite wait.
+
+    This file takes 2.7s alone; in the 2026-11-14 full run one test held
+    _client_lock and another waited 654s on it. The lock now has a timeout.
+    """
+    import time
+
+    from src.core.embedder import onnx_client as mod
+
+    c = _client()
+    monkeypatch.setattr(mod, "_LOCK_TIMEOUT", 0.05)
+    assert mod._client_lock.acquire(timeout=1.0)
+    try:
+        with patch.object(c, "_health_check", return_value=False):
+            started = time.monotonic()
+            assert c.ensure_server_running() is False
+            assert time.monotonic() - started < 5
+    finally:
+        mod._client_lock.release()
