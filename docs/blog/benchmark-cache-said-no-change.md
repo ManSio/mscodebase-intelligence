@@ -153,6 +153,8 @@ The first version of this post said I could not attribute the +19. Then I ran th
 | `f3b0cc4` | the grep channel counts all four identifiers, not two | **38** | 7.7 min |
 | HEAD | + ONNX batch padding, + vector-schema width | 38 | 6.1 min |
 
+*Wall clock here is not a performance claim: the 13.5-minute cross-check shared the machine with the full test suite and several ONNX start timeouts.*
+
 Read it as a decomposition:
 
 - **The wording fix is worth zero**, which is exactly what it should be: it changes what the tool says, not which rows it returns. A message-only change that moved the score would have been a bug in the benchmark.
@@ -198,7 +200,7 @@ The panel is frozen: `tasks.jsonl` hashes to `71395d45…`, the first line of `M
 git show HEAD:experiments/bench_2026_11/tasks.jsonl | git hash-object --stdin
 ```
 
-The external arms need no capture at all: `external.py` rebuilds every task from `git log` and `git show` on each run, which is why they are the part of this benchmark that cannot lie to me.
+The external arms need no capture at all: `external.py` rebuilds every task from `git log` and `git show` on each run, which is why they are the part of this benchmark that cannot replay an old answer.
 
 ## Red Team
 
