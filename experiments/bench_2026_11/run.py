@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11"))
 sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11" / "evidence_gate"))
 sys.stdout.reconfigure(encoding="utf-8")
 
+from capture import load_capture  # noqa: E402
 from run_gate import _files, _invalid, _norm, _tools_for  # noqa: E402
 from wilson import wilson  # noqa: E402
 
@@ -127,6 +128,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="dev", choices=("dev", "sealed", "all"))
     parser.add_argument("--sealed", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse rows from results_<split>.partial.jsonl (default: drop it and run the panel)",
+    )
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
@@ -169,14 +175,7 @@ def main() -> int:
 
     rows = []
     partial = HERE / f"results_{args.split}.partial.jsonl"
-    done = set()
-    if partial.is_file():
-        for line in partial.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                old = json.loads(line)
-                rows.append(old)
-                done.add(old["id"])
-        print(f"resuming: {len(done)} tasks already captured", flush=True)
+    rows, done = load_capture(partial, args.resume)
 
     searcher = tool.resolve_searcher(explicit_project_root=str(CORPUS))
     for index, task in enumerate(tasks, 1):
