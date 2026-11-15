@@ -373,8 +373,14 @@ class HealthReport:
                         {
                             "component": "logs",
                             "message": (
-                                f"Много ошибок в общем логе за 24 ч: {error_count} "
-                                f"({latest_log.name}; лог общий на все проекты)"
+                                f"Много ошибок в логе за 24 ч: {error_count} "
+                                f"({latest_log.name}"
+                                + (
+                                    "; файл общий на все проекты"
+                                    if "global" in latest_log.name.lower()
+                                    else ""
+                                )
+                                + ")"
                             ),
                         }
                     )
@@ -452,7 +458,9 @@ class HealthReport:
                                 for fp in df["file_path"].unique()
                             }
                         except Exception as _e:
-                            logger.warning(f"LanceDB filesystem sync failed: {_e}")
+                            # debug, а не warning: диагностика не должна
+                            # загрязнять лог, который сама же и подсчитывает.
+                            logger.debug(f"LanceDB filesystem sync failed: {_e}")
                 if files_in_index:
                     files_on_disk, rglob_count, truncated = _scan_disk_files(self.project_path)
                     if truncated:

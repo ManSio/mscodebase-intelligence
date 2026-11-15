@@ -95,6 +95,29 @@ def test_check_logs_uses_the_tail_reader(tmp_path, monkeypatch):
     assert calls, "чтение лога должно идти через _read_log_tail (хвост, а не весь файл)"
 
 
+def test_global_log_is_named_as_shared_project_log_is_not(tmp_path, monkeypatch):
+    """«Общий на все проекты» — только про `*global*.log`, а не про любой файл."""
+    import src.core.log_manager as log_manager
+
+    def _logs_warnings(log_file_name: str, sub: str) -> list[str]:
+        logs_dir = tmp_path / sub
+        logs_dir.mkdir()
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        _write_log(
+            logs_dir / log_file_name,
+            [f"{now} [ERROR] чужая ошибка #{i}" for i in range(15)],
+        )
+        monkeypatch.setattr(log_manager, "get_log_dir", lambda _p, d=logs_dir: d)
+        report = HealthReport(project_path=tmp_path).run_full_diagnostic()
+        return [w["message"] for w in report["warnings"] if w["component"] == "logs"]
+
+    shared = _logs_warnings("mcp_global.log", "a")
+    assert shared and "общий на все проекты" in shared[0]
+
+    own = _logs_warnings("project.log", "b")
+    assert own and "общий на все проекты" not in own[0]
+
+
 def test_diagnostic_does_not_log_warnings_into_the_counted_log(monkeypatch, caplog):
     """Диагностика не должна сама добавлять WARNING в лог (самозагрязнение)."""
     import logging
