@@ -1961,6 +1961,17 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **4. Гипотеза «clean-state до фикса валидировал пустую установку» — опровергнута.** `scripts/verify_clean_state.sh` вообще не вызывает `install.py`: он сам создаёт venv и делает `pip install -e .`; `grep "install.py --yes"` по `.github/` и `scripts/` пуст. Значит баг `--yes` с v3.0 не влиял ни на один прогон CI — ровно поэтому его никто и не поймал; поймал только ручной прогон по README.
 **Урок:** «CI зелёный» и «инструкция работает» — разные утверждения. Пока установщик не запускали как пользователь (по README, в пустом каталоге), его неинтерактивная ветка была мёртвой, а все гейты оставались зелёными.
 
+## [2026-11-14] PR #133: suite-lock брался в каждом xdist-воркере
+
+**Симптом:** CI на `fix/process-hardening` — `test (ubuntu)`, `test (windows)` и `clean-state` падали за ~6 секунд с `INTERNALERROR: worker crashed`, `crashitem` указывал на случайный тест (`test_deep_search.py::TestExtractKeyTerms::test_max_terms_limit`). Локально один прогон зелёный, `-n 4` — падает.
+
+**Корень:** «один suite на дерево» было реализовано `@pytest.fixture(scope="session", autouse=True)`, а xdist выполняет session-фикстуры **в каждом воркере**. Один воркер брал файловую блокировку, остальные получали `None` → `pytest.exit(returncode=3)` → xdist видел «worker crashed». Маркер `MSCB_SUITE_LOCK_INHERITED` ставился в процессе-победителе и соседним воркерам не доставался.
+
+**Fix:** блокировка перенесена в `pytest_configure` (контроллер берёт её до запуска воркеров) + `pytest_unconfigure` освобождает; воркеры выходят по `config.workerinput`, вложенные прогоны — по прежнему маркеру. Структурный guard в `tests/test_suite_lock.py`: `pytest_configure` есть, `workerinput` учитывается, фикстуры `_one_suite_per_tree` нет — на старом conftest краснеет.
+
+**Проверка:** `pytest tests/test_deep_search.py -n 4` — 15 passed (было INTERNALERROR); полный suite `-n auto` — 2515 passed, 11 skipped, rc=0; структурный тест красный на старом conftest, зелёный на новом.
+
+**Урок:** session-scoped фикстура в xdist — это N экземпляров, а не один; всё, что «на весь прогон» (блокировки, общие каталоги, счётчики), живёт в хуках контроллера.
 ## [2026-11-14] Установщик падал на шаге 7: `httpx`, `wmic` и «тихий» `--with-models`
 
 **Симптом:** `python install.py` (интерпретатор `C:\Python314\python.exe`, без зависимостей проекта) — `⚠ Step 7/12: llama.cpp engine .. No module named 'httpx'`, дальше `[r]etry / [s]kip / [c]ancel`; итог прогона `11 ok, 1 skipped, 1351 s`.

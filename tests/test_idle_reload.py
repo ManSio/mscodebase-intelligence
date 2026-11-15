@@ -11,7 +11,23 @@ _launch_server/_health_check мокаются; тестируется именн
 import threading
 from unittest.mock import patch
 
+import pytest
+
 from src.core.embedder.onnx_client import OnnxEmbedderClient
+
+
+@pytest.fixture(autouse=True)
+def _fresh_client_lock(monkeypatch):
+    """Каждый тест получает свой lock.
+
+    `_client_lock` — модульный глобал. Поток, оставшийся от другого теста,
+    держал его; после появления таймаута лока (2026-11-14) `ensure_server_running`
+    честно возвращал False вместо зависания, и тест падал по чужому состоянию
+    (clean-state, PR #133). Изоляция убирает порядок тестов из уравнения.
+    """
+    from src.core.embedder import onnx_client as mod
+
+    monkeypatch.setattr(mod, "_client_lock", threading.Lock())
 
 
 def _client():
@@ -136,3 +152,24 @@ def test_ensure_server_running_concurrent_single_launch():
         assert not errors
         assert launch.call_count == 1, "Сервер должен запускаться ровно один раз"
         assert all(results), "Все потоки должны получить успех"
+
+def test_ensure_server_running_gives_up_when_the_launch_lock_is_held(monkeypatch):
+    """A leaked thread must not turn the next call into an indefinite wait.
+
+    This file takes 2.7s alone; in the 2026-11-14 full run one test held
+    _client_lock and another waited 654s on it. The lock now has a timeout.
+    """
+    import time
+
+    from src.core.embedder import onnx_client as mod
+
+    c = _client()
+    monkeypatch.setattr(mod, "_LOCK_TIMEOUT", 0.05)
+    assert mod._client_lock.acquire(timeout=1.0)
+    try:
+        with patch.object(c, "_health_check", return_value=False):
+            started = time.monotonic()
+            assert c.ensure_server_running() is False
+            assert time.monotonic() - started < 5
+    finally:
+        mod._client_lock.release()

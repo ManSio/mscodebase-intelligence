@@ -142,3 +142,53 @@ def test_fixed_hook_answers_the_same_timeout(tmp_path, capsys):
     assert "TIMEOUT" in out and "slowgate" in out
     assert "Traceback" not in out
 
+
+# --- process tree on timeout -------------------------------------------------
+
+def test_gate_is_spawned_as_a_process_group_leader():
+    """A gate that is not a group leader cannot be killed with its children."""
+    mod = _load_hook(HOOK, None, "hook_group")
+    kw = mod._spawn_kwargs()
+    if sys.platform == "win32":
+        flag = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        assert kw["creationflags"] & flag
+    else:
+        assert kw["start_new_session"] is True
+
+
+def test_timeout_kills_the_process_tree(tmp_path, monkeypatch):
+    """proc.kill() alone left `verify_diary -> pytest` alive for 10+ minutes."""
+    mod = _load_hook(HOOK, 1, "hook_tree")
+    gate = tmp_path / "gate.py"
+    gate.write_text("print('ok')\n", encoding="utf-8")
+    calls = []
+
+    class Proc:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+        def kill(self):
+            calls.append("kill")
+
+        def communicate(self, timeout=None):
+            if "raised" not in calls:
+                calls.append("raised")
+                raise subprocess.TimeoutExpired(cmd="gate", timeout=timeout)
+            return ("", None)
+
+    mod.Popen = lambda *a, **k: Proc()
+    if sys.platform == "win32":
+        monkeypatch.setattr(mod, "_RUN", lambda cmd, **kw: calls.append(("run", list(cmd))))
+    else:
+        monkeypatch.setattr(mod.os, "getpgid", lambda pid: 7)
+        monkeypatch.setattr(mod.os, "killpg", lambda pgid, sig: calls.append(("killpg", pgid)))
+
+    assert mod.run_script(str(gate), "gate") is False
+    if sys.platform == "win32":
+        tree = next(c for c in calls if isinstance(c, tuple) and c[0] == "run")[1]
+        assert tree[0] == "taskkill" and "/T" in tree and "/F" in tree
+    else:
+        assert ("killpg", 7) in calls
+    assert "kill" in calls, "the direct child must still be killed as a fallback"

@@ -179,8 +179,15 @@ class OnnxEmbedderClient:
         if self._health_check():
             return True
 
-        # Межпоточный lock (на случай если несколько потоков одновременно вызывают)
-        with _client_lock:
+        # Межпоточный lock (на случай если несколько потоков одновременно вызывают).
+        # Ожидание ограничено: поток, который не может взять lock, честно отвечает
+        # False, а не висит вечно. Наблюдалось 2026-11-14: тест в полном прогоне
+        # простоял 654s на этом lock, хотя в одиночку занимает <0.01s — вечное
+        # ожидание превращало чужую утечку в «медленный тест» без вердикта.
+        if not _client_lock.acquire(timeout=_LOCK_TIMEOUT):
+            logger.error("[ONNX Client] launch lock busy for %.0fs; refusing to wait", _LOCK_TIMEOUT)
+            return False
+        try:
             # Double-check под локом
             if self._health_check():
                 return True
@@ -198,6 +205,8 @@ class OnnxEmbedderClient:
                 return self._wait_for_server()
             finally:
                 self._release_launch_mutex()
+        finally:
+            _client_lock.release()
 
     def embed(self, text: str) -> List[float]:
         """Эмбеддинг одного текста."""
@@ -251,8 +260,10 @@ class OnnxEmbedderClient:
                 pass
 
 
-# Глобальный lock для координации внутри процесса
+# Глобальный lock для координации внутри процесса. Ожидание ограничено:
+# утёкший поток не должен подвешивать вызов навсегда (см. ensure_server_running).
 _client_lock = threading.Lock()
+_LOCK_TIMEOUT = 150.0  # launch + _wait_for_server(60s) + запас; вечность — не ответ
 
 # Путь к корню проекта (репо или расширение Zed).
 # parents[3]: src/core/embedder/onnx_client.py → корень.
