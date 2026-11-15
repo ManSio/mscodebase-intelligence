@@ -4,49 +4,79 @@
 `PROJECT_PATH='${workspaceRoot}'` (неразвёрнутый плейсхолдер). Резолвер откатился
 на cwd, автоиндексация пошла по `C:\\Windows`, и в каталоге ОС появилась
 `chunks.db` на 105 МБ (10 264 чанка системных файлов).
+
+Тесты платформо-зависимые: на Windows проверяются `C:\\Windows`/`Program Files`,
+на POSIX — `/usr`, `/etc`, `/home`. Обе линии гоняются в CI (ubuntu + windows).
 """
 from __future__ import annotations
 
 import logging
 import os
+import sys
 from pathlib import Path
 
 import pytest
 
 from src.core.indexing.chunk_store import get_chunks_db_path
 from src.core.project_resolution import (
+    _forbidden_roots,
+    _reject_self_index_target,
     _try_resolve_path_env,
     is_forbidden_root,
     is_project_root,
     resolve_project_root,
 )
 
-SYSTEM_ROOT = Path(os.environ.get("SystemRoot") or os.environ.get("windir") or "C:/Windows")
+IS_WINDOWS = sys.platform == "win32"
+
+if IS_WINDOWS:
+    SYSTEM_ROOT = Path(os.environ.get("SystemRoot") or os.environ.get("windir") or r"C:\Windows")
+    SYSTEM_CHILDREN = [SYSTEM_ROOT, SYSTEM_ROOT / "System32"]
+else:
+    SYSTEM_ROOT = Path("/usr")
+    SYSTEM_CHILDREN = [Path("/usr"), Path("/usr/lib"), Path("/etc")]
+
+
+def _existing_dir(path: Path) -> bool:
+    return path.is_dir()
 
 
 # ── is_forbidden_root ───────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize(
-    "path",
-    [
-        SYSTEM_ROOT,
-        SYSTEM_ROOT / "System32",
-        Path.home(),
-        Path(os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"),
-    ],
-)
-def test_system_locations_are_forbidden(path: Path):
-    assert is_forbidden_root(path) is True, f"{path} должен считаться системным"
+def test_system_roots_are_forbidden():
+    for path in SYSTEM_CHILDREN:
+        if _existing_dir(path):
+            assert is_forbidden_root(path) is True, f"{path} должен считаться системным"
+
+
+def test_profile_root_is_forbidden():
+    assert is_forbidden_root(Path.home()) is True
+
+
+def test_temp_root_is_forbidden():
+    raw = os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
+    assert is_forbidden_root(Path(raw)) is True
+
+
+def test_project_inside_home_or_temp_is_allowed(tmp_path: Path):
+    """Проект под `~` или `%TEMP%` — норма (pytest сам живёт в temp)."""
+    assert is_forbidden_root(tmp_path) is False
+
+
+def test_posix_roots_are_in_the_forbidden_set():
+    """Состав набора проверяется на любой платформе (CI: ubuntu + windows)."""
+    listed = {p.as_posix() for p in _forbidden_roots()}
+    assert "/usr" in listed and "/etc" in listed
+
+
+def test_filesystem_root_is_forbidden():
+    assert is_forbidden_root(Path(Path.cwd().anchor)) is True
 
 
 def test_project_directory_is_not_forbidden(tmp_path: Path):
     (tmp_path / ".git").mkdir()
     assert is_forbidden_root(tmp_path) is False
-
-
-def test_drive_root_is_forbidden():
-    assert is_forbidden_root(Path(Path.cwd().anchor)) is True
 
 
 def test_nonexistent_path_is_not_forbidden(tmp_path: Path):
@@ -79,7 +109,7 @@ def test_empty_directory_is_not_a_project(tmp_path: Path):
 
 
 def test_cwd_in_a_system_directory_is_not_used(monkeypatch):
-    """Сервер, поднятый с cwd=C:\\Windows, не должен резолвить его как проект."""
+    """Сервер, поднятый с cwd=C:\\Windows (или /usr), не должен брать его как проект."""
     monkeypatch.chdir(SYSTEM_ROOT)
     monkeypatch.delenv("MSCODEBASE_PROJECT_PATH", raising=False)
     monkeypatch.delenv("PROJECT_PATH", raising=False)
@@ -89,8 +119,20 @@ def test_cwd_in_a_system_directory_is_not_used(monkeypatch):
     assert not is_forbidden_root(resolved), f"resolve_project_root вернул {resolved}"
 
 
-def test_unresolved_placeholder_is_ignored_with_a_warning(monkeypatch, caplog):
-    monkeypatch.setenv("PROJECT_PATH", "${workspaceRoot}")
+def test_explicit_project_root_in_a_system_directory_is_ignored(monkeypatch):
+    """Явный аргумент инструмента — не повод индексировать ОС."""
+    monkeypatch.delenv("MSCODEBASE_PROJECT_PATH", raising=False)
+    monkeypatch.delenv("PROJECT_PATH", raising=False)
+    resolved = resolve_project_root(provided=str(SYSTEM_ROOT))
+    assert not is_forbidden_root(resolved)
+
+
+def test_active_workspace_on_a_system_directory_is_rejected():
+    """Даже «явный» источник не делает проект из каталога ОС."""
+    assert _reject_self_index_target(SYSTEM_ROOT, source="ACTIVE_WORKSPACE") is True
+
+
+def test_unresolved_placeholder_is_ignored_with_a_warning(caplog):
     with caplog.at_level(logging.WARNING, logger="mscodebase_server.project_resolution"):
         assert _try_resolve_path_env("${workspaceRoot}", "PROJECT_PATH") is None
     assert any("плейсхолдер" in r.getMessage() for r in caplog.records)
