@@ -41,7 +41,7 @@ def build_baseline() -> bytes:
     a file left dirty by an earlier run must not become the 'pristine' fixture."""
     p = subprocess.run([sys.executable, "-B", str(HERE / "bootstrap_denominator_manifest.py")],
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
+                       errors="replace", timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     if p.returncode != 0:
         print("BASELINE REGENERATION FAILED — refusing to test against an unknown fixture")
         print((p.stdout or "") + (p.stderr or ""))
@@ -61,7 +61,7 @@ def run_gate(dirpath: Path) -> tuple[int, str]:
                MSCB_REPO_ROOT=str(REPO))
     p = subprocess.run([sys.executable, "-B", str(dirpath / GATE_NAME)],
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300, env=env)
+                       errors="replace", timeout=300, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 

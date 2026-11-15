@@ -17,7 +17,9 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SCANNED_DIRS = ("src", "tests", "scripts")
+SCANNED_DIRS = ("src", "tests", "scripts", "tools")
+# корневые entry-скрипты (install.py и т.п.) — тоже часть контракта
+SCANNED_ROOT_FILES = tuple(ROOT.glob("*.py"))
 # pre-existing: файл не парсится (битый отступ, не связан с этой задачей)
 UNPARSEABLE = {"scripts/live_search_audit.py"}
 SUBPROCESS_FUNCS = {
@@ -77,18 +79,19 @@ def test_scanner_accepts_a_flagged_call():
 def test_no_subprocess_call_can_open_a_console():
     offenders: list[str] = []
     unparseable: list[str] = []
-    for rel_dir in SCANNED_DIRS:
-        for path in sorted((ROOT / rel_dir).rglob("*.py")):
-            if "__pycache__" in path.parts:
-                continue
-            rel = path.relative_to(ROOT).as_posix()
-            try:
-                found = _scan_file(path)
-            except SyntaxError:
-                if rel not in UNPARSEABLE:
-                    unparseable.append(rel)
-                continue
-            offenders.extend(f"{rel}:{line} {call}" for line, call in found)
+    paths = [p for rel in SCANNED_DIRS for p in sorted((ROOT / rel).rglob("*.py"))]
+    paths += [p for p in SCANNED_ROOT_FILES if "__pycache__" not in p.parts]
+    for path in paths:
+        if "__pycache__" in path.parts:
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        try:
+            found = _scan_file(path)
+        except SyntaxError:
+            if rel not in UNPARSEABLE:
+                unparseable.append(rel)
+            continue
+        offenders.extend(f"{rel}:{line} {call}" for line, call in found)
 
     assert not unparseable, f"файлы не парсятся (сканер их не видит): {unparseable}"
     assert not offenders, (

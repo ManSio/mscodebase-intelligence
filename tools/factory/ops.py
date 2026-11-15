@@ -141,7 +141,7 @@ def op_run(repo: Path, args: dict) -> dict:
         raise OpError(f"command is not in the allowlist: {cmd}")
     timeout = min(600, int(args.get("timeout") or 300))
     proc = subprocess.run(cmd, cwd=str(repo), shell=True, capture_output=True, text=True,
-                          timeout=timeout, encoding="utf-8", errors="replace")
+                          timeout=timeout, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     out = (proc.stdout or "") + (proc.stderr or "")
     return {"cmd": cmd, "exit": proc.returncode, "tail": _slice_text(out.strip()[-MAX_OUTPUT_CHARS:])}
 

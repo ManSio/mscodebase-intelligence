@@ -320,8 +320,9 @@ def _run(cmd: str, timeout: int = 120, capture: bool = True) -> Optional[subproc
                 text=True,
                 encoding="utf-8",
                 errors="replace",  # WIN-08: locale-зависимый декод ломал русский вывод на Windows
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-        return subprocess.run(args, shell=False, timeout=timeout)
+        return subprocess.run(args, shell=False, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
         logger.debug("command timed out after %ss: %s", timeout, cmd[:80])
         return None
@@ -647,7 +648,7 @@ def step_pip(lines, lang):
         cwd=str(ZED_EXT_DIR),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
+        text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     last = ""
     for line in proc.stdout:
@@ -1399,7 +1400,7 @@ def _record_install_meta() -> None:
                 text=True,
                 encoding="utf-8",
                 errors="replace",  # WIN-09: git hooks могут содержать русские/emoji-символы
-                timeout=10,
+                timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             if r.returncode == 0:
                 meta["git_head"] = r.stdout.strip()

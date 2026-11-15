@@ -1,4 +1,4 @@
-﻿"""run_all.py вЂ” one command that proves every guard in the agent system can fail.
+"""run_all.py вЂ” one command that proves every guard in the agent system can fail.
 
 Runs, in order:
   1. knowledge organ validator   (rc 1 on findings, selftest proves checks fail)
@@ -88,7 +88,7 @@ def main() -> int:
             print("       Reported as skipped, not passed. A step that did not run is not a green step.")
             continue
         p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=600)
+                           errors="replace", timeout=600, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         ok = p.returncode == expect
         # print the verdict line only, not the whole report
         tail = [x for x in (p.stdout or "").strip().splitlines() if x.strip()]
@@ -102,7 +102,7 @@ def main() -> int:
     print("-" * 78)
     for name, cmd in SURFACE:
         p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=600)
+                           errors="replace", timeout=600, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         out = (p.stdout or "").strip()
         m = [x for x in out.splitlines() if "finding" in x.lower() and ":" in x]
         n = m[-1].split(":", 1)[1].strip() if m else "?"
