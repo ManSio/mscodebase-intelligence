@@ -186,19 +186,14 @@ def create_mcp_server():
     except ImportError:  # mcp 1.x (до миграции)
         from mcp.server.fastmcp import FastMCP as _Server
 
-    from src.mcp.error_results import make_is_error_middleware
-
     try:
-        # 2.x: version = версия проекта в serverInfo (не версия SDK) +
-        # middleware для isError (request_handlers в 2.x удалён).
-        mcp = _Server(
-            "MSCodebase Intelligence Server",
-            version=_project_version(),
-            middleware=[make_is_error_middleware()],
-        )
+        # 2.x: version = версия проекта в serverInfo (не версия SDK).
+        mcp = _Server("MSCodebase Intelligence Server", version=_project_version())
     except TypeError:
-        # 1.x: ни version, ни middleware в конструкторе нет.
+        # 1.x: version в конструкторе нет.
         mcp = _Server("MSCodebase Intelligence Server")
+    # isError: на 2.x ставит middleware через install_is_error_flag (ниже),
+    # на 1.x — перехват низкоуровневого хендлера.
 
     # Lazy импорты: хелперы старта — из context (ARCLUX 2026-08-17,
     # разрыв цикла server↔factory); _ext_root/resolve_project_root — из core (ARCH-03).
