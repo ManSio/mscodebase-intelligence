@@ -1961,6 +1961,7 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **4. Гипотеза «clean-state до фикса валидировал пустую установку» — опровергнута.** `scripts/verify_clean_state.sh` вообще не вызывает `install.py`: он сам создаёт venv и делает `pip install -e .`; `grep "install.py --yes"` по `.github/` и `scripts/` пуст. Значит баг `--yes` с v3.0 не влиял ни на один прогон CI — ровно поэтому его никто и не поймал; поймал только ручной прогон по README.
 **Урок:** «CI зелёный» и «инструкция работает» — разные утверждения. Пока установщик не запускали как пользователь (по README, в пустом каталоге), его неинтерактивная ветка была мёртвой, а все гейты оставались зелёными.
 
+<<<<<<< HEAD
 ## [2026-11-14] Установщик падал на шаге 7: `httpx`, `wmic` и «тихий» `--with-models`
 
 **Симптом:** `python install.py` (интерпретатор `C:\Python314\python.exe`, без зависимостей проекта) — `⚠ Step 7/12: llama.cpp engine .. No module named 'httpx'`, дальше `[r]etry / [s]kip / [c]ancel`; итог прогона `11 ok, 1 skipped, 1351 s`.
@@ -1989,3 +1990,11 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Проверка:** живой прогон шага 7 в изолированный каталог (реальная сеть): `download_llama_binary -> True`, `llama-server.exe exists: True`, 23 файла, архив удалён. Реальный ассет 19 441 535 байт, `sha256 = a23e…` = пин, `_verify_archive_sha256 -> True`. Тесты: 28 в трёх файлах (`test_install_import_isolation`, `test_install_offline_paths`, `test_install_integrity_status`); мутации «устаревший пин не сверяется», «нет пина и нет сети — пропускаем», «уборка не ловит OSError», «провал шага снова даёт exit 0», «провал загрузки снова зелёный» — каждая краснеет. Полный suite: `2543 passed, 11 skipped`, rc=0.
 
 **Урок:** «fail closed» без честного статуса — половина защиты: установщик отказался ставить непроверенный бинарь и в том же выводе объявил успех. Проверять нужно и то, что шаг напечатал, и то, что процесс вернул.
+=======
+## [2026-11-13] 5 красных в slow-зоне: тесты читали не то хранилище (fix/freshness-slow-tests)
+**Симптом:** на `main` (`a6524d6` и `801621d`) `pytest tests/test_freshness_checker.py -m "not benchmark"` → 5 failed / 2 passed; в дефолтном гейте файл не виден, потому что помечен `pytestmark = pytest.mark.slow`.
+**Корень:** тесты читали `indexer.table` — таблицу LanceDB, — а дефолтное хранилище теперь SQLite (`src/core/indexing/indexer.py:146-154`, `src/config/settings.py::SearchConfig.sqlite_chunks` = `true`). `_index_single_file()` писал в `SQLiteChunkStore`, LanceDB оставался пустым → `set()` в `assert "b.py" in set(df["file_path"])` и `0 == 1` в проверках схемы. Это не регресс Цели 1/2: те же 5 падали на до-мержевом `main`.
+**Fix (тесты, не код):** чтение через `_file_rows(indexer, columns)` — берёт слой, который реально использует индексатор, и агрегирует чанки SQLite по `file_path`; добавлен `test_store_is_the_default_one`, который пиннит дефолт (`sqlite`), чтобы дрейф был виден. `slow`-маркер снят: файл занимает 4.2 s и обязан быть в гейте — иначе эта поломка снова спрячется.
+**Проверка:** до фикса 5 failed / 2 passed; после — 8 passed. Мутация: `verify_index_freshness()` принудительно `return 0` → 4 failed / 4 passed (код восстановлен, тесты краснеют как надо). `ruff check src/ tests/` — чисто.
+**Урок:** «slow» — это не «не важно», а «не проверяется». Если тест читает конкретный бэкенд, он обязан падать громко при смене дефолта, а не жить в исключённой зоне.
+>>>>>>> origin/main
