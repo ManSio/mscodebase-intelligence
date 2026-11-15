@@ -10,6 +10,26 @@
 
 
 
+## [2026-11-16] WIN — хук печатал «FAILED», а коммит проходил
+
+- **Симптом:** два коммита (`85f2370`, `ee3b449`) созданы, хотя хук в том же
+  выводе печатал `❌ Pre-commit checks FAILED.`; `git commit` вернул 0.
+- **Root Cause:** `ensure_project_python` передавал управление через
+  `os.execv`. На Windows `execv` **не заменяет** процесс: родитель выходит с
+  кодом 0, дочерний хук продолжает печатать вердикт уже после коммита. Гейт
+  становился совещательным — ровно на том пути (git → global `python` → venv),
+  которым идёт каждый коммит в этом репозитории. Проба: parent `EXIT=0`, а
+  `child ran` печатается после.
+- **Fix (до/после, `MSCB_PRECOMMIT_GATE_TIMEOUT=1`):** старый хук —
+  `❌ FAILED`, `OLD_HOOK_EXIT=0`; новый — `❌ FAILED`, `FIXED_HOOK_EXIT=1`.
+  Вместо `execv` — `_RUN(argv, env=MSCB_HOOK_REEXEC=1)` + `sys.exit(rc)`;
+  `OSError` (интерпретатор не стартовал) → тоже exit 1, а не тишина.
+- **Guard:** `tests/test_hook_interpreter.py` — 3 новых теста, два из них
+  красные на старом хуке (`test_reexec_propagates_the_child_verdict`,
+  `test_unstartable_interpreter_fails_closed`); P-048.
+- **Урок:** «хук сказал FAILED» — это текст, а не код возврата. Проверять надо
+  `$LASTEXITCODE` процесса, который видит git, а не последнюю строку вывода.
+
 ## [2026-11-15] WIN — мигающие окна cmd: 135 bare-вызовов subprocess
 
 - **Симптом:** на Windows мигают окна `cmd` при работе сервера/тестов; владелец
