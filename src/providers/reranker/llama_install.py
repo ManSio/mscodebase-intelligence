@@ -12,9 +12,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import os
-import re
 import shutil
 import struct
 import subprocess
@@ -94,6 +94,45 @@ def _detect_platform() -> tuple:
     return "win-cpu-x64", ".exe", ".zip", cpu_info  # fallback
 
 
+def _windows_ram_gb() -> int | None:
+    """Физическая память через WinAPI. Без `wmic`: на Windows 11 24H2 его нет."""
+    try:
+        import ctypes
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        status = _MemoryStatusEx()
+        status.dwLength = ctypes.sizeof(_MemoryStatusEx)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+            return None
+        return int(status.ullTotalPhys) // (1024**3)
+    except Exception:
+        return None
+
+
+def _windows_cpu_name() -> str:
+    """Имя CPU из реестра. Без `wmic` (удалён в Windows 11 24H2) и без процесса."""
+    try:
+        import winreg
+
+        key = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as handle:
+            return str(winreg.QueryValueEx(handle, "ProcessorNameString")[0]).strip()
+    except Exception:
+        return ""
+
+
 def _detect_cpu() -> dict:
     """Детектит возможности CPU.
 
@@ -125,12 +164,8 @@ def _detect_cpu() -> dict:
     # RAM
     try:
         if sys.platform == "win32":
-            out = subprocess.check_output(
-                ["wmic", "memorychip", "get", "capacity"], timeout=5,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).decode("utf-8", errors="replace")
-            total_bytes = sum(int(x) for x in re.findall(r"\d+", out) if len(x) > 5)
-            info["ram_gb"] = total_bytes // (1024**3)
+            # 8 — тот же консервативный дефолт, что был при отказе wmic
+            info["ram_gb"] = _windows_ram_gb() or 8
         elif sys.platform == "darwin":
             out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], timeout=5)
             info["ram_gb"] = int(out.strip()) // (1024**3)
@@ -147,14 +182,7 @@ def _detect_cpu() -> dict:
     # CPU name
     try:
         if sys.platform == "win32":
-            out = subprocess.check_output(
-                ["wmic", "cpu", "get", "name"], timeout=5,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            ).decode("utf-8", errors="replace")
-            for line in out.splitlines():
-                if line.strip() and "Name" not in line:
-                    info["name"] = line.strip()
-                    break
+            info["name"] = _windows_cpu_name() or info["name"]
         elif sys.platform == "darwin":
             out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=5)
             info["name"] = out.decode("utf-8", errors="replace").strip()
@@ -164,9 +192,8 @@ def _detect_cpu() -> dict:
                     if line.startswith("model name"):
                         info["name"] = line.split(":")[1].strip()
                         break
-    except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+    except Exception:
+        logger.debug("CPU name detection failed", exc_info=True)
     # CPU features через python
     cpu_name = info["name"].lower()
 
@@ -224,9 +251,8 @@ def _is_windows_insider() -> bool:
         if len(parts) >= 3:
             build = int(parts[2])
             return build >= 26000
-    except Exception as _e:
-        logger.warning("exception", exc_info=True)
-        pass
+    except Exception:
+        logger.debug("Windows version probe failed", exc_info=True)
     return False
 
 
@@ -364,38 +390,56 @@ def _gguf_path(model_key: str) -> Path:
 # Измерено E19 (Vega 6 iGPU, 271M embed): CPU быстрее (789 vs 591 tok/s) —
 # выигрыш 2-5x реален только на дискретных GPU; на shared-memory iGPU
 # дефолт CPU корректен. Детекция остаётся opt-in через LLAMA_BACKEND=vulkan.
-_HAVE_VULKAN = False
-if sys.platform == "win32":
+
+
+def _detect_vulkan(has_binary: bool | None = None) -> bool:
+    """Есть ли Vulkan-сборка и рабочий GPU; при успехе включает LLAMA_BACKEND=vulkan.
+
+    `has_binary=False` — сборки нет, пробу не запускаем вовсе: раньше импорт
+    модуля звал `vulkaninfo` на любой машине с vulkan-1.dll, включая установщик
+    (`python install.py`), и печатал предупреждение, если пробы нет.
+    Недоступная проба — `debug`, а не `warning`: это нормальный случай.
+    """
+    if sys.platform != "win32":
+        return False
+    if has_binary is None:
+        has_binary = _llama_bin_vulkan().exists()
+    if not has_binary:
+        return False
     try:
-        _vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
-        if _vk_dll.exists():
-            import subprocess as _sp
-            # §5.16: Popen + communicate вместо run(capture_output=True, text=True) —
-            # text=True декодирует stdout через locale (cp1251) и крашит reader-поток
-            # на UTF-8 выводе vulkaninfo (UnicodeDecodeError, мусор в логе).
-            _vk_proc = _sp.Popen(
-                ["vulkaninfo", "--summary"],
-                stdout=_sp.PIPE,
-                stderr=_sp.DEVNULL,
-                stdin=_sp.DEVNULL,
-                creationflags=0x08000000,  # CREATE_NO_WINDOW
-            )
-            try:
-                _vk_bytes, _ = _vk_proc.communicate(timeout=5)
-            except Exception:
-                _vk_proc.kill()
-                _vk_bytes = b""
-            _vk_text = _vk_bytes.decode("utf-8", errors="replace")
-            if "GPU0" in _vk_text and "PHYSICAL_DEVICE_TYPE" in _vk_text:
-                _vk_bin = _get_vulkan_dir() / f"llama-server{_EXE_SUFFIX}"
-                if _vk_bin.exists():
-                    _HAVE_VULKAN = True
-                    os.environ.setdefault("LLAMA_BACKEND", "vulkan")
-                    logger.info("🖥️ Vulkan GPU detected — using GPU for embeddings")
-                else:
-                    logger.info("🖥️ Vulkan GPU detected, but no Vulkan build — using CPU (msvc)")
-    except Exception as _e:
-        logger.warning(f"Vulkan detection failed: {_e}")
+        vk_dll = Path(os.environ.get("SystemRoot", "C:\\Windows")) / "System32" / "vulkan-1.dll"
+        if not vk_dll.exists():
+            return False
+        # §5.16: Popen + communicate вместо run(capture_output=True, text=True) —
+        # text=True декодирует stdout через locale (cp1251) и крашит reader-поток
+        # на UTF-8 выводе vulkaninfo (UnicodeDecodeError, мусор в логе).
+        proc = subprocess.Popen(
+            ["vulkaninfo", "--summary"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+        )
+        try:
+            raw, _ = proc.communicate(timeout=5)
+        except Exception:
+            proc.kill()
+            raw = b""
+        text = raw.decode("utf-8", errors="replace")
+        if "GPU0" in text and "PHYSICAL_DEVICE_TYPE" in text:
+            os.environ.setdefault("LLAMA_BACKEND", "vulkan")
+            logger.info("🖥️ Vulkan GPU detected — using GPU for embeddings")
+            return True
+        return False
+    except FileNotFoundError:
+        logger.debug("vulkaninfo not found — Vulkan detection skipped")
+        return False
+    except Exception as exc:
+        logger.debug("Vulkan detection failed: %s", exc)
+        return False
+
+
+_HAVE_VULKAN = _detect_vulkan()
 
 
 # ─── Установка ──────────────────────────────────────────────────
@@ -564,41 +608,108 @@ def _patch_dll_imports(dll_dir: Path) -> int:
 #   python -c "import hashlib; print(hashlib.sha256(open('llama-...zip','rb').read()).hexdigest())"
 # Если проверка не проходит — бинарник не будет установлен.
 # win-cpu-x64 + win-vulkan-x64: посчитаны 2026-07-11 для b9940.
+# sha256 опубликованного ассета (источник: GitHub API, поле `digest` у asset).
+# 2026-11-14: оба Windows-хэша были неверны с первого коммита — установщик
+# скачивал ПРАВИЛЬНЫЙ архив, отбивал его по своему же пину и рапортовал успех.
+# Проверка: `gh api repos/ggml-org/llama.cpp/releases/tags/<ver> --jq '.assets[] | {name,digest}'`.
+# При пересборке релиза ассет получает новый digest — таблицу надо обновить
+# (проверка ниже сверит с GitHub и подскажет актуальное значение).
 LLAMA_BIN_SHA256 = {
-    # Windows — хэши проверены
-    "win-cpu-x64": "d5d7248c7aacaeb0c8f15311acb0f1081874aa7a5de55843702e9e2394a05788",
-    "win-vulkan-x64": "036835f0adb53b5d48444ab9adb7c29fff898be6fa74f7f9fc15f674ea38b153",
-    # macOS/Linux — TODO: вычислить и добавить хэши перед установкой на этих платформах
+    "win-cpu-x64": "a23e548c6b3525c38bcfeceaff919786ae06741857043cb670279b70100e5483",
+    "win-vulkan-x64": "5c71e7b749697da4a8d46e9ee55486845cbba27c9dfbecb4007f31ba6610d523",
+    # macOS/Linux — пин не задан: проверка идёт по GitHub digest, без него — fail closed
     "macos-arm64": None,
     "macos-x64": None,
     "ubuntu-x64": None,
 }
 
 
+def _discard(path: Path) -> None:
+    """Удаляет файл, не падая: на Windows он может быть занят другим хэндлом.
+
+    Ревью 2026-11-14: в ветке ошибки `part.unlink()` сам бросал PermissionError
+    (WinError 32) при параллельной загрузке — наружу уходило не `False`, а
+    исключение, и `.part` оставался.
+    """
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        logger.debug("не удалось удалить %s: %s", path, exc)
+
+
+def _github_asset_digest(asset_name: str) -> str | None:
+    """sha256 из GitHub API для ассета текущего релиза; None, если недоступно."""
+    url = f"https://api.github.com/repos/ggml-org/llama.cpp/releases/tags/{LLAMA_VERSION}"
+    try:
+        request = urllib.request.Request(
+            url,
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "mscodebase-installer"},
+        )
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        for asset in payload.get("assets", []):
+            if asset.get("name") == asset_name:
+                digest = str(asset.get("digest") or "")
+                if digest.startswith("sha256:"):
+                    return digest.split(":", 1)[1].lower()
+                return None
+    except Exception as exc:
+        logger.debug("GitHub digest недоступен для %s: %s", asset_name, exc)
+    return None
+
+
 def _verify_archive_sha256(archive_path: Path, tag: str) -> bool:
     """Проверяет SHA256 скачанного архива.
 
-    Если хэш для платформы не задан — установка блокируется (fail closed).
-    Безопасность: неизвестный бинарник НЕ запускаем.
+    Источник истины: пин `LLAMA_BIN_SHA256[tag]`, если он задан; иначе — `digest`
+    ассета из GitHub API. Если пин устарел (пересборка релиза), но GitHub
+    подтверждает фактический хэш — установка продолжается с предупреждением.
+    Если подтвердить нечем — установка блокируется (fail closed).
     """
-    expected = LLAMA_BIN_SHA256.get(tag)
-    if not expected:
-        logger.error(
-            f"🚫 SHA256 для {tag} не задан в LLAMA_BIN_SHA256. "
-            f"Установка заблокирована. Вычислите хэш и добавьте в словарь."
-        )
-        return False
     try:
         actual = hashlib.sha256(archive_path.read_bytes()).hexdigest()
-        if actual == expected:
-            logger.info(f"✅ SHA256 {tag}: {actual[:16]}... совпадает")
-            return True
-        logger.error(f"❌ SHA256 не совпадает! Ожидался {expected}, получен {actual[:16]}...")
-        archive_path.unlink()
-        return False
     except Exception as e:
         logger.error(f"❌ Ошибка проверки SHA256: {e}")
         return False
+
+    expected = LLAMA_BIN_SHA256.get(tag)
+    if expected:
+        if actual == expected:
+            logger.info(f"✅ SHA256 {tag}: {actual[:16]}... совпадает")
+            return True
+        published = _github_asset_digest(archive_path.name)
+        if published and actual == published:
+            logger.warning(
+                "⚠️ пин LLAMA_BIN_SHA256[%s] устарел: в таблице %s…, GitHub %s… — "
+                "обновите словарь (иначе следующая проверка снова пойдёт в сеть)",
+                tag, expected[:12], actual[:12],
+            )
+            return True
+        logger.error(
+            "❌ SHA256 не совпадает! пин %s…, GitHub %s…, получен %s…",
+            expected[:12], (published or "недоступен")[:12], actual[:12],
+        )
+        _discard(archive_path)
+        return False
+
+    published = _github_asset_digest(archive_path.name)
+    if published:
+        if actual == published:
+            logger.info(f"✅ SHA256 {tag}: подтверждён GitHub digest ({actual[:16]}...)")
+            return True
+        logger.error(
+            "❌ SHA256 не совпадает с GitHub digest! ожидали %s…, получен %s…",
+            published[:12], actual[:12],
+        )
+        _discard(archive_path)
+        return False
+
+    logger.error(
+        f"🚫 SHA256 для {tag} не задан, и GitHub digest недоступен. "
+        f"Установка заблокирована. Проверьте сеть или добавьте хэш в LLAMA_BIN_SHA256."
+    )
+    _discard(archive_path)
+    return False
 
 
 def download_llama_binary(progress_cb=None) -> bool:
@@ -713,6 +824,65 @@ def download_llama_binary(progress_cb=None) -> bool:
         return False
 
 
+# База HF: в тестах подменяется на локальный сервер (MSCODEBASE_HF_BASE_URL),
+# чтобы скачивание проверялось без сети.
+HF_BASE_URL = os.getenv("MSCODEBASE_HF_BASE_URL", "https://huggingface.co").rstrip("/")
+
+
+def _download_gguf_via_urllib(info: dict, gguf_path: Path, progress_cb=None) -> bool:
+    """Скачивание GGUF без huggingface_hub: urllib + sha256, атомарная запись.
+
+    Установщик (`python install.py --with-models`) работает интерпретатором
+    пользователя, где huggingface_hub нет: пакет ставится позже в venv
+    расширения (шаг 6). Раньше здесь стоял безусловный
+    `from huggingface_hub import hf_hub_download`, и обещанного комментарием
+    fallback не существовало — шаг 8 падал ModuleNotFoundError (2026-11-14).
+    """
+    import urllib.request
+    from urllib.parse import quote
+
+    url = f"{HF_BASE_URL}/{info['repo']}/resolve/main/{quote(info['file'])}"
+    part = gguf_path.with_suffix(gguf_path.suffix + ".part")
+    digest = hashlib.sha256()
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp, open(part, "wb") as out:
+            total = int(resp.headers.get("Content-Length") or 0)
+            done = 0
+            while True:
+                chunk = resp.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
+                digest.update(chunk)
+                done += len(chunk)
+                if progress_cb and total > 0:
+                    progress_cb(
+                        int(done * 100 / total),
+                        f"{gguf_path.name} ({done / 1048576:.0f}MB/{total / 1048576:.0f}MB)",
+                    )
+        expected = str(info.get("sha256") or "").lower()
+        if expected and digest.hexdigest() != expected:
+            _discard(part)
+            logger.error(
+                "❌ SHA256 не совпал для %s: ожидали %s…, получили %s…",
+                gguf_path.name, expected[:16], digest.hexdigest()[:16],
+            )
+            if progress_cb:
+                progress_cb(0, "Ошибка: SHA256 не совпал")
+            return False
+        part.replace(gguf_path)
+        logger.info("✅ GGUF модель скачана: %s", gguf_path)
+        if progress_cb:
+            progress_cb(100, f"{gguf_path.name} — готов")
+        return True
+    except Exception as exc:
+        _discard(part)
+        logger.error("❌ Ошибка скачивания GGUF %s через urllib: %s", gguf_path.name, exc)
+        if progress_cb:
+            progress_cb(0, f"Ошибка: {exc}")
+        return False
+
+
 def download_gguf_model(model_key: str, progress_cb=None) -> bool:
     """Скачивает GGUF модель из Hugging Face."""
     models_dir = _get_models_dir()
@@ -725,8 +895,13 @@ def download_gguf_model(model_key: str, progress_cb=None) -> bool:
         logger.info(f"✅ GGUF модель уже скачана: {gguf_path.name}")
         return True
 
-    # Скачиваем через huggingface_hub (если есть) или urllib
-    from huggingface_hub import hf_hub_download
+    # huggingface_hub есть не всегда: установщик работает интерпретатором
+    # пользователя, пакет ставится позже в venv расширения. Без него — urllib.
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError:
+        logger.info("huggingface_hub недоступен — скачиваю GGUF через urllib")
+        return _download_gguf_via_urllib(info, gguf_path, progress_cb)
 
     logger.info(f"⬇️  Скачиваю GGUF: {info['repo']}/{info['file']}")
 
