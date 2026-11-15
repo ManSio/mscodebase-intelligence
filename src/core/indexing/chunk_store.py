@@ -40,6 +40,16 @@ def get_chunks_db_path(project_path: Path | str) -> Path:
     env = os.getenv("MSCODEBASE_CHUNKS_DB", "").strip()
     if env:
         return Path(env)
+    # Защита от записи индекса внутрь каталога ОС: хост может запустить сервер
+    # с cwd=C:\Windows, и `.mscodebase/chunks.db` окажется в системном каталоге.
+    from src.core.project_resolution import is_forbidden_root
+
+    if is_forbidden_root(project_path):
+        raise ValueError(
+            f"refusing to place .mscodebase under a system directory: {project_path}. "
+            "Set PROJECT_PATH/MSCODEBASE_PROJECT_PATH to the project root, or "
+            "MSCODEBASE_CHUNKS_DB to an explicit file."
+        )
     return Path(project_path).resolve() / ".mscodebase" / "chunks.db"
 
 
