@@ -55,8 +55,14 @@ def test_profile_root_is_forbidden():
 
 
 def test_temp_root_is_forbidden():
-    raw = os.environ.get("TEMP") or os.environ.get("TMP") or "/tmp"
-    assert is_forbidden_root(Path(raw)) is True
+    import tempfile
+
+    assert is_forbidden_root(Path(tempfile.gettempdir())) is True
+
+
+def test_project_inside_home_is_allowed():
+    """`~/projects/x` — нормальный проект; режем только сам `~`."""
+    assert is_forbidden_root(Path.home() / "projects" / "demo") is False
 
 
 def test_project_inside_home_or_temp_is_allowed(tmp_path: Path):

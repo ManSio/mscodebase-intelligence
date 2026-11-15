@@ -179,8 +179,6 @@ _POSIX_SYSTEM_ROOTS = (
     "/sys",
     "/dev",
     "/run",
-    "/home",
-    "/Users",
     "/root",
     "/snap",
     "/Applications",
@@ -229,14 +227,20 @@ def _forbidden_exact_roots() -> list[Path]:
     `~` и temp-корень — частый рабочий каталог (проекты внутри `~/projects`
     или под `%TEMP%` легитимны), поэтому режем только сам корень.
     """
+    import tempfile
+
     roots: list[Path] = []
-    for raw in (Path.home(), os.environ.get("TEMP"), os.environ.get("TMP")):
+    candidates = [Path.home(), tempfile.gettempdir()]
+    candidates += [os.environ.get("TEMP"), os.environ.get("TMP")]
+    for raw in candidates:
         if not raw:
             continue
         try:
-            roots.append(Path(raw).resolve())
+            resolved = Path(raw).resolve()
         except OSError:
             continue
+        if resolved not in roots:
+            roots.append(resolved)
     return roots
 
 
