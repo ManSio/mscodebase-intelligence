@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
         with:
+          persist-credentials: false
           fetch-depth: 0
           persist-credentials: false
       - id: diff
@@ -50,11 +51,12 @@ jobs:
       # fetch-depth: 0 — полная история: revision_gate (min_accepted_revision, TC-9)
       # проверяет ancestry через merge-base; в shallow-clone min-коммит отсутствует →
       # gate честно даёт UNKNOWN и CI падает (инцидент 2026-08-14, 38f4be7d).
-      - uses: actions/checkout@v5  # P2-16 audit: v4 использует Node 20 (deprecated)
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0 (pinned)
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -73,6 +75,11 @@ jobs:
 
       - name: Lint (ruff)
         run: ruff check src/ tests/
+
+      - name: Edit-gate logic (node)
+        # Логика read-before-edit (`scripts/../.opencode/plugin/edit_gate.mjs`) без
+        # зависимостей: node есть на обоих раннерах, npm install не нужен.
+        run: node --test .opencode/plugin/edit_gate.test.mjs
 
       - name: AGENTS.md facts
         # Проектный AGENTS.md читается хостом каждую сессию: пути, флаги,
@@ -162,10 +169,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0 — см. комментарий в job test (revision_gate требует ancestry).
-      - uses: actions/checkout@v5  # P2-16 audit: v4 использует Node 20 (deprecated)
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
         with:
+          persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0 (pinned)
         with:
           python-version: "3.14"
           cache: pip
@@ -186,8 +194,9 @@ jobs:
     # ротации токена и решения владельца о переписывании истории.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
         with:
+          persist-credentials: false
           fetch-depth: 0
       - name: Download gitleaks v8.30.1
         run: |
@@ -219,8 +228,10 @@ jobs:
     # в нашем парсере). Пин: osv-scanner v2.5.1 (release 2026-08-17); бамп по §5.19.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0 (pinned)
         with:
           python-version: "3.14"
       - name: Install project
@@ -254,8 +265,10 @@ jobs:
       PROJECT_PATH: ${{ github.workspace }}
       MSCODEBASE_ALLOW_SELF_INDEX: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0 (pinned)
         with:
           python-version: "3.14"
       - name: Install project
@@ -271,7 +284,9 @@ jobs:
     # (локально Docker недоступен — CI-билд является верификацией).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0 (pinned)
+        with:
+          persist-credentials: false
       - name: Build remote image
         run: docker build -t mscodebase-remote:ci -f deploy/docker/Dockerfile .
         timeout-minutes: 20
