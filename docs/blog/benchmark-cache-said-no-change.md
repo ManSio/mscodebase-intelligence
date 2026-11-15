@@ -1,16 +1,14 @@
 ---
 title: "My Benchmark Finished in 0.2 Minutes. The Number Was a File Read."
-published: false
+published: true
 description: "A benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file in git — and I published them three times. Cleared: 19 → 32 → 38."
 tags: devtools, testing, python, ai
 cover_image: https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png
 ---
 
-> **Part 5 of: [MSCodeBase Intelligence — Field Notes](https://github.com/ManSio/mscodebase-intelligence/tree/main/docs/blog)** — *[Part 1: PageRank](https://dev.to/mansio/i-measured-pagerank-token-savings-on-a-real-codebase-the-result-will-surprise-you-5bnj) · [Part 2: Silent Vector Contamination](https://dev.to/mansio/the-silent-vector-contamination-bug-why-your-concurrent-embeddings-might-be-lying-to-you-5fg7) · [Part 3: Verify-on-Read](https://dev.to/mansio/the-mechanical-vs-the-semantic-what-happens-when-ai-memory-is-wrong-38ko) · [Part 4: Bootstrap Pipeline](https://dev.to/mansio/from-a-test-suite-trace-to-a-search-signal-the-bootstrap-pipeline-story-407b) · **Part 5 (this post)**
-
 > **TL;DR:** a benchmark that finishes in 0.2 minutes did not run. Mine reprinted four-day-old numbers from a capture file committed to git, and I published them three times as a design trade-off. With the cache cleared, the same panel reads **19 → 32 → 38** across four code states plus one replay — and six of those tasks came back from one two-item list slice.
 
-![A terminal that says "resuming: 71 tasks already captured" next to 19 → 38 and "0.2 min vs 6.1 min"](https://raw.githubusercontent.com/ManSio/mscodebase-intelligence/main/docs/blog/assets/benchmark-cache-cover.png)
+---
 
 You have shipped this: a test suite that goes green in four seconds, a CI job that always passes, a dashboard that hasn't moved in a week. Nothing is broken, exactly. Nothing ran, either.
 
@@ -20,7 +18,7 @@ It was reading a file. A 71-row capture of finished tasks, committed to git. The
 
 What makes this worth a post is not the cache. It is what the cache was hiding: for four days I had published a number that described a product I no longer shipped — and that number said something flattering. My tool was *honest*, and honesty cost recall. A design trade-off I could defend in a comment thread. It was a disk read.
 
-This post is the 48 hours in which that number came apart: the re-run, the four bugs it was covering, and the one task it still costs.
+This post is the 48 hours in which that number came apart: the re-run, the four bugs it was covering, and the one task it still costs. Then two readers found two holes in my audit, which is the last section and the most useful part.
 
 ## What I set out to test
 
@@ -52,7 +50,7 @@ The dev split, 71 solvable tasks:
 
 These are the numbers in the committed capture — the same four rows the replay prints today. (The `E68` log entry was written from an earlier run of the same panel and says 37 and 24; the capture and `REPORT.md` agree on 38 and 22, and the capture is the thing that was replayed, so I quote the capture.)
 
-Both pre-registered bars failed: **P1 FAIL (default 0.268 < 0.35)**, and on dev the default answers 19 where the plain search channel answers 22 — the log's own words are "5 below plain search", which uses its `search = 24` row.
+Both pre-registered bars failed: **P1 FAIL (default 0.268 < 0.35)**, and on dev the default answers 19 where the plain search channel answers 22 — the log's own words are "5 below plain search", which uses its `search = 24` row. (What that bar can still mean after the fixes is a separate question, and the answer is uncomfortable: see *After the comments*.)
 
 So I did what a benchmark owner should do: I classified the misses. All 52 of them:
 
@@ -187,7 +185,7 @@ The first version of this post said I could not attribute the +19. Then I ran th
 | `f3b0cc4` | the grep channel counts all four identifiers, not two | **38** | 7.7 min |
 | HEAD | + ONNX batch padding, + vector-schema width | 38 | 6.1 min |
 
-*Wall clock here is not a performance claim: the two `deb5ff4` controls were not timed by a script (they finished inside one six-minute window), and the 13.5-minute run is `b9f91c4`, which shared the machine with the full test suite.*
+*Wall clock here is not a performance claim: the two `deb5ff4` controls were not timed by a script — both finished inside one six-minute window, so "~6 min" is an observation, not a measurement. The 13.5-minute run is `b9f91c4`, which shared the machine with the full test suite.*
 
 Read it as a decomposition:
 
@@ -225,10 +223,11 @@ git rev-parse HEAD                      # must print deb5ff4536...
 python experiments/bench_2026_11/run.py --split dev
 ```
 
-Two guards before you trust the output:
+Three guards before you trust the output:
 
 1. `resuming:` must not appear anywhere in it. If it does, you are reading a file, not a run.
 2. A run that finishes in under three minutes did not execute 71 tasks.
+3. The output must contain `executed=N of N`, with `N` equal to the panel. Since `d37b796`, `executed=0` without `--allow-replay` exits 3.
 
 The `cd` and the `rev-parse` are not decoration. Miss the `cd` and you run the harness of whatever repository you were standing in — which is exactly how my first attempt at this series produced two "runs" of a commit that was never checked out.
 
@@ -251,6 +250,9 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 
 ## Red Team
 
+- **A score could be printed after executing zero tasks.** Found by a reader, not by me, and fixed in `d37b796`: the harness now prints `executed=N resumed=M of K` and refuses a replay without `--allow-replay`. See *After the comments*.
+- **The denominator could be larger than the panel.** A capture row from a different panel raised `n` because `_stats` divides by `len(rows)`. The same commit refuses that row instead of filtering it.
+- **P1 is no longer a pre-registered test.** Dev was used to design the fixes, so the post-fix 38/71 is a design-set number. The decision, written before the next run, is in `frozen/DECISION.md`: sealed is the next pre-registered test, reported as P4.
 - **The dev panel is not held out — and now I can say by how much.** `sqlalchemy` is where two defects were *found* (contaminated), `requests` only verified a fix designed elsewhere, and the dev panel is my own code. The untouched test is `click`: +3 tasks, 3 up / 0 down, +8.6% against +8.5% on dev. That does not make the dev number out-of-sample; it makes the *effect* reproduce somewhere the fixes never saw.
 - **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it. The paired directions are what carry the rest: **13 up / 0 down** (p ≈ 0.0001) and **6 up / 0 down** (p ≈ 0.016) by a one-sided sign test, and `click` adds **3 up / 0 down** (p ≈ 0.125).
 - **Environment is not excluded, but it is bounded.** Every cold run except HEAD fell back to a degraded ONNX path ("server did not start in 60s") — including `f3b0cc4`, which fell back and still scored 38, exactly like HEAD without the fallback. The fallback does not move this panel; the search arm is identical in every run. What I did not do is force a fallback on HEAD to close it symmetrically.
@@ -261,7 +263,9 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 
 ## What I changed
 
-The harness now refuses to replay itself. Reuse is opt-in:
+Two things, both in the harness.
+
+**Reuse is opt-in.**
 
 ```bash
 python experiments/bench_2026_11/run.py --split dev            # runs all 71 tasks
@@ -270,30 +274,79 @@ python experiments/bench_2026_11/run.py --split dev --resume   # continues a dea
 
 Without `--resume` the stale capture is printed and dropped, because `run.py` appends to it and an appended run would silently mix two products. There is a test for that behaviour, and it fails when the flag is removed — I checked by removing it.
 
+**A score has to be earned.** `run.py` prints `executed=N resumed=M of K`, refuses a capture row that is not in the panel, refuses a panel task with no row, and refuses a replay unless `--allow-replay` says so explicitly. Six tests in `tests/test_bench_denominator.py`; two mutants killed (inverting the replay condition turns two red, disabling the foreign-row check turns one red).
+
+## After the comments: two holes I did not find
+
+Two readers found things my audit did not.
+
+**Prachit Parikh** asked for the number I should have printed myself: tasks executed this run, next to the score, with the run failing when that number does not match the panel — unless resume was turned on deliberately.
+
+I tested his rule against the harness, in an isolated copy so the canonical results stayed untouched. Panel of two tasks; a capture holding both rows plus one id from another panel:
+
+```plaintext
+resuming: 3 tasks already captured
+arm      n  hit@1  hit@5  any@8   MRR   hit@5 95% CI
+tool     3      0      1      1 0.083   [0.061, 0.792]
+search   3      2      3      3 0.833   [0.438, 1.0]
+invalid runs: 0
+```
+
+Zero tasks executed. A table, a Wilson interval, exit 0. And `n = 3` against a panel of 2, because `_stats` divides by `len(rows)` and `rows` came from the file: nothing intersected them with the panel. One comment, two holes.
+
+The frozen plan promised this guard by name — **"No silent denominator: a task that fails to run aborts the report"** — and the code implemented something else: `invalid` counted tasks whose *answer* was unusable, while the message printed "a task did not run". A guard that announces itself and checks a different thing is defect 3 in the list above, one level up.
+
+What it does now (`experiments/bench_2026_11/capture.py` plus the call sites in `run.py`):
+
+```bash
+$ python experiments/bench_2026_11/run.py --split dev --limit 2
+executed=2 resumed=0 of 2
+...
+$ python experiments/bench_2026_11/run.py --split dev --limit 2 --resume
+resuming: 2 tasks already captured
+executed=0 resumed=2 of 2
+ABORT: 0 tasks executed: this is a replay, pass --allow-replay to score it
+# exit 3
+```
+
+Three refusals and one escape hatch: a foreign row aborts instead of being filtered; a panel task without a row aborts before the score is written; a replay needs `--allow-replay`, and even then it prints `executed=0`. Six tests, both mutants killed.
+
+**Tom Jones** asked a harder question, about the pre-registered bar rather than the code: P1 failed on the November code, the fixes were then designed from what dev showed, so a dev score of 38 can no longer pass P1 *in the pre-registered sense*.
+
+He is right, and the correction was already written down in a file I did not use in the post. `frozen/PLAN.md` defines P1 on **dev** (`dev hit@5 >= 0.35`) and puts the sealed split in P4 (±0.10 of dev). `REPORT.md` says, in Threats: *"One run per split: dev was re-run after Amendment 3, sealed was not."* So 38/71 = 0.535 clears 0.35 arithmetically, and the test that number was supposed to clear no longer exists: I chose the fix after looking at dev. Sealed is not a substitute — at the frozen run it was 7/37 = 0.189, and it answers P4, not P1 — and it has not been re-run since the fixes.
+
+What I did about it: `frozen/DECISION.md`, written before any further run. It records that the 10 November dev result is the last pre-registered P1 measurement, that post-fix dev is a design set, that the next pre-registered test is sealed reported as P4 with n = 37 and the revision recorded first, and the rule that outlives it: **a split used to design a fix cannot afterwards be reported as a pre-registered test.**
+
+Two comments, two holes, both in the part I had called verified. The audit checked numbers against artifacts; nobody checked the artifacts' own guards.
+
 ## What I'd do differently
 
 Read a run's first line before its last table. If it finished in twelve seconds, it did not run.
 
+Then make the harness refuse, not just print. Every guard in this post that mattered — corpus pin, capture opt-in, `executed=N` — is a refusal, not a warning. A warning is a sentence the author can read past, which is exactly what happened for four days.
+
 The rest is downstream of that: my benchmark is not dishonest. It did exactly what it was told — skip the work you already have. I told it, in a file, in git, and then read its output as a measurement of today.
 
-**Does your benchmark resume from a capture? When did you last delete it?**
+**Does your benchmark resume from a capture? When did you last delete it? And does your report refuse to print when nothing ran?**
 
 ---
 
 ## Acknowledgments
 
-A huge thank you to everyone who engages with these posts in the comments. Your feedback, real-world observations, counter-examples, and benchmark numbers directly shape these experiments. This kind of open technical critique is what keeps engineering honest.
+Thank you to **Prachit Parikh** and **Tom Jones**, whose comments on the first version of this post found two holes my own audit missed: a score printed after executing zero tasks, and a pre-registered bar that no longer exists. Both are now fixed and written down, and the post is longer because of them.
+
+And thank you to everyone else who engages with these posts in the comments — real-world observations, counter-examples and benchmark numbers shape these experiments. This kind of open technical critique is what keeps engineering honest.
 
 ---
 
 ## A note on how this was written
 
-Every experiment, bug, failure, and idea here is mine — I earned them the hard way, in production, in public. AI worked as my editor: it helped me structure thoughts and polish my English. It did not invent the facts, because it has none of its own.
+Every experiment, bug, failure, and idea here is mine — I earned them the hard way, in production, in public. AI worked as my editor and as an instrument: it ran the isolated harness copy, reproduced the zero-executed score, wrote the guard and its tests, and killed the mutants. It did not invent the facts, because it has none of its own. Where a number came from a command, the command is in the post.
 
 No AI detectors were consulted in the making of this disclosure. They have enough trouble agreeing on what I am.
 
 ---
 
-> **Disclaimer & Status:** field notes from a public experiment, not a "feature advertisement": figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What each fix is actually worth" sections.
+> **Disclaimer & Status:** field notes from a public experiment, not a "feature advertisement": figures are reproducible, weak points are named, and unaddressed risks are listed in the "Red Team" and "What each fix is actually worth" sections. The pre-registered bar P1 is *not* claimed as passed; see `frozen/DECISION.md`.
 
-*Raw artifacts: `experiments/bench_2026_11/` — the November capture as committed in `e033edc`, the fresh run outputs, both external result files and `REPORT.md`. The controls ran in a worktree at `deb5ff4`, `b9f91c4` and `f3b0cc4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
+*Raw artifacts: `experiments/bench_2026_11/` — the November capture as committed in `e033edc`, the fresh run outputs, the external result files and `REPORT.md`. The controls ran in a worktree at `deb5ff4`, `b9f91c4` and `f3b0cc4`; the panel hash in `MANIFEST.sha256` was unchanged, so no task was re-barred. The denominator guard and its tests are `d37b796`. Invalid runs, the old cache and the failed gates sit on disk next to the passing ones.*
