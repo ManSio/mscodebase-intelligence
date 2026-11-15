@@ -866,25 +866,25 @@ def _impact_not_found_payload(symbol: str, symbol_count: int) -> dict:
 
     Замер 2026-11-16: у 4 из 7 реальных проектов graph.db пуст, а инструмент
     отвечал «Symbol 'X' not found in index» — выглядело как ошибка имени.
+    Тексты — английский источник под `_()` (дефолтная локаль — en).
     """
     if symbol_count == 0:
         return {
             "status": "warning",
             "message": _(
-                "Символьный слой пуст: в графе проекта нет ни одного символа, "
-                "поэтому '{symbol}' не может быть найден (чанки при этом есть).",
+                "Symbol layer is empty: the project graph has no symbols, so "
+                "'{symbol}' cannot be found (chunks exist).",
                 symbol=symbol,
             ),
-            "next_step": (
-                "Переиндексируйте проект: "
-                "codebase(action='index', path='project_dir') — граф символов "
-                "строится при полной индексации."
+            "next_step": _(
+                "Reindex the project: codebase(action='index', path='project_dir') "
+                "— the symbol graph is built during a full index."
             ),
         }
     return {
         "status": "warning",
         "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
-        "next_step": "Уточните имя символа через `search_code` или `graph_query`",
+        "next_step": _("Refine the name via `search_code` or `graph_query`"),
     }
 
 

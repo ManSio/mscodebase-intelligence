@@ -76,5 +76,8 @@
   "⏱ Performance": "⏱ Производительность",
   "\n📁 **Other projects:**\n": "\n📁 **Другие проекты:**\n",
   "\n📊 **Tools:**\n": "\n📊 **Инструменты:**\n",
-  "\n📅 **History (snapshots):**\n": "\n📅 **История (снэпшоты):**\n"
+  "\n📅 **History (snapshots):**\n": "\n📅 **История (снэпшоты):**\n",
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found (chunks exist).": "Символьный слой пуст: в графе проекта нет ни одного символа, поэтому '{symbol}' не может быть найден (чанки при этом есть).",
+  "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "Переиндексируйте проект: codebase(action='index', path='project_dir') — граф символов строится при полной индексации.",
+  "Refine the name via `search_code` or `graph_query`": "Уточните имя символа через `search_code` или `graph_query`"
 }
