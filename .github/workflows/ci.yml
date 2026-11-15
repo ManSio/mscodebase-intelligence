@@ -74,6 +74,11 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: AGENTS.md facts
+        # Проектный AGENTS.md читается хостом каждую сессию: пути, флаги,
+        # переменные и размер проверяются против кода (scripts/check_agents_md.py).
+        run: python scripts/check_agents_md.py
+
       - name: Docs references (docs = code)
         # Механическая форма AGENTS §8: изменённый .md обязан добавить проверяемую
         # ссылку на код (`src/...py`, `path::symbol`, `install.py --flag`, env-имя).
