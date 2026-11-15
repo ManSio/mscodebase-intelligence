@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Optional
@@ -329,6 +331,43 @@ class MCPTool(ABC):
                     ),
                 )
 
+    _INDEX_WAIT_ENV = "MSCODEBASE_INDEX_WAIT_S"
+    _INDEX_WAIT_DEFAULT_S = 8.0
+
+    def _index_wait_budget(self) -> float:
+        """Сколько секунд ждать первые чанки автоиндексации (env-настройка)."""
+        raw = os.environ.get(self._INDEX_WAIT_ENV, "").strip()
+        if not raw:
+            return self._INDEX_WAIT_DEFAULT_S
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            return self._INDEX_WAIT_DEFAULT_S
+
+    async def _wait_for_first_chunks(self, indexer, poll_s: float = 0.25) -> bool:
+        """Ждёт появления первых чанков, пока идёт автоиндексация.
+
+        Зачем: `initialize` отвечает через ~7 с после старта процесса, а
+        автоиндексация в этот момент ещё пишет чанки (на живом проекте из 31
+        файла — ~1 с). Первый запрос агента приходил через 7 мс после handshake
+        и получал `Index is empty → run index_project_dir()`, хотя индексация
+        уже шла. Ждём ограниченно (по умолчанию 8 с, `MSCODEBASE_INDEX_WAIT_S=0`
+        выключает) и не блокируем event loop.
+        """
+        budget = self._index_wait_budget()
+        if budget <= 0:
+            return False
+        deadline = time.monotonic() + budget
+        while time.monotonic() < deadline:
+            await asyncio.sleep(poll_s)
+            try:
+                status = await asyncio.to_thread(indexer.get_status)
+            except Exception:  # noqa: BLE001 — статус не должен ломать запрос
+                return False
+            if status.get("total_chunks", 0) > 0:
+                return True
+        return False
+
     async def require_ready_project(
         self,
         explicit_project_root: Optional[str] = None,
@@ -427,12 +466,21 @@ class MCPTool(ABC):
                     code="REINDEX_IN_PROGRESS",
                 )
             if status.get("total_chunks", 0) == 0:
-                raise IndexNotReadyError(
-                    detail=(
-                        f"Index is empty for project: {indexer.project_path}. "
-                        f"Run index_project_dir() first."
+                # Первый запрос после handshake приходит раньше, чем автоиндекс
+                # успевает записать чанки (замер 2026-11-16: проект из 31 файла —
+                # ingest ~1 с, запрос через 7 мс). Даём индексации короткий шанс
+                # вместо совета «запусти индексацию», которая уже идёт.
+                if await self._wait_for_first_chunks(indexer):
+                    status = await asyncio.to_thread(indexer.get_status)
+                else:
+                    raise IndexNotReadyError(
+                        detail=(
+                            f"Index is empty for project: {indexer.project_path}. "
+                            f"Auto-index не завершился за "
+                            f"{self._index_wait_budget():.0f}s — повторите запрос "
+                            f"или запустите codebase(action='index', path='project_dir')."
+                        )
                     )
-                )
         except IndexNotReadyError:
             raise
         except ToolError:
