@@ -126,11 +126,18 @@ def resolve_project_python(project_root: Path) -> Path | None:
 
 
 def ensure_project_python(project_root: Path) -> None:
-    """Re-exec the hook under the project interpreter, once.
+    """Run the hook under the project interpreter, once, and keep its verdict.
 
-    Re-exec (instead of only swapping `sys.executable` at the call sites) keeps
-    every gate — including `verify_diary -> pytest tests/` — in one interpreter,
-    so a gate cannot run half in the venv and half outside it.
+    Swapping interpreters keeps every gate — including `verify_diary ->
+    pytest tests/` — in one interpreter, so a gate cannot run half in the venv
+    and half outside it.
+
+    `os.execv` was the obvious way and it silently broke the gate: on Windows it
+    starts the child and returns to the parent, which exits 0 — so git saw a
+    green hook, committed, and the real verdict ("❌ Pre-commit checks FAILED")
+    printed afterwards from a detached process. Observed twice on 2026-11-16:
+    two commits landed while the hook was reporting failure. A subprocess plus
+    `sys.exit(returncode)` is the only form whose exit code git can read.
     """
     if os.environ.get("MSCB_HOOK_REEXEC") == "1":
         return
@@ -141,8 +148,15 @@ def ensure_project_python(project_root: Path) -> None:
         return
     if Path(sys.executable).resolve() == target.resolve():
         return
-    os.environ["MSCB_HOOK_REEXEC"] = "1"
-    os.execv(str(target), [str(target), str(Path(__file__).resolve()), *sys.argv[1:]])
+    env = os.environ.copy()
+    env["MSCB_HOOK_REEXEC"] = "1"
+    argv = [str(target), str(Path(__file__).resolve()), *sys.argv[1:]]
+    try:
+        proc = _RUN(argv, cwd=str(project_root), env=env)
+    except OSError as exc:
+        print(f"  ❌ interpreter: cannot start {target} ({exc})", flush=True)
+        sys.exit(1)
+    sys.exit(proc.returncode)
 
 
 def run_script(script_path: str, label: str, extra_args: list[str] | None = None) -> bool:
