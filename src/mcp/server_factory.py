@@ -322,13 +322,33 @@ def _wire_plugins(mcp):
 
 def _register_notification_broker(mcp, services):
     try:
-        from mcp.types import InitializedNotification
-
+        from src.core.error_handler import set_notification_broker
         from src.core.notification_broker import NotificationBroker
         broker = services.resolve(NotificationBroker)
-        server = mcp._mcp_server
-        from src.core.error_handler import set_notification_broker
+        # Брокер ставим в любом случае: error_boundary через него публикует
+        # диагностику, а не молча пишет в никуда.
         set_notification_broker(broker)
+    except Exception as e:
+        logger.warning(f"NotificationBroker: {e}")
+        return
+
+    server = getattr(mcp, "_mcp_server", None)
+    if server is None:
+        # MCP SDK 2.x: `_mcp_server` нет, а публичного API для server-initiated
+        # кастомных уведомлений (`mscodebase/*`) тоже нет — `send_notification`
+        # принимает только типизированные нотификации протокола. Поэтому сессию
+        # к брокеру привязать нечем: publish честно логирует drop.
+        # progress.json (файл-контракт для агента) пишется независимо от сессии.
+        # Решение и план возврата канала — ADR-0008, «Деградации на 2.x».
+        logger.warning(
+            "NotificationBroker: push-канал отключён на MCP SDK 2.x "
+            "(нет публичного API для кастомных серверных уведомлений); "
+            "progress.json продолжает работать. См. ADR-0008."
+        )
+        return
+
+    try:
+        from mcp.types import InitializedNotification
 
         async def _on_init(notification: InitializedNotification):
             try:
@@ -348,8 +368,14 @@ def _register_notification_broker(mcp, services):
 
 
 def _register_extension_handlers(mcp, services):
+    server = getattr(mcp, "_mcp_server", None)
+    if server is None:
+        # 2.x: `request_handlers` удалён — кастомные JSON-RPC методы не
+        # регистрируются (решение и обоснование — ADR-0008, решение 1).
+        logger.debug("Extension handlers: не регистрируются на MCP SDK 2.x (ADR-0008)")
+        return
+
     try:
-        server = mcp._mcp_server
         from src.mcp.tools.base import resolve_indexer_for_request
         if not (hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict)):
             return
