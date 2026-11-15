@@ -24,7 +24,7 @@ from typing import Any
 
 logger = logging.getLogger("mscodebase_server.error_results")
 
-__all__ = ["is_error_envelope", "install_is_error_flag"]
+__all__ = ["is_error_envelope", "install_is_error_flag", "make_is_error_middleware"]
 
 
 def is_error_envelope(value: Any) -> bool:
@@ -72,6 +72,16 @@ def install_is_error_flag(mcp) -> bool:
     """
     from mcp import types
 
+    # mcp 2.x: request_handlers удалён, зато есть список middleware.
+    middleware = getattr(mcp, "middleware", None)
+    if isinstance(middleware, list):
+        if any(getattr(fn, "_mscodebase_is_error", False) for fn in middleware):
+            return True
+        fn = make_is_error_middleware()
+        fn._mscodebase_is_error = True
+        middleware.append(fn)
+        return True
+
     server = getattr(mcp, "_mcp_server", None)
     if server is None or not hasattr(server, "request_handlers"):
         logger.warning(
@@ -100,3 +110,47 @@ def install_is_error_flag(mcp) -> bool:
     server.request_handlers[key] = handler
     logger.info("✅ isError flag installed (JSON error envelope -> isError=true)")
     return True
+
+def _mark_call_tool_result(result: Any) -> None:
+    """v2: middleware получает wire-dict; ставим ``isError``, payload не трогаем."""
+    if isinstance(result, dict):
+        texts = [
+            c.get("text", "")
+            for c in result.get("content") or []
+            if isinstance(c, dict) and c.get("type") == "text"
+        ]
+        if len(texts) == 1 and is_error_envelope(texts[0]):
+            result["isError"] = True
+        return
+    payload = getattr(result, "root", result)
+    if getattr(payload, "is_error", None) is True:
+        return
+    texts = [
+        getattr(c, "text", "")
+        for c in getattr(payload, "content", []) or []
+        if getattr(c, "type", "") == "text"
+    ]
+    if len(texts) == 1 and is_error_envelope(texts[0]):
+        try:
+            payload.is_error = True
+        except (TypeError, ValueError, AttributeError):
+            pass
+
+
+def make_is_error_middleware():
+    """v2: один middleware на все запросы вместо перехвата низкоуровневого хендлера.
+
+    В mcp 2.x `Server.request_handlers` удалён, зато есть `middleware`:
+    `(ctx, call_next) -> result`, который оборачивает каждый входящий запрос.
+    """
+
+    async def middleware(ctx, call_next):
+        result = await call_next(ctx)
+        if getattr(ctx, "method", None) == "tools/call":
+            try:
+                _mark_call_tool_result(result)
+            except Exception:  # noqa: BLE001 - маркер не должен ломать вызов
+                pass
+        return result
+
+    return middleware
