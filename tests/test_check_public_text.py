@@ -35,6 +35,9 @@ def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
         encoding="utf-8",
         input=stdin,
         timeout=60,
+        # Windows: без флага дочерний python открывает свою консоль и мигает
+        # (контракт tests/test_no_console_windows.py).
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
 
 
