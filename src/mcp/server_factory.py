@@ -464,6 +464,18 @@ async def _delayed_auto_index(services):
         if indexer is None:
             return
 
+        from src.core.project_resolution import is_project_root
+        if not is_project_root(indexer.project_path):
+            # Без маркера (.git/pyproject.toml/package.json/...) cwd может быть
+            # чем угодно — домашним каталогом или C:\Windows. Автоиндексация
+            # такого корня = десятки тысяч чужих файлов + `.mscodebase` внутри ОС.
+            logger.warning(
+                f"⏸ Auto-index: в {indexer.project_path} нет маркеров проекта — "
+                f"автоиндексация пропущена. Явный вызов: "
+                f'codebase(action="index", path="project_dir").'
+            )
+            return
+
         from src.core.project_resolution import ext_root as _ext_root
         try:
             if indexer.project_path.resolve() == _ext_root.resolve():

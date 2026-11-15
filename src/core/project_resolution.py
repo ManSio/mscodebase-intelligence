@@ -161,6 +161,98 @@ def _close_sqlite_connection():
             _sqlite_conn = None
 
 
+_SYSTEM_ENV_ROOTS = ("SystemRoot", "windir", "ProgramFiles", "ProgramFiles(x86)", "ProgramData")
+
+# Маркеры проекта: VCS или система сборки. Нужны, чтобы отличить рабочий
+# каталог проекта от случайного cwd (см. `is_project_root`).
+_PROJECT_MARKERS = (
+    ".git",
+    ".hg",
+    ".svn",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+    "Gemfile",
+    "*.sln",
+    "*.csproj",
+)
+
+
+def _system_roots() -> list[Path]:
+    roots: list[Path] = []
+    for name in _SYSTEM_ENV_ROOTS:
+        raw = os.environ.get(name)
+        if not raw:
+            continue
+        try:
+            resolved = Path(raw).resolve()
+        except OSError:
+            continue
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def is_forbidden_root(p: Path | str) -> bool:
+    """True, если каталог — не проект, а системный/служебный корень.
+
+    Зачем: хост может запустить MCP-сервер с произвольным cwd
+    (наблюдалось `C:\\Windows`, профиль пользователя, temp). Такой корень
+    нельзя ни индексировать (десятки тысяч чужих файлов), ни использовать как
+    место для `.mscodebase/chunks.db` — каталог принадлежит ОС.
+    """
+    try:
+        root = Path(p).resolve()
+    except OSError:
+        return False
+    if not root.is_dir():
+        return False
+    if root.parent == root:  # корень диска: C:\, D:\
+        return True
+    if root in _system_roots():
+        return True
+    for system_root in _system_roots():
+        if root.is_relative_to(system_root):
+            return True
+    for raw in (Path.home(), os.environ.get("TEMP"), os.environ.get("TMP")):
+        if not raw:
+            continue
+        try:
+            candidate = Path(raw).resolve()
+        except OSError:
+            continue
+        if root == candidate:
+            return True
+    return False
+
+
+def is_project_root(p: Path | str) -> bool:
+    """Есть ли в каталоге маркер проекта (VCS или сборки).
+
+    Нужен для автоиндексации: без маркера это может быть домашний каталог
+    или папка, случайно ставшая cwd. Явный вызов
+    `codebase(action="index", path="project_dir")` этим не блокируется.
+    """
+    try:
+        root = Path(p)
+        if not root.is_dir():
+            return False
+        for marker in _PROJECT_MARKERS:
+            if marker.startswith("*"):
+                if next(iter(root.glob(marker)), None) is not None:
+                    return True
+            elif (root / marker).exists():
+                return True
+    except OSError:
+        return False
+    return False
+
+
 def _reject_self_index_target(p: Path, *, source: str) -> bool:
     """Возвращает True если path — это self-indexing target (отклонить).
 
@@ -169,6 +261,9 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
       из workspace `D:\\Project\\MSCodeBase`). Это может случиться, если
       пользователь открывает исходники расширения как проект в Zed.
     - Zed install dir (см. is_zed_install_dir в lsp_project_bridge).
+    - системные каталоги, корни дисков, профиль и temp-корень (см.
+      `is_forbidden_root`): индексация `C:\\Windows` — это десятки тысяч
+      чужих файлов и запись `.mscodebase` прямо в каталог ОС.
 
     РАНЬШЕ здесь была проверка `(p / "src/lsp_main.py").exists()` — она
     была ошибочной, потому что исходники расширения РЕАЛЬНО содержали
@@ -187,6 +282,13 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
     # ACTIVE_WORKSPACE — это явный выбор пользователя в Zed, доверяем
     if source == "ACTIVE_WORKSPACE":
         return False
+
+    if is_forbidden_root(p):
+        logger.warning(
+            f"{source} указывает на системный каталог ({p}), а не на проект. "
+            f"Игнорирую: индексация ОС бесполезна, а .mscodebase внутри неё — вредна."
+        )
+        return True
 
     if p == ext_root:
         return True
@@ -217,6 +319,16 @@ def _try_resolve_path_env(raw: str, source: str, *, trust_self_index: bool = Fal
     сохраняет блокировку self-indexing для обратной совместимости.
     """
     if not raw:
+        return None
+    # Случай 0: неразвёрнутый плейсхолдер хоста (`${workspaceRoot}`, `%VAR%`).
+    # Наблюдалось на живой машине: PROJECT_PATH=${workspaceRoot} уходил в
+    # resolv как относительный путь, проваливался, и сервер брал cwd — вплоть
+    # до C:\Windows. Такую конфигурацию надо видеть в логе, а не угадывать.
+    if "${" in raw or (raw.startswith("%") and raw.endswith("%")):
+        logger.warning(
+            f"{source}={raw!r} — неразвёрнутый плейсхолдер хоста, игнорирую. "
+            f"Укажите реальный путь или $ZED_WORKTREE_ROOT."
+        )
         return None
     # Случай 1: Zed literal "$ZED_WORKTREE_ROOT" без подстановки.
     if raw.startswith("$"):
