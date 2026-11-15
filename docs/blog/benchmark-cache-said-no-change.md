@@ -97,7 +97,7 @@ for task in tasks:
 
 Note the `print`. The harness told me, in plain text, on line three of its own output: **`resuming: 71 tasks already captured`**. I read the table at the bottom and skipped the sentence at the top. That is the whole failure, and it is not subtle.
 
-`results_dev.partial.jsonl` has been tracked in git since commit `e033edc` — 71 rows, one per task. Every clone made between 10 and 14 November started with November's answers already "captured", and `run.py` faithfully skipped the work and printed them back. The file is still tracked; it now holds today's rows, and the harness does not read it without `--resume`.
+`results_dev.partial.jsonl` has been tracked in git since commit `e033edc` — 71 rows, one per task. Every clone made between 10 and 14 November started with November's answers already "captured", and `run.py` faithfully skipped the work and printed them back. The file is still tracked; it holds that day's rows, and the harness does not read it without `--resume`. It also refuses it *with* `--resume`: since `e24ad59` every row must carry the product revision and the corpus head, and this 71-row file predates the stamp — which is why it is kept as the honest example of a capture from another product.
 
 I did not notice for four days, because the numbers looked *stable*. Stable is exactly what a cache is.
 
@@ -252,7 +252,7 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 
 - **A score could be printed after executing zero tasks.** Found by a reader, not by me, and fixed in `d37b796`: the harness now prints `executed=N resumed=M of K` and refuses a replay without `--allow-replay`. See *After the comments*.
 - **The denominator could be larger than the panel.** A capture row from a different panel raised `n` because `_stats` divides by `len(rows)`. The same commit refuses that row instead of filtering it.
-- **A capture could mix two products and still pass the counter.** Found by red-teaming guard 1: one stale row plus two fresh tasks printed `executed=2 resumed=1 of 3`, exit 0, and the stale row's hit entered the table — tool hit@5 became 3/3 in my test. Rows now carry `rev` and `corpus_head`, and the run refuses a mixture (`e24ad59`).
+- **A capture could mix two products and still pass the counter.** Found by red-teaming guard 1: one stale row plus two fresh tasks printed `executed=2 resumed=1 of 3`, exit 0, and the stale row's hit entered the table — tool hit@5 became 3/3 in my test. New rows carry `rev` and `corpus_head` (the committed 71-row capture predates the stamp and is refused as a mixture), and the run refuses a mixture (`e24ad59`).
 - **P1 is no longer a pre-registered test.** Dev was used to design the fixes, so the post-fix 38/71 is a design-set number. The decision, written before the next run, is in `frozen/DECISION.md`: sealed is the next pre-registered test, reported as P4.
 - **The dev panel is not held out — and now I can say by how much.** `sqlalchemy` is where two defects were *found* (contaminated), `requests` only verified a fix designed elsewhere, and the dev panel is my own code. The untouched test is `click`: +3 tasks, 3 up / 0 down, +8.6% against +8.5% on dev. That does not make the dev number out-of-sample; it makes the *effect* reproduce somewhere the fixes never saw.
 - **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it. The paired directions are what carry the rest: **13 up / 0 down** (p ≈ 0.0001) and **6 up / 0 down** (p ≈ 0.016) by a one-sided sign test, and `click` adds **3 up / 0 down** (p ≈ 0.125).
@@ -320,7 +320,7 @@ executed=2 resumed=1 of 3
 tool     3      1      3      3   0.5   [0.438, 1.0]
 ```
 
-The counter said "something ran"; it did not say "everything is the same product". So his rule is necessary and not sufficient: each row now carries `rev` and `corpus_head`, and a mixture aborts with exit 3 unless `--allow-mixed`. That is the third guard, and the credit for asking the right question is still his. Ten tests in total, three mutants killed.
+The counter said "something ran"; it did not say "everything is the same product". So his rule is necessary and not sufficient: each new row carries `rev` and `corpus_head`, and a mixture aborts with exit 3 unless `--allow-mixed`. That is the third guard, and the credit for asking the right question is still his. Ten tests in total, three mutants killed.
 
 **Tom Jones** asked a harder question, about the pre-registered bar rather than the code: P1 failed on the November code, the fixes were then designed from what dev showed, so a dev score of 38 can no longer pass P1 *in the pre-registered sense*.
 
