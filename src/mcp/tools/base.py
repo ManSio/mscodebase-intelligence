@@ -333,6 +333,9 @@ class MCPTool(ABC):
 
     _INDEX_WAIT_ENV = "MSCODEBASE_INDEX_WAIT_S"
     _INDEX_WAIT_DEFAULT_S = 8.0
+    # Потолок ожидания: `float("inf")`/`1e300` из env иначе дают вечный цикл,
+    # который не отличить от зависания сервера.
+    _INDEX_WAIT_MAX_S = 120.0
 
     def _index_wait_budget(self) -> float:
         """Сколько секунд ждать первые чанки автоиндексации (env-настройка)."""
@@ -340,9 +343,35 @@ class MCPTool(ABC):
         if not raw:
             return self._INDEX_WAIT_DEFAULT_S
         try:
-            return max(0.0, float(raw))
+            value = float(raw)
         except ValueError:
             return self._INDEX_WAIT_DEFAULT_S
+        if value != value:  # NaN
+            return self._INDEX_WAIT_DEFAULT_S
+        return min(max(0.0, value), self._INDEX_WAIT_MAX_S)
+
+    @staticmethod
+    def _empty_index_hint(indexer, status: dict) -> str:
+        """Почему индекс пуст — с советом, который соответствует состоянию.
+
+        Раньше на пустом проекте без автоиндексации писали «Auto-index не
+        завершился», хотя его никто и не запускал: совет уводил в сторону.
+        """
+        path = getattr(indexer, "project_path", "?")
+        reindexing = bool(
+            status.get("is_reindexing") or status.get("reindex_in_progress")
+        )
+        if reindexing:
+            return (
+                f"Index is being built for {path}. "
+                f"Повторите запрос через несколько секунд или проверьте "
+                f"codebase(action='index', path='progress')."
+            )
+        return (
+            f"Index is empty for {path}. "
+            f"Автоиндексация не запускалась. Запустите "
+            f"codebase(action='index', path='project_dir')."
+        )
 
     async def _wait_for_first_chunks(self, indexer, poll_s: float = 0.25) -> bool:
         """Ждёт появления первых чанков, пока идёт автоиндексация.
@@ -474,12 +503,7 @@ class MCPTool(ABC):
                     status = await asyncio.to_thread(indexer.get_status)
                 else:
                     raise IndexNotReadyError(
-                        detail=(
-                            f"Index is empty for project: {indexer.project_path}. "
-                            f"Auto-index не завершился за "
-                            f"{self._index_wait_budget():.0f}s — повторите запрос "
-                            f"или запустите codebase(action='index', path='project_dir')."
-                        )
+                        detail=self._empty_index_hint(indexer, status)
                     )
         except IndexNotReadyError:
             raise

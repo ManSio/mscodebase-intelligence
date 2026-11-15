@@ -74,18 +74,64 @@ async def test_bad_env_falls_back_to_default(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_huge_budget_is_clamped(monkeypatch):
+    """`inf`/`1e300` из env не должны давать вечное ожидание."""
+    tool = _Tool()
+    for raw in ("inf", "1e300", 1e9):
+        monkeypatch.setenv("MSCODEBASE_INDEX_WAIT_S", str(raw))
+        assert tool._index_wait_budget() == MCPTool._INDEX_WAIT_MAX_S
+
+
+@pytest.mark.asyncio
+async def test_nan_budget_falls_back_to_default(monkeypatch):
+    monkeypatch.setenv("MSCODEBASE_INDEX_WAIT_S", "nan")
+    tool = _Tool()
+    assert tool._index_wait_budget() == MCPTool._INDEX_WAIT_DEFAULT_S
+
+
+def test_empty_index_hint_distinguishes_building_from_not_started():
+    """Совет обязан отличать «строится» от «не запускалась»."""
+    class _Indexer:
+        project_path = "D:/proj"
+
+    building = MCPTool._empty_index_hint(_Indexer(), {"is_reindexing": True})
+    idle = MCPTool._empty_index_hint(_Indexer(), {})
+
+    assert "being built" in building
+    assert "progress" in building
+    assert "не запускалась" in idle
+    assert "codebase(action='index'" in idle
+
+
+
+@pytest.mark.asyncio
 async def test_wait_does_not_block_event_loop(monkeypatch):
-    """Пока ждём, другие корутины должны исполняться (sleep, не блокировка)."""
-    monkeypatch.setenv("MSCODEBASE_INDEX_WAIT_S", "0.5")
+    """Пока ждём, event loop обязан тикать: блокирующий sleep даёт 0 тиков.
+
+    Ревью 2026-11-16: прежняя версия (poll_s=0.05, 10 тиков по 0.02) оставалась
+    зелёной при замене `await asyncio.sleep` на `time.sleep` — блокировки были
+    короче интервала тикера. Здесь шаг ожидания 0.3 с: синхронный sleep съедал бы
+    весь этот отрезок, и тикер не успевал ни разу.
+    """
+    monkeypatch.setenv("MSCODEBASE_INDEX_WAIT_S", "1.0")
     indexer = _Indexer(readiness_after=10_000)
     tool = _Tool()
-    ticks = 0
+    ticks: list[float] = []
+    started = asyncio.get_running_loop().time()
 
     async def ticker():
-        nonlocal ticks
-        for _ in range(10):
-            await asyncio.sleep(0.02)
-            ticks += 1
+        for _ in range(200):
+            await asyncio.sleep(0.01)
+            ticks.append(asyncio.get_running_loop().time() - started)
 
-    await asyncio.gather(tool._wait_for_first_chunks(indexer, poll_s=0.05), ticker())
-    assert ticks == 10
+    await asyncio.gather(tool._wait_for_first_chunks(indexer, poll_s=0.3), ticker())
+
+    # Метрика — не число тиков (между итерациями `to_thread` они появятся всё
+    # равно), а максимальный разрыв: блокирующий `time.sleep(0.3)` съедает
+    # целых 0.3 с без единого тика, `await asyncio.sleep(0.3)` — нет.
+    gaps = [b - a for a, b in zip(ticks, ticks[1:])]
+    assert gaps, "тикер не сделал ни одного шага"
+    assert max(gaps) < 0.15, (
+        f"event loop блокировался: максимальный разрыв между тиками {max(gaps):.3f} с"
+    )
+
