@@ -4,6 +4,24 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-11-15 — консольные окна: 135 вызовов subprocess без флага — 🟢
+
+- **Симптом:** на Windows при работе сервера/тестов мигают окна `cmd`.
+- **Корень (измерено):** у процесса-родителя нет консоли, поэтому каждый bare
+  `subprocess.*` создаёт СВОЮ консоль. В `src/ tests/ scripts/` таких вызовов
+  было **135 в 57 файлах**; `src/core/silent_subprocess.apply()` патчил только
+  процессы, которые его импортировали, а импортировал ровно один entry-point
+  (`src/main.py`).
+- **Fix:** `creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)` во всех 135
+  местах; `src/remote_main.py` и `src/cli.py` тоже применяют `silent_subprocess`;
+  guard `tests/test_no_console_windows.py` (AST-скан каталогов) краснеет на
+  любом новом bare-вызове.
+- **Отдельно (вне репозитория):** MCP `mobile-mcp` в конфиге OpenCode запускается
+  как `npx -y @mobilenext/mobile-mcp@latest` → `cmd.exe` на каждый старт сессии.
+- **Открыто:** `scripts/live_search_audit.py` не парсится (битый отступ, было до
+  этой задачи) — исключён из скана явным allowlist, чинить отдельно.
+
+---
 ## 2026-11-13 — slow-тесты прятали смену хранилища: 5 красных в `test_freshness_checker` — 🟢
 
 - **Измерено:** на `main` (`a6524d6`, `801621d`) `pytest tests/test_freshness_checker.py -m "not benchmark"` → `5 failed, 2 passed`; в дефолтном гейте файл не виден (`pytestmark = pytest.mark.slow`).
