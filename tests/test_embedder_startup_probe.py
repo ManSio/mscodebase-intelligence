@@ -104,3 +104,65 @@ def test_provider_init_does_not_probe_external_endpoints_in_text_mode(monkeypatc
     embedder = re_mod.RemoteEmbedder()
     embedder._init_provider_async()
     assert embedder.mode == "text_only"
+
+
+def test_provider_scanner_is_not_started_in_text_mode(monkeypatch):
+    """Фоновый сканер не должен подниматься в текстовом режиме.
+
+    Ревью 2026-11-16: при provider=auto сканер стартовал безусловно и через
+    30 с опрашивал LM Studio/ollama, переписывая mode на сетевой провайдер.
+    """
+    from src.config.settings import get_config as _real_get_config
+
+    class _Search:
+        dense_off = True
+
+    class _Cfg:
+        def __init__(self, base):
+            self._base = base
+            self.search = _Search()
+
+        def __getattr__(self, name):
+            return getattr(self._base, name)
+
+    monkeypatch.setattr(re_mod, "get_config", lambda: _Cfg(_real_get_config()))
+
+    embedder = re_mod.RemoteEmbedder()
+
+    assert embedder._text_only is True
+    assert embedder._scanner_thread is None, "сканер провайдеров не нужен в текстовом режиме"
+    assert embedder._preload_thread is None, "предзагрузка ONNX не нужна в текстовом режиме"
+
+
+def test_scanner_loop_exits_without_network_in_text_mode(monkeypatch):
+    """Даже вызванный вручную сканер обязан выйти, не трогая сеть."""
+    import threading
+
+    from src.config.settings import get_config as _real_get_config
+
+    class _Search:
+        dense_off = True
+
+    class _Cfg:
+        def __init__(self, base):
+            self._base = base
+            self.search = _Search()
+
+        def __getattr__(self, name):
+            return getattr(self._base, name)
+
+    monkeypatch.setattr(re_mod, "get_config", lambda: _Cfg(_real_get_config()))
+    monkeypatch.setattr(re_mod, "_PROVIDER_SCAN_INTERVAL", 0)
+
+    def _boom(*args, **kwargs):  # pragma: no cover - только при регрессе
+        raise AssertionError("в текстовом режиме сканер не должен ходить в сеть")
+
+    monkeypatch.setattr(re_mod.RemoteEmbedder, "_check_lm_studio_raw", _boom)
+    monkeypatch.setattr(re_mod.RemoteEmbedder, "_check_ollama", _boom)
+    monkeypatch.setattr(re_mod.RemoteEmbedder, "_check_llama_cpp", _boom)
+
+    embedder = re_mod.RemoteEmbedder()
+    embedder._text_only = True
+    embedder._scanner_stop = threading.Event()
+    embedder._provider_scanner_loop()  # не должен зависнуть
+    assert embedder.mode == "text_only"

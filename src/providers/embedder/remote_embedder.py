@@ -135,6 +135,11 @@ class RemoteEmbedder(IEmbedder):
         # anything else pins the provider so a dense build cannot silently end
         # up on an external endpoint with a different width.
         self.provider_preference = getattr(config.embedding, "provider", "auto") or "auto"
+        # Dense-off (текстовая индексация/поиск): эмбеддинги не нужны вовсе.
+        # Флаг храним на инстансе: и стартовые пробы, и фоновый сканер, и
+        # предзагрузка ONNX обязаны его уважать (ревью 2026-11-16: сканер
+        # стартовал безусловно и через 30 с возвращал mode=lm_studio).
+        self._text_only = bool(getattr(config.search, "dense_off", False))
         # The schema and the query vector must agree; the config default is not
         # the model's dimension (measured 2026-11-08: 384 vs 768).
         self.embedding_dim = model_dimension(
@@ -556,7 +561,7 @@ class RemoteEmbedder(IEmbedder):
         # Только в auto: явно выбранный провайдер не должен подменяться
         # ответившим внешним эндпоинтом (у него может быть другая ширина).
         self._scanner_stop = threading.Event()
-        if self.provider_preference == "auto":
+        if self.provider_preference == "auto" and not self._text_only:
             self._scanner_thread = threading.Thread(
                 target=self._provider_scanner_loop,
                 name="mscodebase-provider-scanner",
@@ -565,20 +570,27 @@ class RemoteEmbedder(IEmbedder):
             self._scanner_thread.start()
         else:
             self._scanner_thread = None
-            logger.info(
-                "Embedding provider pinned to '%s' — background scanner disabled",
-                self.provider_preference,
-            )
+            if self._text_only:
+                logger.info("Текстовый режим (dense_off) — фоновый сканер провайдеров выключен")
+            else:
+                logger.info(
+                    "Embedding provider pinned to '%s' — background scanner disabled",
+                    self.provider_preference,
+                )
 
         # Фоновая предзагрузка ONNX через 15 сек после старта.
         # К этому моменту MCP сервер уже инициализирован, а модель
         # будет готова к первому запросу пользователя (без 11 сек задержки).
-        self._preload_thread = threading.Thread(
-            target=self._preload_onnx_delayed,
-            name="mscodebase-onnx-preload",
-            daemon=True,
-        )
-        self._preload_thread.start()
+        # В текстовом режиме ONNX не нужен — поток не поднимаем.
+        if self._text_only:
+            self._preload_thread = None
+        else:
+            self._preload_thread = threading.Thread(
+                target=self._preload_onnx_delayed,
+                name="mscodebase-onnx-preload",
+                daemon=True,
+            )
+            self._preload_thread.start()
 
     @staticmethod
     def _lightweight_onnx_dim(model_file: Path) -> Optional[int]:
@@ -629,6 +641,12 @@ class RemoteEmbedder(IEmbedder):
         pinned external → предзагрузка не нужна вовсе.
         """
         import time as _time
+
+        if getattr(self, "_text_only", False) or getattr(
+            get_config().search, "dense_off", False
+        ):
+            logger.debug("Предзагрузка ONNX пропущена: dense_off=true")
+            return
 
         _pref = getattr(self, "provider_preference", "auto")
         if _pref not in ("auto", "onnx"):
@@ -998,6 +1016,15 @@ class RemoteEmbedder(IEmbedder):
         _iteration = 0
         _interval = _PROVIDER_SCAN_INTERVAL
         while not self._scanner_stop.wait(_interval):
+            # Текстовый режим: сеть не нужна. Проверяем на каждой итерации,
+            # а не только на старте — конфиг может быть перечитан.
+            if getattr(self, "_text_only", False) or getattr(
+                get_config().search, "dense_off", False
+            ):
+                with self._mode_lock:
+                    self.mode = "text_only"
+                logger.debug("Сканер провайдеров остановлен: dense_off=true")
+                return
             _iteration += 1
             if _iteration > _max_iterations:
                 logger.info(f"Provider scanner reached {_max_iterations} iterations, stopping.")
