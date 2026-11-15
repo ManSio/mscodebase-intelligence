@@ -303,13 +303,35 @@ _CODE_EXTENSIONS = frozenset(
 )
 
 
+def _index_has_chunks(db_path: Path) -> bool | None:
+    """Есть ли в chunks.db хотя бы один чанк. None — прочитать не удалось.
+
+    Смотреть на размер файла нельзя: SQLite в WAL держит свежие данные в
+    `chunks.db-wal`, а основной файл остаётся 4096 b (замер ревью 2026-11-16:
+    40 чанков, db 4096 b + wal 119 КБ). Обратная ошибка тоже была: пустая
+    закрытая БД занимает 32 КБ и считалась «проиндексированным проектом».
+    """
+    import sqlite3
+
+    try:
+        uri = f"file:{db_path.as_posix()}?mode=ro"
+        con = sqlite3.connect(uri, uri=True, timeout=0.2)
+        try:
+            return con.execute("select count(*) from chunks").fetchone()[0] > 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None
+
+
 def is_project_root(p: Path | str) -> bool:
     """Похож ли каталог на проект (а не на случайный cwd).
 
     Признаки, любой из:
     - маркер VCS/сборки (`.git`, `pyproject.toml`, `package.json`, …);
-    - уже существующий индекс `<root>/.mscodebase` (пользователь индексировал
-      этот каталог раньше — его выбор не отменяем);
+    - уже существующий НЕПУСТОЙ индекс (`<root>/.mscodebase/chunks.db` с чанками
+      или `graph.db` с узлами) — пользователь индексировал этот каталог раньше,
+      его выбор не отменяем;
     - файл кода на верхнем уровне (папка со скриптами без VCS — тоже проект).
 
     Нужно для автоиндексации: без этих признаков корень может быть домашним
@@ -326,13 +348,32 @@ def is_project_root(p: Path | str) -> bool:
                     return True
             elif (root / marker).exists():
                 return True
-        # Уже существующий индекс учитываем только если он не пустой: каталог
-        # `.mscodebase` с пустой chunks.db (4096 b) — это след чужого запуска,
-        # а не признак проекта (замер 2026-11-16: пустой индекс в temp делал
-        # «проектом» любой каталог и ронял индексацию настоящего проекта).
-        _db = root / ".mscodebase" / "chunks.db"
+        # Уже существующий индекс учитываем только если он НЕПУСТОЙ: `.mscodebase`
+        # с пустой chunks.db — след чужого запуска, а не признак проекта (замер
+        # 2026-11-16: пустой индекс в temp делал «проектом» любой каталог и ронял
+        # индексацию настоящего проекта).
+        state_dir = root / ".mscodebase"
+        db_path = state_dir / "chunks.db"
+        if db_path.is_file():
+            has_chunks = _index_has_chunks(db_path)
+            if has_chunks is True:
+                return True
+            if has_chunks is None:
+                # Прочитать не смогли (занята/битая) — консервативно по размеру
+                # вместе с WAL: живой индекс держит данные именно там.
+                try:
+                    total = db_path.stat().st_size
+                    wal = state_dir / "chunks.db-wal"
+                    if wal.is_file():
+                        total += wal.stat().st_size
+                    if total > 8192:
+                        return True
+                except OSError:
+                    pass
+        # Граф символов — тоже индекс: проект может иметь только его.
+        graph_db = state_dir / "graph.db"
         try:
-            if _db.is_file() and _db.stat().st_size > 8192:
+            if graph_db.is_file() and graph_db.stat().st_size > 8192:
                 return True
         except OSError:
             pass
@@ -543,6 +584,10 @@ def resolve_project_root(provided: str = "") -> Path:
             return cwd
         env_candidate = _resolve_env_project_root()
         if env_candidate is not None and is_project_root(env_candidate):
+            if env_candidate == cwd:
+                # Тот же путь: подмены нет, предупреждать не о чем.
+                logger.debug(f"resolve_project_root: CWD={cwd} (PROJECT_PATH совпадает)")
+                return cwd
             logger.warning(
                 f"resolve_project_root: CWD={cwd} не похож на проект — "
                 f"использую PROJECT_PATH={env_candidate}"
