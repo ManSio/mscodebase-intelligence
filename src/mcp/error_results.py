@@ -6,15 +6,14 @@ as ordinary text, so MCP reports ``isError = false`` and an agent that branches
 on the protocol flag sees a failed call as successful. This module flips the
 flag at the single boundary where the result leaves the server.
 
-Why not raise: FastMCP's ``Tool.run`` wraps every exception into
-``ToolError("Error executing tool <name>: ...")``, which would prefix the
-envelope and break machine parsing. The low-level handler is the only place
-that can set the flag while leaving the payload byte-identical.
+Why not raise: the SDK's ``Tool.run`` wraps every exception (prefixes the
+message), which would break machine parsing of the envelope. The boundary below
+is the only place that sets the flag while leaving the payload byte-identical.
 
-Cost: the handler is a private FastMCP surface (``mcp._mcp_server``,
-``server.request_handlers``). It is pinned by ``mcp==1.30.0`` and guarded by
-``tests/test_mcp_is_error.py`` — if the surface changes, the guard fails loudly
-instead of silently returning ``isError=false`` again.
+Cost: on 1.x the flag is set through a private surface (``mcp._mcp_server`` +
+``server.request_handlers``); on 2.x through public ``middleware``. Both paths
+are pinned by ``tests/test_mcp_is_error.py`` — if a surface changes, the guard
+fails loudly instead of silently returning ``isError=false`` again.
 """
 from __future__ import annotations
 

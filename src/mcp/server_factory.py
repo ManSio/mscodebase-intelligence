@@ -183,7 +183,11 @@ def create_mcp_server():
     """Создаёт и настраивает MCP-сервер с DI-контейнером."""
     try:  # mcp >= 2
         from mcp.server.mcpserver import MCPServer as _Server
-    except ImportError:  # mcp 1.x (до миграции)
+    except ModuleNotFoundError as exc:  # mcp 1.x (до миграции)
+        # Только «нет модуля mcp.server.mcpserver»: ImportError внутри пакета
+        # (например, отсутствующий httpx2) не должен маскироваться под 1.x.
+        if exc.name not in {"mcp.server.mcpserver", "mcp.server"}:
+            raise
         from mcp.server.fastmcp import FastMCP as _Server
 
     try:
