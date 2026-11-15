@@ -42,9 +42,19 @@ A split used to design a fix cannot afterwards be reported as a pre-registered t
 panel must serve both roles, the design set and the test set are different splits, and the
 test split runs once.
 
+## Reporting rule (for the sealed run)
+
+- Report the sealed outcome as **direction plus a 95% Wilson interval** over n=37; never the ratio alone.
+- A **threshold pass is the worst case**: 13/37 = 0.351, lower bound **0.218**. Print that bound next to
+  the 0.35 bar so a pass is not read as clearing it. The bound moves with the result:
+  17/37 → [0.310, 0.616], 21/37 → [0.409, 0.713].
+- State **"one run, no repeat by design"**: there is no second draw to narrow the interval.
+- Cite this file by its commit in `main` (`3ec3052` created it, `e24ad59` last touched it) so a reader
+  can check it predates the run.
+
 ## What does not reopen the design set
 
-`d37b796` and `4fc7404` add reporting guards (`executed=` counter, replay refusal, foreign/missing row
+`d37b796` and `e24ad59` add reporting guards (`executed=` counter, replay refusal, foreign/missing row
 refusal, provenance stamp). They change what the harness refuses to print, not which rows retrieval
 returns, so they do not move the numbers and do not restart the cycle.
 
