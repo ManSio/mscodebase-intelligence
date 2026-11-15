@@ -33,5 +33,10 @@ def test_every_attack_is_defended():
 
 
 def test_red_team_covers_the_documented_attack_set():
-    # the table in the README lists 13 attacks; the suite must not silently shrink
+    # the table in the README lists 13 attacks; the suite must not silently shrink.
+    # Runs the red team itself instead of reading module state: under xdist the
+    # two tests land in different workers, and a shared global is empty there
+    # (caught 2026-11-15: 2560 passed, this one failed with RESULTS == []).
+    red_team.RESULTS.clear()
+    assert red_team.main() == 0
     assert len(red_team.RESULTS) == 13
