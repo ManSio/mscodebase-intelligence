@@ -61,6 +61,13 @@ def _kept_gold(task: dict) -> list[str]:
     return [g for g in task["gold"] if (CORPUS / g).is_file()]
 
 
+def _product_rev() -> str:
+    """The revision of the *product* (this repository), recorded in every row."""
+    out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                         capture_output=True, text=True, encoding="utf-8")
+    return out.stdout.strip() if out.returncode == 0 else "unknown"
+
+
 def _corpus_files() -> list[str]:
     out = subprocess.run(["git", "ls-files", "*.py", "*.md", "*.toml", "*.json"],
                          cwd=CORPUS, capture_output=True, text=True, encoding="utf-8")
@@ -153,6 +160,11 @@ def main() -> int:
         action="store_true",
         help="score a capture without executing the panel (the 0.2-minute run)",
     )
+    parser.add_argument(
+        "--allow-mixed",
+        action="store_true",
+        help="score a capture whose rows came from another product revision or corpus",
+    )
     args = parser.parse_args()
 
     if args.split == "sealed" and not args.sealed:
@@ -189,7 +201,9 @@ def main() -> int:
         CORPUS, factory=services.resolve(IndexerFactoryKey)
     )
     head = indexer._symbol_index.graph.get_meta("build_head") or ""
-    print(f"corpus build_head={head[:12]} expected={BASE[:12]}")
+    rev = _product_rev()
+    corpus_head = head[:12]
+    print(f"corpus build_head={head[:12]} expected={BASE[:12]} product_rev={rev[:12]}")
     baseline = GrepBaseline(_corpus_files())
 
     rows = []
@@ -207,7 +221,13 @@ def main() -> int:
     rows, done = load_capture(partial, args.resume)
     panel_ids = [task["id"] for task in tasks]
     executed, resumed, refusal = check_capture_before_run(
-        rows, done, panel_ids, args.allow_replay
+        rows,
+        done,
+        panel_ids,
+        rev=rev,
+        corpus_head=corpus_head,
+        allow_replay=args.allow_replay,
+        allow_mixed=args.allow_mixed,
     )
     print(f"executed={executed} resumed={resumed} of {len(panel_ids)}", flush=True)
     if refusal:
@@ -233,6 +253,8 @@ def main() -> int:
         search_files = _files_from_rows(raw)
         row = {
             "id": task["id"],
+            "rev": rev,
+            "corpus_head": corpus_head,
             "valid": not _invalid(text),
             "tool_top1": _hits(files, task["gold"], 1),
             "tool_top5": _hits(files, task["gold"], 5),

@@ -61,12 +61,22 @@ def load_capture(path: Path, resume: bool) -> tuple[list[dict], set[str]]:
 
 
 def check_capture_before_run(
-    rows: list[dict], done: set[str], panel_ids: list[str], allow_replay: bool = False
+    rows: list[dict],
+    done: set[str],
+    panel_ids: list[str],
+    *,
+    rev: str,
+    corpus_head: str,
+    allow_replay: bool = False,
+    allow_mixed: bool = False,
 ) -> tuple[int, int, str | None]:
-    """Refuse a capture that cannot describe this panel.
+    """Refuse a capture that cannot describe this panel or this product.
 
     Returns `(executed, resumed, refusal)`. The caller prints the counters: a
     score is only trustworthy next to the number of tasks this run executed.
+    `rev`/`corpus_head` are the provenance of *this* run; a row that carries a
+    different one came from another product or another corpus, and mixing them
+    is the E74 bug at a smaller scale (found by red-teaming the counter guard).
     """
     panel = set(panel_ids)
     executed = len(panel - done)
@@ -74,6 +84,19 @@ def check_capture_before_run(
     foreign = sorted({row["id"] for row in rows} - panel)
     if foreign:
         return executed, resumed, f"{len(foreign)} capture rows are not in this panel: {foreign[:3]}"
+    if not allow_mixed:
+        stale_rev = [row["id"] for row in rows if str(row.get("rev")) != rev]
+        if stale_rev:
+            return executed, resumed, (
+                f"{len(stale_rev)} capture rows came from another revision "
+                f"(this run is {rev[:12]}): {stale_rev[:2]}"
+            )
+        stale_corpus = [row["id"] for row in rows if str(row.get("corpus_head")) != corpus_head]
+        if stale_corpus:
+            return executed, resumed, (
+                f"{len(stale_corpus)} capture rows came from another corpus "
+                f"(this corpus is {corpus_head}): {stale_corpus[:2]}"
+            )
     if executed == 0 and panel and not allow_replay:
         return executed, resumed, "0 tasks executed: this is a replay, pass --allow-replay to score it"
     return executed, resumed, None
