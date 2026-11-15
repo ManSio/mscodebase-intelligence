@@ -199,3 +199,20 @@ def pytest_unconfigure(config):
         return
     os.environ.pop(_LOCK_INHERITED, None)
     _release_file_lock(handle)
+
+# --- mcp 2.x compatibility for tests -----------------------------------------
+# Тесты (и часть плагинов) импортируют `mcp.server.fastmcp.FastMCP`, которого в
+# 2.x нет: класс переименован в `MCPServer`. Шим держим в одном месте, чтобы не
+# править каждый тест и не ломать отступы во вложенных импортах.
+try:  # pragma: no cover - зависит от установленной линии SDK
+    import sys as _sys
+    import types as _types
+
+    import mcp.server.mcpserver as _mcpserver
+
+    if "mcp.server.fastmcp" not in _sys.modules:
+        _shim = _types.ModuleType("mcp.server.fastmcp")
+        _shim.FastMCP = _mcpserver.MCPServer
+        _sys.modules["mcp.server.fastmcp"] = _shim
+except ImportError:  # mcp 1.x: настоящий модуль на месте
+    pass
