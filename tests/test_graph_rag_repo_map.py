@@ -97,3 +97,22 @@ def test_feature_query_reads_symbolref_objects():
     result = engine.query_feature("build_report")
     assert result["files"] == ["src/app.py"]
     assert result["symbols"], "символы обязаны попасть в ответ"
+
+
+def test_build_graph_reads_symbolref_objects():
+    """repo_map может отдать SymbolRef (у него имя в `.symbol`, не в `.name`)."""
+    graph = _engine({"src/ref.py": [_Ref("build_report", "src/ref.py")]}).build_graph()
+
+    assert graph["stats"]["total_symbols"] == 1
+    assert graph["stats"]["total_files"] == 1
+
+
+def test_symbol_name_handles_all_documented_forms():
+    """Строка, dict с name, dict с symbol, объект с .symbol — все дают имя."""
+    name = GraphRAGQueryEngine._symbol_name
+    assert name("alpha") == "alpha"
+    assert name({"name": "beta"}) == "beta"
+    assert name({"symbol": "gamma"}) == "gamma"
+    assert name(_Ref("delta", "src/x.py")) == "delta"
+    assert name(None) is None
+    assert name({"name": ""}) is None

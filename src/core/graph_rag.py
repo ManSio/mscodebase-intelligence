@@ -97,12 +97,21 @@ class GraphRAGQueryEngine:
 
     @staticmethod
     def _symbol_name(symbol) -> str | None:
-        """Имя символа из записи repo_map: строка или dict вида {name: ...}."""
+        """Имя символа из записи repo_map: строка, dict или SymbolRef.
+
+        Формы в кодовой базе разные: `get_repo_map` отдаёт dict-и (`{name, kind}`),
+        `search_symbols`/`find_definitions` — объекты `SymbolRef` (у него имя в
+        атрибуте `symbol`, а не `name`), старые вызывающие — строки.
+        """
         if isinstance(symbol, str):
-            return symbol
+            return symbol or None
         if isinstance(symbol, dict):
-            name = symbol.get("name")
+            name = symbol.get("name") or symbol.get("symbol")
             return name if isinstance(name, str) and name else None
+        for attr in ("name", "symbol"):
+            value = getattr(symbol, attr, None)
+            if isinstance(value, str) and value:
+                return value
         return None
 
     def query_impact(self, symbol_name: str, depth: int = 2) -> Dict:
