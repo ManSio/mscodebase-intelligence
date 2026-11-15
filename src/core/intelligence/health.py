@@ -74,6 +74,30 @@ def _scan_disk_files(project_path: Path, cap: int = 10000) -> tuple[set[str], in
     return files, count, truncated
 
 
+_LOG_TAIL_BYTES = 2 * 1024 * 1024
+
+
+def _read_log_tail(path: Path, cap: int = _LOG_TAIL_BYTES) -> str:
+    """Читает только хвост лога (не больше `cap` байт).
+
+    Замер 2026-11-16: `get_health_report` читал файл целиком (`f.read()`) на
+    каждом вызове — p50 1.1–2.9 с на общем `mcp_global.log`, который растёт
+    с каждой сессией. Для счётчика уровня нужны только свежие строки.
+    """
+    size = path.stat().st_size
+    if size <= cap:
+        return path.read_text(encoding="utf-8", errors="replace")
+    with open(path, "rb") as f:
+        f.seek(size - cap)
+        chunk = f.read()
+    # Первая строка почти наверняка обрезана посередине — отбрасываем её,
+    # иначе счётчик может принять огрызок за level-строку.
+    newline = chunk.find(b"\n")
+    if newline != -1:
+        chunk = chunk[newline + 1 :]
+    return chunk.decode("utf-8", errors="replace")
+
+
 def _count_log_levels(content: str, now: datetime, window_hours: int = 24) -> tuple[int, int]:
     """Число [ERROR]/[WARNING]-строк лога в последнем окне.
 
@@ -152,54 +176,54 @@ class HealthReport:
         self.metrics.clear()
 
         # 1. Проверка индекса
-        logger.warning("[diag] _check_index_integrity...")
+        logger.debug("[diag] _check_index_integrity...")
         self._check_index_integrity()
-        logger.warning("[diag] _check_index_integrity OK")
+        logger.debug("[diag] _check_index_integrity OK")
 
         # 2. Проверка логов
-        logger.warning("[diag] _check_logs...")
+        logger.debug("[diag] _check_logs...")
         self._check_logs()
-        logger.warning("[diag] _check_logs OK")
+        logger.debug("[diag] _check_logs OK")
 
         # 3. Проверка файловой системы
-        logger.warning("[diag] _check_filesystem_sync...")
+        logger.debug("[diag] _check_filesystem_sync...")
         self._check_filesystem_sync()
-        logger.warning("[diag] _check_filesystem_sync OK")
+        logger.debug("[diag] _check_filesystem_sync OK")
 
         # 4. Проверка компонентов
-        logger.warning("[diag] _check_components...")
+        logger.debug("[diag] _check_components...")
         self._check_components()
-        logger.warning("[diag] _check_components OK")
+        logger.debug("[diag] _check_components OK")
 
         # 4b. Проверка ресурсов (multi-window, INC-6BCB)
-        logger.warning("[diag] _check_resources...")
+        logger.debug("[diag] _check_resources...")
         self._check_resources()
-        logger.warning("[diag] _check_resources OK")
+        logger.debug("[diag] _check_resources OK")
 
         # 5. Execution Contract верификация
-        logger.warning("[diag] _check_execution_contract...")
+        logger.debug("[diag] _check_execution_contract...")
         self._check_execution_contract()
-        logger.warning("[diag] _check_execution_contract OK")
+        logger.debug("[diag] _check_execution_contract OK")
 
         # 5.5. Zed SQLite schema guard (scoped_kv_store — недокументированный API)
-        logger.warning("[diag] _check_zed_sqlite_schema...")
+        logger.debug("[diag] _check_zed_sqlite_schema...")
         self._check_zed_sqlite_schema()
-        logger.warning("[diag] _check_zed_sqlite_schema OK")
+        logger.debug("[diag] _check_zed_sqlite_schema OK")
 
         # 6. Synthetic monitoring (качество поиска)
-        logger.warning("[diag] _check_search_quality...")
+        logger.debug("[diag] _check_search_quality...")
         self._check_search_quality()
-        logger.warning("[diag] _check_search_quality OK")
+        logger.debug("[diag] _check_search_quality OK")
 
         # 6.5. Метрика памяти (false-retractions, спека v1)
-        logger.warning("[diag] _check_memory...")
+        logger.debug("[diag] _check_memory...")
         self._check_memory()
-        logger.warning("[diag] _check_memory OK")
+        logger.debug("[diag] _check_memory OK")
 
         # 7. Формирование итогового отчёта
-        logger.warning("[diag] _build_report...")
+        logger.debug("[diag] _build_report...")
         result = self._build_report()
-        logger.warning("[diag] _build_report OK")
+        logger.debug("[diag] _build_report OK")
         return result
 
     def _check_index_integrity(self):
@@ -333,18 +357,25 @@ class HealthReport:
             self.metrics["latest_log_file"] = latest_log.name
 
             try:
-                with open(latest_log, "r", encoding="utf-8") as f:
-                    content = f.read()
+                content = _read_log_tail(latest_log)
                 error_count, warning_count = _count_log_levels(content, datetime.now())
 
                 self.metrics["latest_log_errors"] = error_count
                 self.metrics["latest_log_warnings"] = warning_count
 
                 if error_count > 10:
-                    self.issues.append(
+                    # Лог общий на все проекты и сессии (`mcp_global.log`):
+                    # чужие ошибки — сигнал «посмотри лог», а не доказательство
+                    # критического состояния ЭТОГО сервера. Поэтому warning
+                    # (degraded), а не issue (critical) — замер 2026-11-16:
+                    # `overall_health: critical` из-за 13 строк чужого лога.
+                    self.warnings.append(
                         {
                             "component": "logs",
-                            "message": f"Много ошибок в последнем логе: {error_count}",
+                            "message": (
+                                f"Много ошибок в общем логе за 24 ч: {error_count} "
+                                f"({latest_log.name}; лог общий на все проекты)"
+                            ),
                         }
                     )
 
