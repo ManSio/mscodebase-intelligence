@@ -3,16 +3,29 @@
 A squash merge rewrites history: the short hash that exists on the author's disk
 is in no remote branch, so a cited link 404s while every file gate stays green.
 On 2026-11-15 the post cited `4fc7404` three times in exactly this state.
+
+The checker is called in-process: a subprocess-based test inherits whatever the
+worker did to `subprocess.run` (a leaked stub made `stdout` None on Windows CI).
 """
 
 from __future__ import annotations
 
+import importlib.util
+import io
 import subprocess
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "check_cited_commits.py"
+
+
+def _module():
+    spec = importlib.util.spec_from_file_location("check_cited_commits", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def _git(*args: str, with_identity: bool = False) -> str:
@@ -30,66 +43,56 @@ def _git(*args: str, with_identity: bool = False) -> str:
     return out.stdout.strip()
 
 
-def _run(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(SCRIPT), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        input=stdin,
-        timeout=120,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-
-
-def test_reachable_commit_passes(tmp_path: Path) -> None:
-    head = _git("rev-parse", "--short=7", "HEAD")
+def _run(tmp_path: Path, text: str, capsys) -> tuple[int, str]:
     body = tmp_path / "post.md"
-    body.write_text(f"fixed in {head}\n", encoding="utf-8")
-    proc = _run(str(body))
-    assert proc.returncode == 0, proc.stdout
-    assert "clean" in proc.stdout
+    body.write_text(text, encoding="utf-8")
+    code = _module().main(["check_cited_commits", str(body)])
+    return code, capsys.readouterr().out
 
 
-def test_unreachable_commit_is_refused(tmp_path: Path) -> None:
+def test_reachable_commit_passes(tmp_path, capsys) -> None:
+    head = _git("rev-parse", "--short=7", "HEAD")
+    code, out = _run(tmp_path, f"fixed in {head}\n", capsys)
+    assert code == 0, out
+    assert "clean" in out
+
+
+def test_unreachable_commit_is_refused(tmp_path, capsys) -> None:
     dangling = _git(
         "commit-tree", "HEAD^{tree}", "-m", "dangling fixture for P-045", with_identity=True
     )
-    body = tmp_path / "post.md"
-    body.write_text(f"fixed in {dangling[:7]}\n", encoding="utf-8")
-    proc = _run(str(body))
-    assert proc.returncode == 1, proc.stdout
-    assert "not reachable" in proc.stdout
+    code, out = _run(tmp_path, f"fixed in {dangling[:7]}\n", capsys)
+    assert code == 1, out
+    assert "not reachable" in out
 
 
-def test_unknown_hash_is_refused(tmp_path: Path) -> None:
-    body = tmp_path / "post.md"
-    body.write_text("see deadbeefdeadbeef\n", encoding="utf-8")
-    proc = _run(str(body))
-    assert proc.returncode == 1, proc.stdout
-    assert "no such object" in proc.stdout
+def test_unknown_hash_is_refused(tmp_path, capsys) -> None:
+    code, out = _run(tmp_path, "see deadbeefdeadbeef\n", capsys)
+    assert code == 1, out
+    assert "no such object" in out
 
 
-def test_allowlist_is_explicit(tmp_path: Path) -> None:
+def test_allowlist_is_explicit(tmp_path, capsys) -> None:
     allowed = (REPO / "scripts" / "cited_commits_allow.txt").read_text(encoding="utf-8")
     token = next(
         line.split("=")[0].strip()
         for line in allowed.splitlines()
         if line.strip() and not line.startswith("#")
     )
-    body = tmp_path / "post.md"
-    body.write_text(f"in another repo {token}\n", encoding="utf-8")
-    proc = _run(str(body))
-    assert proc.returncode == 0, proc.stdout
-    assert "OK-ELSEWHERE" in proc.stdout
+    code, out = _run(tmp_path, f"in another repo {token}\n", capsys)
+    assert code == 0, out
+    assert "OK-ELSEWHERE" in out
 
 
-def test_truncated_digest_is_skipped(tmp_path: Path) -> None:
-    body = tmp_path / "post.md"
-    body.write_text("hashes to `71395d45…` (a sha256 prefix)\n", encoding="utf-8")
-    proc = _run(str(body))
-    assert proc.returncode == 0, proc.stdout
+def test_truncated_digest_is_skipped(tmp_path, capsys) -> None:
+    code, out = _run(tmp_path, "hashes to `71395d45…` (a sha256 prefix)\n", capsys)
+    assert code == 0, out
+
+
+def test_stdin_is_supported(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "stdin", io.StringIO("see deadbeefdeadbeef\n"))
+    assert _module().main(["check_cited_commits", "-"]) == 1
 
 
 def test_no_input_is_not_a_pass() -> None:
-    assert _run().returncode == 2
+    assert _module().main(["check_cited_commits"]) == 2
