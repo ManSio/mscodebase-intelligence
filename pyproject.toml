@@ -29,7 +29,7 @@ dependencies = [
     # MCP Protocol
     "mcp==2.3.0",
     "mcp-types==2.3.0",
-    "opentelemetry-api>=1.28.0",  # ADR-0008: 2.x = протокол 2026-07-28; транспорт проверен (stdio+Streamable HTTP)
+    "opentelemetry-api==1.45.2",  # ADR-0008: 2.x = протокол 2026-07-28; транспорт проверен (stdio+Streamable HTTP)
     # PyYAML: pnpm-lock.yaml в src/core/deps/manifest (B-1). Единственная НЕ-stdlib
     # зависимость экстракторов; версия из requirements-lock.txt (венв, live 6.0.3,
     # API yaml.safe_load проверен). Бамп — по §5.19.
@@ -81,7 +81,7 @@ dependencies = [
     # Search & Utils
     "pathspec==1.1.1",
     "httpx==0.28.1",  # наш код (llama_runner/remote_embedder)
-    "httpx2>=2.10.0",
+    "httpx2==2.16.0",
     "python-dotenv==1.2.2",
     "pandas==3.0.3",
     "python-dateutil==2.9.0.post0",
