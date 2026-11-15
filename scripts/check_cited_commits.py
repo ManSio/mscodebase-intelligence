@@ -91,6 +91,9 @@ def find_citations(text: str) -> tuple[list[str], list[str], list[str], list[str
             if tail.startswith(ELLIPSIS):
                 continue
             token = match.group(0)
+            # A 13-digit timestamp (or any all-digit run) is not a commit hash.
+            if token.isdigit():
+                continue
             if token in allow:
                 elsewhere.append(f"line {number}: {token} — {allow[token]}")
                 continue
