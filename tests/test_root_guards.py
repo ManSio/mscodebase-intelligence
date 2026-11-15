@@ -120,7 +120,15 @@ def test_directory_with_code_files_is_a_project(tmp_path: Path):
 def test_previously_indexed_directory_is_a_project(tmp_path: Path):
     """Если человек уже индексировал каталог, его выбор не отменяем."""
     (tmp_path / ".mscodebase").mkdir()
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 16384)
     assert is_project_root(tmp_path) is True
+
+
+def test_empty_index_does_not_make_a_project(tmp_path: Path):
+    """Пустая chunks.db (4096 b) — след запуска, а не признак проекта."""
+    (tmp_path / ".mscodebase").mkdir()
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 4096)
+    assert is_project_root(tmp_path) is False
 
 
 def test_directory_with_only_documents_is_not_a_project(tmp_path: Path):

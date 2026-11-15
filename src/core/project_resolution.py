@@ -323,8 +323,16 @@ def is_project_root(p: Path | str) -> bool:
                     return True
             elif (root / marker).exists():
                 return True
-        if (root / ".mscodebase").is_dir():
-            return True
+        # Уже существующий индекс учитываем только если он не пустой: каталог
+        # `.mscodebase` с пустой chunks.db (4096 b) — это след чужого запуска,
+        # а не признак проекта (замер 2026-11-16: пустой индекс в temp делал
+        # «проектом» любой каталог и ронял индексацию настоящего проекта).
+        _db = root / ".mscodebase" / "chunks.db"
+        try:
+            if _db.is_file() and _db.stat().st_size > 8192:
+                return True
+        except OSError:
+            pass
         for entry in root.iterdir():
             if entry.is_file() and entry.suffix.lower() in _CODE_EXTENSIONS:
                 return True
@@ -515,8 +523,26 @@ def resolve_project_root(provided: str = "") -> Path:
     # Раньше CWD был предпоследним в цепочке, а SQLite active_workspace_id
     # (один на весь Zed) — первым: оба окна резолвили один проект →
     # PID-lock конфликт и ProjectState.FAILED во втором окне.
+    #
+    # Оговорка (замер 2026-11-16): хост может запустить сервер с cwd, который
+    # НЕ проект (`%TEMP%`, каталог установки), и при этом передать PROJECT_PATH
+    # на настоящий проект. Тогда CWD-first индексировал пустоту: в логе
+    # `[text-index] done: 0 files`, а все инструменты видели пустой индекс.
+    # Поэтому CWD выигрывает только если он сам похож на проект; иначе честно
+    # уступаем явному PROJECT_PATH (позиция 2), а CWD остаётся как был — для
+    # multi-window, где cwd и есть проект.
     cwd = Path.cwd().resolve()
     if not _reject_self_index_target(cwd, source="CWD"):
+        if is_project_root(cwd):
+            logger.debug(f"resolve_project_root: CWD={cwd}")
+            return cwd
+        env_candidate = _resolve_env_project_root()
+        if env_candidate is not None and is_project_root(env_candidate):
+            logger.warning(
+                f"resolve_project_root: CWD={cwd} не похож на проект — "
+                f"использую PROJECT_PATH={env_candidate}"
+            )
+            return env_candidate
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd
 
