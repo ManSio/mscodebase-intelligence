@@ -66,8 +66,16 @@ def _object_type(token: str) -> str:
 
 
 def _reachable(sha: str) -> bool:
-    out = _git("branch", "-r", "--contains", sha)
-    return bool(out.stdout.strip())
+    """Alive if any remote ref contains it, any ref contains it, or HEAD builds on it.
+
+    A shallow CI checkout has no remote-tracking refs, so "no remote contains it"
+    alone would fail a citation that is simply the HEAD of the pull request.
+    """
+    if _git("branch", "-r", "--contains", sha).stdout.strip():
+        return True
+    if _git("for-each-ref", "--contains", sha).stdout.strip():
+        return True
+    return _git("merge-base", "--is-ancestor", sha, "HEAD").returncode == 0
 
 
 def find_citations(text: str) -> tuple[list[str], list[str], list[str], list[str]]:

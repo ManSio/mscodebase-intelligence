@@ -15,9 +15,10 @@ REPO = Path(__file__).resolve().parents[1]
 SCRIPT = REPO / "scripts" / "check_cited_commits.py"
 
 
-def _git(*args: str) -> str:
+def _git(*args: str, with_identity: bool = False) -> str:
+    prefix = ["-c", "user.name=fixture", "-c", "user.email=fixture@example.invalid"] if with_identity else []
     out = subprocess.run(
-        ["git", *args],
+        ["git", *prefix, *args],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -51,7 +52,9 @@ def test_reachable_commit_passes(tmp_path: Path) -> None:
 
 
 def test_unreachable_commit_is_refused(tmp_path: Path) -> None:
-    dangling = _git("commit-tree", "HEAD^{tree}", "-m", "dangling fixture for P-045")
+    dangling = _git(
+        "commit-tree", "HEAD^{tree}", "-m", "dangling fixture for P-045", with_identity=True
+    )
     body = tmp_path / "post.md"
     body.write_text(f"fixed in {dangling[:7]}\n", encoding="utf-8")
     proc = _run(str(body))
