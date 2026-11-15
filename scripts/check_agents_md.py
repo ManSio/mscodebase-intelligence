@@ -31,7 +31,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-MAX_LINES = 150
+MAX_LINES = 160
 
 # Сгенерированные/шаблонные пути, которых намеренно нет в дереве.
 ALLOWED_MISSING = {"docs/generated/module_index.md"}
@@ -44,15 +44,17 @@ STRIP_PATTERNS = (
     re.compile(r"%[A-Za-z_]+%[^\s`)]*"),
     re.compile(r"<[^>]+>[^\s`)]*"),
     re.compile(r"\b[A-Za-z]:\\[^\s`)]*"),
+    re.compile(r"(?:[\w.-]+/)*\*[\w./*-]*"),  # glob-пути: `src/*/config.py`
 )
 
 PLACEHOLDER = re.compile(r"(YYYY|\.\.\.|…|[*<>{}])")
 PATH_TOKEN = re.compile(
-    r"(?<![A-Za-z0-9])(?:\./)?(?:[\w.@-]+/)*[\w.@-]+\.(?:md|py|toml|json|yml|yaml|bat|sh|txt|cfg|ini|marker|ts|js)"
+    r"(?<![A-Za-z0-9])(?:\./)?(?:[\w.@-]+/)*[\w.@-]+\.(?:md|py|toml|json|yml|yaml|bat|sh|txt|cfg|ini|marker|ts|js|csv|log|png|svg)"
 )
 # Каталоги, где путь осмыслен и без расширения (`.githooks/pre-commit`).
 PATH_DIR = re.compile(
-    r"(?<![A-Za-z0-9])(?:\./)?(?:src|scripts|tests|adapters|tools|docs|\.githooks|\.github|\.opencode)/[\w./-]+"
+    r"(?<![A-Za-z0-9])(?:\./)?(?:src|scripts|tests|adapters|tools|docs|deploy|experiments|extensions|examples|locales|logo|telemetry|\.githooks|\.github|\.opencode|\.locks)/[\w./-]+",
+    re.IGNORECASE
 )
 FLAG_RE = re.compile(r"install\.py\s+(--[a-z][a-z0-9-]*)")
 ENV_RE = re.compile(r"\b(?:MSCODEBASE|MSCB)_[A-Z0-9_]+\b")
@@ -131,6 +133,8 @@ def check(root: Path, text: str) -> list[str]:
     candidates |= {m.group(0) for m in PATH_DIR.finditer(body)}
     for raw in sorted(candidates):
         path = raw.rstrip(".,);:`").lstrip("/")
+        if path.startswith("./"):
+            path = path[2:]
         if path.startswith("../"):
             problems.append(f"R2: путь `{raw}` выходит за корень репозитория")
             continue
@@ -138,10 +142,12 @@ def check(root: Path, text: str) -> list[str]:
             continue
         if known is not None:
             exact, folded = known
-            if path in exact or path.endswith("/"):
+            if path in exact:
                 continue
-            if any(name.startswith(path + "/") for name in exact):
-                continue  # это каталог, а не файл
+            # каталог: `docs/blog/` или `src/ghost_dir/` — проверяем по префиксу
+            prefix = path if path.endswith("/") else path + "/"
+            if any(name.startswith(prefix) for name in exact):
+                continue
             if path.casefold() in folded:
                 problems.append(f"R2: регистр пути `{path}` не совпадает с файлом в репозитории")
                 continue

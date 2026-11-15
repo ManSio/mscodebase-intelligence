@@ -9,17 +9,18 @@ MSCodeBase pre-commit hook — автоматическая проверка п�
 1. verify_diary — проверка AGENT_DIARY.md
 2. stale_detector — проверка дрейфа версий в доках
 3. check_tool_names — semantic-гейт имён MCP-тулов
-4. negative_controls — guard inventory (каждый guard умеет падать)
-5. check_layer_boundaries — гейт трёх осей (Universal Engine)
-6. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
-7. lock_guard — активные git-локи (advisory, exit 0)
-8. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
-9. third_party_data — чужие данные/лицензии
-10. parallel_sessions — чужой файл в индексе
-11. ruff_gate — линтер
-12. verification_gates — G1–G5 (scripts/gate_cli.py --selftest)
-13. protocol_gate — секреты, удалённые ассерты, focus-маркеры (глобальный гейт протокола)
-14. gitleaks — энтропийный секрет-скан staged-изменений (v8.30.1)
+4. check_agents_md — AGENTS.md: пути/флаги/переменные/число/размер
+5. negative_controls — guard inventory (каждый guard умеет падать)
+6. check_layer_boundaries — гейт трёх осей (Universal Engine)
+7. architecture_linter — архитектурные инварианты (core→mcp, registry, циклы, stale-имена)
+8. lock_guard — активные git-локи (advisory, exit 0)
+9. check_known_issues — §4.8 R4: размер ≤ 300 строк + архивация старых записей
+10. third_party_data — чужие данные/лицензии
+11. parallel_sessions — чужой файл в индексе
+12. ruff_gate — линтер
+13. verification_gates — G1–G5 (scripts/gate_cli.py --selftest)
+14. protocol_gate — секреты, удалённые ассерты, focus-маркеры (глобальный гейт протокола)
+15. gitleaks — энтропийный секрет-скан staged-изменений (v8.30.1)
 """
 
 import os

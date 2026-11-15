@@ -11,6 +11,7 @@
 (`docs/en/CLIENTS.md`). `install.py` создаёт обычное Python-окружение в
 `MSCODEBASE_INSTALL_ROOT` (по умолчанию — исторический
 `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`; к Zed относится только имя).
+По умолчанию — text-first: без эмбеддингов и LanceDB (`MSCODEBASE_DENSE_OFF=true`).
 Zed — опциональный адаптер (`--no-zed`); конфиг для остальных печатает
 `python install.py --print-config --client <generic|opencode|zed|claude-code|cursor>`.
 
@@ -29,7 +30,8 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
 - Из скриптов/CI — CLI-мост: `python -m src.cli <tool> '<json>' [--project <root>]`.
 - Transport error → fallback `grep`/`read`, но не выдавать это за результат MCP.
 - Ошибка не повторяется теми же аргументами: сначала здоровье MCP, затем смена входа.
-- Профили: `MSCODEBASE_MCP_PROFILE=core` (по умолчанию) / `full`; что скрыто — `tool_help()`.
+- Профили: `MSCODEBASE_MCP_PROFILE=core` (по умолчанию) / `full`; точечно —
+  `MSCODEBASE_MCP_TOOLS=a,b,c` (allowlist). Что скрыто — `tool_help()`.
 
 ## 3. MCP-FIRST
 
@@ -62,7 +64,9 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
 `intel_retract_memory_node`, `intel_restore_memory_node`, `intel_log_incident`,
 `intel_analyze_incident`, `intel_auto_collect_adrs`, `intel_code_topology`,
 `intel_get_hotspots`, `intel_get_runtime_status`, `intel_get_job_status`, `intel_get_telemetry`,
-`intel_predict_root_cause`, `intel_reset_index`, `intel_trigger_reindex`.
+`intel_predict_root_cause`, `intel_reset_index`, `intel_trigger_reindex`;
+inline: `intel_get_project_context`, `intel_explain_project_state`,
+`intel_execution_timeline`, `intel_tool_health`.
 Узлы `SUPERSEDED`/`REFUTED` — не факт: противоречащий коду узел перекрывается или отзывается,
 а не «остаётся как есть».
 
@@ -75,7 +79,8 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
   с `PYTHONPATH` на каталог установки и `PROJECT_PATH` = рабочая папка.
 - После правки кода: `python install.py --sync-only` → перезапуск хоста → `tool_help()`.
 - `install.py --doctor [--json]` — что стоит и сколько весит; `--clean [--dry-run]`,
-  удаление только с `--yes`.
+  удаление только с `--yes`. Полная установка (`python install.py`) — только по явной
+  задаче; Docker/WSL локально не нужны, образ собирает CI.
 - Правок нет в каталоге установки — в рантайме их нет: «работает» проверяется после sync + restart.
 
 ## 5. Структура корня
@@ -86,7 +91,10 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
 `EXPERIMENTS_LOG.md`, `WISDOM.md`, `ISSUE.md`; пакет и установка — `pyproject.toml`,
 `requirements.txt`, `requirements-lock.txt`, `MANIFEST.in`, `install.py`, `uninstall.bat`,
 `start_server.bat`, `start_remote.bat`, `extension.toml`, `__mscodebase_ext__.marker`;
-метаданные — `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE`, `ruff.toml`.
+метаданные — `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+`AI_INSTALLATION_PROMPT.md`, `LICENSE`, `ruff.toml`, `.gitignore`, `.dockerignore`,
+`.coveragerc.ci`, `.env.example`; `install.bat`/`install.sh`; `DEV_DIARY.md` — редирект на
+`AGENT_DIARY.md`. Зависимости — точные пины (`==`), дрейф ловит `scripts/check_lock_drift.sh`.
 
 `docs/generated/MODULE_INDEX.md` — генерируемый, не трекается. Одноразовые скрипты и логи
 в корне запрещены.
@@ -95,7 +103,8 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
 
 - Прочитать файл → `impact_analysis` (риск средний и выше) → точечная правка, стиль соседнего кода.
 - После `edit`/`write` — `notify_change(file_path)`, затем `codebase(action="index", path="status")`.
-- Переименование файла — `codebase(action="move")` (под капотом `apply_file_move`), не полный reindex.
+- `codebase(action="move")` переносит **символ** между файлами (`symbol`+`to_file`), файл не перемещает;
+  файл перемещён — `notify_change`, иначе индекс держит старый путь.
 - Память проекта: найденный техдолг/инцидент — `intel_add_memory_node`/`intel_log_incident`;
   узел, противоречащий коду, — `intel_supersede_memory_node`/`intel_retract_memory_node`.
 - Windows: `subprocess` в фоновом потоке — `Popen(stdin=DEVNULL, stdout=PIPE, stderr=DEVNULL)`
@@ -114,16 +123,19 @@ Zed — опциональный адаптер (`--no-zed`); конфиг дл�
 - Windows: MCP-пути в `\`-форме, терминал (PowerShell/GitBash) — в `/`.
 - Заглушки, `TODO/FIXME`, `NotImplementedError`, `print` в stdout (ломает JSON-RPC).
 - `git add -A`, `git add .`, `git commit -a` — только явные пути.
-- Чужие данные: личные email, чужие тексты целиком, дампы страниц (`scripts/check_third_party_data.py`).
+- Чужие данные: личные email, чужие тексты целиком, дампы страниц — гейт
+  `scripts/check_third_party_data.py`; сырьё вне репозитория — в `audit-cache/<задача>/`.
 - Секреты: `.env`, ключи, токены — только имена и структура, значения не читать.
-- Один писатель на реестр; параллельная работа — свой worktree.
+- Один писатель на реестр; параллельная работа — свой worktree (не в `%TEMP%`), ветка =
+  территория, чужой файл не коммитить (`scripts/check_parallel_sessions.py`),
+  предложение в чужой реестр — `experiments/<задача>/PENDING_LEDGER.md`.
 
 ## 8. Проверка перед сдачей (проектное; общее — глобальный протокол)
 
 1. Индекс обновлён (`notify_change` → статус).
 2. `python -m pytest tests/ -q` зелёный; slow-тесты отдельно (`-m "not benchmark"`).
-3. `ruff check src/ tests/` — чисто (как в CI; `scripts/` вне этого прогона, для него
-   `scripts/ruff_gate.py` — проверяет только изменённые файлы).
+3. `ruff check src/ tests/` — чисто (тот же scope в CI и в `scripts/ruff_gate.py`);
+   `scripts/` линтером не покрыт — 262 нарушения, известный долг.
 4. Хуки активны (`core.hooksPath = .githooks`). Docs-only коммит пропускает gate-zero (полный
    pytest) — поэтому гейты документации живут в самом хуке, а не только в тестах.
    `MSCB_PRECOMMIT_FAST=1` — только когда полный прогон всё равно уходит в CI.

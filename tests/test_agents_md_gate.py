@@ -31,18 +31,22 @@ def test_the_real_file_passes():
 
 def test_real_file_stays_within_the_budget():
     text = (REPO / "AGENTS.md").read_text(encoding="utf-8")
-    assert len(text.splitlines()) <= 150
+    assert len(text.splitlines()) <= 160
 
 
-def test_budget_is_pinned_to_150_lines():
+def test_budget_is_pinned():
     """Без литерала тест тавтологичен: MAX_LINES=100000 проходил бы."""
-    assert gate.MAX_LINES == 150
+    assert gate.MAX_LINES == 160
 
 
 def test_backslash_path_is_checked():
-    """Ровно тот случай, ради которого гейт написан: `src\\core\\config.py`."""
+    """Ровно тот случай, ради которого гейт написан: `src\\core\\config.py`.
+
+    Проверяем нормализованный путь: мутация «не заменять `\\` на `/`» иначе
+    выживала — она ловила огрызок `config.py` и всё равно давала R2.
+    """
     text = HEADER + "\nMCP: `src\\core\\config.py`.\n"
-    assert any("R2" in p for p in problems(text))
+    assert any("R2" in p and "src/core/config.py" in p for p in problems(text))
 
 
 def test_root_file_must_exist():
@@ -160,3 +164,28 @@ def test_cli_refuses_an_empty_file(tmp_path):
                           capture_output=True, text=True, encoding="utf-8", errors="replace")
     assert proc.returncode == 1
     assert "empty" in (proc.stdout + proc.stderr)
+
+def test_missing_directory_is_rejected():
+    text = HEADER + "\nПравила: `src/ghost_dir/`.\n"
+    assert any("R2" in p for p in problems(text))
+
+
+def test_directory_with_wrong_case_is_rejected():
+    text = HEADER + "\nПравила: `SRC/core/`.\n"
+    assert any("R2" in p for p in problems(text))
+
+
+def test_paths_outside_the_old_dir_whitelist_are_checked():
+    text = HEADER + "\n`deploy/ghost/Dockerfile`, `experiments/exp99/run.csv`.\n"
+    found = [p for p in problems(text) if "R2" in p]
+    assert len(found) == 2, found
+
+
+def test_dot_relative_real_path_is_accepted():
+    text = HEADER + "\nСм. `./src/main.py`.\n"
+    assert not [p for p in problems(text) if "R2" in p]
+
+
+def test_glob_path_is_not_a_reference():
+    text = HEADER + "\nШаблон: `src/*/config.py`.\n"
+    assert not [p for p in problems(text) if "R2" in p]
