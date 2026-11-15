@@ -51,6 +51,14 @@ jobs:
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
+      - name: Docs references (docs = code)
+        # Механическая форма AGENTS §8: изменённый .md обязан добавить проверяемую
+        # ссылку на код (`src/...py`, `path::symbol`, `install.py --flag`, env-имя).
+        # Проверяется дифф PR, а не весь файл. Локальный аналог: --staged.
+        run: >
+          python scripts/check_docs_refs.py
+          --base "${{ github.event.pull_request.base.sha || 'origin/main' }}"
+
       - name: Client snippets cold start (G5)
         # Каждый сниппет из `install.py --print-config` запускается на чистом
         # раннере: initialize + tools/list. Покрывает все 5 клиентов, включая
