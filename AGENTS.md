@@ -10,9 +10,12 @@ SQLite FTS5/BM25 + PropertyGraph), отвечает на вопросы о ко�
 проекта и безопасные правки. По умолчанию работает **без эмбеддингов и без LanceDB**
 (`MSCODEBASE_DENSE_OFF=true`).
 
-**Кто клиент.** Сейчас основной хост — **OpenCode**; расширение Zed остаётся рабочим
-вариантом. `install.py` в обоих случаях доставляет код в каталог расширения
-(`%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`), откуда MCP запускается.
+**Кто клиент.** Любой MCP-хост: OpenCode, Zed, Claude Code, Cursor, generic
+`mcpServers` (`docs/en/CLIENTS.md`; проверено `scripts/verify_client_snippets.py`).
+`install.py` создаёт обычное Python-окружение в `MSCODEBASE_INSTALL_ROOT` (по умолчанию —
+исторический `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`; к Zed относится
+только имя). Zed — опциональный адаптер (`--no-zed`), конфиг для остальных хостов
+печатает `python install.py --print-config --client <generic|opencode|zed|claude-code|cursor>`.
 Отсюда правило: после правки кода сервера — `python install.py --sync-only` и
 **перезапуск хоста** (сессия OpenCode / окно Zed), иначе работает старый процесс.
 
@@ -77,25 +80,30 @@ git commit/push); два подряд отказа MCP на одном инст�
 `read_live_file`/`get_symbol_info`; `git log` вместо `codebase(action="git", …)`;
 угадывание номеров строк.
 
-### §0.5. Цикл доставки: исходники → расширение → хост
+### §0.5. Цикл доставки: исходники → установка → хост
 
-- **Исходники:** этот репозиторий. **Установленное:** каталог расширения
-  `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence` (venv + код + модели).
-- OpenCode запускает MCP как `…\extensions\mscodebase-intelligence\venv\Scripts\mscodebase-mcp.exe
-  -u -m src.main` с `PYTHONPATH` на каталог расширения (`PROJECT_PATH` = рабочая папка).
+- **Исходники:** этот репозиторий. **Установленное:** `MSCODEBASE_INSTALL_ROOT`
+  (по умолчанию `%LOCALAPPDATA%\Zed\extensions\mscodebase-intelligence`): venv + код +
+  опциональные модели; данные, логи и кэши — в `MSCODEBASE_DATA_DIR`
+  (`docs/en/DATA_MAP.md`).
+- Хост запускает MCP как `<install-root>/venv/Scripts/mscodebase-mcp.exe -u -m src.main`
+  с `PYTHONPATH` на каталог установки (`PROJECT_PATH` = рабочая папка). Точную команду и
+  env для своего хоста печатает `install.py --print-config --client …`.
 - Порядок после правки кода:
 
   ```
   1. правка в src/… (после edit → notify_change)
-  2. python install.py --sync-only     # код, без pip/llama/GGUF
+  2. python install.py --sync-only     # код, без pip/llama/моделей
   3. перезапустить хост: сессию OpenCode (или окно Zed)
   4. проверить: tool_help() / get_health_report()
   ```
 
-- `python install.py` (без флагов) — интерактивная полная установка (pip, llama.cpp,
-  модели). Запускать только по явной задаче.
-- Правки, которых нет в расширении, в рантайме не существуют — «работает» проверять
-  только после sync + restart.
+- `python install.py` — полная установка: venv, pip, копия кода; без `--with-models`
+  модели не качаются (text-first), без `--no-zed` патчится `settings.json` Zed.
+  Запускать только по явной задаче.
+- `install.py --doctor [--json]` — что стоит и сколько весит; `--clean [--dry-run]`
+  — что будет удалено; удаление — только с `--yes`. Правки, которых нет в каталоге
+  установки, в рантайме не существуют — «работает» проверять после sync + restart.
 
 ### §0.6. Структура корня
 
@@ -317,8 +325,9 @@ impact-guard).
    (`-m "not benchmark"`), иначе их падения не видны.
 5. `ruff check src/ tests/ scripts/` — чисто (или `scripts/ruff_gate.py`).
 6. Хуки: `.githooks/pre-commit` активен (`core.hooksPath = .githooks`). Он гоняет
-   12 гейтов, включая gate-zero (полный pytest) — для docs-only коммитов gate-zero
-   пропускается автоматически.
+   14 гейтов (последний — gitleaks), включая gate-zero (полный pytest) — для docs-only
+   коммитов gate-zero пропускается автоматически; `MSCB_PRECOMMIT_FAST=1` пропускает его
+   явно и оставляет прогон CI (`.githooks/pre-commit:33,153`).
 7. CI проверен не «на словах»: `gh run list --branch <ветка>` и
    `gh run view <id> --log-failed`. Джобы: `test` (ubuntu + windows, Python 3.14),
    `clean-state`, `manifest-parity`, `docker-build`, `transport-equiv-e2e`.
