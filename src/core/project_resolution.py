@@ -285,11 +285,28 @@ def is_forbidden_root(p: Path | str) -> bool:
     return False
 
 
-def is_project_root(p: Path | str) -> bool:
-    """Есть ли в каталоге маркер проекта (VCS или сборки).
+# Расширения, по которым каталог похож на проект кода (проверяем верхний уровень).
+_CODE_EXTENSIONS = frozenset(
+    {
+        ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".cs",
+        ".rb", ".php", ".kt", ".kts", ".swift", ".c", ".h", ".cc", ".cpp", ".hpp", ".m",
+        ".scala", ".dart", ".vue", ".svelte", ".html", ".htm", ".css", ".scss", ".sql",
+        ".sh", ".bash", ".ps1", ".tf", ".hcl",
+    }
+)
 
-    Нужен для автоиндексации: без маркера это может быть домашний каталог
-    или папка, случайно ставшая cwd. Явный вызов
+
+def is_project_root(p: Path | str) -> bool:
+    """Похож ли каталог на проект (а не на случайный cwd).
+
+    Признаки, любой из:
+    - маркер VCS/сборки (`.git`, `pyproject.toml`, `package.json`, …);
+    - уже существующий индекс `<root>/.mscodebase` (пользователь индексировал
+      этот каталог раньше — его выбор не отменяем);
+    - файл кода на верхнем уровне (папка со скриптами без VCS — тоже проект).
+
+    Нужно для автоиндексации: без этих признаков корень может быть домашним
+    каталогом или `C:\\Windows`. Явный вызов
     `codebase(action="index", path="project_dir")` этим не блокируется.
     """
     try:
@@ -301,6 +318,11 @@ def is_project_root(p: Path | str) -> bool:
                 if next(iter(root.glob(marker)), None) is not None:
                     return True
             elif (root / marker).exists():
+                return True
+        if (root / ".mscodebase").is_dir():
+            return True
+        for entry in root.iterdir():
+            if entry.is_file() and entry.suffix.lower() in _CODE_EXTENSIONS:
                 return True
     except OSError:
         return False

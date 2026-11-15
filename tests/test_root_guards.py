@@ -105,6 +105,24 @@ def test_empty_directory_is_not_a_project(tmp_path: Path):
     assert is_project_root(tmp_path) is False
 
 
+def test_directory_with_code_files_is_a_project(tmp_path: Path):
+    """Папка со скриптами без VCS — тоже проект (иначе ломается автоиндексация)."""
+    (tmp_path / "index.html").write_text("<html></html>", encoding="utf-8")
+    assert is_project_root(tmp_path) is True
+
+
+def test_previously_indexed_directory_is_a_project(tmp_path: Path):
+    """Если человек уже индексировал каталог, его выбор не отменяем."""
+    (tmp_path / ".mscodebase").mkdir()
+    assert is_project_root(tmp_path) is True
+
+
+def test_directory_with_only_documents_is_not_a_project(tmp_path: Path):
+    (tmp_path / "notes.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "photo.jpg").write_bytes(b"\xff\xd8")
+    assert is_project_root(tmp_path) is False
+
+
 # ── resolve_project_root ────────────────────────────────────────────────────
 
 
