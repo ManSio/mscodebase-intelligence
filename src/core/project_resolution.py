@@ -53,6 +53,9 @@ else:
 # вызов resolve_project_root() (см. INC-53EC / REFC-02) — иначе при
 # переключении workspace в Zed без рестарта MCP используется stale-путь.
 _env_project_root_cache: Optional[Path] = None
+# Сырое значение PROJECT_PATH, для которого построен кэш: env может измениться
+# между вызовами (тесты, hot-reload) — кэш обязан это заметить.
+_env_cache_raw: Optional[str] = None
 _env_cache_lock = threading.Lock()
 
 # SQLite connection cache + schema guard — открываем соединение раз в 2 секунды.
@@ -456,21 +459,23 @@ def _resolve_env_project_root() -> Optional[Path]:
     Возвращает None, если PROJECT_PATH не задан / невалиден / указывает
     на сам ext (тогда bridge/ZED_WORKTREE_ROOT/CWD получают шанс).
     """
-    global _env_project_root_cache
+    global _env_project_root_cache, _env_cache_raw
+    raw = os.environ.get("PROJECT_PATH", "").strip()
     with _env_cache_lock:
-        if _env_project_root_cache is not None:
+        if _env_project_root_cache is not None and _env_cache_raw == raw:
             return _env_project_root_cache
-        raw = os.environ.get("PROJECT_PATH", "").strip()
         env_root = _try_resolve_path_env(raw, "PROJECT_PATH")
         _env_project_root_cache = env_root
+        _env_cache_raw = raw
         return env_root
 
 
 def reset_project_root_cache() -> None:
     """Сбрасывает кэш resolve_project_root (для тестов и hot-reload)."""
-    global _env_project_root_cache
+    global _env_project_root_cache, _env_cache_raw
     with _env_cache_lock:
         _env_project_root_cache = None
+        _env_cache_raw = None
 
 
 def resolve_project_root(provided: str = "") -> Path:

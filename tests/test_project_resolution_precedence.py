@@ -69,3 +69,21 @@ def test_cwd_stays_when_nothing_else_is_known(tmp_path, monkeypatch):
     resolved = resolve_project_root()
     assert resolved is not None
     assert resolved.exists()
+
+
+def test_env_cache_notices_a_changed_project_path(tmp_path, monkeypatch):
+    """Кэш PROJECT_PATH не должен отдавать путь от предыдущего значения env."""
+    from src.core.project_resolution import reset_project_root_cache
+
+    reset_project_root_cache()
+    first = _project(tmp_path, "first")
+    second = _project(tmp_path, "second")
+    empty = tmp_path / "scratch"
+    empty.mkdir()
+    monkeypatch.chdir(empty)
+
+    monkeypatch.setenv("PROJECT_PATH", str(first))
+    assert resolve_project_root() == first.resolve()
+
+    monkeypatch.setenv("PROJECT_PATH", str(second))
+    assert resolve_project_root() == second.resolve()
