@@ -10,6 +10,25 @@
 
 
 
+## [2026-11-14] BENCH — бенчмарк четыре дня печатал кэш из git
+
+- **Симптом:** `run.py --split dev` закончился за 0.2 мин и выдал 12/19/23 — те же
+  числа, что 10.11.
+- **Root Cause:** резюм из `results_dev.partial.jsonl` (71 строка), файл закоммичен
+  в `e033edc`; харнесс печатал `resuming: 71 tasks already captured`, а читалась
+  таблица внизу. Записи E71 «identical» и E73 «19/71 both ways» — повторы кэша,
+  а не замеры.
+- **Fix:** кэш очищен; одна панель, три состояния: 19 (кэш) / 32 (`deb5ff4`) /
+  38 (HEAD); парно на hit@5 13↑0↓ и 6↑0↓; на `any@8` одна вниз. Контрольные руки
+  не двигались: `search` 11/22/29, `grep` 0/2/6. Внешние: requests 12→13 (1↑0↓),
+  sqlalchemy 17→18 (2↑1↓, регрессия `f1693787ade6`). Запись E74 в
+  `EXPERIMENTS_LOG.md`.
+- **Guard:** `experiments/bench_2026_11/capture.py` — резюм только по `--resume`;
+  без флага кэш печатается и удаляется (иначе append смешал бы два продукта).
+  `tests/test_bench_capture.py` — 3 теста; мутант `if False:` красит один из них.
+  Попутно: `test_no_personal_paths` поймал личные пути в блоге,
+  `parallel_sessions` — staged-файл из чужого worktree.
+
 ## [2026-11-10] SEARCH — evidence gate: вердикт вместо правдоподобных соседей
 
 - **Симптом:** `investigate` отдавал 8 строк `file:line` одинаковой уверенности;
@@ -1946,3 +1965,9 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Сделано:** три закрытые (🟢) записи — `2026-11-11 smoke_e2e`, `2026-11-11 slow LSP/VFS`, `2026-11-09 RU→EN` — уехали в `docs/archive/KNOWN_ISSUES_2026_11.md`; живой файл 295 → **242 строки** при лимите 300. Добавлена новая запись про 5 красных в `test_freshness_checker` (PR #126) со ссылками `src/core/indexing/indexer.py:146-154` и `SearchConfig.sqlite_chunks`.
 **Проверка:** `python scripts/check_known_issues.py` → `KNOWN_ISSUES.md: OK (size ≤ 300 lines, archival up to date)`; перемещённые записи отсутствуют в живом файле и присутствуют в архиве; `2026-10`-архив на месте (R2).
 **Урок:** запись в реестр — это ещё и арифметика: лимит 300 строк проверяется гейтом, поэтому новая запись без ротации = красный pre-commit. Ротация — не уборка, а условие добавления.
+## [2026-11-13] 5 красных в slow-зоне: тесты читали не то хранилище (fix/freshness-slow-tests)
+**Симптом:** на `main` (`a6524d6` и `801621d`) `pytest tests/test_freshness_checker.py -m "not benchmark"` → 5 failed / 2 passed; в дефолтном гейте файл не виден, потому что помечен `pytestmark = pytest.mark.slow`.
+**Корень:** тесты читали `indexer.table` — таблицу LanceDB, — а дефолтное хранилище теперь SQLite (`src/core/indexing/indexer.py:146-154`, `src/config/settings.py::SearchConfig.sqlite_chunks` = `true`). `_index_single_file()` писал в `SQLiteChunkStore`, LanceDB оставался пустым → `set()` в `assert "b.py" in set(df["file_path"])` и `0 == 1` в проверках схемы. Это не регресс Цели 1/2: те же 5 падали на до-мержевом `main`.
+**Fix (тесты, не код):** чтение через `_file_rows(indexer, columns)` — берёт слой, который реально использует индексатор, и агрегирует чанки SQLite по `file_path`; добавлен `test_store_is_the_default_one`, который пиннит дефолт (`sqlite`), чтобы дрейф был виден. `slow`-маркер снят: файл занимает 4.2 s и обязан быть в гейте — иначе эта поломка снова спрячется.
+**Проверка:** до фикса 5 failed / 2 passed; после — 8 passed. Мутация: `verify_index_freshness()` принудительно `return 0` → 4 failed / 4 passed (код восстановлен, тесты краснеют как надо). `ruff check src/ tests/` — чисто.
+**Урок:** «slow» — это не «не важно», а «не проверяется». Если тест читает конкретный бэкенд, он обязан падать громко при смене дефолта, а не жить в исключённой зоне.
