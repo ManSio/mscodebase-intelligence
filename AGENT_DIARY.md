@@ -1972,6 +1972,34 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Проверка:** `pytest tests/test_deep_search.py -n 4` — 15 passed (было INTERNALERROR); полный suite `-n auto` — 2515 passed, 11 skipped, rc=0; структурный тест красный на старом conftest, зелёный на новом.
 
 **Урок:** session-scoped фикстура в xdist — это N экземпляров, а не один; всё, что «на весь прогон» (блокировки, общие каталоги, счётчики), живёт в хуках контроллера.
+## [2026-11-14] Установщик падал на шаге 7: `httpx`, `wmic` и «тихий» `--with-models`
+
+**Симптом:** `python install.py` (интерпретатор `C:\Python314\python.exe`, без зависимостей проекта) — `⚠ Step 7/12: llama.cpp engine .. No module named 'httpx'`, дальше `[r]etry / [s]kip / [c]ancel`; итог прогона `11 ok, 1 skipped, 1351 s`.
+
+**Корни (3, один класс — «шаг установщика зависит от venv, которого ещё нет»):**
+1. `step_llama` (`install.py:669`) импортирует `src.providers.reranker.llama_runner`, а тот делал top-level `import httpx`. Шагу нужны только `download_llama_binary`/`is_installed` (stdlib, urllib); httpx нужен сетевым вызовам рантайма. По документации `python install.py` — штатный путь (`docs/en/INSTALL.md:35`), без предварительного `pip install -e .`.
+2. `llama_install.py:233` на импорте выполняет `_detect_platform()` → `_detect_cpu()` → `wmic cpu`/`wmic memorychip`; на Windows 11 24H2 `wmic` удалён → `FileNotFoundError` печатался трейсбеком (`logger.warning("exception", exc_info=True)`), RAM/CPU молча деградировали до `8`/`unknown`.
+3. (нашло независимое ревью) `download_gguf_model` делал **безусловный** `from huggingface_hub import hf_hub_download` вне `try`, хотя `step_gguf` (шаг 7) идёт **до** `step_models` (шаг 8) — `--with-models` падал тем же `ModuleNotFoundError` на шаге 8. Комментарий «…или urllib» обещал fallback, которого не было.
+
+**Fix:** httpx — ленивый `_httpx()` (6 мест); RAM — `GlobalMemoryStatusEx` (ctypes), CPU — `ProcessorNameString` из реестра, оба без процессов и с прежним дефолтом 8; Vulkan-проба вынесена в `_detect_vulkan(has_binary)` и **не запускается, если Vulkan-сборки нет** (раньше `vulkaninfo` спавнился на любой машине с `vulkan-1.dll`, а сбой печатался в консоль установки); GGUF — `except ImportError` + рабочий urllib-fallback (sha256, `.part` → atomic replace, `MSCODEBASE_HF_BASE_URL` для тестов); два `logger.warning("exception", exc_info=True)` → осмысленный `debug`.
+
+**Проверка:** `tests/test_install_import_isolation.py` + `tests/test_install_offline_paths.py` — 18 тестов; на старом коде `5 failed + 2 errors` (импорт) и `5 failed + 2 errors` (офлайн-пути), после фикса 18/18. Guard расширен с `src.*` на **любой локальный пакет**, который тянет `install.py` (стало 4 модуля, включая `adapters.*`). Мутации: top-level `import httpx`, отсутствие сверки sha256, проба без сборки, снятый `except ImportError`, снятый early-return — каждая краснеет. Полный suite: `2534 passed, 10 skipped`, rc=0; `ruff check src/ tests/` чистый. На реальном `C:\Python314\python.exe`: до — `ModuleNotFoundError`, после — `import ok; installed=False version=b11476`, rc=0. `_CPU_INFO`: было `unknown`/`8`, стало `AMD Ryzen 5 5600H`/`15`.
+
+**Остаток (не в этом PR):** `get_system_summary()` (экспорт без вызывающих) всё ещё зовёт `wmic os get caption` — ошибка ловится `OSError`, трейсбека нет, только неточность отчёта; `.decode()` там без `errors=`.
+
+**Урок:** «модуль, который импортирует установщик» — часть контракта установки, а не рантайма: top-level импорт третьей стороны переносит venv-зависимость туда, где venv ещё не существует. Ловится только прогоном голым интерпретатором (`-S`), а не обычным pytest; и проверять надо не один шаг, а все шаги, которые идут до установки пакетов.
+
+## [2026-11-14] Шаг 7 «прошёл», хотя движка нет: неверный пин SHA256 и зелёный отчёт
+
+**Симптом:** после фикса импорта тот же прогон показал `ERROR … SHA256 не совпадает! Ожидался d5d7…, получен a23e…`, `🚫 Отказ от установки: SHA256 не прошёл проверку` — и при этом `✓ Step 7/12: llama.cpp engine` и итог `12 ok, 0 skipped, 0 failed`.
+
+**Корни:** (1) Пин `LLAMA_BIN_SHA256["win-cpu-x64"]` неверен с первого коммита (`d84adee`). Архив при этом правильный: GitHub API (`repos/ggml-org/llama.cpp/releases/tags/b11476`) отдаёт для ассета `digest=sha256:a23e…` — ровно то, что скачалось; вторая запись (`win-vulkan-x64`) тоже неверна. (2) `step_llama` на провале добавлял жёлтую строку и возвращался нормально, поэтому `_step` считал шаг ok, а `main()` вообще не возвращал код ошибки — exit code был 0 при любом провале.
+
+**Fix:** хэши приведены к GitHub `digest` (с комментарием, как перевывести); `_verify_archive_sha256` — пин совпал → ok; пин устарел, но GitHub подтверждает фактический хэш → ok + warning; пина нет → GitHub digest; подтвердить нечем → fail closed, архив удаляется. `step_llama` и `step_gguf` бросают `RuntimeError` вместо зелёной строки; `main() -> int`, `sys.exit(main())`, `return 1 if has_err else 0`. Уборка `.part`/архива — через `_discard` (на Windows занятый файл больше не превращает отказ в `PermissionError`; нашло ревью).
+
+**Проверка:** живой прогон шага 7 в изолированный каталог (реальная сеть): `download_llama_binary -> True`, `llama-server.exe exists: True`, 23 файла, архив удалён. Реальный ассет 19 441 535 байт, `sha256 = a23e…` = пин, `_verify_archive_sha256 -> True`. Тесты: 28 в трёх файлах (`test_install_import_isolation`, `test_install_offline_paths`, `test_install_integrity_status`); мутации «устаревший пин не сверяется», «нет пина и нет сети — пропускаем», «уборка не ловит OSError», «провал шага снова даёт exit 0», «провал загрузки снова зелёный» — каждая краснеет. Полный suite: `2543 passed, 11 skipped`, rc=0.
+
+**Урок:** «fail closed» без честного статуса — половина защиты: установщик отказался ставить непроверенный бинарь и в том же выводе объявил успех. Проверять нужно и то, что шаг напечатал, и то, что процесс вернул.
 ## [2026-11-14] docs = code стало механическим: гейт на ИЗМЕНЕНИЕ, а не на файл
 **Проблема:** правило «каждая правка docs ссылается на факт кода» держалось на ревью. Два существующих guard'а смотрели файл целиком (флаги — `check_docs_vs_installer.py`, переменные — `check_docs_vs_config.py`) и не видели, что именно изменилось в PR.
 **Сделано:** `scripts/check_docs_refs.py` (режимы `--base` / `--staged` / `--diff-file`). Изменённый `.md` обязан добавить **проверяемую** ссылку: существующий путь внутри репо, `path::symbol` (символ **объявлен**, а не упомянут), `path:NNN` (строка в пределах файла), `install.py --flag` (флаг известен), имя переменной, которую код **читает** из окружения. Косметика проходит только если файл уже ссылался на код и добавленные строки не вносят новых утверждений (перенесённая строка с уже существующей цифрой — не новое утверждение). Исключения: `docs/archive|blog|research/**`, `experiments/**`, реестры по имени файла (`docs/*/CHANGELOG.md` тоже). Лимиты: >200 файлов или >20 000 строк → `exit 3`.
@@ -2004,3 +2032,15 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Fix (тесты, не код):** чтение через `_file_rows(indexer, columns)` — берёт слой, который реально использует индексатор, и агрегирует чанки SQLite по `file_path`; добавлен `test_store_is_the_default_one`, который пиннит дефолт (`sqlite`), чтобы дрейф был виден. `slow`-маркер снят: файл занимает 4.2 s и обязан быть в гейте — иначе эта поломка снова спрячется.
 **Проверка:** до фикса 5 failed / 2 passed; после — 8 passed. Мутация: `verify_index_freshness()` принудительно `return 0` → 4 failed / 4 passed (код восстановлен, тесты краснеют как надо). `ruff check src/ tests/` — чисто.
 **Урок:** «slow» — это не «не важно», а «не проверяется». Если тест читает конкретный бэкенд, он обязан падать громко при смене дефолта, а не жить в исключённой зоне.
+
+## [2026-11-15] Экономия CI: отмена устаревших прогонов, фильтр «docs-only», union-merge дневника
+
+**Симптом:** 120 последних прогонов = 64 CI + 56 CodeQL; из 46 PR-прогонов **28 — перезапуски одного и того же дерева** (нет `cancel-in-progress`). Один прогон CI = **12.6 runner-минут** (7 job'ов): `test` windows 5.0, ubuntu 2.7, `clean-state` 1.7, `manifest-parity` 1.4, `docker-build` 0.8, `transport-equiv-e2e` 0.8, `secret-scan` 0.2. Плюс каждый второй PR падал в конфликт `AGENT_DIARY.md` и требовал ещё один merge → ещё один прогон.
+
+**Fix:** `concurrency: group: ci-${workflow}-${ref}, cancel-in-progress: pull_request` (main не отменяем — его история прогонов доказательство); job `changes` с `scripts/ci_changed_code.py` (Python, чтобы тестировалось и работало на обоих OS) отдаёт `code=true|false`, и `clean-state`/`manifest-parity`/`transport-equiv-e2e`/`docker-build` получили `needs: changes` + `if: push || code == 'true'`; `.gitattributes` → `AGENT_DIARY.md merge=union` (дневник только дописывается, «оба правы» — верное разрешение).
+
+**Проверка:** `tests/test_ci_changed_code.py` — 9 тестов (docs/реестры/эксперименты/картинки → не код; `src/`/`install.py`/`pyproject.toml` → код; неизвестная база → fail-open `true`; `HEAD..HEAD` → `false`; структура workflow: concurrency привязан к PR, 4 тяжёлых job'а ждут фильтр). YAML парсится: 7 job'ов, `changes` первым.
+
+**Ожидаемый эффект (оценка, не замер):** −28 прогонов из 46 в окне наблюдения; −4.7 из 12.6 минут на docs-only PR; минус повторные merge-прогоны из-за дневника. Деньги не экономятся: репозиторий публичный, стандартные раннеры бесплатны — экономится очередь и время до вердикта.
+
+**Урок:** «тяжёлый CI» чаще не про мощность, а про отсутствие отмены и про то, что реестр-файл редактируют все сразу. Правило `merge=union` для append-only файла дешевле любых процессов.
