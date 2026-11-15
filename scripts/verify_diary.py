@@ -464,6 +464,13 @@ def check_commit_exists(commit_hash: str) -> bool:
     """
     if commit_hash in _COMMIT_CACHE:
         return _COMMIT_CACHE[commit_hash]
+    # Чисто-числовой токен — это run-ID/byte-count/дата (issue #24), а НЕ коммит.
+    # Guard стоит ДО спавна: раньше он был в конце, и каждая дата в дневнике
+    # делала `git cat-file -t` (с retry) — десятки процессов и вспышки консоли
+    # на старте каждого MCP (2026-11-15). Валидный numeric-префикс реального
+    # коммита сюда не доходит: стеклом ниже его отсекает кэш батча.
+    if commit_hash.isdigit():
+        return True
     if _GIT_UNAVAILABLE:
         # Проверка невозможна: не выдаём ложное «коммит не найден».
         return True
