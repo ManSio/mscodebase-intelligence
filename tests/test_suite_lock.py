@@ -33,3 +33,19 @@ def test_second_acquire_fails_and_release_frees(tmp_path: Path) -> None:
     second = mod._acquire_file_lock(lock)
     assert second is not None
     mod._release_file_lock(second)
+
+
+def test_lock_is_taken_in_the_controller_not_in_a_session_fixture():
+    """Structural guard for the 2026-11-14 crash.
+
+    A session-scoped fixture runs inside every xdist worker; the losers called
+    pytest.exit(3) and CI reported `INTERNALERROR: worker crashed`. From inside
+    the suite this is invisible (a nested run inherits the marker), so the shape
+    is asserted: the lock lives in pytest_configure, workers skip via
+    workerinput, and the per-worker fixture is gone.
+    """
+    source = (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
+    assert "def pytest_configure(config)" in source
+    assert "def pytest_unconfigure(config)" in source
+    assert 'getattr(config, "workerinput", None)' in source
+    assert "_one_suite_per_tree" not in source

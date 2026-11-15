@@ -129,15 +129,22 @@ def _release_file_lock(handle) -> None:
         handle.close()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _one_suite_per_tree():
+def pytest_configure(config):
     """Refuse to start a second pytest on the same checkout.
+
+    Runs in the controller, not in a fixture: xdist executes session fixtures
+    inside **every** worker, so the fixture version had N workers racing for one
+    file lock — the losers called `pytest.exit(3)` and xdist reported
+    `INTERNALERROR: worker crashed` (CI 2026-11-14, ubuntu + windows, 3 of 4
+    workers). The controller acquires before workers spawn, and workers inherit
+    the marker through the environment.
 
     A nested pytest spawned by a test inherits MSCB_SUITE_LOCK_INHERITED=1 and
     skips the check, so `test_bootstrap_pipeline` still works.
     """
     if os.environ.get(_LOCK_INHERITED) == "1":
-        yield
+        return
+    if getattr(config, "workerinput", None) is not None:  # xdist worker
         return
     handle = _acquire_file_lock(SUITE_LOCK)
     if handle is None:
@@ -147,9 +154,13 @@ def _one_suite_per_tree():
             "for it to finish; if no run is active, delete the file and retry.",
             returncode=3,
         )
+    config._mscb_suite_lock = handle
     os.environ[_LOCK_INHERITED] = "1"
-    try:
-        yield
-    finally:
-        os.environ.pop(_LOCK_INHERITED, None)
-        _release_file_lock(handle)
+
+
+def pytest_unconfigure(config):
+    handle = getattr(config, "_mscb_suite_lock", None)
+    if handle is None:
+        return
+    os.environ.pop(_LOCK_INHERITED, None)
+    _release_file_lock(handle)
