@@ -39,7 +39,7 @@ def bare(code: str) -> subprocess.CompletedProcess:
         encoding="utf-8",
         errors="replace",
         env=env,
-        timeout=120,
+        timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 
@@ -108,7 +108,7 @@ def test_llama_runner_keeps_its_network_api_when_httpx_is_present():
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=120,
+        timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0, proc.stderr[-2000:]
     assert "ok" in proc.stdout

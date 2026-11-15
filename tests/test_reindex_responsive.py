@@ -407,6 +407,9 @@ async def test_delayed_auto_index_sets_state_ready(monkeypatch, tmp_path):
 
     project_path = tmp_path / "demo"
     project_path.mkdir(parents=True, exist_ok=True)
+    # Маркер проекта: автоиндексация обязана требовать его (см.
+    # tests/test_root_guards.py), иначе cwd вроде C:\Windows тоже «проект».
+    (project_path / ".git").mkdir()
 
     # Fake registry: перехватываем set_state READY
     states: list = []
@@ -465,6 +468,9 @@ async def test_delayed_auto_index_skips_when_index_not_empty(monkeypatch, tmp_pa
 
     project_path = tmp_path / "demo"
     project_path.mkdir(parents=True, exist_ok=True)
+    # Маркер проекта: контроль именно на «индекс не пуст», а не на отсутствие
+    # маркеров (этот случай покрыт tests/test_root_guards.py).
+    (project_path / ".git").mkdir()
 
     states: list = []
 

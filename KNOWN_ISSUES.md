@@ -4,6 +4,48 @@
 > Формат: дата | что было | статус | fix
 
 ---
+---
+## 2026-11-15 — `C:\Windows\.mscodebase`: индекс ОС на 105 МБ — 🟢
+
+- **Симптом:** в `C:\Windows` появился `.mscodebase\chunks.db` (105 МБ, 10 264
+  чанка системных файлов), в профиле — ещё 376 МБ; каталоги не удалялись
+  обычными средствами, пока сервер держал БД.
+- **Корень (по логам, `RUN_ID e77c87a6e138`):** хост запустил MCP-сервер с
+  `cwd=C:\Windows` и `PROJECT_PATH='${workspaceRoot}'` (неразвёрнутый
+  плейсхолдер). Плейсхолдер не отличили от пути → fallback на CWD →
+  CWD-first резолвер вернул `C:\Windows` → автоиндексация пошла по системе →
+  `get_chunks_db_path()` положил БД внутрь корня.
+- **Fix:** `is_forbidden_root()` (системные корни, корни дисков, профиль, temp)
+  режет резолвер и `get_chunks_db_path`; `is_project_root()` (`.git`,
+  `pyproject.toml`, `package.json`, …) обязателен для автоиндексации; env со
+  `${…}`/`%…%` теперь WARNING и `None`.
+- **Guard:** `tests/test_root_guards.py` — 20 тестов; мутации
+  (`if False` вместо трёх проверок) красят по одному тесту каждая.
+- **Уборка:** удалены `C:\Windows\.mscodebase` (105 МБ), каталог индекса в
+  профиле (376 МБ), `<repo>\.mscodebase` и temp-пробы.
+
+---
+
+---
+## 2026-11-15 — консольные окна: 135 вызовов subprocess без флага — 🟢
+
+- **Симптом:** на Windows при работе сервера/тестов мигают окна `cmd`.
+- **Корень (измерено):** у процесса-родителя нет консоли, поэтому каждый bare
+  `subprocess.*` создаёт СВОЮ консоль. В `src/ tests/ scripts/` таких вызовов
+  было **135 в 57 файлах**; `src/core/silent_subprocess.apply()` патчил только
+  процессы, которые его импортировали, а импортировал ровно один entry-point
+  (`src/main.py`).
+- **Fix:** `creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)` во всех 135
+  местах; `src/remote_main.py` и `src/cli.py` тоже применяют `silent_subprocess`;
+  guard `tests/test_no_console_windows.py` (AST-скан каталогов) краснеет на
+  любом новом bare-вызове.
+- **Отдельно (вне репозитория):** MCP `mobile-mcp` в конфиге OpenCode запускается
+  как `npx -y @mobilenext/mobile-mcp@latest` → `cmd.exe` на каждый старт сессии.
+- **Открыто:** `scripts/live_search_audit.py` не парсится (битый отступ, было до
+  этой задачи) — исключён из скана явным allowlist, чинить отдельно.
+
+---
+
 ## 2026-11-13 — slow-тесты прятали смену хранилища: 5 красных в `test_freshness_checker` — 🟢
 
 - **Измерено:** на `main` (`a6524d6`, `801621d`) `pytest tests/test_freshness_checker.py -m "not benchmark"` → `5 failed, 2 passed`; в дефолтном гейте файл не виден (`pytestmark = pytest.mark.slow`).

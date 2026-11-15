@@ -115,10 +115,14 @@ class OnnxEmbedderClient:
             logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
 
-        # Флаги для Windows: DETACHED_PROCESS | CREATE_NO_WINDOW
+        # Флаги для Windows. ВАЖНО: DETACHED_PROCESS (0x8) нельзя комбинировать
+        # с CREATE_NO_WINDOW — при такой паре Windows игнорирует запрет окна, и
+        # каждый запуск сервера (в том числе retry раз в 60 с) мигает консолью.
+        # CREATE_NO_WINDOW + CREATE_NEW_PROCESS_GROUP: окна нет, процесс живёт
+        # независимо от родителя.
         creation_flags = 0
-        if sys.platform == 'win32':
-            creation_flags = 0x00000008 | 0x08000000  # DETACHED_PROCESS | CREATE_NO_WINDOW
+        if sys.platform == "win32":
+            creation_flags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
         env = os.environ.copy()
         env["ONNX_PORT"] = str(self.port)

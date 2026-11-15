@@ -41,7 +41,7 @@ def git_repo(tmp_path: Path) -> Path:
     def run(*args: str) -> None:
         subprocess.run(
             ["git", *args], cwd=tmp_path, check=True,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
 
     run("init")

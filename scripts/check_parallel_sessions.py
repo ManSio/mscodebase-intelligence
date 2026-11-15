@@ -71,7 +71,7 @@ def _git(args: list[str], cwd: str | Path | None = None) -> tuple[int, str]:
         capture_output=True,
         encoding="utf-8",
         errors="replace",
-        env=env,
+        env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.returncode, proc.stdout
 

@@ -30,7 +30,7 @@ def test_selftest_passes():
     """
     p = subprocess.run([sys.executable, str(SCRIPT), "--selftest"],
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=120)
+                       errors="replace", timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     out = p.stdout or ""
     assert p.returncode == 0, (out or "") + (p.stderr or "")
     assert "SELFTEST PASSED" in out, f"stdout was {out!r}"

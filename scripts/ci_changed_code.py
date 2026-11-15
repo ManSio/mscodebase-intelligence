@@ -44,7 +44,7 @@ def changed_files(root: Path, base: str) -> list[str] | None:
         proc = subprocess.run(
             ["git", "diff", "--name-only", candidate, "HEAD"],
             cwd=str(root), capture_output=True, text=True,
-            encoding="utf-8", errors="replace",
+            encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         if proc.returncode == 0:
             return [line.strip() for line in proc.stdout.splitlines() if line.strip()]

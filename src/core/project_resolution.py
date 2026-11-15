@@ -161,6 +161,178 @@ def _close_sqlite_connection():
             _sqlite_conn = None
 
 
+_SYSTEM_ENV_ROOTS = ("SystemRoot", "windir", "ProgramFiles", "ProgramFiles(x86)", "ProgramData")
+
+# POSIX-корни: та же логика, что для Windows. Проект не может жить в /usr или /etc,
+# а `.mscodebase` внутри них — это либо permission error, либо мусор в системе.
+_POSIX_SYSTEM_ROOTS = (
+    "/usr",
+    "/etc",
+    "/var",
+    "/opt",
+    "/bin",
+    "/sbin",
+    "/lib",
+    "/lib64",
+    "/boot",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/run",
+    "/root",
+    "/snap",
+    "/Applications",
+    "/System",
+    "/Library",
+)
+
+# Маркеры проекта: VCS или система сборки. Нужны, чтобы отличить рабочий
+# каталог проекта от случайного cwd (см. `is_project_root`).
+_PROJECT_MARKERS = (
+    ".git",
+    ".hg",
+    ".svn",
+    "pyproject.toml",
+    "package.json",
+    "Cargo.toml",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "composer.json",
+    "Gemfile",
+    "*.sln",
+    "*.csproj",
+)
+
+
+def _system_roots() -> list[Path]:
+    roots: list[Path] = []
+    for name in _SYSTEM_ENV_ROOTS:
+        raw = os.environ.get(name)
+        if not raw:
+            continue
+        try:
+            resolved = Path(raw).resolve()
+        except OSError:
+            continue
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def _forbidden_exact_roots() -> list[Path]:
+    """Каталоги, запрещённые сами по себе, но НЕ их подкаталоги.
+
+    `~` и temp-корень — частый рабочий каталог (проекты внутри `~/projects`
+    или под `%TEMP%` легитимны), поэтому режем только сам корень.
+    """
+    import tempfile
+
+    roots: list[Path] = []
+    candidates = [Path.home(), tempfile.gettempdir()]
+    candidates += [os.environ.get("TEMP"), os.environ.get("TMP")]
+    for raw in candidates:
+        if not raw:
+            continue
+        try:
+            resolved = Path(raw).resolve()
+        except OSError:
+            continue
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def _forbidden_prefix_roots() -> list[Path]:
+    """Каталоги ОС: запрещены и сами, и всё внутри них.
+
+    POSIX-набор присутствует всегда (его состав проверяется тестом на любой
+    платформе), но на Windows он не применяется к путям — см.
+    `is_forbidden_root`.
+    """
+    roots = [Path(p) for p in _POSIX_SYSTEM_ROOTS]
+    roots.extend(_system_roots())
+    return roots
+
+
+def _forbidden_roots() -> list[Path]:
+    """Полный набор запрещённых корней (exact + prefix) — для тестов и логов."""
+    return _forbidden_exact_roots() + _forbidden_prefix_roots()
+
+
+def is_forbidden_root(p: Path | str) -> bool:
+    """True, если каталог — не проект, а системный/служебный корень.
+
+    Зачем: хост может запустить MCP-сервер с произвольным cwd
+    (наблюдалось `C:\\Windows`, профиль пользователя, temp). Такой корень
+    нельзя ни индексировать (десятки тысяч чужих файлов), ни использовать как
+    место для `.mscodebase/chunks.db` — каталог принадлежит ОС.
+
+    Существование пути не требуется: запрет на запись в `C:\\Windows\\System32`
+    не должен зависеть от того, видит ли его текущий процесс.
+    """
+    try:
+        root = Path(p).resolve()
+    except OSError:
+        return False
+    if root.parent == root:  # корень диска/ФС: C:\, /
+        return True
+    if root in _forbidden_exact_roots():
+        return True
+    posix_roots = {Path(p) for p in _POSIX_SYSTEM_ROOTS}
+    for candidate in _forbidden_prefix_roots():
+        if os.name == "nt" and candidate in posix_roots:
+            continue  # POSIX-пути на Windows не существуют и не применимы
+        if root == candidate or root.is_relative_to(candidate):
+            return True
+    return False
+
+
+# Расширения, по которым каталог похож на проект кода (проверяем верхний уровень).
+_CODE_EXTENSIONS = frozenset(
+    {
+        ".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".cs",
+        ".rb", ".php", ".kt", ".kts", ".swift", ".c", ".h", ".cc", ".cpp", ".hpp", ".m",
+        ".scala", ".dart", ".vue", ".svelte", ".html", ".htm", ".css", ".scss", ".sql",
+        ".sh", ".bash", ".ps1", ".tf", ".hcl",
+    }
+)
+
+
+def is_project_root(p: Path | str) -> bool:
+    """Похож ли каталог на проект (а не на случайный cwd).
+
+    Признаки, любой из:
+    - маркер VCS/сборки (`.git`, `pyproject.toml`, `package.json`, …);
+    - уже существующий индекс `<root>/.mscodebase` (пользователь индексировал
+      этот каталог раньше — его выбор не отменяем);
+    - файл кода на верхнем уровне (папка со скриптами без VCS — тоже проект).
+
+    Нужно для автоиндексации: без этих признаков корень может быть домашним
+    каталогом или `C:\\Windows`. Явный вызов
+    `codebase(action="index", path="project_dir")` этим не блокируется.
+    """
+    try:
+        root = Path(p)
+        if not root.is_dir():
+            return False
+        for marker in _PROJECT_MARKERS:
+            if marker.startswith("*"):
+                if next(iter(root.glob(marker)), None) is not None:
+                    return True
+            elif (root / marker).exists():
+                return True
+        if (root / ".mscodebase").is_dir():
+            return True
+        for entry in root.iterdir():
+            if entry.is_file() and entry.suffix.lower() in _CODE_EXTENSIONS:
+                return True
+    except OSError:
+        return False
+    return False
+
+
 def _reject_self_index_target(p: Path, *, source: str) -> bool:
     """Возвращает True если path — это self-indexing target (отклонить).
 
@@ -169,6 +341,9 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
       из workspace `D:\\Project\\MSCodeBase`). Это может случиться, если
       пользователь открывает исходники расширения как проект в Zed.
     - Zed install dir (см. is_zed_install_dir в lsp_project_bridge).
+    - системные каталоги, корни дисков, профиль и temp-корень (см.
+      `is_forbidden_root`): индексация `C:\\Windows` — это десятки тысяч
+      чужих файлов и запись `.mscodebase` прямо в каталог ОС.
 
     РАНЬШЕ здесь была проверка `(p / "src/lsp_main.py").exists()` — она
     была ошибочной, потому что исходники расширения РЕАЛЬНО содержали
@@ -184,6 +359,15 @@ def _reject_self_index_target(p: Path, *, source: str) -> bool:
     ext_root. Блокируем ext_root только для автоматических fallback'ов
     (PROJECT_PATH, CWD, ZED_WORKTREE_ROOT, ZED_DB).
     """
+    # Даже явный выбор (ACTIVE_WORKSPACE / trusted override) не делает проект
+    # из каталога ОС: индексировать C:\Windows или /usr не хочет никто.
+    if is_forbidden_root(p):
+        logger.warning(
+            f"{source} указывает на системный каталог ({p}), а не на проект. "
+            f"Игнорирую: индексация ОС бесполезна, а .mscodebase внутри неё — вредна."
+        )
+        return True
+
     # ACTIVE_WORKSPACE — это явный выбор пользователя в Zed, доверяем
     if source == "ACTIVE_WORKSPACE":
         return False
@@ -217,6 +401,16 @@ def _try_resolve_path_env(raw: str, source: str, *, trust_self_index: bool = Fal
     сохраняет блокировку self-indexing для обратной совместимости.
     """
     if not raw:
+        return None
+    # Случай 0: неразвёрнутый плейсхолдер хоста (`${workspaceRoot}`, `%VAR%`).
+    # Наблюдалось на живой машине: PROJECT_PATH=${workspaceRoot} уходил в
+    # resolv как относительный путь, проваливался, и сервер брал cwd — вплоть
+    # до C:\Windows. Такую конфигурацию надо видеть в логе, а не угадывать.
+    if "${" in raw or (raw.startswith("%") and raw.endswith("%")):
+        logger.warning(
+            f"{source}={raw!r} — неразвёрнутый плейсхолдер хоста, игнорирую. "
+            f"Укажите реальный путь или $ZED_WORKTREE_ROOT."
+        )
         return None
     # Случай 1: Zed literal "$ZED_WORKTREE_ROOT" без подстановки.
     if raw.startswith("$"):
@@ -294,7 +488,15 @@ def resolve_project_root(provided: str = "") -> Path:
     7. ext_root как fallback
     """
     if provided and provided.strip():
-        return Path(provided).resolve()
+        explicit = Path(provided).resolve()
+        if is_forbidden_root(explicit):
+            # Явный аргумент инструмента — тоже не повод индексировать ОС.
+            logger.warning(
+                f"resolve_project_root: явный project_root={explicit} — системный каталог, "
+                f"игнорирую (см. is_forbidden_root)"
+            )
+        else:
+            return explicit
 
     # ─── 0.5. MSCODEBASE_PROJECT_PATH: явный override НАД CWD ───
     # Отличается от PROJECT_PATH (см. ниже, позиция 3): имеет приоритет над

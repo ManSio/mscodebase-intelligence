@@ -39,7 +39,7 @@ def test_dirty_in_ignores_inherited_git_dir(tmp_path, monkeypatch):
     # Создаём «чужой» репозиторий с одним изменённым файлом.
     fake = tmp_path / "fake"
     fake.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=fake, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=fake, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (fake / "decoy.txt").write_text("x", encoding="utf-8")
 
     target = trees[0]
@@ -57,7 +57,7 @@ def test_staged_here_ignores_inherited_git_dir(monkeypatch, tmp_path):
     """То же для чтения индекса: индекс должен читаться указанного репозитория."""
     fake = tmp_path / "fake2"
     fake.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=fake, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=fake, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     expected = cps.staged_here()
     for var in LEAKY:

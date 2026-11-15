@@ -130,7 +130,7 @@ def check_lsp_process() -> list[str]:
         if platform.system() == "Windows":
             result = subprocess.run(
                 ["tasklist", "/FI", "IMAGENAME eq python.exe", "/FO", "CSV", "/NH"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             if "lsp_main" in result.stdout.lower():
                 issues.append("✅ Процесс lsp_main.py найден в tasklist")
@@ -139,7 +139,7 @@ def check_lsp_process() -> list[str]:
         else:
             result = subprocess.run(
                 ["ps", "aux"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True, text=True, timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             if "lsp_main" in result.stdout:
                 issues.append("✅ Процесс lsp_main.py найден")

@@ -101,7 +101,7 @@ def main() -> int:
         import subprocess  # noqa: PLC0415
         rev = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                              cwd=str(ROOT), capture_output=True,
-                             timeout=10).stdout.decode().strip()
+                             timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout.decode().strip()
     except Exception:  # noqa: BLE001 — git metadata is best-effort diagnostics
         rev = "unknown"
     print(f"O1 holdout gate | rev={rev} | project={project} | fresh process")

@@ -17,7 +17,7 @@ _CLEAN_GIT_ENV = {k: v for k, v in os.environ.items() if not k.startswith("GIT_"
 
 def _git(args, cwd):
     """Запускает git с чистым env (без унаследованных GIT_*)."""
-    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, env=_CLEAN_GIT_ENV)
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, env=_CLEAN_GIT_ENV, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 class TestCommitMemory:

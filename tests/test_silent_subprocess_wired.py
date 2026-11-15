@@ -34,7 +34,7 @@ def test_entry_point_wires_silent_subprocess_fresh_process():
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         text=True,
-        timeout=120,
+        timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0, f"child startup import failed:\n{proc.stderr[-2000:]}"
     assert "WIRED_OK" in proc.stdout, f"guard not applied after startup import:\n{proc.stdout}"

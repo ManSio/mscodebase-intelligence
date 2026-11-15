@@ -20,6 +20,18 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Windows: патч обязан стоять ДО спавна xdist-воркеров. execnet поднимает воркеры
+# через subprocess.Popen В КОНТРОЛЛЕРЕ, до выполнения фикстур, поэтому autouse-
+# фикстура ниже их уже не накрывает — каждый воркер открывал видимое окно консоли
+# (замер 2026-11-15: 3 вспышки на прогон `-n auto`). Здесь патч применяется на
+# импорте conftest, то есть до первого спавна.
+try:  # POSIX/усечённая установка: apply() — no-op
+    from src.core.silent_subprocess import apply as _apply_silent_subprocess
+
+    _apply_silent_subprocess()
+except Exception:  # noqa: BLE001 - тесты не должны падать из-за патча окна
+    pass
+
 
 @pytest.fixture(autouse=True)
 def _no_console_windows(monkeypatch):

@@ -41,7 +41,7 @@ def make_pristine(repo: Path, dest: Path) -> Path:
             ["git", "archive", "--format=tar", "HEAD"],
             cwd=str(repo),
             capture_output=True,
-            timeout=300,
+            timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         ).stdout
         if blob:
             import io

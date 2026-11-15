@@ -103,7 +103,7 @@ class FileChange:
 def _git(repo: Path, *args: str) -> str:
     proc = subprocess.run(
         ["git", *args], cwd=str(repo), capture_output=True, text=True,
-        encoding="utf-8", errors="replace",
+        encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     if proc.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {proc.stderr.strip()[:200]}")

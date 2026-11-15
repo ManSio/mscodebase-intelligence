@@ -70,7 +70,7 @@ UNVERIFIABLE: dict[str, str] = {}
 
 def run(cmd: list[str]) -> tuple[int, str]:
     p = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=600)
+                       encoding="utf-8", errors="replace", timeout=600, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 

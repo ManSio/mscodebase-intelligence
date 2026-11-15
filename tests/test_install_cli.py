@@ -71,7 +71,7 @@ def run_install(
         encoding="utf-8",
         errors="replace",
         input=stdin_text if stdin_text is not None else "",
-        timeout=timeout,
+        timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 
@@ -182,7 +182,7 @@ def test_generic_snippet_actually_starts_the_server(tmp_path):
         stderr=subprocess.PIPE,
         text=True,
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     ) as proc2:
         out, err = proc2.communicate(json.dumps(request) + "\n", timeout=300)
 

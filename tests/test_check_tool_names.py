@@ -55,7 +55,7 @@ def _run(root: Path) -> int:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=60,
+        timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.returncode
 
