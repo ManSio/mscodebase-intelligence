@@ -169,7 +169,14 @@ class RemoteEmbedder(IEmbedder):
         # search raised "query dim(768) doesn't match the column vector dim(384)".
         # Only probe an external llama endpoint when it is allowed to answer:
         # with a pinned provider, a stray :8080 must not rewrite the width.
-        if self.provider_preference in ("auto", "llama_cpp"):
+        # И не пробуем вовсе, если llama.cpp явно выключен: замер 2026-11-16 —
+        # этот probe давал 3.5 с из ~6 с создания сервисов на каждом старте.
+        _llama_disabled = os.getenv("LLAMA_CPP_ENABLED", "").strip().lower() in (
+            "false",
+            "0",
+            "no",
+        )
+        if not _llama_disabled and self.provider_preference in ("auto", "llama_cpp"):
             probed = self._probe_server_dimension()
             if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
                 self.embedding_dim = probed
@@ -202,7 +209,7 @@ class RemoteEmbedder(IEmbedder):
         # with a different width (measured 2026-11-08: file 384, server 768).
         # Env still wins, and a probe that needs a moment does not block startup.
         if not os.getenv("EMBEDDING_DIMENSION", "").strip():
-            if self.provider_preference in ("auto", "llama_cpp"):
+            if not _llama_disabled and self.provider_preference in ("auto", "llama_cpp"):
                 live_dim = self._probe_server_dimension()
                 if live_dim and live_dim != self.embedding_dim:
                     logger.info(
@@ -290,7 +297,7 @@ class RemoteEmbedder(IEmbedder):
             resp = httpx.post(
                 self.llama_cpp_url,
                 json={"input": "dimension probe", "model": self.model_name},
-                timeout=3.0,
+                timeout=1.0,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -769,6 +776,15 @@ class RemoteEmbedder(IEmbedder):
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
+            # Dense-off (текстовый режим): ни ONNX, ни LM Studio, ни ollama не
+            # нужны. Замер 2026-11-16: без этой ветки auto-режим всё равно щупал
+            # внешние эндпоинты (2 с на /v1/models) при каждом старте.
+            if getattr(get_config().search, "dense_off", False):
+                with self._mode_lock:
+                    self.mode = "text_only"
+                logger.debug("Провайдер не инициализируется: dense_off=true")
+                return
+
             pref = getattr(self, "provider_preference", "auto")
 
             # ═══ Explicit provider: no probing of anything else ═══
@@ -1095,6 +1111,18 @@ class RemoteEmbedder(IEmbedder):
         # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
+            return
+
+        # Dense-off (текстовая индексация/поиск): эмбеддинги не нужны вовсе.
+        # Замер 2026-11-16: на старте каждый вызов `_is_server_running` к
+        # закрытому loopback-порту ждёт полный таймаут (Windows отдаёт
+        # WSAEWOULDBLOCK, а не отказ), 6 проб = ~3 с холодного старта впустую.
+        if getattr(get_config().search, "dense_off", False):
+            logger.debug("ONNX init пропущен: dense_off=true (текстовый режим)")
+            # Явный режим вместо "unknown": health не должен считать это
+            # деградацией (это выбранная конфигурация, а не отказ embedder).
+            with self._mode_lock:
+                self.mode = "text_only"
             return
 
         # Пытаемся получить клиент ONNX Server
