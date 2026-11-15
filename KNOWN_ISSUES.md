@@ -4,6 +4,19 @@
 > Формат: дата | что было | статус | fix
 
 ---
+## 2026-11-15 — CI не проверяет откатную линию mcp 1.x; лог профиля врёт про `-35` — 🟡
+
+- **CI:** workflow ставит зависимости из lock (`mcp==2.3.0`), поэтому линия 1.x
+  проверяется только вручную (`PYTHONPATH=<repo> pytest tests/ -q`). Регресс
+  именно на 1.x (например, чтение `isError` вместо `is_error`) CI не поймает.
+  **Fix-кандидат:** отдельная job с `mcp>=1.28,<2` или отказ от 1.x после
+  стабилизации 2.3 (тогда удалить шим `mcp.server.fastmcp` в `tests/conftest.py`).
+- **`_apply_tool_profile`** (`src/mcp/tools/server_tools.py:90-98`) логирует
+  `Tool profile=core: -35 видимых, 52 скрыто`: `len(tools) - len(hidden)`
+  считается ПОСЛЕ `mcp.remove_tool(...)`, а оба имени ссылаются на один словарь
+  `_tools`. Поведение корректное (17 инструментов), врёт только лог.
+
+---
 ## 2026-11-13 — slow-тесты прятали смену хранилища: 5 красных в `test_freshness_checker` — 🟢
 
 - **Измерено:** на `main` (`a6524d6`, `801621d`) `pytest tests/test_freshness_checker.py -m "not benchmark"` → `5 failed, 2 passed`; в дефолтном гейте файл не виден (`pytestmark = pytest.mark.slow`).
