@@ -1,4 +1,100 @@
 # EXPERIMENTS_LOG.md — Audit Verification (2026-07-22)
+## [2026-11-14] — E75: an untouched third repo (`pallets/click`) — the fix holds
+
+**Why:** every panel so far was my own repo, or `sqlalchemy`, where two of the
+four defects were *found*. A reviewer's fair objection: the fixes were measured
+on code that shaped them. `click` was cloned for this test only.
+
+**Corpus:** frozen at `7df2f82` (2026-07-16), index built once — 138 files,
+2,149 chunks, 71.5 s. Panel: 35 solvable commits, `external.py --limit 40`;
+no capture, because the external runner rebuilds every task from git each run.
+
+```
+click (35)              hit@1  hit@5
+  tool at deb5ff4          21     26
+  tool at HEAD             22     29
+  neighbours at HEAD       23     30
+  search channel            2     14
+  grep                     17     29
+paired tool@5: 3 up / 0 down
+```
+
+At hit@5 that is +8.6%, against +8.5% on the dev panel (6 of 71): the same rate
+on a repository that had no part in designing the fix. Control arms are
+identical in both runs. On this repo the tool ties grep at hit@5 (29 each) and
+leads at hit@1 (22 vs 17) — the first corpus in the series where it is not
+behind grep.
+
+**Limits:** n=35; 3 up / 0 down is p≈0.125 by a one-sided sign test — suggestive,
+not significant on its own. Its value is provenance, not power.
+
+**Artifact:** `experiments/bench_2026_11/results_external_click.json`; the corpus
+lives outside the repository (`bench-ext/click-B`).
+
+## [2026-11-14] — E74: the dev panel was replaying a committed capture
+
+**Found by** a re-run: `run.py --split dev` finished in **0.2 min** and printed the
+11 Nov numbers digit for digit.
+
+**Cause:** `run.py` resumes from `results_dev.partial.jsonl` (71 rows, tracked in
+git since `e033edc`). Every later run skipped all 71 tasks and reprinted the
+captured answers, so E71's "`identical`" and E73's "19/71 both ways" are cache
+replays, not measurements. The capture itself was produced 2026-11-10 18:36,
+before both November gate fixes.
+
+```
+dev (n=71), tool hit@5      wall clock   code state
+  cache from 10 Nov    19     0.2 min      replay, no task executed
+  deb5ff4              32    ~6 min*       two November gate fixes
+  b9f91c4              32    13.5 min      + message wording (text only)
+  f3b0cc4              38     7.7 min      + all four identifiers counted
+  HEAD                 38     6.1 min      + onnx padding + vector schema
+paired: 13 up / 0 down (cache -> deb5ff4); 6 up / 0 down (deb5ff4 -> HEAD)
+control arms unchanged at every point: search 11/22/29, grep 0/2/6
+decomposition: wording 0, identifiers +6, retrieval 0
+```
+
+`*` the two `deb5ff4` control runs were not timed by a script; both finished
+inside one six-minute window, so "~6 min" is an observation, not a measurement.
+The 13.5-minute run is `b9f91c4`, and it shared the machine with a full pytest.
+
+External per-task pairs (tool hit@5): `requests` 1 up / 0 down; `sqlalchemy`
+2 up / 1 down (down = `f1693787ade6`); `click` 3 up / 0 down.
+
+Every cold-cache run was validated before being accepted: `resumed: 0` lines and
+elapsed > 3 min. Wall clock is not a performance claim — the 13.5 min run shared
+the machine with a full pytest and several ONNX start timeouts.
+
+**Rejected before use:** the first series attempt passed 8-character SHAs to
+`git worktree add`; the worktree was never created and the script silently ran
+`run.py` from the main checkout, which resumed the cache and printed HEAD's
+numbers in 0.2 min for two commits that were never checked out. Caught by
+`elapsed < 1 min`; the rerun used full SHAs and asserted `git rev-parse HEAD`
+before every run.
+
+**External** (no cache — tasks are rebuilt from git each run): at `deb5ff4`
+requests 12/25, sqlalchemy 17/40 (17 in two separate control runs); at HEAD
+13/25 and 18/40. Control arms `search` 15/18 and `grep` 19/20 are identical in
+both — the change did not touch retrieval.
+
+**Consequence:** the published "the default answers less than plain search" and
+the report's "−33 tasks of 108 solvable" describe the 10 Nov product. On HEAD the
+default and the bypass arm are both **38/71 at hit@5** (`any@8` 43 vs 44), so the
+refusal policy costs one task on this panel, not eighteen. The four defects it
+was hiding: `3a3f46a` (Change-Id), `deb5ff4` (first token), `b9f91c4` (message
+called a real hit a neighbour), `f3b0cc4` (counted 2 of 4 identifiers).
+
+**Open:** `neighbours` moved 37 → 38 between two identical control runs — the
+noise floor is ±1 task and it covers the external +1. Both control runs hit the
+ONNX fallback ("server did not start in 60s"), the HEAD run did not; `search` is
+identical throughout, so retrieval is unaffected, but the environment is not
+fully excluded.
+
+**Not fixed then (fixed on 2026-11-14 by `c93fda8`):** `--resume` used to default on
+and the partial capture is still tracked in git. Reuse is now opt-in, a corrupt
+capture is dropped instead of crashing, and `tests/test_bench_capture.py` covers
+both. A clone still receives the file; it needs `--resume` to be read.
+
 ## [2026-11-11] — E73/P5: removing the false refusal costs the requests panel nothing
 
 Rerun of B2 (`psf/requests`, 25 solvable commits, corpus `e331a288`, 786 chunks)
@@ -197,6 +293,12 @@ grep (floor)            0      2      6          0.028            0.027
 
 **Verdict:** P1 FAIL (default 0.268 < 0.35), P2 FAIL (default is **5 below**
 plain search on dev), P3 PASS, P4 PASS (dev/sealed within 0.10 for both arms).
+
+**Superseded (2026-11-14, E74):** the two dev cells above are from an earlier run of
+this panel — `neighbours 37`, `search 24`. The capture committed in `e033edc` and
+`REPORT.md` both read **neighbours 38, search 22** at hit@5, and the replay prints
+those. P1 and P2 stand as verdicts; "5 below" is 3 below on the committed panel
+(19 vs 22). Do not quote 37/24 without this line.
 
 **Cause, measured:** 36 of 52 default misses are `abstain` with zero rows — the
 message names things the commit introduces, so the gate finds no occurrence and

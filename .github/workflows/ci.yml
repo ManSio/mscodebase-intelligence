@@ -75,6 +75,11 @@ jobs:
       - name: Check version consistency
         run: python scripts/bump_version.py --check
 
+      - name: Line-ending gate (tracked files stored as LF)
+        # A CRLF blob passes on Windows and fails on Linux in byte-for-byte
+        # checks and sha256 manifests. The working tree may be CRLF; the index may not.
+        run: python scripts/check_eol.py
+
       - name: Disk-space guard (C:-critical 2026-09-29)
         # Fails if the runner disk has <1GB free — full disks cause
         # silent truncations in lancedb/onnx caches. Local equivalent:

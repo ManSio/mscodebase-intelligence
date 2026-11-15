@@ -1,0 +1,725 @@
+{
+  "arm": "treatment",
+  "n": 48,
+  "data_dir": "C:\\Users\\misha\\AppData\\Local\\Temp\\opencode\\g4data_dyn",
+  "hit@1": 0.5833333333333334,
+  "hit@5": 0.6875,
+  "mrr": 0.6166666666666667,
+  "p50_ms": 258.11570000041684,
+  "rows": [
+    {
+      "id": "E30-E28-01",
+      "gold": "src/core/rate_limiter.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/database_lock.py",
+        "src/core/indexing/db_manager.py",
+        "ISSUE.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-02",
+      "gold": "src/core/redact.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py",
+        "src/core/redact.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-03",
+      "gold": "src/core/gitignore_parser.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-04",
+      "gold": "src/core/embedder_lease.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/embedder_lease.py",
+        "src/core/embedder_lease.py",
+        "src/core/intelligence/health.py",
+        "src/core/embedder_lease.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-05",
+      "gold": "src/core/reindex_ledger.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "src/core/reindex_ledger.py",
+        "src/core/indexing/index_guard.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-06",
+      "gold": "src/core/quiet_break_gate.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py",
+        "src/core/quiet_break_gate.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-07",
+      "gold": "src/providers/reranker/reranker_scoring.py",
+      "intent": "auto",
+      "auto": [
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "src/providers/reranker/reranker_scoring.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-08",
+      "gold": "src/core/error_envelope.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/error_handler.py",
+        "src/core/error_handler.py",
+        "src/mcp/server_tools.py",
+        "src/core/error_handler.py",
+        "src/core/error_handler.py"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-09",
+      "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+      "intent": "docs",
+      "auto": [
+        "docs/ru/GRACEFUL_DEGRADATION.md",
+        "docs/archive/i18n/ru/ARCHITECTURE_DEEP.md",
+        "docs/ru/CONFIGURATION.md",
+        "docs/ru/FAQ.md",
+        "docs/ru/ARCHITECTURE.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-10",
+      "gold": "docs/en/SEARCH_PIPELINE.md",
+      "intent": "docs",
+      "auto": [
+        "docs/ru/TELEMETRY.md",
+        "docs/ru/README.md",
+        "docs/ru/SEARCH_PIPELINE.md",
+        "docs/archive/KNOWN_ISSUES_2026_07.md",
+        "docs/archive/DEV_DIARY_2026_07.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-11",
+      "gold": "docs/TRUST_BOUNDARY.md",
+      "intent": "docs",
+      "auto": [
+        "docs/blog/README.md",
+        "docs/ru/README.md",
+        "docs/ru/ZED_WINDOWS_QUIRKS.md",
+        "docs/archive/research/2026-07-12-e5-base-migration.md",
+        "docs/TRUST_BOUNDARY.md"
+      ],
+      "h1": false,
+      "h5": true,
+      "mrr": 0.2
+    },
+    {
+      "id": "E30-E28-12",
+      "gold": "docs/en/TELEMETRY.md",
+      "intent": "auto",
+      "auto": [
+        "scripts/check_lsp_health.py",
+        "scripts/summarize_1L_categories.py",
+        "src/core/artifact_paths.py",
+        "src/core/artifact_paths.py",
+        "mscodebase_intelligence.egg-info/SOURCES.txt"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-13",
+      "gold": "docs/adr/0003-verify-on-read.md",
+      "intent": "auto",
+      "auto": [
+        "src/core/intelligence/layer.py",
+        "src/core/doc_llm_verifier.py",
+        "src/core/intelligence/verify_on_read.py",
+        "docs/archive/AGENTS.md_before_48_and_audit_20260722_215808.md",
+        "docs/adr/0003-verify-on-read.md"
+      ],
+      "h1": false,
+      "h5": true,
+      "mrr": 0.2
+    },
+    {
+      "id": "E30-E28-14",
+      "gold": "docs/en/HANDFOFF.md",
+      "intent": "docs",
+      "auto": [
+        "docs/archive/i18n/ru/HANDFOFF.md",
+        "docs/ru/LM_STUDIO_SETUP.md",
+        "docs/ru/README.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/archive/research/2026-07-12-e5-base-migration.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-15",
+      "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+      "intent": "docs",
+      "auto": [
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/archive/KNOWN_ISSUES_2026_07.md",
+        "docs/archive/i18n/ru/HANDFOFF.md",
+        "docs/ru/CLIENTS.md",
+        "docs/ru/README.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-16",
+      "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+      "intent": "docs",
+      "auto": [
+        "docs/archive/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "docs/archive/research/2026-07-09-provider-benchmark.md",
+        "docs/archive/research/2026-07-12-e5-base-migration.md",
+        "docs/archive/BENCHMARK.md",
+        "docs/ru/INSTALL_MODELS.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-17",
+      "gold": "src/core/indexing/db_writer.py",
+      "intent": "auto",
+      "auto": [
+        "ISSUE.md",
+        "AGENT_DIARY.md",
+        "ISSUE.md",
+        "AGENT_DIARY.md",
+        "docs/archive/KNOWN_ISSUES_2026_09.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-18",
+      "gold": "src/core/artifact_gc.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "src/core/artifact_gc.py",
+        "docs/en/TELEMETRY.md"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-19",
+      "gold": "src/providers/reranker/llama_install.py",
+      "intent": "auto",
+      "auto": [
+        "src/providers/reranker/llama_install.py",
+        "src/providers/reranker/llama_install.py",
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder/onnx_client.py",
+        "EXPERIMENTS_LOG.md"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-20",
+      "gold": "src/providers/reranker/llama_runner.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/database_lock.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/providers/reranker/llama_runner.py",
+        "src/core/indexing/startup_diagnostics.py",
+        "src/core/indexing/database_lock.py"
+      ],
+      "h1": false,
+      "h5": true,
+      "mrr": 0.5
+    },
+    {
+      "id": "E30-E28-21",
+      "gold": "src/providers/embedder/remote_embedder.py",
+      "intent": "auto",
+      "auto": [
+        "src/providers/embedder/remote_embedder.py",
+        "src/core/embedder_lease.py",
+        "AGENT_DIARY.md",
+        "AGENT_DIARY.md",
+        "docs/archive/DEV_DIARY_2026_07.md"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-22",
+      "gold": "src/core/graph.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py",
+        "src/core/graph.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-23",
+      "gold": "src/core/search/cypher_sql.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_sql.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-24",
+      "gold": "src/core/bootstrap_tests.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py",
+        "src/core/bootstrap_tests.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-25",
+      "gold": "src/core/indexing/freshness.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "scripts/check_zero_vectors.py",
+        "AGENT_DIARY.md",
+        "scripts/frozen_overlap_check.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-26",
+      "gold": "src/core/indexing/parser.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/core/indexing/parser.py",
+        "src/providers/embedder/canary_set.json"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-27",
+      "gold": "src/core/search/engine.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/search/scoring.py",
+        "src/core/search/scoring.py",
+        "src/core/search/scoring.py",
+        "scripts/benchmark_search_stages.py",
+        "src/core/search/scoring.py"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-28",
+      "gold": "src/core/indexing/db_manager.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/index_guard.py",
+        "src/core/indexing/indexer_table.py",
+        "src/core/indexing/index_guard.py"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-29",
+      "gold": "src/core/intelligence/verify_on_read.py",
+      "intent": "docs",
+      "auto": [
+        "docs/adr/0005-pkg-anchors.md",
+        "docs/adr/0003-verify-on-read.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-30",
+      "gold": "src/core/indexing/project_indexer_registry.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py",
+        "src/core/indexing/project_indexer_registry.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-E28-31",
+      "gold": "src/mcp/tools/indexing_tools.py",
+      "intent": "auto",
+      "auto": [
+        "src/sync/server.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/core/rate_limiter.py",
+        "src/mcp/tools/indexing_tools.py"
+      ],
+      "h1": false,
+      "h5": true,
+      "mrr": 0.2
+    },
+    {
+      "id": "E30-E28-32",
+      "gold": "src/providers/reranker/search_result_reranker.py",
+      "intent": "docs",
+      "auto": [
+        "docs/archive/research/2026-07-12-e5-base-migration.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-E28-33",
+      "gold": "src/core/search/bm25.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/search/bm25.py",
+        "src/core/commit_memory.py",
+        "src/core/search/bm25.py",
+        "src/core/search/bm25.py",
+        "src/core/search/bm25.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D01",
+      "gold": "src/__init__.py",
+      "intent": "docs",
+      "auto": [
+        "docs/ru/README.md",
+        "docs/archive/research/2026-07-11-zed-deep-dive.md",
+        "docs/adr/0003-verify-on-read.md",
+        "docs/archive/ARCHITECTURE_AUDIT_MCP_vs_IDE.md",
+        "docs/ru/GRACEFUL_DEGRADATION.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-D02",
+      "gold": "src/core/bootstrap_pipeline.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/bootstrap_pipeline.py",
+        "src/core/bootstrap_pipeline.py",
+        "src/core/bootstrap_pipeline.py",
+        "scripts/monitor.py",
+        "src/core/bootstrap_pipeline.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D03",
+      "gold": "src/core/doc_sync_engine.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/doc_sync_engine.py",
+        "scripts/negative_controls_runner.py",
+        "src/core/search/engine.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/search/engine.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D04",
+      "gold": "src/core/gitignore_parser.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py",
+        "src/core/gitignore_parser.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D05",
+      "gold": "src/core/indexing/freshness.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py",
+        "src/core/indexing/freshness.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D06",
+      "gold": "src/core/indexing/symbol_index.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/indexing/symbol_index.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D07",
+      "gold": "src/core/intelligence/tools_reg.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py",
+        "src/core/intelligence/tools_reg.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D08",
+      "gold": "src/core/lsp_project_bridge.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "src/core/lsp_project_bridge.py",
+        "src/core/system_artifacts.py",
+        "scripts/check_lsp_health.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D09",
+      "gold": "src/core/relpath.py",
+      "intent": "code",
+      "auto": [
+        "src/core/relpath.py",
+        "src/core/relpath.py",
+        "src/core/indexing/symbol_index.py",
+        "src/core/search/evidence.py",
+        "src/core/search/graph_resolver.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D10",
+      "gold": "src/core/search/cypher_parser.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/search/cypher_sql.py",
+        "src/core/search/cypher_parser.py",
+        "src/core/search/cypher_engine.py",
+        "src/core/search/cypher_executor.py",
+        "src/core/search/cypher_lexer.py"
+      ],
+      "h1": false,
+      "h5": true,
+      "mrr": 0.5
+    },
+    {
+      "id": "E30-D11",
+      "gold": "src/core/search/trace.py",
+      "intent": "auto",
+      "auto": [
+        "src/core/search/trace.py",
+        "src/core/notification_broker.py",
+        "src/remote_main.py",
+        "src/mcp/tools/search_tools.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D12",
+      "gold": "src/mcp/__init__.py",
+      "intent": "docs",
+      "auto": [
+        "docs/archive/ARCHITECTURE_2026-07-20.md",
+        "docs/ru/investigations/ACTIVE_WORKSPACE_RESOLUTION.md",
+        "docs/archive/i18n/ru/ARCHITECTURE_DEEP.md",
+        "docs/archive/i18n/ru/HANDFOFF.md",
+        "docs/ru/CLIENTS.md"
+      ],
+      "h1": false,
+      "h5": false,
+      "mrr": 0.0
+    },
+    {
+      "id": "E30-D13",
+      "gold": "src/mcp/tools/duplication_tool.py",
+      "intent": "auto",
+      "auto": [
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "src/mcp/tools/duplication_tool.py",
+        "src/mcp/tools/duplication_tool.py",
+        "src/core/duplication.py",
+        "src/core/duplication.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D14",
+      "gold": "src/plugins/loader.py",
+      "intent": "auto",
+      "auto": [
+        "src/plugins/loader.py",
+        "src/plugins/loader.py",
+        "examples/plugins/verify_claim/plugin.py",
+        "src/plugins/loader.py",
+        "src/plugins/manifest.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    },
+    {
+      "id": "E30-D15",
+      "gold": "src/remote_main.py",
+      "intent": "auto",
+      "auto": [
+        "src/remote_main.py",
+        "src/sync/server.py",
+        "src/sync/server.py",
+        "src/sync/server.py",
+        "src/sync/server.py"
+      ],
+      "h1": true,
+      "h5": true,
+      "mrr": 1.0
+    }
+  ]
+}

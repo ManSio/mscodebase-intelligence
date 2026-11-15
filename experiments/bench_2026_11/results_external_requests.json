@@ -1,11 +1,11 @@
 {
  "repo": "requests",
- "base": "e331a288f369973f5de0ec8901c94cae4fa87286",
+ "base": "e331a288",
  "tasks": 25,
  "table": {
   "tool": {
    "top1": 9,
-   "top5": 12
+   "top5": 13
   },
   "neighbours": {
    "top1": 9,
