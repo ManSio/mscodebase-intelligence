@@ -23,12 +23,15 @@
   по версии, на 2.x — один WARNING со ссылкой на ADR; контракт текста ошибок
   зафиксирован по линиям (1.x — оригинал, 2.x — generic); ADR переписан:
   `initialize(2026-07-28)` → counter-offer `2025-11-25`, но `server/discover`
-  **с** `_meta` отдаёт `2026-07-28` и 17 инструментов.
+  **с** `_meta` отдаёт `2026-07-28` и 17 инструментов. Второй проход ревью нашёл
+  ещё два: E-07 звал `streamablehttp_client` (в 2.x — `streamable_http_client`),
+  и Streamable HTTP без явного `transport_security` отбивал не-localhost `Host`
+  (421) — оба закрыты, на Host есть регресс-тест.
 - **Guard:** `tests/test_mcp_wiring_degradations.py` (4 теста) краснеет, если брокер
   перестанут ставить (мутация `set_notification_broker`→`pass`: 2 failed) или если
   деградация начнёт маскироваться; `test_raising_tool_still_reports_error` краснеет
-  при инверсии ветки (1 failed). Обе линии: `2641 passed` / `2641 passed`, rc=0
-  (после мержа main).
+  при инверсии ветки (1 failed). Обе линии: `2643 passed` / `2643 passed`, rc=0
+  (после мержа main и закрытия второго ревью).
 - **Урок:** «зелено только в моём грязном дереве» — это красное; проверять HEAD,
   а не рабочую копию.
 

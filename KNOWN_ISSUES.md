@@ -11,7 +11,7 @@
   именно на 1.x (например, чтение `isError` вместо `is_error`) CI не поймает.
   **Fix-кандидат:** отдельная job с `mcp>=1.28,<2` или отказ от 1.x после
   стабилизации 2.3 (тогда удалить шим `mcp.server.fastmcp` в `tests/conftest.py`).
-- **`_apply_tool_profile`** (`src/mcp/tools/server_tools.py:90-98`) логирует
+- **`_apply_tool_profile`** (`src/mcp/server_tools.py:90-100`) логирует
   `Tool profile=core: -35 видимых, 52 скрыто`: `len(tools) - len(hidden)`
   считается ПОСЛЕ `mcp.remove_tool(...)`, а оба имени ссылаются на один словарь
   `_tools`. Поведение корректное (17 инструментов), врёт только лог.

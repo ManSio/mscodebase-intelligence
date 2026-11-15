@@ -17,7 +17,7 @@
 
 | Проверка | Результат под mcp 2.3.0 |
 |---|---|
-| `from mcp.server.mcpserver import MCPServer` | есть; `mcp.server.fastmcp` удалён |
+| `from mcp.server.mcpserver import MCPServer` | есть; `mcp.server.fastmcp` больше не рабочий модуль (в 2.3 он существует как заглушка и кидает `ModuleNotFoundError`) |
 | Наш сервер создаётся | да: `MCPServer`, `name="MSCodebase Intelligence Server"` |
 | `serverInfo.version` | **3.5.0** (было `1.30` — версия SDK) |
 | Видимых инструментов | **17** (core-профиль), `_tool_manager` + `remove_tool` работают |
@@ -89,7 +89,7 @@ Phase 1 их не ломает на 1.30 (импорт с fallback), но при
 | Запрос | Результат под 2.3.0 |
 |---|---|
 | `initialize(2026-07-28)` | counter-offer `2025-11-25` — handshake modern не умеет |
-| `server/discover` **с** `_meta` первым | `supportedVersions: ["2026-07-28"]` (+`capabilities`, `cacheScope`, `ttlMs`); `serverInfo` в этом ответе нет — он приходит на `initialize` (3.5.0) |
+| `server/discover` **с** `_meta` первым | `supportedVersions: ["2026-07-28"]`; top-level `serverInfo` нет — версия сервера приходит в `_meta.io.modelcontextprotocol/serverInfo` (`3.5.0`) |
 | `tools/list` / `tools/call` в modern-соединении | 17 инструментов, `isError` по конверту работает |
 | enveloped-запрос на legacy-соединении | `-32601` / `INVALID_REQUEST` — ожидаемо |
 
@@ -137,10 +137,10 @@ Phase 1 их не ломает на 1.30 (импорт с fallback), но при
    любой инструмент, возвращающий не-схемный объект, начнёт падать там, где
    раньше проходил. Наши 69 инструментов надо прогнать через `tools/call`
    smoke, а не только через `tools/list`.
-8. **Откат.** `mcp>=1.28,<2` + `pip install -r` возвращает всё, потому что
-   Phase 1 держит импорт с fallback. Но после Phase 2 (переписанный `isError`)
-   откат уже потребует ветки `v1.x` — поэтому Phase 2 не мержим в один PR
-   с Phase 3.
+8. **Откат.** `mcp>=1.28,<2` + `pip install -r` возвращает всё: Phase 1 держит
+   импорт с fallback, а Phase 2 (middleware `isError`) на 1.x уходит в старую
+   ветку. Проверено: suite на обеих линиях зелёный, поэтому «одна строка пина»
+   справедлива и после Phase 2.
 
 ## Решения (приняты по фактам, не по вкусу)
 
