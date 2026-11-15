@@ -135,7 +135,7 @@ inline: `intel_get_project_context`, `intel_explain_project_state`,
 1. Индекс обновлён (`notify_change` → статус).
 2. `python -m pytest tests/ -q` зелёный; slow-тесты отдельно (`-m "not benchmark"`).
 3. `ruff check src/ tests/` — чисто (тот же scope в CI и в `scripts/ruff_gate.py`);
-   `scripts/` линтером не покрыт — 262 нарушения, известный долг.
+   `scripts/` линтером не покрыт — известный долг, не «проверено».
 4. Хуки активны (`core.hooksPath = .githooks`). Docs-only коммит пропускает gate-zero (полный
    pytest) — поэтому гейты документации живут в самом хуке, а не только в тестах.
    `MSCB_PRECOMMIT_FAST=1` — только когда полный прогон всё равно уходит в CI.
