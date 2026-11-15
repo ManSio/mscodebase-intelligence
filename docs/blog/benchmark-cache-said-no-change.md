@@ -227,7 +227,7 @@ Three guards before you trust the output:
 
 1. `resuming:` must not appear anywhere in it. If it does, you are reading a file, not a run.
 2. A run that finishes in under three minutes did not execute 71 tasks.
-3. The output must contain `executed=N of N`, with `N` equal to the panel. Since `d37b796`, `executed=0` without `--allow-replay` exits 3.
+3. The output must contain `executed=N of N` and `product_rev=…`, with `N` equal to the panel. Since `d37b796` a replay (`executed=0`) needs `--allow-replay`; since `4fc7404` a capture that mixes revisions or corpora is refused unless `--allow-mixed`.
 
 The `cd` and the `rev-parse` are not decoration. Miss the `cd` and you run the harness of whatever repository you were standing in — which is exactly how my first attempt at this series produced two "runs" of a commit that was never checked out.
 
@@ -252,6 +252,7 @@ The external arms need no capture at all: `external.py` rebuilds every task from
 
 - **A score could be printed after executing zero tasks.** Found by a reader, not by me, and fixed in `d37b796`: the harness now prints `executed=N resumed=M of K` and refuses a replay without `--allow-replay`. See *After the comments*.
 - **The denominator could be larger than the panel.** A capture row from a different panel raised `n` because `_stats` divides by `len(rows)`. The same commit refuses that row instead of filtering it.
+- **A capture could mix two products and still pass the counter.** Found by red-teaming guard 1: one stale row plus two fresh tasks printed `executed=2 resumed=1 of 3`, exit 0, and the stale row's hit entered the table — tool hit@5 became 3/3 in my test. Rows now carry `rev` and `corpus_head`, and the run refuses a mixture (`4fc7404`).
 - **P1 is no longer a pre-registered test.** Dev was used to design the fixes, so the post-fix 38/71 is a design-set number. The decision, written before the next run, is in `frozen/DECISION.md`: sealed is the next pre-registered test, reported as P4.
 - **The dev panel is not held out — and now I can say by how much.** `sqlalchemy` is where two defects were *found* (contaminated), `requests` only verified a fix designed elsewhere, and the dev panel is my own code. The untouched test is `click`: +3 tasks, 3 up / 0 down, +8.6% against +8.5% on dev. That does not make the dev number out-of-sample; it makes the *effect* reproduce somewhere the fixes never saw.
 - **My harness's noise floor is at least one task.** Two identical control runs at `deb5ff4`, cache cleared both times, gave the neighbours arm 37 and then 38 at hit@5. The tool arm held at 32. Two runs are not a distribution, but they are enough to say the floor is *at least* one task — and the +1 on each external repo sits exactly on it. The paired directions are what carry the rest: **13 up / 0 down** (p ≈ 0.0001) and **6 up / 0 down** (p ≈ 0.016) by a one-sided sign test, and `click` adds **3 up / 0 down** (p ≈ 0.125).
@@ -274,7 +275,7 @@ python experiments/bench_2026_11/run.py --split dev --resume   # continues a dea
 
 Without `--resume` the stale capture is printed and dropped, because `run.py` appends to it and an appended run would silently mix two products. There is a test for that behaviour, and it fails when the flag is removed — I checked by removing it.
 
-**A score has to be earned.** `run.py` prints `executed=N resumed=M of K`, refuses a capture row that is not in the panel, refuses a panel task with no row, and refuses a replay unless `--allow-replay` says so explicitly. Six tests in `tests/test_bench_denominator.py`; two mutants killed (inverting the replay condition turns two red, disabling the foreign-row check turns one red).
+**A score has to be earned.** `run.py` prints `executed=N resumed=M of K`, refuses a capture row that is not in the panel, refuses a panel task with no row, refuses a row from another product revision or another corpus (`4fc7404`), and refuses a replay unless `--allow-replay` says so explicitly. Ten tests in `tests/test_bench_denominator.py`; three mutants killed (inverting the replay condition turns two red, disabling the foreign-row check turns one red, disabling the provenance check turns three red).
 
 ## After the comments: two holes I did not find
 
@@ -310,6 +311,16 @@ ABORT: 0 tasks executed: this is a replay, pass --allow-replay to score it
 ```
 
 Three refusals and one escape hatch: a foreign row aborts instead of being filtered; a panel task without a row aborts before the score is written; a replay needs `--allow-replay`, and even then it prints `executed=0`. Six tests, both mutants killed.
+
+Then I attacked his rule instead of confirming it, and it broke. A capture with one row from an older product plus two freshly executed tasks:
+
+```plaintext
+resuming: 1 tasks already captured
+executed=2 resumed=1 of 3
+tool     3      1      3      3   0.5   [0.438, 1.0]
+```
+
+The counter said "something ran"; it did not say "everything is the same product". So his rule is necessary and not sufficient: each row now carries `rev` and `corpus_head`, and a mixture aborts with exit 3 unless `--allow-mixed`. That is the third guard, and the credit for asking the right question is still his. Ten tests in total, three mutants killed.
 
 **Tom Jones** asked a harder question, about the pre-registered bar rather than the code: P1 failed on the November code, the fixes were then designed from what dev showed, so a dev score of 38 can no longer pass P1 *in the pre-registered sense*.
 

@@ -44,9 +44,9 @@ test split runs once.
 
 ## What does not reopen the design set
 
-`d37b796` adds a reporting guard (`executed=` counter, replay refusal, foreign/missing row
-refusal). It changes what the harness refuses to print, not which rows retrieval returns, so
-it does not move the numbers and does not restart the cycle.
+`d37b796` and `4fc7404` add reporting guards (`executed=` counter, replay refusal, foreign/missing row
+refusal, provenance stamp). They change what the harness refuses to print, not which rows retrieval
+returns, so they do not move the numbers and do not restart the cycle.
 
 ## What would change this
 
