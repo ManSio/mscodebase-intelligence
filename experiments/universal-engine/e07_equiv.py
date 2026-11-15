@@ -92,13 +92,18 @@ async def _run_transport(kind: str, mode: str, data_dir: Path, port: int) -> dic
         )
         cm = stdio_client(params)
     else:
-        from mcp.client.streamable_http import streamablehttp_client
+        try:  # mcp 2.x
+            from mcp.client.streamable_http import streamable_http_client
+        except ImportError:  # mcp 1.x: старое имя и 3-tuple вместо 2-tuple
+            from mcp.client.streamable_http import (
+                streamablehttp_client as streamable_http_client,
+            )
 
         proc = _spawn_http(mode, data_dir, port)
         url = f"http://127.0.0.1:{port}/mcp"
         try:
             await _wait_http(port, mode, proc)
-            cm = streamablehttp_client(url)
+            cm = streamable_http_client(url)
         except Exception:
             proc.terminate()
             raise
@@ -109,7 +114,8 @@ async def _run_transport(kind: str, mode: str, data_dir: Path, port: int) -> dic
             if kind == "stdio":
                 read, write = streams
             else:
-                read, write, _ = streams
+                # 2.x отдаёт (read, write), 1.x — (read, write, get_session_id).
+                read, write = streams[0], streams[1]
             async with ClientSession(read, write) as session:
                 await asyncio.wait_for(session.initialize(), PROBE_TIMEOUT)
                 probes = _toy_probes() if mode == "--toy" else _engine_probes()
