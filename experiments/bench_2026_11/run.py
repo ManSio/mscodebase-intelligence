@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import re
 import subprocess
 import sys
@@ -28,6 +29,7 @@ sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11"))
 sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11" / "evidence_gate"))
 sys.stdout.reconfigure(encoding="utf-8")
 
+from capture import load_capture  # noqa: E402
 from run_gate import _files, _invalid, _norm, _tools_for  # noqa: E402
 from wilson import wilson  # noqa: E402
 
@@ -58,7 +60,16 @@ def _kept_gold(task: dict) -> list[str]:
 def _corpus_files() -> list[str]:
     out = subprocess.run(["git", "ls-files", "*.py", "*.md", "*.toml", "*.json"],
                          cwd=CORPUS, capture_output=True, text=True, encoding="utf-8")
-    return sorted(x for x in out.stdout.splitlines() if x.strip())
+    if out.returncode != 0:
+        raise RuntimeError(
+            f"git ls-files failed in {CORPUS} (rc={out.returncode}): "
+            f"{(out.stderr or '').strip()[:200]}. The grep arm would silently score 0, "
+            "so the run is refused instead of producing a floor of zeros."
+        )
+    files = sorted(x for x in out.stdout.splitlines() if x.strip())
+    if not files:
+        raise RuntimeError(f"git ls-files returned no files in {CORPUS}")
+    return files
 
 
 class GrepBaseline:
@@ -127,6 +138,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", default="dev", choices=("dev", "sealed", "all"))
     parser.add_argument("--sealed", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse rows from results_<split>.partial.jsonl (default: drop it and run the panel)",
+    )
     parser.add_argument("--limit", type=int, default=0)
     args = parser.parse_args()
 
@@ -168,15 +184,18 @@ def main() -> int:
     baseline = GrepBaseline(_corpus_files())
 
     rows = []
-    partial = HERE / f"results_{args.split}.partial.jsonl"
-    done = set()
-    if partial.is_file():
-        for line in partial.read_text(encoding="utf-8").splitlines():
-            if line.strip():
-                old = json.loads(line)
-                rows.append(old)
-                done.add(old["id"])
-        print(f"resuming: {len(done)} tasks already captured", flush=True)
+    suffix = f".limit{args.limit}" if args.limit else ""
+    partial = HERE / f"results_{args.split}{suffix}.partial.jsonl"
+    lock = partial.with_name(partial.name + ".lock")
+    if lock.exists():
+        print(
+            f"ABORT: {lock.name} exists — another run may be using this split. "
+            "Delete it only if no run is active.",
+            flush=True,
+        )
+        return 2
+    lock.write_text(str(os.getpid()), encoding="utf-8")
+    rows, done = load_capture(partial, args.resume)
 
     searcher = tool.resolve_searcher(explicit_project_root=str(CORPUS))
     for index, task in enumerate(tasks, 1):
@@ -244,13 +263,14 @@ def main() -> int:
             print(f"  {arm:<6} hit@1={cell['top1']}/{total} "
                   f"hit@5={cell['top5']}/{total} any@8={cell['any8']}/{total}")
 
-    out = HERE / f"results_{args.split}.json"
+    out = HERE / f"results_{args.split}{suffix}.json"
     out.write_text(json.dumps({
         "split": args.split, "tasks": len(tasks), "dropped_unsolvable": dropped,
         "corpus_head": head, "stats": stats,
         "paired_hit5": {"tool_only": only_tool, "search_only": only_search},
         "invalid": invalid,
     }, ensure_ascii=False, indent=1), encoding="utf-8", newline="")
+    lock.unlink(missing_ok=True)
 
     if invalid:
         print("ABORT: a task did not run; the denominator is not the panel.")

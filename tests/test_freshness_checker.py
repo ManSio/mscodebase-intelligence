@@ -7,20 +7,20 @@
 - Изменённый файл переиндексируется на лету, полный reindex не вызывается.
 - Проверка схемы: новые колонки file_mtime_ns / file_size записываются.
 
-Изоляция: tmp-проект + tmp LanceDB, мок embedder (как test_lsp_vfs_indexing).
+Изоляция: tmp-проект + tmp-хранилище, мок embedder (как test_lsp_vfs_indexing).
+
+Хранилище: по умолчанию движок пишет в SQLite (`MSCODEBASE_SQLITE_CHUNKS=true`,
+`src/core/indexing/indexer.py:146-154`), LanceDB — только при выключенном флаге.
+Тесты читают тот слой, который реально используется, через `_file_rows()`; раньше
+они всегда читали `indexer.table` (LanceDB) и потому падали на дефолтной конфигурации.
 """
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from unittest.mock import MagicMock
-
-import pytest
 
 from src.core.indexing.file_guard import FileGuard
 from src.core.indexing.indexer import Indexer
 from src.sources.local_fs import LocalFsSource
-
-pytestmark = pytest.mark.slow
 
 
 def _make_embedder():
@@ -29,6 +29,8 @@ def _make_embedder():
     embedding_dim обязателен: без него ``self.embedder.embedding_dim or 768``
     (db_writer.py:59) получает truthy-MagicMock и обрезает вектор до нулевого.
     """
+    from unittest.mock import MagicMock
+
     embedder = MagicMock()
     embedder.embedding_dim = 1024
     embedder.embed_batch.return_value = [[0.1] * 1024]
@@ -57,17 +59,47 @@ def _make_indexer(tmp_path: Path, mock_embedder, interval_sec: float = 0.0):
     return indexer
 
 
+def _file_rows(indexer, columns):
+    """Одна строка на ФАЙЛ из хранилища, которое реально использует индексатор.
+
+    SQLite-стор отдаёт чанки (несколько строк на файл), поэтому агрегируем по
+    `file_path`; для LanceDB поведение прежнее — одна строка на чанк, но тестовые
+    файлы дают ровно один чанк.
+    """
+    if indexer._chunk_store is not None:
+        by_file: dict[str, dict] = {}
+        for rec in indexer._chunk_store.all_records():
+            by_file.setdefault(rec["file_path"], rec)
+        return [{name: rec.get(name) for name in columns} for rec in by_file.values()]
+    return indexer.table.to_lance().to_pandas(columns=columns).to_dict("records")
+
+
+def _store_name(indexer) -> str:
+    return "sqlite" if indexer._chunk_store is not None else "lancedb"
+
+
 class TestFreshnessChecker:
+    def test_store_is_the_default_one(self, tmp_path):
+        """Дефолт обязан быть SQLite: тесты ниже проверяют именно его."""
+        indexer = _make_indexer(tmp_path, _make_embedder())
+        assert _store_name(indexer) == "sqlite", (
+            "MSCODEBASE_SQLITE_CHUNKS должен быть true по умолчанию "
+            "(src/config/settings.py::SearchConfig.sqlite_chunks)"
+        )
+
     def test_schema_has_mtime_size(self, tmp_path):
-        """Новые колонки file_mtime_ns / file_size присутствуют в схеме."""
-        mock_embedder = _make_embedder()
-        indexer = _make_indexer(tmp_path, mock_embedder)
-        field_names = {f.name for f in indexer.table.schema}
-        assert "file_mtime_ns" in field_names
-        assert "file_size" in field_names
+        """file_mtime_ns / file_size есть в обоих хранилищах."""
+        indexer = _make_indexer(tmp_path, _make_embedder())
+        src_file = tmp_path / "a.py"
+        src_file.write_text("def a(): return 1\n", encoding="utf-8")
+        assert indexer._index_single_file(src_file, "a.py") is True
+
+        rows = _file_rows(indexer, ["file_path", "file_mtime_ns", "file_size"])
+        assert rows and rows[0]["file_mtime_ns"] == int(src_file.stat().st_mtime_ns)
+        assert rows[0]["file_size"] == int(src_file.stat().st_size)
 
     def test_data_records_contain_mtime_size(self, tmp_path):
-        """После индексации файла в чанках проставлены mtime_ns и size."""
+        """После индексации файла в записях проставлены mtime_ns и size."""
         mock_embedder = _make_embedder()
         indexer = _make_indexer(tmp_path, mock_embedder)
         src_file = tmp_path / "a.py"
@@ -75,8 +107,8 @@ class TestFreshnessChecker:
 
         assert indexer._index_single_file(src_file, "a.py") is True
 
-        df = indexer.table.to_lance().to_pandas(columns=["file_path", "file_mtime_ns", "file_size"])
-        row = df[df["file_path"] == "a.py"].iloc[0]
+        rows = _file_rows(indexer, ["file_path", "file_mtime_ns", "file_size"])
+        row = next(r for r in rows if r["file_path"] == "a.py")
         assert row["file_mtime_ns"] == int(src_file.stat().st_mtime_ns)
         assert row["file_size"] == int(src_file.stat().st_size)
 
@@ -94,8 +126,8 @@ class TestFreshnessChecker:
         reindexed = indexer.verify_index_freshness(tmp_path)
         assert reindexed >= 1
 
-        df = indexer.table.to_lance().to_pandas(columns=["file_path"])
-        assert "b.py" in set(df["file_path"])
+        paths = {r["file_path"] for r in _file_rows(indexer, ["file_path"])}
+        assert "b.py" in paths
 
     def test_unchanged_file_not_reindexed(self, tmp_path):
         """Stat-first: неизменённый файл не модифицируется и не вызывает hash-чтение."""
@@ -112,8 +144,9 @@ class TestFreshnessChecker:
         assert reindexed == 0
 
         # Содержимое одинаково — никаких новых записей
-        df = indexer.table.to_lance().to_pandas(columns=["file_path", "indexed_at", "file_hash"])
-        assert len(df) == len(df.drop_duplicates(subset=["file_path", "file_hash"]))
+        rows = _file_rows(indexer, ["file_path", "file_hash"])
+        unique = {(r["file_path"], r["file_hash"]) for r in rows}
+        assert len(rows) == len(unique)
 
     def test_changed_file_hot_reloaded(self, tmp_path):
         """Изменённый файл переиндексируется на лету, без полного reindex."""
@@ -123,7 +156,7 @@ class TestFreshnessChecker:
         src_file.write_text("def a(): return 1\n", encoding="utf-8")
         assert indexer._index_single_file(src_file, "a.py") is True
 
-        old_hash = indexer.table.to_lance().to_pandas(columns=["file_hash"]).iloc[0]["file_hash"]
+        old_hash = _file_rows(indexer, ["file_hash"])[0]["file_hash"]
 
         # Правим содержимое файла (новое содержимое)
         src_file.write_text("def a(): return 42\n", encoding="utf-8")
@@ -131,7 +164,7 @@ class TestFreshnessChecker:
         reindexed = indexer.verify_index_freshness(tmp_path)
         assert reindexed >= 1  # файл переиндексирован
 
-        new_hash = indexer.table.to_lance().to_pandas(columns=["file_hash"]).iloc[0]["file_hash"]
+        new_hash = _file_rows(indexer, ["file_hash"])[0]["file_hash"]
         assert new_hash != old_hash  # контент действительно обновился
 
     def test_hot_reload_is_full_pipeline_not_delete_all(self, tmp_path):
@@ -148,11 +181,11 @@ class TestFreshnessChecker:
         reindexed = indexer.verify_index_freshness(tmp_path)
         assert reindexed >= 1
 
-        df = indexer.table.to_lance().to_pandas(columns=["file_path", "file_hash"])
-        hash_b = df[df["file_path"] == "b.py"].iloc[0]["file_hash"]
-        assert len(df) == 2  # оба файла на месте, дублей нет
+        rows = _file_rows(indexer, ["file_path", "file_hash"])
+        by_path = {r["file_path"]: r["file_hash"] for r in rows}
+        assert set(by_path) == {"a.py", "b.py"}  # оба файла на месте, дублей нет
         # b.py'шный hash не изменился (не был переиндексирован)
-        assert hash_b == indexer._calculate_file_hash(tmp_path / "b.py")
+        assert by_path["b.py"] == indexer._calculate_file_hash(tmp_path / "b.py")
 
     def test_concurrent_verify_parallel(self, tmp_path):
         """Стресс: N=8 параллельных verify() → корректность результата.
@@ -185,7 +218,7 @@ class TestFreshnessChecker:
         # (debounce=0: хотя бы один поток реально переиндексировал)
         assert any(r >= 1 for r in results)
 
-        df = indexer.table.to_lance().to_pandas(columns=["file_path", "file_hash"])
-        a_rows = df[df["file_path"] == "a.py"]
+        rows = _file_rows(indexer, ["file_path", "file_hash"])
+        a_rows = [r for r in rows if r["file_path"] == "a.py"]
         assert len(a_rows) == 1  # дублей после гонки нет
-        assert a_rows.iloc[0]["file_hash"] == indexer._calculate_file_hash(tmp_path / "a.py")
+        assert a_rows[0]["file_hash"] == indexer._calculate_file_hash(tmp_path / "a.py")
