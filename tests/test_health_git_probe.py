@@ -76,12 +76,12 @@ def test_real_probe_returns_hash_and_subject(tmp_path):
     """
     repo = tmp_path / "repo"
     repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (repo / "a.py").write_text("x = 1", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=repo, check=True)
-    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     report = HealthReport(project_path=repo)
     report._check_execution_contract()

@@ -152,7 +152,7 @@ def test_missing_self_reference_is_rejected():
 
 def test_cli_passes_on_the_real_file():
     proc = subprocess.run([sys.executable, str(SCRIPT), "--root", str(REPO)],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "problem(s)" in proc.stdout
 
@@ -161,7 +161,7 @@ def test_cli_refuses_an_empty_file(tmp_path):
     empty = tmp_path / "AGENTS.md"
     empty.write_text("", encoding="utf-8")
     proc = subprocess.run([sys.executable, str(SCRIPT), "--root", str(tmp_path), "--path", "AGENTS.md"],
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     assert proc.returncode == 1
     assert "empty" in (proc.stdout + proc.stderr)
 

@@ -130,7 +130,7 @@ def _probe(client: str, command: str, args: list[str], env: dict[str, str], time
             stderr=subprocess.PIPE,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         _stderr_drain(proc.stderr, stderr_tail)
         try:

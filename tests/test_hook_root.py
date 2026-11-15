@@ -53,7 +53,7 @@ def test_hook_exits_nonzero_in_markerless_tmpdir(tmp_path):
         # Hook forces utf-8 stdout (emoji); parent must decode the same —
         # default cp1251 on Win loses bytes and yields stdout=None.
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode != 0, f"hook passed fail-open:\n{proc.stdout}"
     assert "All pre-commit checks passed" not in proc.stdout

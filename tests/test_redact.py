@@ -16,7 +16,7 @@ SCRIPT = REPO / "scripts" / "redact.py"
 def _run_redact(text: str) -> str:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT)],
-        input=text, capture_output=True, text=True, encoding="utf-8", timeout=10,
+        input=text, capture_output=True, text=True, encoding="utf-8", timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0, f"redact failed: {proc.stderr}"
     return proc.stdout
@@ -49,7 +49,7 @@ def test_clean_text_unchanged() -> None:
 def test_selftest_passes() -> None:
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--selftest"],
-        capture_output=True, text=True, encoding="utf-8", timeout=10,
+        capture_output=True, text=True, encoding="utf-8", timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0
     assert "selftest PASS" in proc.stdout

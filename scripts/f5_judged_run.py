@@ -96,7 +96,7 @@ def _run(bin_: str, prompt: str, model: str, workdir: Path, files: list[Path],
         cmd.append(f"--file={f}")
     env = dict(os.environ, PYTHONUTF8="1", NO_COLOR="1")
     try:
-        p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env)
+        p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
         return "[TIMEOUT]"
     raw = (p.stdout or b"") + b"\n" + (p.stderr or b"")

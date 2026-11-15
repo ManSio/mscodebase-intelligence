@@ -30,7 +30,7 @@ def _run(*args) -> subprocess.CompletedProcess:
         timeout=180,
         text=True,
         encoding="utf-8",  # runner печатает utf-8 (§5.9); Windows-locale иначе даёт mojibake
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 

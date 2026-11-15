@@ -34,7 +34,7 @@ def _read_stage(path: str, stage: int) -> str:
         ["git", "show", f":{stage}:{path}"],
         capture_output=True,
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.stdout if proc.returncode == 0 else ""
 

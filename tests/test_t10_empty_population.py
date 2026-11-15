@@ -90,5 +90,5 @@ print(f"T10 HELD-OUT PASSED — {len(results)}/{len(results)}: empty refused, no
 
 # and confirm the real CLI still starts (import-time sanity, no network)
 p = subprocess.run([sys.executable, str(REPO / "scripts/e2e_quality_search.py"), "--help"],
-                   capture_output=True, text=True, timeout=60)
+                   capture_output=True, text=True, timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 check("--help works (import-time sanity)", p.returncode == 0, f"rc={p.returncode}")

@@ -49,7 +49,7 @@ def test_apply_and_popen_no_raise_without_startupinfo(isolated_apply, monkeypatc
     monkeypatch.delattr(subprocess, "STARTUPINFO", raising=False)
     assert not hasattr(subprocess, "STARTUPINFO")
     mod.apply()  # must not raise
-    inst = subprocess.Popen(["echo", "hi"])  # S2 path: must not raise either
+    inst = subprocess.Popen(["echo", "hi"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))  # S2 path: must not raise either
     assert isinstance(inst, _DummyPopen)
     assert inst.kwargs.get("startupinfo") is None
 
@@ -58,7 +58,7 @@ def test_popen_injects_startupinfo_when_present(isolated_apply):
     """Positive control (Popen path): real startupinfo object is injected."""
     assert hasattr(subprocess, "STARTUPINFO"), "positive control needs STARTUPINFO"
     mod.apply()
-    inst = subprocess.Popen(["echo", "hi"])
+    inst = subprocess.Popen(["echo", "hi"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     assert inst.kwargs.get("startupinfo") is not None
     assert inst.kwargs.get("creationflags") == getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -79,5 +79,5 @@ def test_run_wrapper_injects_startupinfo_when_present(isolated_apply, monkeypatc
     monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(mod, "_APPLIED", False)
     mod.apply()
-    subprocess.run(["echo", "hi"])
+    subprocess.run(["echo", "hi"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     assert calls.get("startupinfo") is not None

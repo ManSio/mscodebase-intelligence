@@ -15,15 +15,15 @@ class TestBugCorrelation:
 
     def _init_git(self, path: Path):
         """Инициализирует git репозиторий."""
-        subprocess.run(["git", "init"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True)
+        subprocess.run(["git", "init"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def _create_commit(self, path: Path, content: str, message: str):
         """Создаёт коммит для файла test.py."""
         (path / "test.py").write_text(content)
-        subprocess.run(["git", "add", "."], cwd=path, capture_output=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=path, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "commit", "-m", message], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def test_no_bugfix_commits(self):
         """Нет баг-фиксов — пустой результат."""
@@ -68,14 +68,14 @@ class TestBugCorrelation:
             # Создаём файлы
             (tmp_path / "stable.py").write_text("x = 1")
             (tmp_path / "buggy.py").write_text("y = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             # Фиксим buggy.py несколько раз
             for i in range(3):
                 (tmp_path / "buggy.py").write_text(f"y = {i+2}")
-                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-                subprocess.run(["git", "commit", "-m", f"Fix bug in buggy.py #{i+1}"], cwd=tmp_path, capture_output=True)
+                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                subprocess.run(["git", "commit", "-m", f"Fix bug in buggy.py #{i+1}"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             memory = CommitMemory(tmp_path)
             bug_corr = BugCorrelation(memory)
@@ -92,12 +92,12 @@ class TestBugCorrelation:
             self._init_git(tmp_path)
 
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             (tmp_path / "test.py").write_text("x = 2")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Fix: resolve error"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "Fix: resolve error"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             memory = CommitMemory(tmp_path)
             bug_corr = BugCorrelation(memory)
@@ -115,13 +115,13 @@ class TestBugCorrelation:
             self._init_git(tmp_path)
 
             (tmp_path / "hot.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             for i in range(5):
                 (tmp_path / "hot.py").write_text(f"x = {i+2}")
-                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-                subprocess.run(["git", "commit", "-m", f"Hotfix: critical bug #{i+1}"], cwd=tmp_path, capture_output=True)
+                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                subprocess.run(["git", "commit", "-m", f"Hotfix: critical bug #{i+1}"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             memory = CommitMemory(tmp_path)
             bug_corr = BugCorrelation(memory)
@@ -138,14 +138,14 @@ class TestBugCorrelation:
             self._init_git(tmp_path)
 
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "Initial"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             # Все коммиты — баг-фиксы (100% ratio)
             for i in range(5):
                 (tmp_path / "test.py").write_text(f"x = {i+2}")
-                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-                subprocess.run(["git", "commit", "-m", f"Fix bug #{i+1}"], cwd=tmp_path, capture_output=True)
+                subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                subprocess.run(["git", "commit", "-m", f"Fix bug #{i+1}"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             memory = CommitMemory(tmp_path)
             bug_corr = BugCorrelation(memory)

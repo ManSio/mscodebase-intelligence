@@ -18,16 +18,16 @@ def _make_repo(tmp_path: Path, commits: list[tuple[str, list[str]]]) -> Path:
     """Создаёт git-репо: commits = [(message, [files])]."""
     repo = tmp_path / "repo"
     repo.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.email", "t@t.t"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     for i, (msg, files) in enumerate(commits):
         for f in files:
             p = repo / f
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(f"content {i}\n", encoding="utf-8", newline="\n")
-        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
-        subprocess.run(["git", "commit", "-qm", msg], cwd=repo, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "commit", "-qm", msg], cwd=repo, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return repo
 
 

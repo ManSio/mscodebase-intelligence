@@ -60,7 +60,7 @@ def ruff_cmd() -> list[str] | None:
     try:
         probe = subprocess.run([sys.executable, "-m", "ruff", "--version"],
                               capture_output=True, encoding="utf-8",
-                              errors="replace", timeout=60)
+                              errors="replace", timeout=60, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         if probe.returncode == 0 and "ruff" in (probe.stdout or "").lower():
             return [sys.executable, "-m", "ruff", "check"]
     except (OSError, subprocess.SubprocessError):

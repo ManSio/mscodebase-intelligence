@@ -60,7 +60,7 @@ def _call(project: Path, args: dict) -> subprocess.CompletedProcess:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=900,
+        timeout=900, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 

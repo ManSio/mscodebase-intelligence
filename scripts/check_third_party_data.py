@@ -210,7 +210,7 @@ def _staged_files() -> list[str] | None:
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     if proc.returncode != 0:
         return None
@@ -223,7 +223,7 @@ def _tracked_files() -> list[str]:
         cwd=str(PROJECT_ROOT),
         capture_output=True,
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 

@@ -385,7 +385,7 @@ class ProjectIntelligenceLayer:
                             return int(parts[4])
             else:
                 out = subprocess.check_output(
-                    ["ss", "-ltnp"], timeout=3
+                    ["ss", "-ltnp"], timeout=3, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 ).decode("utf-8", errors="replace")
                 import re as _re
 
