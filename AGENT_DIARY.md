@@ -27,7 +27,8 @@
 - **Guard:** `tests/test_mcp_wiring_degradations.py` (4 теста) краснеет, если брокер
   перестанут ставить (мутация `set_notification_broker`→`pass`: 2 failed) или если
   деградация начнёт маскироваться; `test_raising_tool_still_reports_error` краснеет
-  при инверсии ветки (1 failed). Обе линии: `2638 passed` / `2638 passed`, rc=0.
+  при инверсии ветки (1 failed). Обе линии: `2641 passed` / `2641 passed`, rc=0
+  (после мержа main).
 - **Урок:** «зелено только в моём грязном дереве» — это красное; проверять HEAD,
   а не рабочую копию.
 
