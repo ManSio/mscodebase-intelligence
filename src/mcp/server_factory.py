@@ -153,11 +153,40 @@ def start_heartbeat_monitor(mcp):
 # ══════════════════════════════════════════════════════════
 
 
+def _project_version() -> str:
+    """Версия проекта для `serverInfo.version` (а не версия SDK).
+
+    mcp 1.x подставлял в `serverInfo.version` свою версию (видели `1.30.0`),
+    mcp 2.x без явного `version=` отдаёт пустую строку. Читаем pyproject
+    (источник истины для `bump_version.py`), fallback — установленные метаданные.
+    """
+    try:
+        import re as _re
+        from pathlib import Path as _Path
+
+        pyproject = _Path(__file__).resolve().parents[2] / "pyproject.toml"
+        text = pyproject.read_text(encoding="utf-8")
+        found = _re.search(r'^version\s*=\s*"([^"]+)"', text, _re.M)
+        if found:
+            return found.group(1)
+    except Exception:  # noqa: BLE001 - версия не должна ронять старт
+        pass
+    try:
+        from importlib.metadata import version as _dist_version
+
+        return _dist_version("mscodebase-intelligence")
+    except Exception:  # noqa: BLE001
+        return "0.0.0"
+
+
 def create_mcp_server():
     """Создаёт и настраивает MCP-сервер с DI-контейнером."""
-    from mcp.server.fastmcp import FastMCP
+    try:  # mcp >= 2
+        from mcp.server.mcpserver import MCPServer as _Server
+    except ImportError:  # mcp 1.x (до миграции)
+        from mcp.server.fastmcp import FastMCP as _Server
 
-    mcp = FastMCP("MSCodebase Intelligence Server")
+    mcp = _Server("MSCodebase Intelligence Server", version=_project_version())
 
     # Lazy импорты: хелперы старта — из context (ARCLUX 2026-08-17,
     # разрыв цикла server↔factory); _ext_root/resolve_project_root — из core (ARCH-03).

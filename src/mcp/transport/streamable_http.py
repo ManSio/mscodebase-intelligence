@@ -9,6 +9,17 @@ HTTP — единственные стандартные биндинги; HTTP+
 from __future__ import annotations
 
 
+def _transport_security(mcp):
+    """DNS-rebinding выключен: localhost + Bearer на remote_main (см. ниже)."""
+    try:
+        sec = getattr(getattr(mcp, "settings", None), "transport_security", None)
+        if sec is not None:
+            sec.enable_dns_rebinding_protection = False
+        return sec
+    except Exception:  # noqa: BLE001 - не ломаем старт ради настройки
+        return None
+
+
 def create_streamable_http_app():
     """Строит FastMCP-сервер и возвращает его Streamable HTTP ASGI-приложение.
 
@@ -22,6 +33,19 @@ def create_streamable_http_app():
     # умолчанию вешает Streamable-HTTP эндпоинт тоже на /mcp — итоговый путь
     # получался /mcp/mcp, отчего POST /mcp/ отдавал 404. Ставим внутренний
     # путь на корень "/", чтобы после стрипа префикса Mount совпадал ровно /mcp.
+    # mcp 2.x принимает эти значения параметрами app-метода и не требует
+    # мутировать settings; на 1.x ветка ниже остаётся рабочей.
+    try:
+        return (
+            mcp.streamable_http_app(
+                streamable_http_path="/",
+                transport_security=_transport_security(mcp),
+            ),
+            mcp.session_manager,
+        )
+    except TypeError:
+        pass
+
     try:
         mcp.settings.streamable_http_path = "/"
         # FastMCP включает DNS-rebinding защиту (проверка заголовка Host),
