@@ -11,7 +11,23 @@ _launch_server/_health_check мокаются; тестируется именн
 import threading
 from unittest.mock import patch
 
+import pytest
+
 from src.core.embedder.onnx_client import OnnxEmbedderClient
+
+
+@pytest.fixture(autouse=True)
+def _fresh_client_lock(monkeypatch):
+    """Каждый тест получает свой lock.
+
+    `_client_lock` — модульный глобал. Поток, оставшийся от другого теста,
+    держал его; после появления таймаута лока (2026-11-14) `ensure_server_running`
+    честно возвращал False вместо зависания, и тест падал по чужому состоянию
+    (clean-state, PR #133). Изоляция убирает порядок тестов из уравнения.
+    """
+    from src.core.embedder import onnx_client as mod
+
+    monkeypatch.setattr(mod, "_client_lock", threading.Lock())
 
 
 def _client():
