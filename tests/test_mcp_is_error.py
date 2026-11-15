@@ -40,11 +40,12 @@ def _app(fn, name="probe") -> FastMCP:
 
 
 def _is_error(result) -> bool:
-    """v1: _is_error(ServerResult) · v2: CallToolResult.isError / wire-dict."""
+    """v1: ServerResult.isError · v2: CallToolResult.is_error / wire-dict."""
     payload = getattr(result, "root", result)
     if isinstance(payload, dict):
         return bool(payload.get("isError"))
-    return bool(getattr(payload, "is_error", False))
+    # v1 — isError (camelCase), v2 — is_error (snake_case).
+    return bool(getattr(payload, "is_error", None) or getattr(payload, "isError", None))
 
 
 def _call(mcp: FastMCP, name: str = "probe", arguments: dict | None = None):
@@ -141,14 +142,18 @@ class TestProtocolFlag:
         async def probe() -> str:
             raise ValueError("boom")
 
-        # mcp 1.x: текст исключения уходит клиенту с isError=true.
-        # mcp 2.x: SDK сам превращает исключение в CallToolResult(is_error=True)
-        # с generic-текстом («Error executing tool <name>»), оригинал — в лог.
-        # Общее для обеих линий: вызов помечен ошибкой, а не успехом.
-        result = _call(_app(probe))
+        # Контракт текста различается по линии (ADR-0008, «Деградации на 2.x»):
+        # 1.x доносит деталь исключения клиенту, 2.x отдаёт generic-текст
+        # («Error executing tool <name>»), а оригинал уходит в лог.
+        mcp = _app(probe)
+        result = _call(mcp)
         assert _is_error(result) is True
         text = _text(result)
-        assert "boom" in text or "Error executing tool" in text
+        assert "Error executing tool" in text
+        if hasattr(mcp, "_mcp_server"):  # mcp 1.x
+            assert "boom" in text
+        else:  # mcp 2.x: деталь исключения не покидает сервер
+            assert "boom" not in text
 
     def test_arguments_are_still_validated(self):
         async def probe(query: str) -> str:
