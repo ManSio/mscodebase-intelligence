@@ -10,10 +10,33 @@ on:
     # чтобы не задваивать прогоны для одной и той же ревизии.
     branches: [main, 'feat/**', 'exp/**', 'fix/**', 'chore/**']
 
+concurrency:
+  # Отменяем устаревший прогон того же PR: замер 2026-11-15 — 28 из 46
+  # PR-прогонов были перезапусками одного дерева. main не отменяем: его
+  # история прогонов — доказательство, а не черновик.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
+  changes:
+    # Дешёвый фильтр: тяжёлые job'ы нужны только когда менялся код.
+    # Docs-only PR экономит ~4.7 из 12.6 runner-минут на прогон (замер 2026-11-15).
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: echo "code=$(python scripts/ci_changed_code.py "$BASE_SHA")" >> "$GITHUB_OUTPUT"
+
   test:
     strategy:
       fail-fast: false
@@ -121,6 +144,8 @@ jobs:
         timeout-minutes: 2
 
   clean-state:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       # fetch-depth: 0 — см. комментарий в job test (revision_gate требует ancestry).
@@ -174,6 +199,8 @@ jobs:
         timeout-minutes: 5
 
   manifest-parity:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
     # B-1 (ADR-0005 scaling): наши экстракторы манифестов vs osv-scanner на корпусе
     # e-s1-polygon (Вариант В спеки 07). Выхлоп обязан совпадать (расхождение = дыра
     # в нашем парсере). Пин: osv-scanner v2.5.1 (release 2026-08-17); бамп по §5.19.
@@ -200,6 +227,8 @@ jobs:
         timeout-minutes: 5
 
   transport-equiv-e2e:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
     # E-07 (DoD Фазы 3): эквивалентность stdio ↔ Streamable HTTP на РЕАЛЬНОМ движке.
     # Локально при живом основном MCP нестабилен (PID-lock embedder) — автор
     # харнесса: только чистый раннер (CI Ubuntu).
@@ -223,6 +252,8 @@ jobs:
         timeout-minutes: 10
 
   docker-build:
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.code == 'true'
     # DoD Фазы 3 (deploy/docker): образ из python-only remote-движка собирается
     # (локально Docker недоступен — CI-билд является верификацией).
     runs-on: ubuntu-latest

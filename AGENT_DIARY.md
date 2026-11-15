@@ -1971,3 +1971,15 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Fix (тесты, не код):** чтение через `_file_rows(indexer, columns)` — берёт слой, который реально использует индексатор, и агрегирует чанки SQLite по `file_path`; добавлен `test_store_is_the_default_one`, который пиннит дефолт (`sqlite`), чтобы дрейф был виден. `slow`-маркер снят: файл занимает 4.2 s и обязан быть в гейте — иначе эта поломка снова спрячется.
 **Проверка:** до фикса 5 failed / 2 passed; после — 8 passed. Мутация: `verify_index_freshness()` принудительно `return 0` → 4 failed / 4 passed (код восстановлен, тесты краснеют как надо). `ruff check src/ tests/` — чисто.
 **Урок:** «slow» — это не «не важно», а «не проверяется». Если тест читает конкретный бэкенд, он обязан падать громко при смене дефолта, а не жить в исключённой зоне.
+
+## [2026-11-15] Экономия CI: отмена устаревших прогонов, фильтр «docs-only», union-merge дневника
+
+**Симптом:** 120 последних прогонов = 64 CI + 56 CodeQL; из 46 PR-прогонов **28 — перезапуски одного и того же дерева** (нет `cancel-in-progress`). Один прогон CI = **12.6 runner-минут** (7 job'ов): `test` windows 5.0, ubuntu 2.7, `clean-state` 1.7, `manifest-parity` 1.4, `docker-build` 0.8, `transport-equiv-e2e` 0.8, `secret-scan` 0.2. Плюс каждый второй PR падал в конфликт `AGENT_DIARY.md` и требовал ещё один merge → ещё один прогон.
+
+**Fix:** `concurrency: group: ci-${workflow}-${ref}, cancel-in-progress: pull_request` (main не отменяем — его история прогонов доказательство); job `changes` с `scripts/ci_changed_code.py` (Python, чтобы тестировалось и работало на обоих OS) отдаёт `code=true|false`, и `clean-state`/`manifest-parity`/`transport-equiv-e2e`/`docker-build` получили `needs: changes` + `if: push || code == 'true'`; `.gitattributes` → `AGENT_DIARY.md merge=union` (дневник только дописывается, «оба правы» — верное разрешение).
+
+**Проверка:** `tests/test_ci_changed_code.py` — 9 тестов (docs/реестры/эксперименты/картинки → не код; `src/`/`install.py`/`pyproject.toml` → код; неизвестная база → fail-open `true`; `HEAD..HEAD` → `false`; структура workflow: concurrency привязан к PR, 4 тяжёлых job'а ждут фильтр). YAML парсится: 7 job'ов, `changes` первым.
+
+**Ожидаемый эффект (оценка, не замер):** −28 прогонов из 46 в окне наблюдения; −4.7 из 12.6 минут на docs-only PR; минус повторные merge-прогоны из-за дневника. Деньги не экономятся: репозиторий публичный, стандартные раннеры бесплатны — экономится очередь и время до вердикта.
+
+**Урок:** «тяжёлый CI» чаще не про мощность, а про отсутствие отмены и про то, что реестр-файл редактируют все сразу. Правило `merge=union` для append-only файла дешевле любых процессов.
