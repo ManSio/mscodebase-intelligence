@@ -96,3 +96,8 @@ def test_stdin_is_supported(monkeypatch, capsys) -> None:
 
 def test_no_input_is_not_a_pass() -> None:
     assert _module().main(["check_cited_commits"]) == 2
+
+def test_all_digit_token_is_skipped(tmp_path, capsys) -> None:
+    """A 13-digit timestamp is not a commit hash (found in docs/blog)."""
+    code, out = _run(tmp_path, "timestamp 1721234567890 and id 1234567890123\n", capsys)
+    assert code == 0, out

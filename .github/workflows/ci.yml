@@ -37,6 +37,27 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: echo "code=$(python scripts/ci_changed_code.py "$BASE_SHA")" >> "$GITHUB_OUTPUT"
 
+  public-text:
+    # Текст, уходящий наружу, не видят файловые гейты: локальный путь попал в
+    # тело PR, а мёртвый хеш после squash — в опубликованный пост, при зелёном
+    # CI (2026-11-15). Здесь проверяется сам текст постов: пути/логины и то,
+    # что каждый цитируемый хеш резолвится из удалённой ветки.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Make every remote branch visible
+        run: git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: No local paths or logins in published posts
+        run: python scripts/check_public_text.py docs/blog/*.md
+      - name: Every cited hash resolves
+        run: python scripts/check_cited_commits.py docs/blog/*.md
+        timeout-minutes: 5
+
   test:
     strategy:
       fail-fast: false
