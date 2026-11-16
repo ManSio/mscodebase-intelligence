@@ -384,7 +384,7 @@ class IndexProjectDirTool(MCPTool):
                 if pct - _last_pct["value"] < 10.0:
                     return
                 _last_pct["value"] = pct
-                asyncio.run_coroutine_threadsafe(
+                _notify.schedule(
                     _notify.notify_log(
                         "info",
                         f"Индексация {target_path.name}: {done}/{total} ({pct:.0f}%)",
@@ -396,7 +396,7 @@ class IndexProjectDirTool(MCPTool):
                 pass
 
         try:
-            asyncio.run_coroutine_threadsafe(
+            _notify.schedule(
                 _notify.notify_log(
                     "info", f"Индексация началась: {target_path}", "mscodebase.indexer"
                 ),
@@ -442,7 +442,7 @@ class IndexProjectDirTool(MCPTool):
                     elapsed_s=round(time.time() - started, 1),
                 )
                 try:
-                    asyncio.run_coroutine_threadsafe(
+                    _notify.schedule(
                         _notify.notify_log(
                             "info",
                             f"Индексация завершена: {target_path.name} "

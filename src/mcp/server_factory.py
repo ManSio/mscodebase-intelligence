@@ -574,14 +574,14 @@ async def _delayed_auto_index(services):
                         f"Индексация {indexer.project_path.name}: "
                         f"{done}/{total} ({pct:.0f}%)"
                     )
-                    asyncio.run_coroutine_threadsafe(
+                    _notify.schedule(
                         _notify.notify_log("info", message, "mscodebase.indexer"), loop
                     )
                 except Exception:  # noqa: BLE001 — прогресс не должен ломать индексацию
                     pass
 
             try:
-                asyncio.run_coroutine_threadsafe(
+                _notify.schedule(
                     _notify.notify_log(
                         "info",
                         f"Индексация началась: {indexer.project_path}",

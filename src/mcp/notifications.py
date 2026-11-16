@@ -26,6 +26,7 @@ __all__ = [
     "reset_session",
     "notify_log",
     "notify_progress",
+    "schedule",
 ]
 
 logger = logging.getLogger("mscodebase.notifications")
@@ -59,6 +60,23 @@ def reset_session() -> None:
     """Сбрасывает захваченную сессию (для тестов и перезапуска)."""
     global _session
     _session = None
+
+
+def schedule(coro, loop):
+    """Ставит корутину в loop; при закрытом loop закрывает её без warning.
+
+    `asyncio.run_coroutine_threadsafe` на закрытом loop бросает RuntimeError
+    и оставляет корутину неawait-нутой (`coroutine ... was never awaited`).
+    """
+    import asyncio
+
+    try:
+        return asyncio.run_coroutine_threadsafe(coro, loop)
+    except RuntimeError:
+        close = getattr(coro, "close", None)
+        if close is not None:
+            close()
+        return None
 
 
 async def notify_log(level: str, message: str, logger_name: str = "mscodebase") -> bool:
