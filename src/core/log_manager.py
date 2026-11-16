@@ -10,6 +10,7 @@ MSCodebase Intelligence — Централизованное логирован�
 """
 
 import logging
+import sys
 import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -22,6 +23,7 @@ __all__ = [
     "get_log_summary",
     "MAIN_LOG_FILE",
     "get_main_log_path",
+    "SafeRotatingFileHandler",
 ]
 logger = logging.getLogger("mscodebase_server.log")
 
@@ -46,6 +48,54 @@ def get_main_log_path() -> Path:
     return get_logs_dir() / MAIN_LOG_FILE
 
 _initialized_projects: set = set()
+
+
+class SafeRotatingFileHandler(RotatingFileHandler):
+    """RotatingFileHandler, устойчивый к файлу, занятому другим процессом.
+
+    Несколько MCP-процессов (окна Zed, хосты) пишут в один лог. При ротации
+    Windows не даёт переименовать открытый файл → `PermissionError`, и
+    стандартный `logging` печатал traceback в stderr на КАЖДОЙ записи.
+    Замер 2026-11-16: шторм ошибок складывался в ~8 секунд задержки `initialize`
+    и в тысячи строк мусора в stderr.
+
+    Здесь сбой ротации откладывается на `_ROLLOVER_BACKOFF_S`, первая ошибка
+    сообщается один раз, а `handleError` молчит: лог не имеет права ломать
+    запросы и засорять stderr.
+    """
+
+    _ROLLOVER_BACKOFF_S = 300.0
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._rollover_backoff_until = 0.0
+        self._rollover_error_reported = False
+
+    def shouldRollover(self, record) -> bool:  # noqa: N802 - API logging
+        if time.monotonic() < self._rollover_backoff_until:
+            return False
+        return super().shouldRollover(record)
+
+    def doRollover(self) -> None:  # noqa: N802 - API logging
+        try:
+            super().doRollover()
+        except OSError as exc:
+            self._rollover_backoff_until = time.monotonic() + self._ROLLOVER_BACKOFF_S
+            if not self._rollover_error_reported:
+                self._rollover_error_reported = True
+                try:
+                    sys.stderr.write(
+                        f"[log_manager] ротация {self.baseFilename} отложена "
+                        f"на {self._ROLLOVER_BACKOFF_S:.0f} c: {exc}\n"
+                    )
+                except Exception:  # noqa: BLE001 - stderr может быть закрыт
+                    pass
+
+    def handleError(self, record) -> None:  # noqa: N802 - API logging
+        # Осознанно молчим: иначе одна занятая ротация превращается в поток
+        # traceback'ов в stderr (см. docstring класса).
+        pass
+
 
 
 def get_log_dir(project_path: Path) -> Path:
@@ -103,8 +153,11 @@ def setup_project_logging(
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # RotatingFileHandler — ротация по размеру
-    handler = RotatingFileHandler(
+    # RotatingFileHandler — ротация по размеру.
+    # Safe-вариант: несколько MCP-процессов делят один лог, и обычный
+    # RotatingFileHandler на Windows печатает traceback на каждой записи,
+    # когда ротация упирается в занятый файл (замер 2026-11-16).
+    handler = SafeRotatingFileHandler(
         str(log_file),
         maxBytes=_MAX_LOG_BYTES,
         backupCount=_MAX_LOG_FILES,
