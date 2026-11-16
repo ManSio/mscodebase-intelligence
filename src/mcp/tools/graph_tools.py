@@ -272,8 +272,49 @@ class GraphQueryTool(MCPTool):
             }
 
         known_types = "impact|feature|deps|tests"
+
+        # `find_definition` — прямое «где определён символ». Символьный индекс
+        # умеет это нативно; раньше запрос отвергался как неизвестный, и агент
+        # уходил в `search_code`/`codebase`, хотя ответ был рядом.
+        if query_type.lower() in (
+            "find_definition",
+            "find_definitions",
+            "definition",
+            "find_symbol",
+        ):
+            definitions = []
+            try:
+                raw = engine.symbol_index.find_definitions(target) if engine.symbol_index else []
+            except Exception as exc:  # noqa: BLE001 — ответ важнее диагностики
+                return {
+                    "status": "error",
+                    "action": "query",
+                    "query_type": "find_definition",
+                    "target": target,
+                    "message": f"Symbol lookup failed: {exc}",
+                }
+            for item in raw or []:
+                if hasattr(item, "to_dict"):
+                    definitions.append(item.to_dict())
+                elif isinstance(item, dict):
+                    definitions.append(item)
+                else:
+                    definitions.append({"symbol": str(item)})
+            return {
+                "status": "ok",
+                "action": "query",
+                "query_type": "find_definition",
+                "target": target,
+                "count": len(definitions),
+                "definitions": definitions,
+                "next_step": (
+                    "Откройте `file` на строке `line` через `read_live_file`; "
+                    "для оценки влияния — `impact_analysis`"
+                ),
+            }
+
         hint = f"""
-Available query_type: {known_types}
+Available query_type: {known_types}|find_definition
 Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}. {hint}"}
 
