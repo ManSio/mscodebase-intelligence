@@ -118,3 +118,35 @@ def test_bulk_call_is_bounded_in_time(git_repo: Path):
     memory = CommitMemory(git_repo, cache_dir=git_repo / ".cache2")
     memory._load_commit_files_bulk(50)
     assert memory._files_cache, "кэш файлов должен заполниться"
+
+def test_commit_memory_has_no_capture_output():
+    """Структурный guard: fallback `git diff-tree` не должен использовать capture_output.
+
+    Холодный кэш уходил в этот fallback, и в сервере он висел >30 мин
+    (замер 2026-11-17). Здесь — AST-проверка, чтобы форма не вернулась.
+    """
+    import ast
+    import pathlib as _pl
+
+    src = _pl.Path("src/core/commit_memory.py").read_text(encoding="utf-8")
+    offenders = []
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Call):
+            for kw in node.keywords:
+                if kw.arg == "capture_output" and isinstance(kw.value, ast.Constant) \
+                        and kw.value.value is True:
+                    offenders.append(node.lineno)
+    assert not offenders, f"capture_output=True в commit_memory.py, строки {offenders}"
+
+
+def test_commit_files_fallback_is_bounded(git_repo: Path):
+    """Неизвестный хеш не должен подвешивать fallback."""
+    memory = CommitMemory(git_repo, cache_dir=git_repo / ".cache3")
+    import time
+
+    started = time.monotonic()
+    files = memory._get_commit_files("0" * 40)
+    elapsed = time.monotonic() - started
+
+    assert files == []
+    assert elapsed < 10, f"fallback занял {elapsed:.1f} с"
