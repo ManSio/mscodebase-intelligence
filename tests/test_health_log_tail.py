@@ -118,6 +118,19 @@ def test_global_log_is_named_as_shared_project_log_is_not(tmp_path, monkeypatch)
     assert own and "общий на все проекты" not in own[0]
 
 
+def test_text_only_embedder_is_not_reported_as_available(tmp_path):
+    """Текстовый режим — не «embedder доступен» и не warning (ревью 2026-11-16)."""
+
+    class _Embedder:
+        mode = "text_only"
+
+    report = HealthReport(project_path=tmp_path, embedder=_Embedder()).run_full_diagnostic()
+
+    assert report["metrics"]["embedder_status"] == "text_only"
+    assert report["metrics"]["embedder_available"] is False
+    assert not [w for w in report["warnings"] if w["component"] == "embedder"]
+
+
 def test_diagnostic_does_not_log_warnings_into_the_counted_log(monkeypatch, caplog):
     """Диагностика не должна сама добавлять WARNING в лог (самозагрязнение)."""
     import logging

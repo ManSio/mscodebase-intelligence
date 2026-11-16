@@ -506,9 +506,13 @@ class HealthReport:
                 embedder_mode = getattr(self.embedder, "mode", "unknown")
                 self.metrics["embedder_status"] = embedder_mode
                 self.metrics["embedder_mode"] = embedder_mode  # алиас (INC-6BCB)
+                # text_only — выбранный текстовый режим: векторов нет, значит и
+                # «embedder доступен» неправда (ревью 2026-11-16). Это не
+                # деградация, поэтому warning не добавляем.
                 self.metrics["embedder_available"] = embedder_mode not in (
                     "unknown",
                     "fallback",
+                    "text_only",
                 )
                 # Fallback = degraded (warning), не critical — восстанавливается запуском LM Studio.
                 if embedder_mode == "fallback":
