@@ -60,6 +60,27 @@ def test_one_broken_entry_does_not_zero_the_graph():
     assert graph["stats"]["total_files"] >= 2
 
 
+def test_query_feature_reads_dict_shaped_symbols():
+    """`search_symbols` может отдать dict-и: файлы не должны теряться."""
+    class _DictIndex(_FakeSymbolIndex):
+        def search_symbols(self, query):
+            return [{"symbol": "build_report", "file": "src/app.py"}]
+
+    engine = GraphRAGQueryEngine(Path("."), symbol_index=_DictIndex({}))
+    result = engine.query_feature("build_report")
+    assert result["files"] == ["src/app.py"]
+
+
+def test_non_iterable_symbols_does_not_zero_the_graph():
+    """Битый repo_map (symbols=None) не должен обнулять граф целиком."""
+    mapping = dict(DICT_SHAPE)
+    mapping["src/broken.py"] = None
+    graph = _engine(mapping).build_graph()
+
+    assert graph["stats"]["total_files"] >= 2
+    assert graph["stats"]["total_symbols"] == 3
+
+
 def test_symbol_lookup_by_name_works_for_impact():
     engine = _engine(DICT_SHAPE)
     engine.build_graph()

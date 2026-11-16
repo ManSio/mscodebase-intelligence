@@ -77,7 +77,7 @@
   "\n📁 **Other projects:**\n": "\n📁 **其他项目:**\n",
   "\n📊 **Tools:**\n": "\n📊 **工具:**\n",
   "\n📅 **History (snapshots):**\n": "\n📅 **历史 (快照):**\n",
-  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found (chunks exist).": "符号层为空：项目图中没有任何符号，因此无法找到 '{symbol}'（分块存在）。",
   "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "重建索引：codebase(action='index', path='project_dir') — 符号图在完整索引时构建。",
-  "Refine the name via `search_code` or `graph_query`": "请通过 `search_code` 或 `graph_query` 确认符号名称"
+  "Refine the name via `search_code` or `graph_query`": "请通过 `search_code` 或 `graph_query` 确认符号名称",
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "符号层为空：项目图中没有任何符号，因此无法找到 '{symbol}'。"
 }

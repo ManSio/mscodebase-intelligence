@@ -873,7 +873,7 @@ def _impact_not_found_payload(symbol: str, symbol_count: int) -> dict:
             "status": "warning",
             "message": _(
                 "Symbol layer is empty: the project graph has no symbols, so "
-                "'{symbol}' cannot be found (chunks exist).",
+                "'{symbol}' cannot be found.",
                 symbol=symbol,
             ),
             "next_step": _(
@@ -906,11 +906,12 @@ class ImpactAnalysisTool(MCPTool):
 
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
+        symbol_index = self.resolve_symbol_index(explicit_project_root=_pr or None)
         # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            self.resolve_symbol_index(explicit_project_root=_pr or None).get_impact_analysis,
+            symbol_index.get_impact_analysis,
             symbol,
             depth,
         )
@@ -919,7 +920,6 @@ class ImpactAnalysisTool(MCPTool):
             record_tool_result(
                 "impact_analysis", route="graph", confidence=0.0, results_count=0
             )
-            symbol_index = self.resolve_symbol_index(explicit_project_root=_pr or None)
             try:
                 symbol_count = symbol_index.get_symbol_count()
             except Exception:  # noqa: BLE001 — диагностика не должна ломать ответ

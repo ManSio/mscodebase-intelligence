@@ -77,7 +77,7 @@
   "\n📁 **Other projects:**\n": "\n📁 **Other projects:**\n",
   "\n📊 **Tools:**\n": "\n📊 **Tools:**\n",
   "\n📅 **History (snapshots):**\n": "\n📅 **History (snapshots):**\n",
-  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found (chunks exist).": "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found (chunks exist).",
   "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.",
-  "Refine the name via `search_code` or `graph_query`": "Refine the name via `search_code` or `graph_query`"
+  "Refine the name via `search_code` or `graph_query`": "Refine the name via `search_code` or `graph_query`",
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found."
 }
