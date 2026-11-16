@@ -165,18 +165,49 @@ def test_empty_closed_index_does_not_make_a_project(tmp_path: Path):
     assert is_project_root(tmp_path) is False
 
 
-def test_index_with_only_a_symbol_graph_is_a_project(tmp_path: Path):
-    """Проект может иметь только graph.db (граф есть, chunks.db нет)."""
+def test_garbage_chunks_file_is_not_an_index(tmp_path: Path):
+    """Мусорный файл нужного размера — не индекс (ревью 2026-11-16)."""
     (tmp_path / ".mscodebase").mkdir()
-    (tmp_path / ".mscodebase" / "graph.db").write_bytes(b"\0" * 16384)
-    assert is_project_root(tmp_path) is True
-
-
-def test_tiny_graph_file_does_not_make_a_project(tmp_path: Path):
-    """Пустая graph.db (4 КБ) — не признак проекта."""
-    (tmp_path / ".mscodebase").mkdir()
-    (tmp_path / ".mscodebase" / "graph.db").write_bytes(b"\0" * 4096)
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 32768)
     assert is_project_root(tmp_path) is False
+
+
+def test_garbage_chunks_file_with_wal_is_not_an_index(tmp_path: Path):
+    (tmp_path / ".mscodebase").mkdir()
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 4096)
+    (tmp_path / ".mscodebase" / "chunks.db-wal").write_bytes(b"\0" * 16384)
+    assert is_project_root(tmp_path) is False
+
+
+def test_index_with_only_a_symbol_graph_is_a_project(tmp_path, monkeypatch):
+    """Проект может иметь только канонический graph.db (вне каталога проекта)."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    (graph_dir / "graph.db").write_bytes(b"\0" * 16384)
+
+    assert is_project_root(project) is True
+
+
+def test_tiny_graph_file_does_not_make_a_project(tmp_path, monkeypatch):
+    """Пустая graph.db (4 КБ) — не признак проекта."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    (graph_dir / "graph.db").write_bytes(b"\0" * 4096)
+
+    assert is_project_root(project) is False
 
 
 

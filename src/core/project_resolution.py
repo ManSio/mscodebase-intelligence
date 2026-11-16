@@ -324,6 +324,18 @@ def _index_has_chunks(db_path: Path) -> bool | None:
         return None
 
 
+def _looks_like_sqlite(path: Path) -> bool:
+    """Файл начинается с заголовка SQLite (`SQLite format 3\\0`)?
+
+    Нужно, чтобы мусорный файл подходящего размера не считался индексом.
+    """
+    try:
+        with open(path, "rb") as f:
+            return f.read(16) == b"SQLite format 3\x00"
+    except OSError:
+        return False
+
+
 def is_project_root(p: Path | str) -> bool:
     """Похож ли каталог на проект (а не на случайный cwd).
 
@@ -359,24 +371,35 @@ def is_project_root(p: Path | str) -> bool:
             if has_chunks is True:
                 return True
             if has_chunks is None:
-                # Прочитать не смогли (занята/битая) — консервативно по размеру
-                # вместе с WAL: живой индекс держит данные именно там.
+                # Прочитать не смогли (занята/битая) — решаем по размеру вместе
+                # с WAL, но только для настоящего SQLite-файла: мусорный файл на
+                # 32 КБ не должен делать каталог «проектом» (ревью 2026-11-16).
                 try:
-                    total = db_path.stat().st_size
-                    wal = state_dir / "chunks.db-wal"
-                    if wal.is_file():
-                        total += wal.stat().st_size
-                    if total > 8192:
-                        return True
+                    if _looks_like_sqlite(db_path):
+                        total = db_path.stat().st_size
+                        wal = state_dir / "chunks.db-wal"
+                        if wal.is_file():
+                            total += wal.stat().st_size
+                        if total > 8192:
+                            return True
                 except OSError:
                     pass
         # Граф символов — тоже индекс: проект может иметь только его.
-        graph_db = state_dir / "graph.db"
+        # Канонический путь — `<data_root>/projects/<hash>/graph.db`
+        # (`get_graph_db_path`), а не `<root>/.mscodebase/graph.db`.
+        graph_candidates = [state_dir / "graph.db", root / ".codebase" / "graph.db"]
         try:
-            if graph_db.is_file() and graph_db.stat().st_size > 8192:
-                return True
-        except OSError:
+            from src.core.artifact_paths import _compute_project_dir
+
+            graph_candidates.append(_compute_project_dir(root) / "graph.db")
+        except Exception:  # noqa: BLE001 — путь графа не обязателен для решения
             pass
+        for graph_db in graph_candidates:
+            try:
+                if graph_db.is_file() and graph_db.stat().st_size > 8192:
+                    return True
+            except OSError:
+                continue
         for entry in root.iterdir():
             if entry.is_file() and entry.suffix.lower() in _CODE_EXTENSIONS:
                 return True
