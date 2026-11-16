@@ -39,6 +39,7 @@ from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
 )
 from src.core.utils.self_index_guard import _is_self_index_path
+from src.utils.i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -332,10 +333,18 @@ class MCPTool(ABC):
                 )
 
     _INDEX_WAIT_ENV = "MSCODEBASE_INDEX_WAIT_S"
-    _INDEX_WAIT_DEFAULT_S = 8.0
-    # Потолок ожидания: `float("inf")`/`1e300` из env иначе дают вечный цикл,
-    # который не отличить от зависания сервера.
-    _INDEX_WAIT_MAX_S = 120.0
+    # 3 с, а не 8: ожидание живёт внутри инструмента, у которого свой
+    # `error_boundary`. У `get_symbol_info` он 5000 мс, и бюджет 8 с превращал
+    # честное «индекс пуст» в TIMEOUT с ложным советом «меньше результатов»
+    # (ревью 2026-11-16).
+    _INDEX_WAIT_DEFAULT_S = 3.0
+    # Потолок: держим ниже самого короткого таймаута инструмента (5 с), иначе
+    # `float("inf")`/`1e300` из env снова дают TIMEOUT вместо ответа.
+    _INDEX_WAIT_MAX_S = 4.0
+    # Сколько ждать появления признака «автоиндексация началась»: задача
+    # создаётся сразу после handshake, но не мгновенно. 1 с покрывает гонку и
+    # не заставляет пустой проект платить больше.
+    _INDEX_START_GRACE_S = 1.0
 
     def _index_wait_budget(self) -> float:
         """Сколько секунд ждать первые чанки автоиндексации (env-настройка)."""
@@ -356,21 +365,26 @@ class MCPTool(ABC):
 
         Раньше на пустом проекте без автоиндексации писали «Auto-index не
         завершился», хотя его никто и не запускал: совет уводил в сторону.
+        Тексты — английский источник под `_()`.
         """
+        from src.core.indexing import auto_index_state
+
         path = getattr(indexer, "project_path", "?")
-        reindexing = bool(
-            status.get("is_reindexing") or status.get("reindex_in_progress")
+        building = bool(
+            status.get("is_reindexing")
+            or status.get("reindex_in_progress")
+            or auto_index_state.is_running()
         )
-        if reindexing:
-            return (
-                f"Index is being built for {path}. "
-                f"Повторите запрос через несколько секунд или проверьте "
-                f"codebase(action='index', path='progress')."
+        if building:
+            return _(
+                "Index is being built for {path}. Retry in a few seconds or "
+                "check codebase(action='index', path='progress').",
+                path=path,
             )
-        return (
-            f"Index is empty for {path}. "
-            f"Автоиндексация не запускалась. Запустите "
-            f"codebase(action='index', path='project_dir')."
+        return _(
+            "Index is empty for {path} and no indexing was started. Run "
+            "codebase(action='index', path='project_dir').",
+            path=path,
         )
 
     async def _wait_for_first_chunks(self, indexer, poll_s: float = 0.25) -> bool:
@@ -380,22 +394,39 @@ class MCPTool(ABC):
         автоиндексация в этот момент ещё пишет чанки (на живом проекте из 31
         файла — ~1 с). Первый запрос агента приходил через 7 мс после handshake
         и получал `Index is empty → run index_project_dir()`, хотя индексация
-        уже шла. Ждём ограниченно (по умолчанию 8 с, `MSCODEBASE_INDEX_WAIT_S=0`
-        выключает) и не блокируем event loop.
+        уже шла.
+
+        Ждём только при реальной индексации: `auto_index_state.is_running()`.
+        На пустом проекте, где автоиндексация не запускалась, ожидание
+        ограничено коротким окном появления признака (`_INDEX_START_GRACE_S`),
+        иначе любой первый запрос платил бы полный бюджет впустую.
         """
         budget = self._index_wait_budget()
         if budget <= 0:
             return False
-        deadline = time.monotonic() + budget
-        while time.monotonic() < deadline:
-            await asyncio.sleep(poll_s)
+
+        from src.core.indexing import auto_index_state
+
+        started = time.monotonic()
+        deadline = started + budget
+        grace_deadline = started + self._INDEX_START_GRACE_S
+        while True:
+            # Сначала статус, потом сон: последняя итерация не должна спать
+            # после дедлайна (ревью 2026-11-16).
             try:
                 status = await asyncio.to_thread(indexer.get_status)
             except Exception:  # noqa: BLE001 — статус не должен ломать запрос
                 return False
             if status.get("total_chunks", 0) > 0:
                 return True
-        return False
+
+            now = time.monotonic()
+            indexing = auto_index_state.is_running()
+            if not indexing and now >= grace_deadline:
+                return False
+            if now >= deadline:
+                return False
+            await asyncio.sleep(poll_s)
 
     async def require_ready_project(
         self,

@@ -520,6 +520,12 @@ async def _delayed_auto_index(services):
 
         logger.info("🚀 Auto-index: starting background indexing task")
 
+        # Отмечаем состояние для `require_ready_project`: ожидание первых чанков
+        # имеет смысл только пока индексация реально идёт.
+        from src.core.indexing import auto_index_state as _auto_state
+
+        _auto_state.mark_started()
+
         # Guard (AGENTS.md §5.13): запрещаем concurrent search
         _dbm = getattr(indexer, "db_manager", None)
         if _dbm is not None and hasattr(_dbm, "set_reindexing"):
@@ -543,6 +549,7 @@ async def _delayed_auto_index(services):
             except Exception as _state_err:  # noqa: BLE001 — статус не роняем
                 logger.debug(f"auto-index set_state READY failed: {_state_err}")
         finally:
+            _auto_state.mark_finished()
             if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
                 _dbm.clear_reindexing()
     except Exception as e:
