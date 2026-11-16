@@ -510,48 +510,50 @@ async def _delayed_auto_index(services):
         except Exception as _diag_err:
             logger.debug(f"startup diagnostics log failed: {_diag_err}")
 
-        # Ждём готовности рантайма
-        await asyncio.sleep(1.5)
-
-        from src.core.project_resolution import ext_root as _ext_root
-        if indexer.project_path.resolve() == _ext_root.resolve():
-            logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
-            return
-
-        logger.info("🚀 Auto-index: starting background indexing task")
-
-        # Отмечаем состояние для `require_ready_project`: ожидание первых чанков
-        # имеет смысл только пока индексация реально идёт.
+        # Отмечаем ожидание ДО паузы: хост спрашивает индекс раньше, чем
+        # закончится sleep(1.5), и должен видеть «строится», а не «не
+        # запускалась» (ревью 2026-11-16: окно grace 1 с было меньше паузы).
         from src.core.indexing import auto_index_state as _auto_state
 
         _auto_state.mark_started()
-
-        # Guard (AGENTS.md §5.13): запрещаем concurrent search
-        _dbm = getattr(indexer, "db_manager", None)
-        if _dbm is not None and hasattr(_dbm, "set_reindexing"):
-            _dbm.set_reindexing()
         try:
-            c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
-            logger.info(f"✅ Auto-index: completed ({c} files)")
-            # State machine: get_indexer() ставил INDEXING при пустом индексе —
-            # после успешной авто-индексации переводим в READY, иначе паспорт
-            # вечно показывает «Project State: INDEXING» (косметический баг,
-            # 2026-08-26; заодно разблокирует wait_until_ready).
-            try:
-                from src.core.di_container import ProjectIndexerRegistry as _PIRKey
-                from src.core.indexing.project_indexer_registry import (
-                    ProjectState as _PS,
-                )
+            # Ждём готовности рантайма
+            await asyncio.sleep(1.5)
 
-                _reg = services.resolve(_PIRKey)
-                if _reg is not None and hasattr(_reg, "set_state"):
-                    _reg.set_state(indexer.project_path, _PS.READY)
-            except Exception as _state_err:  # noqa: BLE001 — статус не роняем
-                logger.debug(f"auto-index set_state READY failed: {_state_err}")
+            from src.core.project_resolution import ext_root as _ext_root
+            if indexer.project_path.resolve() == _ext_root.resolve():
+                logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
+                return
+
+            logger.info("🚀 Auto-index: starting background indexing task")
+
+            # Guard (AGENTS.md §5.13): запрещаем concurrent search
+            _dbm = getattr(indexer, "db_manager", None)
+            if _dbm is not None and hasattr(_dbm, "set_reindexing"):
+                _dbm.set_reindexing()
+            try:
+                c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
+                logger.info(f"✅ Auto-index: completed ({c} files)")
+                # State machine: get_indexer() ставил INDEXING при пустом индексе —
+                # после успешной авто-индексации переводим в READY, иначе паспорт
+                # вечно показывает «Project State: INDEXING» (косметический баг,
+                # 2026-08-26; заодно разблокирует wait_until_ready).
+                try:
+                    from src.core.di_container import ProjectIndexerRegistry as _PIRKey
+                    from src.core.indexing.project_indexer_registry import (
+                        ProjectState as _PS,
+                    )
+
+                    _reg = services.resolve(_PIRKey)
+                    if _reg is not None and hasattr(_reg, "set_state"):
+                        _reg.set_state(indexer.project_path, _PS.READY)
+                except Exception as _state_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"auto-index set_state READY failed: {_state_err}")
+            finally:
+                if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
+                    _dbm.clear_reindexing()
         finally:
             _auto_state.mark_finished()
-            if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
-                _dbm.clear_reindexing()
     except Exception as e:
         logger.warning(f"Auto-index: {e}", exc_info=True)
 

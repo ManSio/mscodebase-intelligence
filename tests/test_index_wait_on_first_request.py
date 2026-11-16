@@ -146,6 +146,34 @@ def test_empty_index_hint_distinguishes_building_from_not_started():
 
 
 @pytest.mark.asyncio
+async def test_wait_catches_indexing_that_starts_after_the_request(monkeypatch):
+    """Запрос пришёл раньше `mark_started()` — ожидание обязано дождаться.
+
+    Реальный порядок: `_delayed_auto_index` помечает старт после `sleep(1.5)`,
+    а запрос приходит через миллисекунды после handshake. Если окно grace
+    короче этой паузы, инструмент соврёт «индексация не запускалась».
+    """
+    monkeypatch.setenv("MSCODEBASE_INDEX_WAIT_S", "3")
+    auto_index_state.mark_finished()
+    indexer = _Indexer(readiness_after=6)
+    tool = _Tool()
+
+    async def start_indexing_later():
+        await asyncio.sleep(0.5)  # меньше grace (1.0) и меньше бюджета (3)
+        auto_index_state.mark_started()
+
+    try:
+        result = await asyncio.gather(
+            tool._wait_for_first_chunks(indexer, poll_s=0.05),
+            start_indexing_later(),
+        )
+    finally:
+        auto_index_state.mark_finished()
+
+    assert result[0] is True, "ожидание должно догнать индексацию, стартовавшую позже"
+
+
+@pytest.mark.asyncio
 async def test_wait_does_not_block_event_loop(monkeypatch):
     """Тики считаются только внутри окна ожидания.
 
@@ -282,3 +310,53 @@ async def test_require_ready_project_fails_fast_when_indexing_is_not_running(
     detail = str(getattr(exc.value, "detail", "") or exc.value)
     assert "Index is empty" in detail
     assert elapsed < 2.9, f"отказ должен быть быстрым, а не {elapsed:.1f} с"
+
+# ══════════════════════════════════════════════════════════════════
+# Порядок старта: маркер ставится до sleep(1.5) (ревью 2026-11-16)
+# ══════════════════════════════════════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_auto_index_marks_running_before_its_startup_delay(monkeypatch, tmp_path):
+    """Между стартом задачи и `sleep(1.5)` признак уже должен быть виден.
+
+    Иначе первый запрос (через миллисекунды после handshake) видит
+    `is_running() == False`, сдаётся по grace и врёт «индексация не запускалась».
+    """
+    import contextlib
+
+    import src.mcp.server_factory as sf
+    import src.mcp.tools.base as tools_base
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "pyproject.toml").write_text("[project]\nname='p'\n", encoding="utf-8")
+
+    class _Indexer:
+        project_path = project
+        db_manager = None
+
+        def get_status(self):
+            return {"total_chunks": 0}
+
+        def index_project(self, path):
+            return 0
+
+    monkeypatch.setattr(
+        tools_base, "resolve_indexer_for_request", lambda services: _Indexer()
+    )
+    auto_index_state.mark_finished()
+
+    task = asyncio.create_task(sf._delayed_auto_index(services=None))
+    try:
+        await asyncio.sleep(0.2)  # внутри 1.5-секундной паузы
+        assert auto_index_state.is_running() is True, (
+            "маркер обязан стоять до паузы старта: иначе запрос увидит «не идёт»"
+        )
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        auto_index_state.mark_finished()
+
+    assert auto_index_state.is_running() is False, "после отмены маркер обязан сниматься"
