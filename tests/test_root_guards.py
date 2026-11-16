@@ -179,6 +179,28 @@ def test_garbage_chunks_file_with_wal_is_not_an_index(tmp_path: Path):
     assert is_project_root(tmp_path) is False
 
 
+def _write_fake_sqlite(path: Path, size: int) -> None:
+    """Файл с настоящим заголовком SQLite и заданным размером."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = b"SQLite format 3\x00"
+    path.write_bytes(header + b"\0" * (size - len(header)))
+
+
+def test_garbage_graph_file_is_not_an_index(tmp_path, monkeypatch):
+    """Мусорный graph.db (без заголовка SQLite) проектом не делает."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    (graph_dir / "graph.db").write_bytes(b"\0" * 16384)
+
+    assert is_project_root(project) is False
+
+
 def test_index_with_only_a_symbol_graph_is_a_project(tmp_path, monkeypatch):
     """Проект может иметь только канонический graph.db (вне каталога проекта)."""
     from src.core import artifact_paths
@@ -190,7 +212,7 @@ def test_index_with_only_a_symbol_graph_is_a_project(tmp_path, monkeypatch):
 
     graph_dir = artifact_paths._compute_project_dir(project)
     graph_dir.mkdir(parents=True)
-    (graph_dir / "graph.db").write_bytes(b"\0" * 16384)
+    _write_fake_sqlite(graph_dir / "graph.db", 16384)
 
     assert is_project_root(project) is True
 
@@ -205,7 +227,7 @@ def test_tiny_graph_file_does_not_make_a_project(tmp_path, monkeypatch):
     monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
     graph_dir = artifact_paths._compute_project_dir(project)
     graph_dir.mkdir(parents=True)
-    (graph_dir / "graph.db").write_bytes(b"\0" * 4096)
+    _write_fake_sqlite(graph_dir / "graph.db", 4096)
 
     assert is_project_root(project) is False
 

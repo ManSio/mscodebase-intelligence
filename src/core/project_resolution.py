@@ -366,6 +366,9 @@ def is_project_root(p: Path | str) -> bool:
         # индексацию настоящего проекта).
         state_dir = root / ".mscodebase"
         db_path = state_dir / "chunks.db"
+        # Стоимость проверки (замер 2026-11-16): 0.6–3.6 мс на индексах
+        # 1–13 тыс. чанков; при наличии маркеров VCS/сборки sqlite вообще
+        # не открывается. Для вызова на каждый инструмент — приемлемо.
         if db_path.is_file():
             has_chunks = _index_has_chunks(db_path)
             if has_chunks is True:
@@ -396,7 +399,11 @@ def is_project_root(p: Path | str) -> bool:
             pass
         for graph_db in graph_candidates:
             try:
-                if graph_db.is_file() and graph_db.stat().st_size > 8192:
+                if (
+                    graph_db.is_file()
+                    and graph_db.stat().st_size > 8192
+                    and _looks_like_sqlite(graph_db)
+                ):
                     return True
             except OSError:
                 continue

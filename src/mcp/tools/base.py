@@ -530,9 +530,7 @@ class MCPTool(ABC):
                 # успевает записать чанки (замер 2026-11-16: проект из 31 файла —
                 # ingest ~1 с, запрос через 7 мс). Даём индексации короткий шанс
                 # вместо совета «запусти индексацию», которая уже идёт.
-                if await self._wait_for_first_chunks(indexer):
-                    status = await asyncio.to_thread(indexer.get_status)
-                else:
+                if not await self._wait_for_first_chunks(indexer):
                     raise IndexNotReadyError(
                         detail=self._empty_index_hint(indexer, status)
                     )

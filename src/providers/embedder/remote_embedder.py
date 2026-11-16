@@ -310,7 +310,7 @@ class RemoteEmbedder(IEmbedder):
             resp = httpx.post(
                 self.llama_cpp_url,
                 json={"input": "dimension probe", "model": self.model_name},
-                timeout=1.0,
+                timeout=3.0,
             )
             resp.raise_for_status()
             data = resp.json()

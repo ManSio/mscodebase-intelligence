@@ -79,5 +79,7 @@
   "\n📅 **History (snapshots):**\n": "\n📅 **History (snapshots):**\n",
   "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.",
   "Refine the name via `search_code` or `graph_query`": "Refine the name via `search_code` or `graph_query`",
-  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found."
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.",
+  "Index is being built for {path}. Retry in a few seconds or check codebase(action='index', path='progress').": "Index is being built for {path}. Retry in a few seconds or check codebase(action='index', path='progress').",
+  "Index is empty for {path} and no indexing was started. Run codebase(action='index', path='project_dir').": "Index is empty for {path} and no indexing was started. Run codebase(action='index', path='project_dir')."
 }
