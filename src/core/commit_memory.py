@@ -52,6 +52,8 @@ class CommitMemory:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_dir / "commits.json"
         self._commits: List[Dict] = []
+        # hash -> файлы коммита (один batch-вызов git log вместо N diff-tree)
+        self._files_cache: Dict[str, List[str]] = {}
         self._load_cache()
 
     def _load_cache(self):
@@ -71,6 +73,48 @@ class CommitMemory:
                 json.dump(self._commits, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"Failed to save commit cache: {e}")
+
+    def _load_commit_files_bulk(self, limit: int) -> None:
+        """Один `git log --name-only` вместо `diff-tree` на каждый коммит.
+
+        Windows-правило проекта: Popen + communicate(timeout), без
+        `capture_output=True` (последний вешает пайп в фоновом потоке).
+        Ошибки не критичны — остаётся per-commit fallback.
+        """
+        import subprocess
+
+        self._files_cache = {}
+        try:
+            proc = subprocess.Popen(
+                ["git", "log", f"-n{max(1, limit)}", "--name-only",
+                 "--pretty=format:@@%H"],
+                cwd=str(self.project_path),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_CLEAN_GIT_ENV,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            stdout, _ = proc.communicate(timeout=20)
+        except Exception as exc:  # noqa: BLE001 — fallback ниже
+            logger.debug(f"bulk git log failed: {exc}")
+            return
+
+        current: str | None = None
+        files: List[str] = []
+        for line in (stdout or "").splitlines():
+            if line.startswith("@@"):
+                if current and files:
+                    self._files_cache[current] = files
+                current = line[2:].strip()
+                files = []
+            elif line.strip() and current:
+                files.append(line.strip())
+        if current and files:
+            self._files_cache[current] = files
 
     def _get_commit_files(self, commit_hash: str) -> List[str]:
         """Получает список файлов изменённых в коммите через git diff-tree."""
@@ -115,6 +159,9 @@ class CommitMemory:
         lines = reflog_raw.strip().split('\n')
         # Последние limit строк (новые коммиты в конце)
         recent = lines[-limit:] if len(lines) > limit else lines
+
+        # Один git-вызов на всю пачку коммитов (было: N вызовов).
+        self._load_commit_files_bulk(limit)
 
         commits = []
         seen_hashes: set = set()
@@ -176,8 +223,10 @@ class CommitMemory:
                             if ts_part:
                                 date_str = ts_part[0]
 
-                # Получаем список файлов через git diff-tree
-                files = self._get_commit_files(new_hash)
+                # Файлы коммита: из batch-кэша, иначе точечный diff-tree.
+                files = self._files_cache.get(new_hash)
+                if files is None:
+                    files = self._get_commit_files(new_hash)
 
                 commit = {
                     "hash": new_hash,
