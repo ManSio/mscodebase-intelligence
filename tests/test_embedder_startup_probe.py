@@ -30,8 +30,23 @@ def test_probe_is_skipped_when_llama_is_disabled(monkeypatch, _no_llama):
 
 
 def test_probe_runs_when_llama_is_enabled(monkeypatch):
+    """Dense-режим + llama.cpp: probe размерности нужен."""
+    from src.config.settings import get_config as _real_get_config
+
+    class _Search:
+        dense_off = False
+
+    class _Cfg:
+        def __init__(self, base):
+            self._base = base
+            self.search = _Search()
+
+        def __getattr__(self, name):
+            return getattr(self._base, name)
+
     monkeypatch.setenv("LLAMA_CPP_ENABLED", "true")
     monkeypatch.setenv("EMBEDDING_DIMENSION", "")  # иначе probe не нужен
+    monkeypatch.setattr(re_mod, "get_config", lambda: _Cfg(_real_get_config()))
     calls: list[int] = []
 
     def _fake_probe(self):
@@ -39,7 +54,8 @@ def test_probe_runs_when_llama_is_enabled(monkeypatch):
         return None
 
     monkeypatch.setattr(re_mod.RemoteEmbedder, "_probe_server_dimension", _fake_probe)
-    re_mod.RemoteEmbedder()
+    embedder = re_mod.RemoteEmbedder()
+    assert embedder._text_only is False
     assert calls, "при включённом llama.cpp probe обязан вызываться"
 
 
@@ -104,6 +120,38 @@ def test_provider_init_does_not_probe_external_endpoints_in_text_mode(monkeypatc
     embedder = re_mod.RemoteEmbedder()
     embedder._init_provider_async()
     assert embedder.mode == "text_only"
+
+
+def test_probe_is_skipped_in_text_mode_even_with_llama_flag_unset(monkeypatch):
+    """dense_off=true по умолчанию: probe не должен зависеть от LLAMA_CPP_ENABLED."""
+    from src.config.settings import get_config as _real_get_config
+
+    class _Search:
+        dense_off = True
+
+    class _Cfg:
+        def __init__(self, base):
+            self._base = base
+            self.search = _Search()
+
+        def __getattr__(self, name):
+            return getattr(self._base, name)
+
+    monkeypatch.delenv("LLAMA_CPP_ENABLED", raising=False)
+    monkeypatch.delenv("EMBEDDING_DIMENSION", raising=False)
+    monkeypatch.setattr(re_mod, "get_config", lambda: _Cfg(_real_get_config()))
+
+    calls: list[int] = []
+
+    def _spy(self):
+        calls.append(1)
+        return None
+
+    monkeypatch.setattr(re_mod.RemoteEmbedder, "_probe_server_dimension", _spy)
+    embedder = re_mod.RemoteEmbedder()
+
+    assert embedder._text_only is True
+    assert not calls, "в текстовом режиме сетевой probe не выполняется"
 
 
 def test_provider_scanner_is_not_started_in_text_mode(monkeypatch):

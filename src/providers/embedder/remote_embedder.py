@@ -181,7 +181,11 @@ class RemoteEmbedder(IEmbedder):
             "0",
             "no",
         )
-        if not _llama_disabled and self.provider_preference in ("auto", "llama_cpp"):
+        if (
+            not _llama_disabled
+            and not self._text_only
+            and self.provider_preference in ("auto", "llama_cpp")
+        ):
             probed = self._probe_server_dimension()
             if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
                 self.embedding_dim = probed
@@ -214,7 +218,11 @@ class RemoteEmbedder(IEmbedder):
         # with a different width (measured 2026-11-08: file 384, server 768).
         # Env still wins, and a probe that needs a moment does not block startup.
         if not os.getenv("EMBEDDING_DIMENSION", "").strip():
-            if not _llama_disabled and self.provider_preference in ("auto", "llama_cpp"):
+            if (
+                not _llama_disabled
+                and not self._text_only
+                and self.provider_preference in ("auto", "llama_cpp")
+            ):
                 live_dim = self._probe_server_dimension()
                 if live_dim and live_dim != self.embedding_dim:
                     logger.info(
