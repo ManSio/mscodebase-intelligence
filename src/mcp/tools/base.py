@@ -454,6 +454,12 @@ class MCPTool(ABC):
         """
         from src.core.runtime_coordinator import RuntimeCoordinator
 
+        # Захватываем MCP-сессию: через неё фоновые задачи смогут присылать
+        # уведомления о прогрессе индексации (замер 2026-11-16: notifications=0).
+        from src.mcp.notifications import bind_session_from_request
+
+        bind_session_from_request()
+
         coord = RuntimeCoordinator(self._services)
         target = self._resolve_target_path(explicit_project_root)
 

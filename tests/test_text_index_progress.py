@@ -64,10 +64,16 @@ def _project(tmp_path: Path) -> Path:
 
 def test_progress_reaches_total_and_uses_parsing_phase(tmp_path):
     calls: list[tuple[int, int, str]] = []
+    currents: list[object] = []
     root = _project(tmp_path)
 
     count = Indexer._index_text_only_project(
-        _Self(), root, lambda cur, done, total, phase: calls.append((done, total, phase))
+        _Self(),
+        root,
+        lambda cur, done, total, phase: (
+            calls.append((done, total, phase)),
+            currents.append(cur),
+        ),
     )
 
     # 2 индексируемых файла (+ empty.py отчитывается, но чанков не даёт).
@@ -76,6 +82,9 @@ def test_progress_reaches_total_and_uses_parsing_phase(tmp_path):
     assert all(phase == "parsing" for _, _, phase in calls)
     assert calls[-1][:2] == (3, 3), calls
     assert max(done for done, _, _ in calls) == 3
+    # `current` — путь файла (строка), а не число: счётчик прогресса — `done`.
+    # Иначе потребитель делает `current / total` и молча ловит TypeError.
+    assert all(isinstance(cur, str) for cur in currents), currents[:3]
 
 
 def test_raising_callback_does_not_abort_indexing(tmp_path):
