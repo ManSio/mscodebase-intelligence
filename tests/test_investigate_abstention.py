@@ -16,7 +16,12 @@ from pathlib import Path
 
 from src.core.di_container import ServiceCollection
 from src.mcp.tools.grep_tool import GrepCodeTool
-from src.mcp.tools.investigate_tool import _abstains
+from src.mcp.tools.investigate_tool import (
+    _abstains,
+    _exact_note,
+    _literal_abstain_reason,
+    _should_abstain,
+)
 
 # ── profiles ────────────────────────────────────────────────────────────────
 
@@ -104,3 +109,63 @@ def test_cancel_during_the_scan_stops_early(tmp_path: Path):
     thread.join()
     assert result["cancelled"] is True
     assert result["scanned"] < 2000
+
+# ── scope=code отбросил литералы: это не «имени нет» ──────────────────────
+
+def test_literal_only_hit_does_not_abstain():
+    """infrawise 2026-11-17: implemented_by = 0 в scope=code, 9 в scope=all."""
+    assert not _should_abstain(
+        {"implemented_by": 0}, {"implemented_by": 9}, known=False, include_neighbours=False
+    )
+
+
+def test_no_filtered_hits_keeps_the_old_rule():
+    assert _should_abstain({"ghost": 0}, {}, known=False, include_neighbours=False)
+    assert _should_abstain({"ghost": 0}, {"ghost": 0}, known=False, include_neighbours=False)
+
+
+def test_note_names_scope_as_the_reason():
+    note = _exact_note({"implemented_by": 0}, {"implemented_by": 9}, 0)
+    assert 'scope="all"' in note
+    assert "does not occur" not in note
+    assert "9 occurrence" in note
+
+
+def test_note_keeps_the_neighbour_wording_when_nothing_was_filtered():
+    note = _exact_note({"ghost": 0}, {}, 3)
+    assert "no identifier occurs in the indexed code" in note
+    assert 'scope="all"' not in note
+
+
+def test_note_is_silent_without_counts():
+    assert _exact_note({}, {}, 0) == ""
+
+
+def test_abstain_reason_names_the_literals():
+    """«no verified candidate» при совпадениях только в литералах читается как «нет имени»."""
+    reason = _literal_abstain_reason({"implemented_by": 9})
+    assert "9 occurrence(s) only inside comments/strings" in reason
+    assert 'scope="all"' in reason
+
+
+def test_abstain_reason_is_empty_without_filtered_hits():
+    assert _literal_abstain_reason({}) == ""
+    assert _literal_abstain_reason({"x": 0}) == ""
+
+
+def test_foreign_literals_do_not_suppress_abstention():
+    """Литералы ЧУЖОГО идентификатора — не доказательство по субъекту."""
+    assert _should_abstain(
+        {"ghost": 0}, {"other_name": 5}, known=False, include_neighbours=False
+    )
+
+
+def test_own_literals_suppress_abstention():
+    assert not _should_abstain(
+        {"implemented_by": 0}, {"implemented_by": 9}, known=False, include_neighbours=False
+    )
+
+
+def test_reason_counts_only_the_subject():
+    assert _literal_abstain_reason({"ghost": 0, "other": 5}, "ghost") == ""
+    assert "3 occurrence" in _literal_abstain_reason({"ghost": 3, "other": 5}, "ghost")

@@ -15,11 +15,22 @@ from __future__ import annotations
 import threading
 
 _running = threading.Event()
+_SKIPPED_REASON = ""
 
 
 def mark_started() -> None:
     """Автоиндексация началась."""
     _running.set()
+
+
+def mark_skipped(reason: str) -> None:
+    """Автоиндексация не запускалась — с причиной, видимой в health."""
+    global _SKIPPED_REASON
+    _SKIPPED_REASON = reason
+
+
+def skipped_reason() -> str:
+    return _SKIPPED_REASON
 
 
 def mark_finished() -> None:

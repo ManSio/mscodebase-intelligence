@@ -59,7 +59,7 @@ embedding：当 `dense_off` 为 true 时，`Indexer.index_project()` 会路由�
 4 dev）。对外呈现的表面按 profile 过滤：
 
 ```bash
-# default: 17 tools, one entry per intent
+# default: 13 tools listed, one entry per intent (the rest are callable by name)
 MSCODEBASE_MCP_PROFILE=core
 
 # everything

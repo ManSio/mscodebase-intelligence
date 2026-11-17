@@ -16,9 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`grep_code`** — regex search with AST-aware `scope=code` that skips matches
   inside comments and strings, judged per match (not per line). Adapted from
   coderlm (MIT); path traversal, 1 MB file cap, binary skip, 512-char pattern.
-- **Tool profile** — the server registers 69 tools and exposes 17 by default
-  (`MSCODEBASE_MCP_PROFILE=core`); `full` exposes all, `MSCODEBASE_MCP_TOOLS`
-  still overrides. `tool_help()` lists the hidden ones.
+- **Tool profile** — the server registers 69 tools and lists 13 by default
+  (`MSCODEBASE_MCP_PROFILE=core`); the other 56 stay callable by name and
+  `tool_help(query="<name>")` returns their `inputSchema`. `full` lists all,
+  `MSCODEBASE_MCP_TOOLS` is an allowlist over the whole registry.
+- **Side-effect annotations** — every tool declares `destructiveHint`: 12 of the
+  69 registered tools (plus `execute_script` when it is enabled) can change
+  project sources or memory; the rest touch derived state only. `readOnlyHint`
+  is not emitted because the index hot-reload makes even search tools write.
+- **Project memory** — a repeated fact returns `op: noop` with the existing
+  `node_id`, a `VERIFIED` repeat promotes the node, and nodes carry verified
+  memory→symbol links.
 - **Ledger cache** — the startup contradiction check is reused for 6 hours while
   the diary (mtime/size/sha) and HEAD are unchanged.
 - **Hot-reload for Phase 3** — `FreshnessChecker` reads the SQLite chunk store;

@@ -22,7 +22,7 @@ Groups below mirror the dataclasses: `server`, `search`, `embedding`, `index`,
 
 | Variable | Default | Effect |
 |---|---|---|
-| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: `core` = 17 tools, `full` = all 69 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: `core` = 13 tools listed (the rest stay callable by name), `full` = all 69 |
 | `MSCODEBASE_MCP_TOOLS` | — | Explicit comma-separated allowlist; overrides the profile |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Registers `execute_script` (RCE on the host, off by default) |
 | `MSCODEBASE_DATA_DIR` | `%LOCALAPPDATA%/mscodebase` (Windows) or `~/.cache/mscodebase` | Root for graph, memory, jobs, telemetry, commit memory |

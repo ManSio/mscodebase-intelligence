@@ -68,7 +68,13 @@ class TestStaleDetectorProjectRoot:
         tool = StaleDetectorTool.__new__(StaleDetectorTool)  # без DI-контейнера
         tool._load_config = lambda path: captured.setdefault("config", path) or {}
         tool._get_actual_version = lambda path: captured.setdefault("version", path) or "9.9.9"
-        tool._scan_docs = lambda path, ver, cfg: captured.setdefault("scan", path) or []
+        # setdefault возвращает Path, а не список: `or []` не спасает, потому
+        # что Path истинен. Лямбда обязана вернуть пустой список отчётов.
+        def _scan(path, ver, cfg):
+            captured["scan"] = path
+            return []
+
+        tool._scan_docs = _scan
 
         result = asyncio.run(tool.execute(None))
 
@@ -76,4 +82,7 @@ class TestStaleDetectorProjectRoot:
             f"_scan_docs должен получить проект пользователя (resolve_project_root), "
             f"получил: {captured.get('scan')!r}"
         )
-        assert "VERSION DRIFT" not in result  # пустой отчёт → «up to date»
+        # Пустой отчёт — это ответ инструмента, а не ошибка: раньше здесь
+        # проходило что угодно, включая JSON с ошибкой.
+        assert "VERSION DRIFT" not in result
+        assert "Docs with drift: 0" in result, result

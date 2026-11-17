@@ -94,3 +94,29 @@ def test_prefilter_does_not_change_the_match_set(project: Path):
     assert "big_no_match.py" not in out
     assert "files=4" in out or "files=3" in out
 
+
+
+def test_scope_filter_is_counted_not_silently_dropped(tmp_path: Path):
+    """0 matches in code scope must not read as "this text does not exist".
+
+    Repro on infrawise (2026-11-17): `implemented_by` is a string literal type
+    name, so scope=code reported 0 while scope=all reported 9, and the agent
+    concluded the symbol was absent.
+    """
+    (tmp_path / "types.py").write_text("KIND = 'needle'\n", encoding="utf-8")
+
+    out = _run(tmp_path, pattern="needle", scope="code")
+    assert "0 matches" in out
+    assert 'scope="all"' in out, out
+    assert "1 match(es) exist only inside comments/strings" in out, out
+
+
+def test_all_scope_adds_no_hint(project: Path):
+    out = _run(project, pattern="needle", scope="all")
+    assert "inside comments/strings" not in out
+
+
+def test_hidden_matches_are_named_even_when_some_are_visible(project: Path):
+    out = _run(project, pattern="needle", scope="code")
+    assert "a.py:3" in out
+    assert "more match(es) inside comments/strings" in out, out

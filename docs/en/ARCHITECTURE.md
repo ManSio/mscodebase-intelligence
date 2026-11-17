@@ -46,8 +46,9 @@ and the layer-boundary gate:
 2. Register core tools, then intel, inline diagnostics and dev tools
    (`register_all_tools`).
 3. Apply the **tool profile** (`_apply_tool_profile`): the full registry is
-   built (all 69 tools), then everything outside `CORE_PROFILE` is removed from the
-   client surface. Registration does not depend on the profile — that sentence was
+   built (all 69 tools), then everything outside `CORE_PROFILE` is hidden from
+   `tools/list`. Hidden tools stay registered and callable by name; their
+   schema is returned by `tool_help(query="<name>")` (measured 2026-11-17). Registration does not depend on the profile — that sentence was
    false until 2026-11-08, when a hard-coded default allowlist still cut registration
    to 56 names and `_apply_tool_profile` ran before the dev tools registered. The
    invariant is now pinned by `tests/test_tool_profile.py`
@@ -108,7 +109,7 @@ Details and stage budgets are in [SEARCH_PIPELINE.md](SEARCH_PIPELINE.md).
 ## 6. Tool layer
 
 **69 registered** tools (36 core + 16 intel + 13 inline + 4 dev); the default
-`core` profile exposes **17**. `execute_script` is an optional 70th tool behind
+`core` profile lists **13** (the other 56 are hidden from `tools/list` but callable by name). `execute_script` is an optional 70th tool behind
 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`.
 
 The visible set is one entry per intent: `investigate`, `search_code`,
@@ -164,6 +165,6 @@ Every claim above resolves to a symbol, not to prose. Audit table:
 | `experiments/**` excluded from indexing | `src/core/indexing/file_guard.py` |
 | retrieval owner | `src/core/search/engine.py::Searcher` |
 | parsing / graph | `src/core/indexing/parser.py`, `src/core/graph.py` |
-| profile `core` = 17 of 69 registered | `src/mcp/server_tools.py::CORE_PROFILE`; measured with `tools/list`: 17 (`core`) / 69 (`full`), 2026-11-12 |
+| profile `core` = 13 of 69 registered | `src/mcp/server_tools.py::CORE_PROFILE`; re-measure: `python scripts/mcp_surface_size.py` (prints listed/chars per profile) |
 | optional LSP layer | `src/mcp/tools/` `lsp_*` tools, failure cache 30 s (`src/config/settings.py::LSPConfig`) |
 

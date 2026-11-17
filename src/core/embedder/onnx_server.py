@@ -272,28 +272,17 @@ def load_model(model_name: str):
     import onnxruntime as ort
     from tokenizers import Tokenizer
 
-    # Пути к модели (проверяем несколько вариантов)
-    from src.core.artifact_paths import get_onnx_models_base
+    # Пути к модели — общий резолвер с клиентом (см. model_paths.py):
+    # клиент обязан знать те же места, иначе он запускает заведомо мёртвый
+    # процесс и ждёт 60 с.
+    from src.core.embedder.model_paths import candidate_dirs, resolve_model_dir
 
-    search_paths = [
-        PROJECT_ROOT / "models" / model_name,
-        PROJECT_ROOT / ".codebase_models" / "onnx" / model_name,
-        get_onnx_models_base() / model_name,
-    ]
-    # Также проверяем корень расширения Zed: PROJECT_ROOT уже указывает
-    # на корень (репо или расширение), см. search_paths[1].
-    ext_dir = Path(__file__).resolve().parent.parent.parent.parent
-    if ext_dir.exists():
-        search_paths.insert(0, ext_dir / ".codebase_models" / "onnx" / model_name)
-
-    models_dir = None
-    for p in search_paths:
-        if p.exists():
-            models_dir = p
-            break
-
+    models_dir = resolve_model_dir(model_name)
     if models_dir is None:
-        raise FileNotFoundError(f"Model directory not found for: {model_name}")
+        searched = ", ".join(str(p) for p in candidate_dirs(model_name))
+        raise FileNotFoundError(
+            f"Model directory not found for: {model_name} (searched: {searched})"
+        )
 
     onnx_path = models_dir / "model_quantized.onnx"
     if not onnx_path.exists():

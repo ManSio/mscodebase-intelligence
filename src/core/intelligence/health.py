@@ -180,6 +180,9 @@ class HealthReport:
         self._check_index_integrity()
         logger.debug("[diag] _check_index_integrity OK")
 
+        # 1b. Права на запись: второй сервер на тот же data-dir живёт read-only.
+        self._check_write_capability()
+
         # 2. Проверка логов
         logger.debug("[diag] _check_logs...")
         self._check_logs()
@@ -225,6 +228,36 @@ class HealthReport:
         result = self._build_report()
         logger.debug("[diag] _build_report OK")
         return result
+
+    def _check_write_capability(self):
+        """Read-only из-за чужого PID-lock обязан быть виден как issue.
+
+        Логи 2026-11-17: 621 `База занята другим процессом MCP` и 280
+        `PID lock held`, а health показывал `issues: []` — агент не знал,
+        почему запись не работает.
+        """
+        db_manager = getattr(self.indexer, "db_manager", None) if self.indexer else None
+        issue = getattr(db_manager, "_startup_issue", None)
+        self.metrics["write_capable"] = not bool(issue)
+        if issue:
+            self.issues.append(
+                {
+                    "component": "database_lock",
+                    "message": issue,
+                    "remedy": (
+                        "Закройте второе окно/сессию с этим data-dir или задайте "
+                        "этой сессии свой MSCODEBASE_DATA_DIR."
+                    ),
+                }
+            )
+        try:
+            from src.core.indexing import auto_index_state as _auto
+
+            reason = _auto.skipped_reason()
+            if reason:
+                self.metrics["auto_index"] = f"skipped: {reason}"
+        except Exception as _auto_err:  # noqa: BLE001 — метрика не критична
+            logger.debug(f"[diag] auto_index state unavailable: {_auto_err}")
 
     def _check_index_integrity(self):
         """Проверка целостности индекса LanceDB."""
@@ -336,7 +369,7 @@ class HealthReport:
         if not logs_dir.exists():
             self.warnings.append(
                 {
-                    "component": "logs",
+                    "component": "logs_global",
                     "message": "Директория логов не существует",
                 }
             )

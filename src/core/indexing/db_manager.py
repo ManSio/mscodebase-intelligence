@@ -652,7 +652,9 @@ class LanceDBManager:
                 self._db_lock.acquire()
                 self._pid_lock_acquired = True
             except RuntimeError as _lock_err:
-                raise RuntimeError(
+                from src.core.error_handler import DatabaseLockedError
+
+                raise DatabaseLockedError(
                     f"Запись в БД невозможна: база занята другим процессом MCP "
                     f"(read-only режим). {_lock_err}"
                 ) from _lock_err

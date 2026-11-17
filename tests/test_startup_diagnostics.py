@@ -228,3 +228,28 @@ class TestBuildStartupReport:
             lock.release()
         status_after = inspect_pid_lock(lock_path)
         assert status_after.state == "free"
+
+
+def test_startup_warning_has_text_and_no_newlines(caplog):
+    """Clean run 2026-11-17: WARNING с пустым сообщением из-за строки-перевода."""
+    import logging
+
+    from src.core.indexing.startup_diagnostics import (
+        DbStatus,
+        LockStatus,
+        StartupReport,
+        log_startup_report,
+    )
+
+    report = StartupReport(
+        lock=LockStatus(state="held_alive"),
+        db=DbStatus(state="healthy"),
+        issues=["PID-lock держит другой процесс"],
+    )
+    with caplog.at_level(logging.WARNING):
+        log_startup_report(report)
+
+    messages = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert messages, "ожидалось предупреждение"
+    assert messages[0].strip(), "пустое предупреждение"
+    assert "\n" not in messages[0]

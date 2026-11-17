@@ -10,6 +10,44 @@
 
 
 
+## 2026-11-17 — read-only, статусы и «круги»
+
+**Симптом:** второй сервер на тот же data-dir молча жил read-only; health
+показывал `issues: []`, `total_chunks=0` при идущей записи, `symbols=0` при
+49 558 чанках, `Tool profile=core: -35 видимых`.
+
+**Root cause (класс, не инстанс):** четыре разных места рапортовали не то, что
+есть, и два места глотали ошибку. Это один класс: «наблюдаемое состояние не
+связано с фактическим» + «ошибка не доходит до вызывающего».
+
+**Fix:** `DATABASE_LOCKED` + `DatabaseLockedError`; health: issue
+`database_lock`, `write_capable`, `auto_index: skipped: причина`; text-only не
+падает в dense и сохраняет symbol index; статус обновляется пофайлово.
+
+**Guard:** `tests/test_write_capability.py`, `test_text_only_fallback.py`,
+мутации M40–M46. Класс зафиксирован в `~/.config/opencode/knowledge/PATTERNS.md`.
+
+## 2026-11-17 — поверхность MCP, память и контракт
+
+**Симптом:** `tools/list` стоил 15 037 символов на 17 инструментов, скрытые
+были недостижимы (`remove_tool`), а `grep_code scope="code"` отвечал
+`0 matches` там, где текст есть в литерале, и `investigate` повторял это
+формулировкой «subject does not occur».
+
+**Root cause:** скрытие реализовано удалением из реестра; у памяти не было
+дедупа и связи с символами; scope-фильтр не считал отброшенные совпадения,
+поэтому ноль читался как «нет текста».
+
+**Fix (ветка feat/mcp-surface-memory-contract):** листинг фильтруется без
+удаления (13/69, скрытые вызываемы, схема через `tool_help`); allowlist режет
+весь реестр; `readOnlyHint` заменён на `destructiveHint` (13 истинно);
+NOOP+promote+merge ссылок в памяти; `links.py` (AST, is_relative_to);
+`filtered` в grep и честная причина abstain в investigate; контракт
+`docs/MCP_CONTRACT.json` с `--check`.
+
+**Guard:** `tests/test_tool_surface_contract.py`, `test_mcp_contract.py`,
+`test_memory_noop_and_links.py`, мутации M1–M35 (каждая краснеет).
+
 ## [2026-11-16] WIN — хук печатал «FAILED», а коммит проходил
 
 - **Симптом:** два коммита (`85f2370`, `ee3b449`) созданы, хотя хук в том же

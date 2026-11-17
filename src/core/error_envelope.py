@@ -32,6 +32,8 @@ class ErrorCode(str, Enum):
     REINDEX_IN_PROGRESS = "REINDEX_IN_PROGRESS"
     DEPENDENCY_DOWN = "DEPENDENCY_DOWN"
     CONFLICT = "CONFLICT"
+    # Второй сервер на тот же data-dir: запись запрещена, чтение доступно.
+    DATABASE_LOCKED = "DATABASE_LOCKED"
     INTERNAL = "INTERNAL_ERROR"
 
 
@@ -62,6 +64,11 @@ _PLAYBOOK: dict[ErrorCode, str] = {
     ErrorCode.DEPENDENCY_DOWN: (
         "Embedder/reranker unavailable. The server auto-revives it; retry in a "
         "few seconds (first revive can take ~18s)."
+    ),
+    ErrorCode.DATABASE_LOCKED: (
+        "Another MCP server holds the write lock for this database. Reads keep "
+        "working; writes/indexing are refused. Close the other window/session "
+        "for this data-dir, or give this session its own MSCODEBASE_DATA_DIR."
     ),
     ErrorCode.CONFLICT: "Re-read the latest state, reconcile, and retry.",
     ErrorCode.INTERNAL: (

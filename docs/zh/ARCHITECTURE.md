@@ -47,7 +47,8 @@
 2. 注册 core 工具，然后注册 intel、inline diagnostics 和 dev 工具
    （`register_all_tools`）。
 3. 应用**工具 profile**（`_apply_tool_profile`）：完整注册表会被构建（全部 69 个
-   工具），随后所有不在 `CORE_PROFILE` 中的工具都从客户端接口中移除。注册本身
+   工具），随后所有不在 `CORE_PROFILE` 中的工具都从 `tools/list` 中隐藏；它们仍然
+   注册在案并可按名称调用，schema 由 `tool_help(query="<name>")` 返回（2026-11-17 实测）。注册本身
    不依赖 profile —— 在 2026-11-08 之前这句话是错的，当时一个硬编码的默认
    allowlist 仍会把注册裁到 56 个名称，而且 `_apply_tool_profile` 会在 dev 工具
    注册之前运行。该不变量现在由 `tests/test_tool_profile.py`
@@ -103,7 +104,7 @@
 ## 6. 工具层
 
 **已注册 69 个**工具（36 core + 16 intel + 13 inline + 4 dev）；默认的 `core`
-profile 暴露 **17** 个。`execute_script` 是第 70 个可选工具，需
+profile 列出 **13** 个（其余 56 个不在 `tools/list` 中，但可按名称调用）。`execute_script` 是第 70 个可选工具，需
 `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`。
 
 可见集合按意图各一项：`investigate`、`search_code`、`grep_code`、
@@ -151,6 +152,6 @@ replace/insert），带 preview 与 impact guard。
 | `experiments/**` 不参与索引 | `src/core/indexing/file_guard.py` |
 | 检索实现 | `src/core/search/engine.py::Searcher` |
 | 解析与图 | `src/core/indexing/parser.py`、`src/core/graph.py` |
-| 配置档 `core` = 69 中的 17 | `src/mcp/server_tools.py::CORE_PROFILE`；`tools/list` 实测：17 / 69，2026-11-12 |
+| 配置档 `core` = 69 中的 13 | `src/mcp/server_tools.py::CORE_PROFILE`；复测：`python scripts/mcp_surface_size.py`（打印数量与字符数） |
 | 可选 LSP 层 | `lsp_*` 工具，30 s 失败缓存（`src/config/settings.py::LSPConfig`） |
 

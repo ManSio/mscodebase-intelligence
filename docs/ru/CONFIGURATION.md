@@ -25,7 +25,7 @@
 
 | Переменная | По умолчанию | Эффект |
 |---|---|---|
-| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность инструментов: `core` = 17 инструментов, `full` = все 69 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность инструментов: `core` = 13 в списке (остальные вызываемы по имени), `full` = все 69 |
 | `MSCODEBASE_MCP_TOOLS` | — | Явный allowlist через запятую; перекрывает профиль |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Регистрирует `execute_script` (RCE на хосте, по умолчанию выключено) |
 | `MSCODEBASE_DATA_DIR` | `%LOCALAPPDATA%/mscodebase` (Windows) или `~/.cache/mscodebase` | Корень для графа, памяти, jobs, телеметрии, памяти коммитов |

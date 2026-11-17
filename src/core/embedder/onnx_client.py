@@ -127,6 +127,21 @@ class OnnxEmbedderClient:
             logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
 
+        # Каталога модели нет — процесс умрёт через ~0.1 с, а `_wait_for_server`
+        # прождёт все 60 с (замер 2026-11-17: именно это стоило минуты в worktree
+        # без .codebase_models). Отказываем до запуска и называем места поиска.
+        from src.core.embedder.model_paths import candidate_dirs, resolve_model_dir
+
+        if resolve_model_dir(self.model_name) is None:
+            searched = ", ".join(str(p) for p in candidate_dirs(self.model_name))
+            logger.error(
+                "[ONNX Client] model directory not found for %s (searched: %s); "
+                "not launching the server",
+                self.model_name,
+                searched,
+            )
+            return False
+
         # Флаги для Windows. ВАЖНО: DETACHED_PROCESS (0x8) нельзя комбинировать
         # с CREATE_NO_WINDOW — при такой паре Windows игнорирует запрет окна, и
         # каждый запуск сервера (в том числе retry раз в 60 с) мигает консолью.

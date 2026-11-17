@@ -183,6 +183,10 @@ class GrepCodeTool(MCPTool):
         # repeat. Counts stay exact per pattern.
         patterns: List[re.Pattern] = [regex, *(extra_patterns or [])]
         totals: List[int] = [0] * len(patterns)
+        # Совпадения, отброшенные scope=code (строка/комментарий). Считать их
+        # обязательно: иначе `0 matches` читается как «текста нет», хотя он
+        # есть в литерале (репро infrawise 2026-11-17: implemented_by 0 vs 9).
+        filtered: List[int] = [0] * len(patterns)
         scanned = 0
         skipped_big = 0
         skipped_binary = 0
@@ -233,6 +237,7 @@ class GrepCodeTool(MCPTool):
             for p_index, pattern in enumerate(patterns):
                 for match in pattern.finditer(source):
                     if ranges and _inside(match.start(), starts, ranges):
+                        filtered[p_index] += 1
                         continue
                     totals[p_index] += 1
                     if len(matches) >= max_matches:
@@ -257,6 +262,8 @@ class GrepCodeTool(MCPTool):
             "matches": matches,
             "total": totals[0],
             "extra_totals": totals[1:],
+            "filtered": filtered[0],
+            "extra_filtered": filtered[1:],
             "truncated": any(total > max_matches for total in totals),
             "scanned": scanned,
             "skipped_big": skipped_big,
@@ -285,8 +292,19 @@ class GrepCodeTool(MCPTool):
             lines.append(f"{m['file']}:{m['line']}: {m['text']}")
             for a in m.get("after", []):
                 lines.append(f"      | {a}")
+        filtered = int(result.get("filtered") or 0)
         if not result["matches"]:
             lines.append("ℹ️ nothing found")
+            if filtered:
+                lines.append(
+                    f"⚠️ {filtered} match(es) exist only inside comments/strings — "
+                    'scope="code" skips them. Rerun with scope="all".'
+                )
+        elif filtered:
+            lines.append(
+                f"ℹ️ {filtered} more match(es) inside comments/strings "
+                '(scope="code" skips them; scope="all" shows them).'
+            )
         if result["truncated"]:
             lines.append("⚠️ truncated — увеличьте max_matches")
         return "\n".join(lines)
