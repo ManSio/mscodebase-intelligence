@@ -77,6 +77,8 @@ frozen panels must never appear as search hits.
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | Stall watchdog for long reindexes |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | Auto-disable IVF after N failed optimize/create |
 | `MAX_FILE_SIZE_MB` (security, no prefix — as read by `SecurityConfig`, `src/config/settings.py:425`) | `10` | Files above this are skipped |
+| `MSCODEBASE_GRAPH_BATCH` | `1` | Write the symbol graph through one transaction per file (`PropertyGraph.batch()`). `0` restores commit-per-node/edge (~6.8× slower on a full corpus) |
+| `MSCODEBASE_MAX_FALLBACK_CHUNKS` | `20` | Cap on fallback chunks per file — the files AST cannot parse (JSON data, minified bundles, configs). `0` indexes them in full; a negative value is treated as a typo and keeps `20`. Code (AST) chunks are never capped. Changing it needs a full reindex: file hashes do not change, so incremental runs skip the file |
 
 ## 5. Providers (all optional)
 
