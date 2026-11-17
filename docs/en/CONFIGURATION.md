@@ -79,6 +79,7 @@ frozen panels must never appear as search hits.
 | `MAX_FILE_SIZE_MB` (security, no prefix — as read by `SecurityConfig`, `src/config/settings.py:425`) | `10` | Files above this are skipped |
 | `MSCODEBASE_GRAPH_BATCH` | `1` | Write the symbol graph through one transaction per file (`PropertyGraph.batch()`). `0` restores commit-per-node/edge (~6.8× slower on a full corpus) |
 | `MSCODEBASE_MAX_FALLBACK_CHUNKS` | `20` | Cap on fallback chunks per file — the files AST cannot parse (JSON data, minified bundles, configs). `0` indexes them in full; a negative value is treated as a typo and keeps `20`. Code (AST) chunks are never capped. Changing it needs a full reindex: file hashes do not change, so incremental runs skip the file |
+| `MSCODEBASE_INDEX_DATA` | `0` | Index data files (`.json`) at all. Off by default: on engraphis they were 62.3% of the index (31 123 of 49 920 chunks) and no code query improved by them. `.ipynb` is code and is always indexed; `grep_code` and `read_live_file` read `.json` from disk either way. Turning this on does not backfill: delete `<project>/.mscodebase/chunks.db*` and reindex |
 
 ## 5. Providers (all optional)
 

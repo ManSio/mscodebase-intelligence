@@ -78,6 +78,7 @@
 | `MAX_FILE_SIZE_MB`（security，无前缀 —— 由 `SecurityConfig` 读取，`src/config/settings.py:425`） | `10` | 超过此大小的文件会被跳过 |
 | `MSCODEBASE_GRAPH_BATCH` | `1` | 每个文件用单个事务写入符号图（`PropertyGraph.batch()`）。`0` 恢复逐节点/逐边提交（完整语料库上慢约 6.8 倍） |
 | `MSCODEBASE_MAX_FALLBACK_CHUNKS` | `20` | 每个文件的 fallback 分块上限 —— 指 AST 无法解析的文件（JSON 数据、压缩后的 bundle、配置）。`0` 表示完整索引；负值视为笔误并保持 `20`。代码（AST）分块永不受限。修改该值需要完整重建索引：文件哈希不变，增量运行会跳过该文件 |
+| `MSCODEBASE_INDEX_DATA` | `0` | 是否索引数据文件（`.json`）。默认关闭：在 engraphis 上它们占索引的 62.3%（49 920 个分块中的 31 123 个），且没有任何代码查询因此受益。`.ipynb` 属于代码，始终索引；无论开关如何，`grep_code` 与 `read_live_file` 都能从磁盘读取 `.json`。开启后不会回填：请删除 `<项目>/.mscodebase/chunks.db*` 后重建索引 |
 
 ## 5. Provider（全部可选）
 
