@@ -31,12 +31,42 @@ logger = logging.getLogger(__name__)
 # .json находят в любом случае.
 DATA_EXTENSIONS: frozenset[str] = frozenset({".json"})
 
+# Исключение — то, что агенту реально нужно знать: манифесты (как проект
+# подключается) и контракты инструментов (что умеет сервер, какие аннотации).
+# Это 18 файлов / 0.3 MB на том же корпусе против 375 файлов / 24.5 MB, где 90%
+# объёма — замороженные артефакты бенчмарка, а «код» в них — строковые фикстуры.
+AGENT_JSON_NAMES: frozenset[str] = frozenset({
+    "package.json", "package-lock.json", "npm-shrinkwrap.json",
+    "marketplace.json", "plugin.json", "tsconfig.json", "jsconfig.json",
+    "composer.json", "deno.json", "renovate.json",
+})
+AGENT_JSON_SUFFIXES: tuple[str, ...] = (".plugin.json",)
+# Контракт инструментов узнаём по ключам, а не по имени файла: имя свободное.
+AGENT_JSON_MARKERS: tuple[str, ...] = ('"inputSchema"', '"surfaces"', '"annotations"')
+AGENT_JSON_SNIFF_BYTES = 64 * 1024
+AGENT_JSON_MAX_BYTES = 512 * 1024
+
 
 def data_index_enabled() -> bool:
     """True, если данные (.json) тоже индексируются (по умолчанию — нет)."""
     return os.environ.get("MSCODEBASE_INDEX_DATA", "0").strip().lower() in {
         "1", "true", "yes", "on"
     }
+
+
+def is_agent_json(file_path: Path) -> bool:
+    """Манифест или контракт инструментов — единственный .json, нужный агенту."""
+    name = file_path.name.lower()
+    if name in AGENT_JSON_NAMES or name.endswith(AGENT_JSON_SUFFIXES):
+        return True
+    try:
+        if file_path.stat().st_size > AGENT_JSON_MAX_BYTES:
+            return False
+        with open(file_path, "rb") as f:
+            head = f.read(AGENT_JSON_SNIFF_BYTES).decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    return any(marker in head for marker in AGENT_JSON_MARKERS)
 
 
 class FileGuard:
@@ -146,8 +176,14 @@ class FileGuard:
             logger.debug(f"[FILEGUARD SKIP] Unsupported extension: {file_path.suffix}")
             return False
 
-        # Данные (.json) — не код: без явного MSCODEBASE_INDEX_DATA=1 не берём.
-        if file_path.suffix.lower() in DATA_EXTENSIONS and not data_index_enabled():
+        # Данные (.json) — не код. Исключение: манифесты проекта и контракты
+        # инструментов (is_agent_json) — они говорят агенту, как проект
+        # подключается и что умеет сервер.
+        if (
+            file_path.suffix.lower() in DATA_EXTENSIONS
+            and not data_index_enabled()
+            and not is_agent_json(file_path)
+        ):
             logger.debug(f"[FILEGUARD SKIP] Data file (MSCODEBASE_INDEX_DATA=0): {file_path}")
             return False
 
