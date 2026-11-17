@@ -37,6 +37,13 @@ def test_launch_server_uses_create_no_window_without_detached(monkeypatch, tmp_p
     monkeypatch.setattr(oc, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(oc.subprocess, "Popen", _FakePopen)
 
+    # _launch_server отказывает без каталога модели (быстрый отказ ONNX):
+    # здесь проверяются флаги окна, поэтому модель подставляем.
+    from src.core.embedder import model_paths
+
+    monkeypatch.setattr(model_paths, "resolve_model_dir", lambda _name: tmp_path / "model")
+    monkeypatch.setattr(model_paths, "candidate_dirs", lambda _name: [tmp_path / "model"])
+
     client = oc.OnnxEmbedderClient(port=9877)
     assert client._launch_server() is True, "запуск сервера не состоялся"
 
