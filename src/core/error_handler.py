@@ -482,6 +482,26 @@ class IndexNotReadyError(ToolError):
         )
 
 
+class DatabaseLockedError(ToolError):
+    """Запись запрещена: другой процесс MCP держит PID-lock этой базы.
+
+    status="warning" и recoverable=True: это не сбой сервера, а защита от
+    двух писателей. detail содержит действие для пользователя.
+    """
+
+    def __init__(self, detail: str = ""):
+        super().__init__(
+            message="Database is locked by another MCP process (read-only mode)",
+            status="warning",
+            detail=detail or (
+                "Close the other MCP window for this data-dir, or set a "
+                "different MSCODEBASE_DATA_DIR for this session."
+            ),
+            recoverable=True,
+            code=_EnvelopeCode.DATABASE_LOCKED.value,
+        )
+
+
 class RateLimitError(ToolError):
     """Rate Limit превышен."""
 

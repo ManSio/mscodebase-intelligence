@@ -31,10 +31,14 @@ def test_second_manager_is_read_only_and_write_fails_loudly(tmp_path):
         try:
             assert second._startup_issue is not None, "второй менеджер не увидел lock"
             assert "read-only" in second._startup_issue
-            with pytest.raises(RuntimeError) as exc:
+            with pytest.raises(Exception) as exc:
                 with second.begin_write():
                     pass
-            assert "занята другим процессом" in str(exc.value)
+            err = exc.value
+            # Типизированный отказ (ErrorCode.DATABASE_LOCKED), а не голый RuntimeError.
+            assert getattr(err, "code", "") == "DATABASE_LOCKED"
+            assert getattr(err, "recoverable", False) is True
+            assert "занята другим процессом" in str(getattr(err, "detail", ""))
         finally:
             second._db_lock.release() if second._pid_lock_acquired else None
     finally:

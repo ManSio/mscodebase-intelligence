@@ -453,6 +453,16 @@ def run_server(original_stdout=None):
         _shutdown_services()
 
 
+def auto_index_block_reason(indexer) -> str:
+    """Причина, по которой автоиндексация бессмысленна (пустая строка — можно).
+
+    Read-only означает, что базу держит другой процесс MCP: запись будет
+    отвергнута, поэтому запускать индексацию = создавать видимость работы.
+    """
+    issue = getattr(getattr(indexer, "db_manager", None), "_startup_issue", None)
+    return str(issue) if issue else ""
+
+
 async def _delayed_auto_index(services):
     """Запускает автоиндексацию с задержкой после старта сервера.
 
@@ -489,6 +499,18 @@ async def _delayed_auto_index(services):
                 return
         except Exception:
             pass
+
+        # Read-only из-за чужого PID-lock: индексация заведомо не запишет.
+        _block = auto_index_block_reason(indexer)
+        if _block:
+            from src.core.indexing import auto_index_state as _auto
+
+            _auto.mark_skipped("database locked by another MCP process")
+            logger.warning(
+                f"⏸ Auto-index: база занята другим процессом MCP — индексация "
+                f"не запущена (read-only). {_block}"
+            )
+            return
 
         status = await asyncio.to_thread(indexer.get_status)
         if status.get("total_chunks", 0) > 0:

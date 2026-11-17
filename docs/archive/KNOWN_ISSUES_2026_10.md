@@ -395,3 +395,36 @@
 - **Артефакты:** `experiments/e36_ablation/`.
 
 ---
+
+## 2026-10-25 — E46/E46b: PageRank repo map — работает, но не 95% — 🟡
+- **Граф:** 9,315 nodes / 47,286 edges / 759 code files (docs нет).
+- **E46 personalized:** 1k/2k/4k = 0.271/0.417/0.521; code-only 0.325/0.500/0.625; docs 0.
+- **E46b +RU→EN:** 0.271/0.458/0.562; code-only 0.325/0.550/0.675.
+- **Вердикт:** PageRank ≫ degree/global, но 95% на 1k недостижимо; docs-gold вне графа.
+  Нужны docs-узлы, персонализация RU→EN+symbols, BM25 top-files до PageRank.
+- **Артефакты:** `experiments/e46_pagerank_map/`, `e46b_pagerank_ru/`.
+
+---
+## 2026-10-25 — E44: agent rewrites — keywords +1 h1; fusion/identifiers хуже — 🟡
+- **Плечи:** baseline / keywords / identifiers / agent_all на 48 запросах E30.
+- **Результат:** baseline 0.688/0.771, 84 ms; keywords **0.708**/0.771, 78 ms;
+  identifiers 0.583/0.750; agent_all 0.688/0.771, 147 ms.
+- **Вердикт:** одна чистая формулировка лучше флуда; агентский план должен выбирать primary query,
+  а не фьюзить все варианты. **Артефакты:** `experiments/e44_agent_rewrite/`.
+
+---
+## 2026-10-25 — E41–E43: chain audit — docs intent, experiments, concept tags — 🟡 open
+- **Диагностика:** RRF top5 35/48; 13 misses (8 docs gold, 5 recall).
+- **E41:** исключение `experiments/` — 0.688/0.771 → 0.688/0.750, p50 81→43 ms.
+- **E42:** intent-aware demote — без изменений; `auto_detect_intent` не распознаёт docs.
+- **E43:** concept tags ×0.9 — без изменений; ×1.1 — 0.188/0.250 (precision collapse).
+- **Вывод:** нужен точный symbol-level concept layer (аннотации), а не keyword-count boost.
+- **Артефакты:** `experiments/e41_no_experiments/`, `e42_intent_demote/`, `e43_concepts/`.
+
+---
+## 2026-10-25 — E40: RU→EN синонимы — ноль — 🟡 neutral
+- **Плечи:** baseline / ru_synonyms на 48 запросах E30; `synonyms_ru.py`.
+- **Результат:** оба 0.688/0.771, p50 159/176 ms. H6 PASS; H1/H2/H3/H4/H5 FAIL.
+- **Вердикт:** варианты дают те же top-5; RRF схлопывает дубликаты. Словарь — утилита,
+  не рычаг. 95% на панели недостижимо.
+- **Артефакты:** `experiments/e40_ru_synonyms/`.

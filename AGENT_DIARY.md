@@ -10,6 +10,23 @@
 
 
 
+## 2026-11-17 — read-only, статусы и «круги»
+
+**Симптом:** второй сервер на тот же data-dir молча жил read-only; health
+показывал `issues: []`, `total_chunks=0` при идущей записи, `symbols=0` при
+49 558 чанках, `Tool profile=core: -35 видимых`.
+
+**Root cause (класс, не инстанс):** четыре разных места рапортовали не то, что
+есть, и два места глотали ошибку. Это один класс: «наблюдаемое состояние не
+связано с фактическим» + «ошибка не доходит до вызывающего».
+
+**Fix:** `DATABASE_LOCKED` + `DatabaseLockedError`; health: issue
+`database_lock`, `write_capable`, `auto_index: skipped: причина`; text-only не
+падает в dense и сохраняет symbol index; статус обновляется пофайлово.
+
+**Guard:** `tests/test_write_capability.py`, `test_text_only_fallback.py`,
+мутации M40–M46. Класс зафиксирован в `~/.config/opencode/knowledge/PATTERNS.md`.
+
 ## 2026-11-17 — поверхность MCP, память и контракт
 
 **Симптом:** `tools/list` стоил 15 037 символов на 17 инструментов, скрытые
