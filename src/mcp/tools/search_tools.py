@@ -27,14 +27,13 @@ from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
 
-# Виды узлов, у которых граф вызовов осмыслен. У переменной/константы
-# «0 callers» читается как «не используется» — это ложное утверждение
-# (аудит engraphis 2026-11-18).
-_CALLABLE_KINDS = frozenset({
-    "function", "method", "function_definition", "method_definition",
-    "function_declaration", "method_declaration", "function_part",
-    "giant_function_part", "constructor", "arrow_function",
-    "class", "class_definition", "class_declaration", "object",
+# Виды узлов, у которых граф вызовов не имеет смысла. Deny-list, а не
+# whitelist: индексатор эмитит function_item/impl_item/interface_declaration и
+# другие виды, которых в списке разрешённых не было бы, и ответ утверждал
+# «граф вызовов не применим», печатая список callers (ревью #157, major 1).
+_NON_CALLABLE_KINDS = frozenset({
+    "variable", "constant", "property", "field", "enum_member", "enum_variant",
+    "key", "module_docstring",
 })
 
 
@@ -845,12 +844,18 @@ class GetSymbolInfoTool(MCPTool):
             defs = call_graph["definition"]
             all_callers = call_graph["callers"]
             all_callees = call_graph["callees"]
-            direct = int(call_graph.get("callers_direct", 0) or 0)
+            # Прямые считаем по depth, который есть в каждой реализации
+            # (легаси SymbolIndex и _hybrid_build_call_graph новых полей не
+            # ставят) — иначе «0 callers» печаталось рядом со списком callers.
+            direct = sum(1 for c in all_callers if c.get("depth") == 1)
             total_callers = len(all_callers)
             hidden_scripts = int(call_graph.get("callers_hidden_scripts", 0) or 0)
-            callees_direct = int(call_graph.get("callees_direct", 0) or 0)
+            callees_direct = sum(1 for c in all_callees if c.get("depth") == 1)
             kinds = {str(d.get("kind", "")).lower() for d in defs if d.get("kind")}
-            is_callable = bool(kinds & _CALLABLE_KINDS) or not kinds
+            # Deny-list, а не whitelist: индексатор эмитит function_item,
+            # impl_item, interface_declaration и др. — с whitelist ответ
+            # говорил «граф не применим» и тут же печатал «Called from».
+            is_callable = not kinds or bool(kinds - _NON_CALLABLE_KINDS)
             if is_callable:
                 result = _(
                     "🔍 **{query}** — {defs} defs, {callers} callers, "
@@ -900,6 +905,8 @@ class GetSymbolInfoTool(MCPTool):
                             f"   {i+1}. `{d.get('file', '?')}` "
                             f"line {d.get('line', '?')} ({d.get('kind', '?')})\n"
                         )
+                    if len(defs) > 10:
+                        result += _("   … показаны 10 из {n}\n", n=len(defs))
                     result += (
                         "\n💡 Specify an explicit `file_path` to disambiguate.\n"
                     )
@@ -940,10 +947,14 @@ class GetSymbolInfoTool(MCPTool):
         # `get_symbol_info("reweight")` отвечал «10 definitions» при нуле
         # определений с таким именем (аудит engraphis 2026-11-18). Точные и
         # qualified-совпадения отделены от «похожих имён».
+        # Сравнение без регистра: find_nodes в графе использует LIKE (ci),
+        # и запрос в нижнем регистре находил символ до правки, а после неё
+        # объявлялся «точного символа нет» (ревью #157, major 2).
+        q_cf = query.casefold()
         exact = [
             r for r in results
-            if getattr(r, "symbol", "") == query
-            or str(getattr(r, "symbol", "")).endswith("." + query)
+            if str(getattr(r, "symbol", "")).casefold() == q_cf
+            or str(getattr(r, "symbol", "")).casefold().endswith("." + q_cf)
         ]
         if not exact:
             result = _(
@@ -957,7 +968,7 @@ class GetSymbolInfoTool(MCPTool):
                     f"({r.kind})\n"
                 )
             if len(results) > 8:
-                result += _("   … показаны 8 из {n}\n", n=len(results))
+                result += _("   … первые 8 совпадений выдачи поиска\n")
             return result + (
                 "\n\n💡 **next_step:** уточните имя или ищите через `grep_code` "
                 "с `scope=\"all\"`"

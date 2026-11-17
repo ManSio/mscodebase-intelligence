@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - 2026-11-08
 
+### Fixed
+- **`get_symbol_info` and `investigate` no longer present unverified claims as
+  facts.** An audit on a foreign corpus (engraphis) compared every answer with
+  the sources on disk: `get_symbol_info("intent_recall")` said "1 defs" while the
+  code declares three, "3 callers" silently dropped a call from `scripts/`,
+  "15 callers" was `min(total, 15)` with depth-2 mixed in, a module constant
+  reported "0 callers" (reads as "unused"), `reweight` answered "10 definitions"
+  from a substring match, `investigate` marked chunks whose symbol name appears
+  only in the FILE/SYMBOLS header as "name match", and
+  `graph_query(action="related")` accepted a symbol and returned an empty list.
+  Answers now list every same-name definition (AMBIGUOUS), count direct and
+  transitive callers separately with "showing 5 of N", name hidden script
+  callers, say "call graph does not apply" for variables, label substring hits
+  as "similar names, NOT definitions", prefer the definition chunk in
+  `investigate`, and reject a non-file `related` target with
+  `VALIDATION_FAILED`. Guards: `tests/test_symbol_info_honesty.py` (10),
+  `tests/test_evidence_body_match.py` (9), mutations M67-M74.
+- **`impact` channel no longer turns one bad symbol into a silent degraded
+  answer.** It isolates per symbol and logs the traceback with the symbol name
+  (the module had no logger at all, so the first exception path raised
+  `NameError: logger`).
+
 ### Changed
 - **Inline and dev tools now use the error envelope too.** `generate_docs`,
   `bump_version`, `auto_update_docs`, `install_git_hooks` and

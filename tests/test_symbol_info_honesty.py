@@ -62,7 +62,8 @@ def test_hidden_script_callers_are_counted_not_dropped(tmp_path):
     graph = ad.build_call_graph("target", depth=1)
 
     names = {c["symbol"] for c in graph["callers"]}
-    assert graph["callers_direct"] == 1, graph
+    direct = sum(1 for c in graph["callers"] if c.get("depth") == 1)
+    assert direct == 1, graph
     assert graph["callers_hidden_scripts"] >= 1, graph
     assert "prod_user" in names
 
@@ -75,9 +76,7 @@ class _FakeSI:
             "definition": definition,
             "callers": callers or [],
             "callees": [],
-            "callers_direct": len(callers or []),
             "callers_hidden_scripts": hidden,
-            "callees_direct": 0,
         }
         self._symbols = symbols or []
 
@@ -143,3 +142,39 @@ def test_substring_matches_are_not_called_definitions():
     assert "точного символа нет" in text
     assert "похожие имена" in text
     assert "definitions" not in text
+
+
+def test_exact_match_is_case_insensitive(tmp_path):
+    """`recallengine` находит `RecallEngine` (LIKE в графе регистронезависим)."""
+    ad = _adapter(tmp_path)
+    ad.add_definitions("D:/P/src/core/recall.py", [
+        {"name": "RecallEngine", "line": 185, "kind": "class_definition"},
+    ])
+    graph = ad.build_call_graph("recallengine")
+    assert len(graph["definition"]) == 1, graph["definition"]
+    assert graph["definition"][0]["line"] == 185
+
+
+def test_unknown_kind_still_shows_callers():
+    """Вид вне deny-list (function_item) не объявляется «не применим»."""
+    si = _FakeSI(
+        [{"file": "main.rs", "line": 3, "kind": "function_item"}],
+        callers=[{"symbol": "run", "file": "main.rs", "line": 9, "depth": 1}],
+    )
+    text = _tool()._answer("compute", si)
+    assert "граф вызовов не применим" not in text
+    assert "1 callers" in text
+
+
+def test_direct_callers_are_counted_without_new_fields():
+    """Легаси-форма ответа (без callers_direct) не даёт «0 callers»."""
+    si = _FakeSI(
+        [{"file": "a.py", "line": 1, "kind": "function_definition"}],
+        callers=[
+            {"symbol": "one", "file": "u.py", "line": 2, "depth": 1},
+            {"symbol": "two", "file": "u.py", "line": 3, "depth": 2},
+        ],
+    )
+    text = _tool()._answer("target", si)
+    assert "1 callers" in text
+    assert "всего с транзитивными: 2" in text

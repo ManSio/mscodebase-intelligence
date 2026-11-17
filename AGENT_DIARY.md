@@ -22,15 +22,15 @@
 списка, а совпадение имени в теле/`SYMBOLS:`-шапке/`Context:` считалось
 доказательством определения.
 
-**Fix (c32d2ae):** в `definition` — все одноимённые узлы (первый — выбор ранжирования,
+**Fix (PR #157):** в `definition` — все одноимённые узлы (первый — выбор ранжирования,
 остальные в AMBIGUOUS); прямые/транзитивные callers раздельно + «скрыто N из
 scripts/»; не-вызываемые виды — «граф вызовов не применим»; подстрочные совпадения
 — «похожие имена»; канал `name` предпочитает чанк-определение (`symbol_name ==
 variant`); `related` валидирует файл. Плюс логгер в `investigate` (его не было) и
 изоляция имени в канале `impact`.
 
-**Guard:** `tests/test_symbol_info_honesty.py` (6), `tests/test_evidence_body_match.py`
-(8), мутации M67–M73 (M69 — контроль). После фикса: `intent_recall` → 3 defs,
+**Guard:** `tests/test_symbol_info_honesty.py` (10), `tests/test_evidence_body_match.py`
+(9), мутации M67–M74 (M69 — контроль). После фикса: `intent_recall` → 3 defs,
 `investigate` → `engines/recall.py:77`, `related` → VALIDATION_FAILED.
 
 ## 2026-11-17 — `.json` в индексе: 62% объёма, ноль пользы для кода

@@ -59,24 +59,22 @@ def name_rows(rows: list[dict], variant: str) -> list[dict]:
     """
     defs: list[dict] = []
     context: list[dict] = []
+    variant_cf = variant.casefold()
     for row in rows:
         text = str(row.get("text_full") or row.get("text") or "")
         if not body_contains(text, variant):
             continue
         meta = row.get("metadata") or {}
-        target = defs if str(meta.get("symbol_name") or "") == variant else context
-        target.append(row)
-    chosen = defs or context[:2]
-    return [
-        {
-            "row": row,
-            "is_definition": row in defs,
-            "file": (row.get("metadata") or {}).get("file", ""),
-            "line": int((row.get("metadata") or {}).get("start_line") or 0),
-            "kind": (row.get("metadata") or {}).get("symbol_kind", ""),
+        name_cf = str(meta.get("symbol_name") or "").casefold()
+        is_def = name_cf == variant_cf or name_cf.endswith("." + variant_cf)
+        entry = {
+            "is_definition": is_def,
+            "file": meta.get("file", ""),
+            "line": int(meta.get("start_line") or 0),
+            "kind": meta.get("symbol_kind", ""),
         }
-        for row in chosen
-    ]
+        (defs if is_def else context).append(entry)
+    return defs or context[:2]
 
 
 # Channel weights, additive on top of each channel's own (rank-based) score.

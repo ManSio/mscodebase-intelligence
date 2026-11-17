@@ -84,9 +84,10 @@ def test_prefix_only_rows_are_dropped():
 
 
 @pytest.mark.asyncio
-async def test_related_rejects_a_symbol_instead_of_zero_results():
+async def test_related_rejects_a_symbol_instead_of_zero_results(tmp_path):
     tool = GraphQueryTool(MagicMock())
-    result = await tool.execute(action="related", target="intent_recall")
+    result = await tool.execute(action="related", target="intent_recall",
+                                project_root=str(tmp_path))
     text = result if isinstance(result, str) else str(result)
     assert "VALIDATION_FAILED" in text
     assert "works on files" in text
@@ -95,10 +96,24 @@ async def test_related_rejects_a_symbol_instead_of_zero_results():
 
 @pytest.mark.asyncio
 async def test_related_accepts_a_file_path(tmp_path):
-    """С файловым путём валидация пропускает дальше (пустой результат — ок)."""
+    """Существующий файл проходит валидацию; пустой результат — ок."""
+    target = tmp_path / "src" / "core" / "mod.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("x = 1\n", encoding="utf-8")
     tool = GraphQueryTool(MagicMock())
     result = await tool.execute(action="related", target="src/core/mod.py",
                                 project_root=str(tmp_path))
     text = result if isinstance(result, str) else str(result)
     assert "VALIDATION_FAILED" not in text
     assert "related" in text
+
+
+@pytest.mark.asyncio
+async def test_related_accepts_a_file_without_extension(tmp_path):
+    """`Makefile`/`Dockerfile` — валидные файлы без точки (ревью #157)."""
+    (tmp_path / "Makefile").write_text("all:\n\ttrue\n", encoding="utf-8")
+    tool = GraphQueryTool(MagicMock())
+    result = await tool.execute(action="related", target="Makefile",
+                                project_root=str(tmp_path))
+    text = result if isinstance(result, str) else str(result)
+    assert "VALIDATION_FAILED" not in text

@@ -610,7 +610,8 @@ class SymbolIndexAdapter(PureGraphMixin):
             # Аудит engraphis 2026-11-18: dotted-мусор давал «5 definitions».
             def_nodes = [
                 n for n in nodes
-                if n.name == symbol or n.name.endswith("." + symbol)
+                if n.name.casefold() == symbol.casefold()
+                or n.name.casefold().endswith("." + symbol.casefold())
             ]
             if not def_nodes:
                 # Узлы нашлись только по голому хвосту: для qualified-запроса
@@ -663,11 +664,9 @@ class SymbolIndexAdapter(PureGraphMixin):
         result = {
             "symbol": node.name,
             "definition": defs,
-            # Прямые и транзитивные считаются отдельно: «15 callers» было
-            # min(total, 15) и не говорило ни о глубине, ни о срезе.
-            "callers_direct": 0,
+            # Скрытые скрипты считаются отдельно: «3 callers» скрывал
+            # четвёртый вызов из scripts/ (аудит 2026-11-18).
             "callers_hidden_scripts": 0,
-            "callees_direct": 0,
             "callers": [],
             "callees": [],
             "call_chain": [],
@@ -695,7 +694,8 @@ class SymbolIndexAdapter(PureGraphMixin):
                     # Их больше не выкидываем молча: считаем и сообщаем, иначе
                     # «3 callers» скрывал четвёртый (аудит engraphis 2026-11-18).
                     if self._is_one_off_script(neighbor.file_path):
-                        hidden_scripts.add(neighbor.qualified_name)
+                        if level == 0:
+                            hidden_scripts.add(neighbor.qualified_name)
                         continue
                     visited_callers.add(neighbor.qualified_name)
                     result["callers"].append({
@@ -705,8 +705,6 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "depth": level + 1,
                         "confidence": self._call_confidence(neighbor),
                     })
-                    if level == 0:
-                        result["callers_direct"] += 1
                     if neighbor.file_path:  # BS-12: не добавляем пустые пути
                         result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)
@@ -735,8 +733,6 @@ class SymbolIndexAdapter(PureGraphMixin):
                         "depth": level + 1,
                         "confidence": self._call_confidence(neighbor),
                     })
-                    if level == 0:
-                        result["callees_direct"] += 1
                     if neighbor.file_path:  # BS-12: не добавляем пустые пути
                         result["impact_files"].add(neighbor.file_path)
                     next_level.add(neighbor.qualified_name)

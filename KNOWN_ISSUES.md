@@ -27,8 +27,8 @@
   `_DESTRUCTIVE_PATTERNS` → «не применимо»; `reweight` → «точного нет, похожие»;
   `investigate` → `verdict: answer`, `engraphis/engines/recall.py:77`;
   `related` → `VALIDATION_FAILED`. Символьные вызовы — 50 мс.
-- **Guard:** `tests/test_symbol_info_honesty.py` (6), `tests/test_evidence_body_match.py`
-  (8), мутации M67–M73 (M69 — контроль, зелёный намеренно).
+- **Guard:** `tests/test_symbol_info_honesty.py` (10), `tests/test_evidence_body_match.py`
+  (9), мутации M67–M74 (M69 — контроль, зелёный намеренно).
 - **Открыто 🟡:** один `impact:IndexError` (`graph.py:1080`, `row[neighbor_col]`,
   «tuple index out of range») после фиксов не воспроизводится; канал теперь
   изолирует имена, логирует трейсбек и имя символа, а не только класс ошибки.
