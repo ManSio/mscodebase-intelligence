@@ -72,6 +72,33 @@ def _has_code_lines(content: str) -> bool:
     return False
 
 
+def _max_fallback_chunks_per_file() -> int:
+    """Кап fallback-чанков на файл (0 = без капа).
+
+    Fallback-ветка обслуживает файлы, для которых AST не дал чанков: данные
+    (JSON/CSV), минифицированные бандлы, конфиги. На корпусе engraphis такие
+    чанки — 62.3% индекса (31 123 .json из 49 920), а один
+    `eval/datasets/.../runtime.json` давал 1 146 чанков и вытеснял код из
+    выдачи. AST-ветка (символы кода) не капается: там чанк = определение.
+    """
+    raw = os.environ.get("MSCODEBASE_MAX_FALLBACK_CHUNKS", "20")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            f"MSCODEBASE_MAX_FALLBACK_CHUNKS={raw!r} — не число, беру 20"
+        )
+        return 20
+    if value < 0:
+        # Отрицательное значение — опечатка, а не «выключить кап»: выключение
+        # требует явного 0, иначе -1 тихо возвращает 1 146-чанковые файлы.
+        logger.warning(
+            f"MSCODEBASE_MAX_FALLBACK_CHUNKS={value} < 0 — беру 20"
+        )
+        return 20
+    return value
+
+
 class IndexParser:
     """Чистый парсер: читает файл → AST-чанкинг → возвращает данные.
 
@@ -272,13 +299,35 @@ class IndexParser:
                 _step = 800
                 _chunk_size = 1000
                 _full_window = 2000  # wider window для context search
+                _fb_limit = _max_fallback_chunks_per_file()
                 chunk_texts = []
                 chunk_texts_full = []
                 chunk_metadatas = []
+                _fb_windows = (len(content) + _step - 1) // _step if _fb_limit else 0
                 for start in range(0, len(content), _step):
                     chunk = content[start : start + _chunk_size]
                     if not chunk.strip():
                         continue
+                    if _fb_limit and len(chunk_texts) >= _fb_limit:
+                        # Кап на fallback-чанки: так индексируются данные
+                        # (JSON/бандлы), которых нет в AST. На engraphis это
+                        # 62.3% индекса (.json = 31 123 из 49 920), и один
+                        # runtime.json давал 1 146 чанков. Код (AST-ветка) кап
+                        # не трогает. 0 = без капа.
+                        # Маркер пишем в текст, а не в metadata: db_writer
+                        # сохраняет только известные поля, произвольный ключ
+                        # до поиска не доходит. Так обрезка видна в выдаче.
+                        _note = (
+                            f"\n// NOTE: fallback chunks truncated — {_fb_limit} "
+                            f"of ~{_fb_windows} indexed; raise "
+                            f"MSCODEBASE_MAX_FALLBACK_CHUNKS to index more\n"
+                        )
+                        chunk_texts[-1] = chunk_texts[-1] + _note
+                        chunk_texts_full[-1] = chunk_texts_full[-1] + _note
+                        logger.debug(
+                            f"{rel_path_str}: fallback-чанки обрезаны до {_fb_limit}"
+                        )
+                        break
                     chunk_texts.append(_fb_header + chunk)
                     chunk_texts_full.append(
                         _fb_header + content[start : start + _full_window]

@@ -202,3 +202,43 @@ RU vs EN: rank-1 0.150 vs 0.250, к k=5 выравнивается (0.550)
 - **Артефакты:** `experiments/e37_chunking/`.
 
 ---
+---
+## 2026-10-25 — E51: frozen-панель проиндексирована (panel leakage) — 🔴 P0
+- `experiments/4A_unit_of_return/frozen/f5/queries.md` содержит те же probes и
+  находится в `chunks.db`; BM25 возвращает его как top-1 почти на всех запросах.
+- **E51b (фильтр `experiments/**`):** single 0.562/0.771; agent 0.438/0.792;
+  p50 140 ms; calls 2.0; tokens 1048.
+- **Следствие:** все BM25-числа E49/E50/E51 загрязнены; production 0.688 мог
+  тоже быть затронут. Нужно исключить frozen-панели из индекса/retrieval и
+  перепроверить baseline.
+- **Agentic:** детерминированный expansion+graph ухудшает hit@1; для 95% нужен
+  LLM-планировщик, а не фиксированная эвристика.
+
+---
+## 2026-10-25 — E49/E50: docs-reserve и score-router — zero-sum — 🟡
+- **E49:** reserve15 0.250/0.500/0.583 (хуже base 0.271 на 1k); reserve25
+  0.208/0.458/0.604; oracle 0.396/0.604/0.729; p50 245 ms.
+- **E50:** route@0.8–2.0 = 0.104/0.125/0.167; docs 8/8 при любом пороге;
+  code route 0; oracle 0.375/0.583/0.729.
+- **Вывод:** docs/code конкурируют за один бюджет; лексический score не
+  маршрутизирует. Нужен semantic classifier/agentic loop; статическая map
+  даёт потолок ~37–40% на 1k, 95% недостижимо.
+
+---
+## 2026-10-25 — E48: two-channel map — docs BM25 сильный, routing ломает — 🟡
+- **base** 1k/2k/4k = 0.271/0.458/0.562; **route** 0.292/0.458/0.562;
+  **oracle** 0.396/0.625/0.729; p50 323 ms.
+- Docs-gold (8): bm25_docs 0.75/1.00/1.00; route 0.125 (2/8).
+- **Потолок 1k = 39.6%**, 2k 62.5%, 4k 72.9%; 95% недостижимо.
+- **Решение:** всегда docs BM25 (без keyword classifier) + top-docs под
+  token-reserve; code 1k улучшать BM25-top-files + PageRank hybrid.
+
+---
+## 2026-10-25 — E47: docs в PageRank разбавляют code-граф — 🔴
+- **base** (code-only) 1k/2k/4k = 0.271/0.458/0.562; **docs** = 0.042/0.188/0.458;
+  **docs_bm25** = 0.042/0.229/0.479; p50 1,113 ms.
+- Code-only 1k 32.5% → 5%; docs-only 1k 0 → 37.5% (только BM25).
+- **Вывод:** docs не в тот же PageRank; два канала (code PageRank + docs BM25),
+  слияние по бюджету; один PageRank на запрос. H1–H7 FAIL.
+
+---
