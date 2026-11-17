@@ -19,10 +19,19 @@
   `=1` возвращает их (с капом `MSCODEBASE_MAX_FALLBACK_CHUNKS`). `.ipynb` остаётся:
   это JSON, но чанки из разобранных code-cells. `grep_code` и `read_live_file`
   читают диск и `.json` находят при любом флаге.
+- **Allowlist — то, что агенту нужно знать:** инвентаризация содержимого показала,
+  что 90% объёма JSON — замороженные артефакты бенчмарка (`command/result/
+  source_sha256`), а «код» в 40 файлах `families/*.json` — строковые фикстуры
+  (их `.py`-оракулы уже в индексе). Полезны 8 файлов из 445: манифесты
+  (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `tsconfig.json`,
+  `plugin.json`, `marketplace.json`) и контракт инструментов. Они индексируются
+  всегда: по имени, либо по ключам `inputSchema`/`surfaces`/`annotations`
+  (файл ≤512 KB). Цена allowlist — **+67 чанков** (18 747 → 18 814), выигрыш
+  измерен: запрос `destructiveHint` → **top-1 `docs/MCP_CONTRACT.json`**.
 - **Цена:** поиск по содержимому данных (`search_code`) их больше не видит; кому
   нужно — флаг + полная переиндексация после удаления `<проект>/.mscodebase/chunks.db*`
   (хеши не меняются, инкремент файл пропустит).
-- **Guard:** `tests/test_data_files_not_indexed.py` (5 тестов), мутации M60–M62.
+- **Guard:** `tests/test_data_files_not_indexed.py` (8 тестов), мутации M60–M66.
 
 ## 2026-11-17 — 62% индекса engraphis — данные, а не код: кап fallback-чанков — 🟢 закрыто
 
@@ -270,29 +279,5 @@ manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind
 `docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
 `docs/archive/README.md`. `pyproject.toml` метаданные (57 tools, classifiers 3.10–3.12)
 исправлены там же.
-
----
-## 2026-10-25 — E55/E56: chain modes; docs gold-language bottleneck — 🟡
-- **E55:** hybrid/quality/deep 0.688/0.771 (p50 45–48 ms); fast 0.542/0.729
-  (p50 19 ms); `nodemote/intent/ru/p3` — 0 эффекта на hit@1.
-- **E56:** exact-path docs_only 0.021/0.062; **translation-normalized docs_only
-  0.750**, oracle **0.812/0.917**; p50 131 ms. BM25 отдаёт `docs/ru/X.md` при
-  gold `docs/en/X.md` — это **gold canonicalization**, не слабый docs-канал.
-- **Дешёвый путь:** explicit `intent="docs"` + docs-only FTS (без LLM-router).
-  Параметры `demote/intent/ru/p3` на панели не помогают.
-- **Реализовано:** `Searcher.search_docs()` + `search_code(intent="docs")`;
-  exact 1/8, same-basename **6/8**; тест `tests/test_search_docs.py`.
-- **Добавлено:** language-dedupe (ru/en/zh → один документ, prefer query lang)
-  + `delete_files()`/prune в `scripts/reindex_text_only.py`.
-- Production: graph 12,753 nodes; index 7,314 chunks (0 experiments); tests 32 pass.
-
----
-## 2026-10-25 — E52: clean baseline — hit@1 0.688, hit@5 0.750; docs=0 — 🟡
-- Clean index: 7,258 chunks (удалено 9,089 experiments); leakage 0/48.
-- **clean production 0.688/0.750** (p50 72ms); contaminated 0.688/0.771.
-  **Supersede:** hit@5 0.771 → 0.750; hit@1 не изменился.
-- Subsets clean: code 0.825/0.900, docs 0.000/0.000.
-- **Oracle router** (code 0.825 + docs-only BM25 0.75) = **0.8125 hit@1 /
-  ~0.9167 hit@5**. 95% требует усиления code-канала или LLM-агента.
 
 ---
