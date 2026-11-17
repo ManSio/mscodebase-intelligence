@@ -1041,6 +1041,16 @@ class Indexer(IndexerTableMixin):
             except Exception as exc:  # noqa: BLE001 — prune не роняет индексацию
                 logger.warning(f"[text-index] prune failed: {exc}")
 
+        # Символьный индекс: pipeline пополнил его в памяти, но text-only путь
+        # никогда его не сохранял (это делал только `_write_text_file_records`).
+        # Итог на реальном корне: 49 558 чанков и 0 узлов в graph.db →
+        # get_symbol_info/impact_analysis/graph_query отвечали «not found».
+        try:
+            if not self._index_guard.save_symbol_index(self._symbol_index):
+                logger.warning("[text-index] save_symbol_index вернул False")
+        except Exception as _sym_err:  # noqa: BLE001 — индексация чанков важнее
+            logger.warning(f"[text-index] save_symbol_index failed: {_sym_err}")
+
         logger.info(
             f"[text-index] done: {files_indexed} files, {errors} errors, "
             f"{time.perf_counter() - t0:.1f}s"

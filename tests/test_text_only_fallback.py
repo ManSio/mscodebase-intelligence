@@ -65,3 +65,27 @@ def test_text_only_updates_status_cache(tmp_path, monkeypatch):
     assert files == 1
     assert indexer._cached_total_chunks == 2, "статус обязан видеть записанные чанки"
     assert "m.py" in indexer._cached_unique_files
+
+
+def test_text_only_saves_symbol_index(tmp_path, monkeypatch):
+    """Граф/символы обязаны попасть на диск: иначе get_symbol_info мёртв.
+
+    На реальном корне (engraphis) было 49 558 чанков и 0 узлов в graph.db.
+    """
+    (tmp_path / "m.py").write_text("def f():\n    return 1\n", encoding="utf-8")
+    indexer = _indexer(tmp_path)
+    indexer._chunk_store = MagicMock()
+    indexer._chunk_store.file_hash.return_value = None
+    indexer._chunk_store.all_records.return_value = []
+    indexer._pipeline = MagicMock()
+    indexer._pipeline.process_file.return_value = {"skip_vectors": True}
+    indexer._db_writer = MagicMock()
+    indexer._db_writer.write_text_records.return_value = []
+    indexer._index_guard = MagicMock()
+    indexer._index_guard.save_symbol_index.return_value = True
+    indexer._symbol_index = object()
+    monkeypatch.setenv("MSCODEBASE_DENSE_OFF", "true")
+
+    indexer._index_text_only_project(tmp_path)
+
+    indexer._index_guard.save_symbol_index.assert_called_once_with(indexer._symbol_index)
