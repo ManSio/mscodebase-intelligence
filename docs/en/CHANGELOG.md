@@ -20,9 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`MSCODEBASE_MCP_PROFILE=core`); the other 56 stay callable by name and
   `tool_help(query="<name>")` returns their `inputSchema`. `full` lists all,
   `MSCODEBASE_MCP_TOOLS` is an allowlist over the whole registry.
-- **Side-effect annotations** — every tool declares `destructiveHint` (13 tools
-  change project sources or memory); `readOnlyHint` is not emitted because the
-  index hot-reload makes even search tools write.
+- **Side-effect annotations** — every tool declares `destructiveHint`: 12 of the
+  69 registered tools (plus `execute_script` when it is enabled) can change
+  project sources or memory; the rest touch derived state only. `readOnlyHint`
+  is not emitted because the index hot-reload makes even search tools write.
 - **Project memory** — a repeated fact returns `op: noop` with the existing
   `node_id`, a `VERIFIED` repeat promotes the node, and nodes carry verified
   memory→symbol links.
