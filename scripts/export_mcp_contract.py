@@ -38,6 +38,9 @@ def build_contract() -> dict:
         "MSCODEBASE_MCP_TOOLS",
         "MSCODEBASE_DENSE_OFF",
         "LLAMA_CPP_ENABLED",
+        # self-indexing guard не должен менять контракт: на CI репозиторий — не
+        # «user project», и intel-слой (16 инструментов) не регистрируется.
+        "MSCODEBASE_ALLOW_SELF_INDEX",
     )
     saved = {key: os.environ.get(key) for key in _KEYS}
     mcp = None
@@ -47,6 +50,7 @@ def build_contract() -> dict:
         os.environ.pop("MSCODEBASE_MCP_TOOLS", None)
         os.environ["MSCODEBASE_DENSE_OFF"] = "true"
         os.environ["LLAMA_CPP_ENABLED"] = "false"
+        os.environ["MSCODEBASE_ALLOW_SELF_INDEX"] = "1"
 
         from src.mcp.server_factory import create_mcp_server
 

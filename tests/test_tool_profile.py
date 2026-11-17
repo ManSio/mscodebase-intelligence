@@ -102,11 +102,12 @@ def test_core_profile_registers_full_registry_then_hides(monkeypatch):
     assert len(catalog) > len(visible), (len(catalog), len(visible))
     # Ядро интентов регистрируется всегда (intel-слой может быть заблокирован
     # self-indexing guard'ом в CI — это не повод падать).
+    # intel-слой регистрируется только когда корень признан user project:
+    # на CI (checkout — не user project) его нет, и это штатно.
     always = {
         "investigate", "search_code", "grep_code", "get_symbol_info",
         "impact_analysis", "graph_query", "codebase", "read_live_file",
         "notify_change", "get_health_report", "predict_change", "tool_help",
-        "intel_get_project_memory",
     }
     assert always <= visible, sorted(always - visible)
     # Dev-инструменты ушли из видимой поверхности, но остаются вызываемыми.
