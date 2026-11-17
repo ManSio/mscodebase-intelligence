@@ -369,7 +369,7 @@ class HealthReport:
         if not logs_dir.exists():
             self.warnings.append(
                 {
-                    "component": "logs",
+                    "component": "logs_global",
                     "message": "Директория логов не существует",
                 }
             )

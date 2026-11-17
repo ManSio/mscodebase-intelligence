@@ -529,7 +529,14 @@ async def _delayed_auto_index(services):
             try:
                 _dbm_diag = getattr(indexer, "db_manager", None)
                 if _dbm_diag is not None and hasattr(_dbm_diag, "human_report"):
-                    logger.warning(f"\n{_dbm_diag.human_report()}")
+                    # Одной строкой: `\n` в начале давал WARNING с пустым
+                    # сообщением (clean run 2026-11-17). Уровень — по факту:
+                    # здоровая диагностика это INFO, WARNING только при issue.
+                    _report_text = " ".join(str(_dbm_diag.human_report()).split())
+                    if getattr(_dbm_diag, "_startup_issue", None):
+                        logger.warning(_report_text)
+                    else:
+                        logger.info(_report_text)
                 else:
                     from src.core.indexing.startup_diagnostics import (
                         build_startup_report,
