@@ -4,6 +4,7 @@ cross_repo_search, cross_project_deps.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -146,6 +147,20 @@ class CrossProjectDepsTool(MCPTool):
         }
 
 
+# Допустимые action. Список закрыт: неизвестное значение — ошибка, а не
+# молчаливый GraphRAG (issue #150: `action="callers"` висел 90 с).
+_ALLOWED_ACTIONS = (
+    "query",
+    "cypher",
+    "related",
+    "path",
+    "flow",
+    "drift",
+    "verify",
+    "isolation",
+)
+
+
 class GraphQueryTool(MCPTool):
     """graph_query — единый мультиплексированный инструмент для всех графовых запросов.
 
@@ -221,9 +236,25 @@ class GraphQueryTool(MCPTool):
             return await self._execute_verify(target, kwargs, project_root=_project_root)
         elif action == "isolation":
             return await self._execute_isolation(kwargs, project_root=_project_root)
-        else:
-            # По умолчанию — GraphRAG (action="query")
-            return await self._execute_query(query_type or "impact", target, kwargs, project_root=_project_root)
+        if action not in _ALLOWED_ACTIONS:
+            # Раньше здесь был «тихий» GraphRAG-фолбэк: неверный action давал
+            # таймаут вместо объяснения (issue #150).
+            return {
+                "status": "error",
+                "code": "VALIDATION_FAILED",
+                "message": (
+                    f"Unknown action '{action}'. This tool accepts only the "
+                    "documented actions; it does not guess."
+                ),
+                "allowed_actions": list(_ALLOWED_ACTIONS),
+                "next_step": (
+                    "For callers/definitions use `get_symbol_info`; for impact "
+                    "use action='query' with query_type='impact'."
+                ),
+            }
+        return await self._execute_query(
+            query_type or "impact", target, kwargs, project_root=_project_root
+        )
 
     async def _execute_query(
         self, query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None,
@@ -239,7 +270,7 @@ class GraphQueryTool(MCPTool):
         )
 
         if query_type == "impact":
-            result = engine.query_impact(target)
+            result = await asyncio.to_thread(engine.query_impact, target)
             return {
                 "status": "ok",
                 "action": "query",
@@ -252,7 +283,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "feature":
-            result = engine.query_feature(target)
+            result = await asyncio.to_thread(engine.query_feature, target)
             symbols_raw = result.get("symbols", [])
             symbols_dicts = []
             for s in symbols_raw:
@@ -273,7 +304,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "deps":
-            result = engine.query_dependencies(target)
+            result = await asyncio.to_thread(engine.query_dependencies, target)
             return {
                 "status": "ok",
                 "action": "query",
@@ -285,7 +316,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "tests":
-            tests = engine.query_tests(target)
+            tests = await asyncio.to_thread(engine.query_tests, target)
             return {
                 "status": "ok",
                 "action": "query",

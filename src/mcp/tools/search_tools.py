@@ -766,6 +766,69 @@ class GetSymbolInfoTool(MCPTool):
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
         si = self.resolve_symbol_index(explicit_project_root=_pr or None)
+
+        answer = self._answer(query, si)
+        if answer is not None:
+            return answer
+
+        # Индекс мог отстать: файл появился после последней сборки. Одна сверка
+        # свежести (stat-sweep, ~18 мс на 1100 файлов) с бюджетом 3 с; без неё
+        # «not found» врёт про символ, который в файле уже есть (issue #150).
+        changed, refresh_error = await self._refresh_after_miss(_pr)
+        if changed:
+            si = self.resolve_symbol_index(explicit_project_root=_pr or None)
+            answer = self._answer(query, si)
+            if answer is not None:
+                return answer + _(
+                    "\n\n♻️ Index refreshed before the answer: {changed} file(s) "
+                    "re-indexed, so the symbol was missing from the old index.",
+                    changed=changed,
+                )
+            return _(
+                "ℹ️ **{query}** — not found after refreshing {changed} file(s); "
+                "the symbol is not declared in the project.\n\n💡 **next_step:** "
+                "перепроверьте имя через `search_code` или `grep_code`.",
+                query=query,
+                changed=changed,
+            )
+        if refresh_error:
+            return _(
+                "ℹ️ **{query}** — not found; the symbol index may be stale "
+                "(freshness check failed: {error}). If the file appeared recently, "
+                "run notify_change or codebase(index).\n\n💡 **next_step:** "
+                "перепроверьте имя через `search_code` или `grep_code`.",
+                query=query,
+                error=refresh_error,
+            )
+        return _(
+            "ℹ️ **{query}** — not found\n\n💡 **next_step:** попробуйте "
+            "`search_code` с другим запросом или `graph_query` для поиска по графу\n",
+            query=query,
+        )
+
+    async def _refresh_after_miss(self, project_root: str) -> tuple[int, str]:
+        """Одна сверка свежести после промаха. Возвращает (файлов, ошибка).
+
+        Бюджет 3 с меньше таймаута инструмента (5 с): сверка не должна
+        превращать «символа нет» в «таймаут инструмента».
+        """
+        try:
+            indexer = self.resolve_indexer(explicit_project_root=project_root or None)
+            project_path = getattr(indexer, "project_path", None)
+            verify = getattr(indexer, "verify_index_freshness", None)
+            if project_path is None or not callable(verify):
+                return 0, ""
+            changed = await asyncio.wait_for(
+                asyncio.to_thread(verify, project_path), timeout=3.0
+            )
+            return int(changed or 0), ""
+        except asyncio.TimeoutError:
+            return 0, "timeout after 3s"
+        except Exception as exc:  # noqa: BLE001 — сверка не роняет инструмент
+            return 0, str(exc)
+
+    def _answer(self, query: str, si: Any) -> Optional[str]:
+        """Ответ по индексу или None, если символа там нет."""
         call_graph = si.build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
@@ -809,13 +872,9 @@ class GetSymbolInfoTool(MCPTool):
                 for c in callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
             # Phase 1 / env-integration: env-accesses для символа (без нового тула).
-            # Только если SymbolIndex поддерживает метод (backward compat с индексами,
-            # где не было add_env_accesses — pre-Phase-0).
             if hasattr(si, "get_env_accesses_for_symbol"):
                 env_rows = si.get_env_accesses_for_symbol(query)
                 if env_rows:
-                    # Дедуп по env_key: один символ может читать DB_PORT в 3 строках
-                    # — выводим 1 раз, со счётчиком occurrences.
                     by_key: Dict[str, int] = {}
                     for r in env_rows:
                         by_key[r["env_key"]] = by_key.get(r["env_key"], 0) + 1
@@ -829,13 +888,9 @@ class GetSymbolInfoTool(MCPTool):
                     )
             return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
-        # Fallback: поиск по имени
-        results = self.resolve_symbol_index().search_symbols(query)
+        results = si.search_symbols(query)
         if not results:
-            return _(
-                "ℹ️ **{query}** — not found\n\n💡 **next_step:** попробуйте `search_code` с другим запросом или `graph_query` для поиска по графу\n",
-                query=query,
-            )
+            return None
 
         defs = [r for r in results if getattr(r, "is_definition", False)]
         usages = [r for r in results if not getattr(r, "is_definition", False)]
