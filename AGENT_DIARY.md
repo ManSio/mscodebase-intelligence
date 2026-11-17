@@ -24,6 +24,13 @@ fallback-окнами без символа и адреса; кодовые за
 `49 920 → 18 747`, БД `287 → 143 MB`, `6.8 → 6.0 мин`, hit@1 `7/8` (как при капе
 20), `.py`/`.js` без изменений (16 380 / 1 397).
 
+**Allowlist:** агенту нужны не данные, а описание возможностей — манифесты и
+контракты инструментов. Индексируются всегда: `package.json`, `package-lock.json`,
+`npm-shrinkwrap.json`, `tsconfig.json`, `plugin.json`, `marketplace.json`,
+`*.plugin.json` и файлы с ключами `inputSchema`/`surfaces`/`annotations`
+(≤512 KB). На корпусе это 8 файлов из 445, цена — +67 чанков (18 814);
+`destructiveHint` → top-1 `docs/MCP_CONTRACT.json`.
+
 **Guard:** `tests/test_data_files_not_indexed.py`, обновлённая матрица
 `test_file_exists.py`, мутации M60–M62.
 
