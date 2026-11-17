@@ -59,6 +59,18 @@ class OnnxEmbedderClient:
         except Exception:
             return False
 
+    def _health_check_fast(self) -> bool:
+        """Сначала дешёвый TCP-тест, HTTP — только если порт открыт.
+
+        Замер 2026-11-16: cold start тратил 8.9 с из 13.3 с внутри
+        `create_mcp_server` на `urlopen` к ещё не поднятому серверу — каждый
+        вызов ждал соединения ~1.8 с. Отказ на loopback приходит мгновенно,
+        поэтому сначала `connect_ex` с коротким таймаутом.
+        """
+        if not self._is_server_running():
+            return False
+        return self._health_check()
+
     def _acquire_launch_mutex(self) -> bool:
         """
         Пытается захватить Named Mutex для запуска сервера.
@@ -168,7 +180,7 @@ class OnnxEmbedderClient:
         """
         start = time.time()
         while time.time() - start < timeout:
-            if self._health_check():
+            if self._health_check_fast():
                 return True
             time.sleep(0.5)
         logger.warning(f"[ONNX Client] Сервер не поднялся за {timeout:.0f}s")

@@ -114,6 +114,8 @@ def find_duplicates(
     threshold: float = _DEFAULT_THRESHOLD,
     min_tokens: int = _DEFAULT_MIN_TOKENS,
     max_results: int = 50,
+    max_files: int = _MAX_FILES,
+    progress_cb=None,
 ) -> Dict[str, Any]:
     """Находит дубликаты кода в проекте.
 
@@ -156,11 +158,16 @@ def find_duplicates(
         except OSError:
             continue
         files.append(p)
-        if len(files) >= _MAX_FILES:
+        if len(files) >= max_files:
             break
 
     symbols: List[Dict[str, Any]] = []  # {"file", "name", "tokens", "hash"}
-    for fp in files:
+    for file_pos, fp in enumerate(files):
+        if progress_cb is not None and file_pos and file_pos % 200 == 0:
+            try:
+                progress_cb(file_pos, len(files), "parsing")
+            except Exception:  # noqa: BLE001 — прогресс не роняет скан
+                pass
         try:
             code = fp.read_bytes()
             if not code.strip():
@@ -190,6 +197,11 @@ def find_duplicates(
                 stack.append(ch)
 
     scan_ms = (time.perf_counter() - t0) * 1000
+    if progress_cb is not None:
+        try:
+            progress_cb(len(files), len(files), "parsed")
+        except Exception:  # noqa: BLE001 — прогресс не роняет скан
+            pass
 
     # Точные дубли
     by_hash: Dict[str, List[Dict[str, Any]]] = {}
@@ -217,6 +229,10 @@ def find_duplicates(
 
     seen: Set[tuple] = set()
     near: List[Dict[str, Any]] = []
+    # Верхняя граница Jaccard для мультимножеств: |A∩B|/|A∪B| <= min/max.
+    # Отсечение по размеру убирает основную массу пар до тяжёлого расчёта
+    # (замер 2026-11-17: 1.78 млн вызовов _multiset_jaccard = 48 с из 63 с).
+    sizes = [len(s["tokens"]) for s, _sig in sigs]
     for band_indices in buckets.values():
         if len(band_indices) < 2:
             continue
@@ -224,6 +240,11 @@ def find_duplicates(
             for j in range(i + 1, len(band_indices)):
                 ai, bj = band_indices[i], band_indices[j]
                 if ai == bj:
+                    continue
+                la, lb = sizes[ai], sizes[bj]
+                if la > lb:
+                    la, lb = lb, la
+                if lb and la / lb < threshold:
                     continue
                 key = (min(ai, bj), max(ai, bj))
                 if key in seen:

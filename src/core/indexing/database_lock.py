@@ -279,12 +279,21 @@ class DatabaseLock:
     # Public API
     # ══════════════════════════════════════════════════════
 
-    def acquire(self) -> None:
+    def acquire(self, *, wait: bool = True) -> None:
         """Захватывает lock.
+
+        Args:
+            wait: ждать ли освобождения ЖИВЫМ держателем до ``wait_timeout``.
+                ``wait=False`` нужен старту сервера: если база занята другим
+                окном, честнее сразу перейти в read-only, чем платить 8 секунд
+                до первого ответа (замер 2026-11-16: `initialize` 10–15 с
+                вместо 2.5 с на проекте с живым держателем). Мёртвый/битый
+                holder перехватывается в обоих режимах.
 
         Raises:
             LockBusyError (RuntimeError): lock занят живым/неопределимым
-                процессом дольше wait_timeout, или гонка при retry.
+                процессом (в режиме ``wait=False`` — сразу), либо истёк
+                wait_timeout, либо гонка при retry.
                 Holder НЕ убивается никогда (R3TF: только proof-of-death
                 steal: мёртвый PID / подтверждённый PID-reuse).
         """
@@ -316,6 +325,11 @@ class DatabaseLock:
             if state is LockHolderState.DEAD:
                 # steal обрабатывается кодом ниже (после TOCTOU-проверки).
                 pass
+            elif not wait:
+                raise LockBusyError(
+                    f"PID lock held by {state.value} pid={holder_pid} "
+                    f"(wait=False: не ждём живого держателя)"
+                )
             else:
                 # HEALTHY или AMBIGUOUS — живой/непроверяемый holder:
                 # ждём до wait_timeout, holder НЕ трогаем (fail-closed).

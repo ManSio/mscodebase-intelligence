@@ -51,7 +51,7 @@ class StaleDetectorTool(MCPTool):
         config = self._load_config(config_path)
         actual_version = self._get_actual_version(project_root)
         if actual_version == "unknown":
-            return "Cannot determine project version from pyproject.toml"
+            return "Cannot determine project version from pyproject.toml or package.json"
 
         # Блокирующее сканирование docs выносим в поток: напрямую stale_run
         # (10-30s, синхронный subprocess/filesystem) блокирует async event loop,
@@ -120,12 +120,25 @@ class StaleDetectorTool(MCPTool):
         return {}
 
     def _get_actual_version(self, project_root: Path) -> str:
+        """Версия проекта: pyproject.toml, затем package.json (JS/TS-проекты)."""
+        import json as _json
+
         pyproject = project_root / "pyproject.toml"
         if pyproject.exists():
             for line in pyproject.read_text(encoding="utf-8").split("\n"):
                 m = re.match(r'version\s*=\s*["\'](.+?)["\']', line)
                 if m:
                     return m.group(1)
+
+        package_json = project_root / "package.json"
+        if package_json.exists():
+            try:
+                data = _json.loads(package_json.read_text(encoding="utf-8"))
+                version = data.get("version")
+                if isinstance(version, str) and version.strip():
+                    return version.strip()
+            except (OSError, ValueError):
+                pass
         return "unknown"
 
     def _scan_docs(

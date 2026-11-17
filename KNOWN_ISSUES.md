@@ -5,6 +5,19 @@
 
 ---
 ---
+## 2026-11-16 — старт сервера и символьный слой JS — 🟢 закрыто
+
+- **PID-lock:** второй сервер того же проекта ждал живого держателя 8 с
+  (`initialize` 10–15 с). Fix: `DatabaseLock.acquire(wait=False)` на старте (read-only
+  сразу, запись берёт лок с ожиданием). `create_mcp_server` 10.5 → 2.2 с,
+  `initialize` p50 6365 → 2521 мс. Guard: `tests/test_pid_lock_no_wait.py`.
+- **«В JS мало символов» — не дефект (измерено):** 665/49 файлов в `chunks.db` — это
+  доки/JSON/картинки. Кодовых: MSPortfolio 82 → 425 узлов (113 Function, 66 Interface),
+  ghost-rovers 8 → 327 (114 Function); свежий JS-проект (7 файлов) → 68 узлов.
+  Guard: `tests/test_js_symbols.py` (мутация «не извлекать JS/TS» → 2 failed).
+
+---
+---
 ## 2026-11-15 — `C:\Windows\.mscodebase`: индекс ОС на 105 МБ — 🟢
 
 - **Симптом:** в `C:\Windows` появился `.mscodebase\chunks.db` (105 МБ, 10 264

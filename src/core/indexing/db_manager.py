@@ -108,7 +108,10 @@ class LanceDBManager:
         self._startup_issue: Optional[str] = None
         self._pid_lock_acquired = False
         try:
-            self._db_lock.acquire()
+            # wait=False: живой держатель (второе окно) не должен стоить
+            # 8 секунд холодного старта — сразу переходим в read-only.
+            # Запись по-прежнему берёт лок с ожиданием (см. begin_write).
+            self._db_lock.acquire(wait=False)
             self._pid_lock_acquired = True
         except RuntimeError as _lock_err:
             self._startup_issue = (

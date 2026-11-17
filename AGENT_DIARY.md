@@ -2122,3 +2122,33 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Addendum после двух раундов независимого ревью.** Первый раунд нашёл blocker: переписывание сломало действующий `check_tool_names.py` (13 ошибок — пропали 10 `intel_*` и маркер `deprecated`); гейт не был подключён; R2 не видел `src\core\config.py`, root-файлы и регистр; бюджет 150 не был закреплён тестом; в файле остались три ложных утверждения. Второй раунд нашёл ещё: `codebase(action="move")` перекладывает **символ**, а не файл; `scripts/ruff_gate.py` не линтует `scripts/` (там 262 нарушения, включая `invalid-syntax`); R2 пропускал любой путь с `/` на конце и каталоги вне `src|docs|…`; мутация нормализации `\` выживала (тест ловил огрызок `config.py`).
 
 **Что сделано по итогам:** гейт подключён в `.githooks/pre-commit` (15-й) и в CI-шаг `AGENTS.md facts`; R2 переписан на индекс git (точный + casefold, `./`, каталоги по префиксу, glob-пути исключены, расширения `csv|log|png|svg`); бюджет 160 закреплён литералом; добавлены тесты на все обходы (31); в файле исправлены оба ложных утверждения и возвращены project-specific правила (text-first `DENSE_OFF`, пины `==` + `check_lock_drift.sh`, `MSCODEBASE_MCP_TOOLS`, Docker/WSL, `audit-cache`, параллельные сессии, inline-intel, полный список корневых файлов).
+
+## [2026-11-16] E2E-замер MCP по 7 реальным проектам: 6 фиксов в ветке `fix/symbol-graph`
+
+**Симптомы (живой прогон, 56 вызовов + 7 handshake):** `impact_analysis` → «Symbol not found
+in index» при непустом chunks.db; `graph_query feature` → `files: []`; пустой проект при
+`cwd ≠ проект` (`[text-index] done: 0 files`); первый запрос на свежем проекте → `INDEX_NOT_READY`;
+`initialize` 14.6 с; `get_health_report` первый вызов 9.0 с и `critical` из-за 40 чужих `[ERROR]`
+в общем логе.
+
+**Root cause:** `graph_rag` делал `set(symbols)` по списку dict-ов из `get_repo_map`
+(`unhashable`) и `.get()` по `SymbolRef`; резолвер был CWD-first без проверки «похож ли cwd на
+проект»; `require_ready_project` падал до первых чанков; на `dense_off` всё равно опрашивались
+llama :8080, ONNX :9876 и LM Studio :8080.
+
+**Fix (6 коммитов):** `b63c76e` graph dict+SymbolRef; `1a54bea` PROJECT_PATH при непроектном cwd;
+`6a020a3` ожидание первых чанков (`MSCODEBASE_INDEX_WAIT_S`); `adc867a` нет probe'ов в текстовом
+режиме; `472ad48` кэш PROJECT_PATH по сырому значению; `5595394` health читает хвост лога и не
+зовёт общий лог critical.
+
+**Guard:** 5+5+5+4+6+3 теста (graph, resolve, index-wait, embedder, health, impact-message);
+каждая правка проверена мутацией — мутант красит свой тест. Полный прогон: 2704 passed, 11 skipped.
+
+**Замеры:** services 5772→1627 мс; `initialize` при живом держателе лока 14.7→10.4 с (остаток —
+PID-lock, KNOWN_ISSUES 2026-11-16); first `get_health_report` 9028→986 мс, вердикт
+`critical`→`degraded`; bench 50/56 → 54/56. У 4 из 7 проектов `graph.db` был пуст — переиндексация
+вернула символьный слой (AgentFactory 668→1134 чанка, impact работает).
+
+**Отозвано:** «tools/list отдаёт 0 инструментов» и «graph_query падает везде» — артефакты harness
+(readline без сверки `id`, неверный `query_type`); «символ мёртв на AgentFactory» — ground truth
+брался из `experiments/**`, который не индексируется.

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary
+from src.core.error_handler import ToolError, error_boundary
 from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
@@ -26,7 +26,21 @@ class CrossRepoSearchTool(MCPTool):
 
     @error_boundary("cross_repo_search", timeout_ms=15000)
     async def execute(self, query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        return self.multi_searcher.search(query, limit=8)
+        result = self.multi_searcher.search(query, limit=8)
+        # Векторный кросс-поиск без embedder'а возвращал текст «❌ Ошибка: …»
+        # внутри УСПЕШНОГО ответа (isError=false). Клиент не мог отличить
+        # отказ от пустого результата (аудит 2026-11-17).
+        if isinstance(result, str) and result.startswith("❌ Ошибка:"):
+            raise ToolError(
+                status="warning",
+                message=(
+                    "cross_repo_search недоступен: векторный поиск требует "
+                    "embedder, а сервер работает в текстовом режиме "
+                    "(MSCODEBASE_DENSE_OFF=true)."
+                ),
+                detail=result,
+            )
+        return result
 
 
 class CrossProjectDepsTool(MCPTool):
@@ -119,7 +133,17 @@ class CrossProjectDepsTool(MCPTool):
                 "path": path if path else None,
             }
 
-        return {"status": "error", "message": f"Unknown action: {action}"}
+        return {
+            "status": "error",
+            # Перечень — в тексте: конверт ошибки сохраняет только
+            # message/next_action, произвольные поля теряются.
+            "message": (
+                f"Unknown action: {action}. "
+                f"Допустимые: graph, deps, cycles, shared, impact, path"
+            ),
+            "valid_actions": ["graph", "deps", "cycles", "shared", "impact", "path"],
+            "next_step": "Передайте action одним из valid_actions.",
+        }
 
 
 class GraphQueryTool(MCPTool):
@@ -272,8 +296,49 @@ class GraphQueryTool(MCPTool):
             }
 
         known_types = "impact|feature|deps|tests"
+
+        # `find_definition` — прямое «где определён символ». Символьный индекс
+        # умеет это нативно; раньше запрос отвергался как неизвестный, и агент
+        # уходил в `search_code`/`codebase`, хотя ответ был рядом.
+        if query_type.lower() in (
+            "find_definition",
+            "find_definitions",
+            "definition",
+            "find_symbol",
+        ):
+            definitions = []
+            try:
+                raw = engine.symbol_index.find_definitions(target) if engine.symbol_index else []
+            except Exception as exc:  # noqa: BLE001 — ответ важнее диагностики
+                return {
+                    "status": "error",
+                    "action": "query",
+                    "query_type": "find_definition",
+                    "target": target,
+                    "message": f"Symbol lookup failed: {exc}",
+                }
+            for item in raw or []:
+                if hasattr(item, "to_dict"):
+                    definitions.append(item.to_dict())
+                elif isinstance(item, dict):
+                    definitions.append(item)
+                else:
+                    definitions.append({"symbol": str(item)})
+            return {
+                "status": "ok",
+                "action": "query",
+                "query_type": "find_definition",
+                "target": target,
+                "count": len(definitions),
+                "definitions": definitions,
+                "next_step": (
+                    "Откройте `file` на строке `line` через `read_live_file`; "
+                    "для оценки влияния — `impact_analysis`"
+                ),
+            }
+
         hint = f"""
-Available query_type: {known_types}
+Available query_type: {known_types}|find_definition
 Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}. {hint}"}
 

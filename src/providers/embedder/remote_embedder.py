@@ -135,6 +135,11 @@ class RemoteEmbedder(IEmbedder):
         # anything else pins the provider so a dense build cannot silently end
         # up on an external endpoint with a different width.
         self.provider_preference = getattr(config.embedding, "provider", "auto") or "auto"
+        # Dense-off (текстовая индексация/поиск): эмбеддинги не нужны вовсе.
+        # Флаг храним на инстансе: и стартовые пробы, и фоновый сканер, и
+        # предзагрузка ONNX обязаны его уважать (ревью 2026-11-16: сканер
+        # стартовал безусловно и через 30 с возвращал mode=lm_studio).
+        self._text_only = bool(getattr(config.search, "dense_off", False))
         # The schema and the query vector must agree; the config default is not
         # the model's dimension (measured 2026-11-08: 384 vs 768).
         self.embedding_dim = model_dimension(
@@ -169,7 +174,18 @@ class RemoteEmbedder(IEmbedder):
         # search raised "query dim(768) doesn't match the column vector dim(384)".
         # Only probe an external llama endpoint when it is allowed to answer:
         # with a pinned provider, a stray :8080 must not rewrite the width.
-        if self.provider_preference in ("auto", "llama_cpp"):
+        # И не пробуем вовсе, если llama.cpp явно выключен: замер 2026-11-16 —
+        # этот probe давал 3.5 с из ~6 с создания сервисов на каждом старте.
+        _llama_disabled = os.getenv("LLAMA_CPP_ENABLED", "").strip().lower() in (
+            "false",
+            "0",
+            "no",
+        )
+        if (
+            not _llama_disabled
+            and not self._text_only
+            and self.provider_preference in ("auto", "llama_cpp")
+        ):
             probed = self._probe_server_dimension()
             if probed and not os.getenv("EMBEDDING_DIMENSION", "").strip():
                 self.embedding_dim = probed
@@ -202,7 +218,11 @@ class RemoteEmbedder(IEmbedder):
         # with a different width (measured 2026-11-08: file 384, server 768).
         # Env still wins, and a probe that needs a moment does not block startup.
         if not os.getenv("EMBEDDING_DIMENSION", "").strip():
-            if self.provider_preference in ("auto", "llama_cpp"):
+            if (
+                not _llama_disabled
+                and not self._text_only
+                and self.provider_preference in ("auto", "llama_cpp")
+            ):
                 live_dim = self._probe_server_dimension()
                 if live_dim and live_dim != self.embedding_dim:
                     logger.info(
@@ -549,7 +569,7 @@ class RemoteEmbedder(IEmbedder):
         # Только в auto: явно выбранный провайдер не должен подменяться
         # ответившим внешним эндпоинтом (у него может быть другая ширина).
         self._scanner_stop = threading.Event()
-        if self.provider_preference == "auto":
+        if self.provider_preference == "auto" and not self._text_only:
             self._scanner_thread = threading.Thread(
                 target=self._provider_scanner_loop,
                 name="mscodebase-provider-scanner",
@@ -558,20 +578,27 @@ class RemoteEmbedder(IEmbedder):
             self._scanner_thread.start()
         else:
             self._scanner_thread = None
-            logger.info(
-                "Embedding provider pinned to '%s' — background scanner disabled",
-                self.provider_preference,
-            )
+            if self._text_only:
+                logger.info("Текстовый режим (dense_off) — фоновый сканер провайдеров выключен")
+            else:
+                logger.info(
+                    "Embedding provider pinned to '%s' — background scanner disabled",
+                    self.provider_preference,
+                )
 
         # Фоновая предзагрузка ONNX через 15 сек после старта.
         # К этому моменту MCP сервер уже инициализирован, а модель
         # будет готова к первому запросу пользователя (без 11 сек задержки).
-        self._preload_thread = threading.Thread(
-            target=self._preload_onnx_delayed,
-            name="mscodebase-onnx-preload",
-            daemon=True,
-        )
-        self._preload_thread.start()
+        # В текстовом режиме ONNX не нужен — поток не поднимаем.
+        if self._text_only:
+            self._preload_thread = None
+        else:
+            self._preload_thread = threading.Thread(
+                target=self._preload_onnx_delayed,
+                name="mscodebase-onnx-preload",
+                daemon=True,
+            )
+            self._preload_thread.start()
 
     @staticmethod
     def _lightweight_onnx_dim(model_file: Path) -> Optional[int]:
@@ -622,6 +649,12 @@ class RemoteEmbedder(IEmbedder):
         pinned external → предзагрузка не нужна вовсе.
         """
         import time as _time
+
+        if getattr(self, "_text_only", False) or getattr(
+            get_config().search, "dense_off", False
+        ):
+            logger.debug("Предзагрузка ONNX пропущена: dense_off=true")
+            return
 
         _pref = getattr(self, "provider_preference", "auto")
         if _pref not in ("auto", "onnx"):
@@ -769,6 +802,15 @@ class RemoteEmbedder(IEmbedder):
     def _init_provider_async(self):
         """Фоновая инициализация режима провайдера."""
         try:
+            # Dense-off (текстовый режим): ни ONNX, ни LM Studio, ни ollama не
+            # нужны. Замер 2026-11-16: без этой ветки auto-режим всё равно щупал
+            # внешние эндпоинты (2 с на /v1/models) при каждом старте.
+            if getattr(get_config().search, "dense_off", False):
+                with self._mode_lock:
+                    self.mode = "text_only"
+                logger.debug("Провайдер не инициализируется: dense_off=true")
+                return
+
             pref = getattr(self, "provider_preference", "auto")
 
             # ═══ Explicit provider: no probing of anything else ═══
@@ -982,6 +1024,15 @@ class RemoteEmbedder(IEmbedder):
         _iteration = 0
         _interval = _PROVIDER_SCAN_INTERVAL
         while not self._scanner_stop.wait(_interval):
+            # Текстовый режим: сеть не нужна. Проверяем на каждой итерации,
+            # а не только на старте — конфиг может быть перечитан.
+            if getattr(self, "_text_only", False) or getattr(
+                get_config().search, "dense_off", False
+            ):
+                with self._mode_lock:
+                    self.mode = "text_only"
+                logger.debug("Сканер провайдеров остановлен: dense_off=true")
+                return
             _iteration += 1
             if _iteration > _max_iterations:
                 logger.info(f"Provider scanner reached {_max_iterations} iterations, stopping.")
@@ -1095,6 +1146,18 @@ class RemoteEmbedder(IEmbedder):
         # DISABLE_ONNX_FALLBACK=true — полное отключение ONNX
         if os.getenv("DISABLE_ONNX_FALLBACK", "").lower() in ("true", "1", "yes"):
             logger.debug("ONNX fallback отключён через DISABLE_ONNX_FALLBACK")
+            return
+
+        # Dense-off (текстовая индексация/поиск): эмбеддинги не нужны вовсе.
+        # Замер 2026-11-16: на старте каждый вызов `_is_server_running` к
+        # закрытому loopback-порту ждёт полный таймаут (Windows отдаёт
+        # WSAEWOULDBLOCK, а не отказ), 6 проб = ~3 с холодного старта впустую.
+        if getattr(get_config().search, "dense_off", False):
+            logger.debug("ONNX init пропущен: dense_off=true (текстовый режим)")
+            # Явный режим вместо "unknown": health не должен считать это
+            # деградацией (это выбранная конфигурация, а не отказ embedder).
+            with self._mode_lock:
+                self.mode = "text_only"
             return
 
         # Пытаемся получить клиент ONNX Server

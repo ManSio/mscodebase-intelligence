@@ -76,5 +76,10 @@
   "⏱ Performance": "⏱ Производительность",
   "\n📁 **Other projects:**\n": "\n📁 **Другие проекты:**\n",
   "\n📊 **Tools:**\n": "\n📊 **Инструменты:**\n",
-  "\n📅 **History (snapshots):**\n": "\n📅 **История (снэпшоты):**\n"
+  "\n📅 **History (snapshots):**\n": "\n📅 **История (снэпшоты):**\n",
+  "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "Переиндексируйте проект: codebase(action='index', path='project_dir') — граф символов строится при полной индексации.",
+  "Refine the name via `search_code` or `graph_query`": "Уточните имя символа через `search_code` или `graph_query`",
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "Символьный слой пуст: в графе проекта нет ни одного символа, поэтому '{symbol}' не может быть найден.",
+  "Index is being built for {path}. Retry in a few seconds or check codebase(action='index', path='progress').": "Индекс строится для {path}. Повторите запрос через несколько секунд или проверьте codebase(action='index', path='progress').",
+  "Index is empty for {path} and no indexing was started. Run codebase(action='index', path='project_dir').": "Индекс пуст для {path}, индексация не запускалась. Запустите codebase(action='index', path='project_dir')."
 }

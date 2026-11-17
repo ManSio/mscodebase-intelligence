@@ -53,6 +53,9 @@ else:
 # вызов resolve_project_root() (см. INC-53EC / REFC-02) — иначе при
 # переключении workspace в Zed без рестарта MCP используется stale-путь.
 _env_project_root_cache: Optional[Path] = None
+# Сырое значение PROJECT_PATH, для которого построен кэш: env может измениться
+# между вызовами (тесты, hot-reload) — кэш обязан это заметить.
+_env_cache_raw: Optional[str] = None
 _env_cache_lock = threading.Lock()
 
 # SQLite connection cache + schema guard — открываем соединение раз в 2 секунды.
@@ -300,13 +303,47 @@ _CODE_EXTENSIONS = frozenset(
 )
 
 
+def _index_has_chunks(db_path: Path) -> bool | None:
+    """Есть ли в chunks.db хотя бы один чанк. None — прочитать не удалось.
+
+    Смотреть на размер файла нельзя: SQLite в WAL держит свежие данные в
+    `chunks.db-wal`, а основной файл остаётся 4096 b (замер ревью 2026-11-16:
+    40 чанков, db 4096 b + wal 119 КБ). Обратная ошибка тоже была: пустая
+    закрытая БД занимает 32 КБ и считалась «проиндексированным проектом».
+    """
+    import sqlite3
+
+    try:
+        uri = f"file:{db_path.as_posix()}?mode=ro"
+        con = sqlite3.connect(uri, uri=True, timeout=0.2)
+        try:
+            return con.execute("select count(*) from chunks").fetchone()[0] > 0
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None
+
+
+def _looks_like_sqlite(path: Path) -> bool:
+    """Файл начинается с заголовка SQLite (`SQLite format 3\\0`)?
+
+    Нужно, чтобы мусорный файл подходящего размера не считался индексом.
+    """
+    try:
+        with open(path, "rb") as f:
+            return f.read(16) == b"SQLite format 3\x00"
+    except OSError:
+        return False
+
+
 def is_project_root(p: Path | str) -> bool:
     """Похож ли каталог на проект (а не на случайный cwd).
 
     Признаки, любой из:
     - маркер VCS/сборки (`.git`, `pyproject.toml`, `package.json`, …);
-    - уже существующий индекс `<root>/.mscodebase` (пользователь индексировал
-      этот каталог раньше — его выбор не отменяем);
+    - уже существующий НЕПУСТОЙ индекс (`<root>/.mscodebase/chunks.db` с чанками
+      или `graph.db` с узлами) — пользователь индексировал этот каталог раньше,
+      его выбор не отменяем;
     - файл кода на верхнем уровне (папка со скриптами без VCS — тоже проект).
 
     Нужно для автоиндексации: без этих признаков корень может быть домашним
@@ -323,8 +360,53 @@ def is_project_root(p: Path | str) -> bool:
                     return True
             elif (root / marker).exists():
                 return True
-        if (root / ".mscodebase").is_dir():
-            return True
+        # Уже существующий индекс учитываем только если он НЕПУСТОЙ: `.mscodebase`
+        # с пустой chunks.db — след чужого запуска, а не признак проекта (замер
+        # 2026-11-16: пустой индекс в temp делал «проектом» любой каталог и ронял
+        # индексацию настоящего проекта).
+        state_dir = root / ".mscodebase"
+        db_path = state_dir / "chunks.db"
+        # Стоимость проверки (замер 2026-11-16): 0.6–3.6 мс на индексах
+        # 1–13 тыс. чанков; при наличии маркеров VCS/сборки sqlite вообще
+        # не открывается. Для вызова на каждый инструмент — приемлемо.
+        if db_path.is_file():
+            has_chunks = _index_has_chunks(db_path)
+            if has_chunks is True:
+                return True
+            if has_chunks is None:
+                # Прочитать не смогли (занята/битая) — решаем по размеру вместе
+                # с WAL, но только для настоящего SQLite-файла: мусорный файл на
+                # 32 КБ не должен делать каталог «проектом» (ревью 2026-11-16).
+                try:
+                    if _looks_like_sqlite(db_path):
+                        total = db_path.stat().st_size
+                        wal = state_dir / "chunks.db-wal"
+                        if wal.is_file():
+                            total += wal.stat().st_size
+                        if total > 8192:
+                            return True
+                except OSError:
+                    pass
+        # Граф символов — тоже индекс: проект может иметь только его.
+        # Канонический путь — `<data_root>/projects/<hash>/graph.db`
+        # (`get_graph_db_path`), а не `<root>/.mscodebase/graph.db`.
+        graph_candidates = [state_dir / "graph.db", root / ".codebase" / "graph.db"]
+        try:
+            from src.core.artifact_paths import _compute_project_dir
+
+            graph_candidates.append(_compute_project_dir(root) / "graph.db")
+        except Exception:  # noqa: BLE001 — путь графа не обязателен для решения
+            pass
+        for graph_db in graph_candidates:
+            try:
+                if (
+                    graph_db.is_file()
+                    and graph_db.stat().st_size > 8192
+                    and _looks_like_sqlite(graph_db)
+                ):
+                    return True
+            except OSError:
+                continue
         for entry in root.iterdir():
             if entry.is_file() and entry.suffix.lower() in _CODE_EXTENSIONS:
                 return True
@@ -448,21 +530,23 @@ def _resolve_env_project_root() -> Optional[Path]:
     Возвращает None, если PROJECT_PATH не задан / невалиден / указывает
     на сам ext (тогда bridge/ZED_WORKTREE_ROOT/CWD получают шанс).
     """
-    global _env_project_root_cache
+    global _env_project_root_cache, _env_cache_raw
+    raw = os.environ.get("PROJECT_PATH", "").strip()
     with _env_cache_lock:
-        if _env_project_root_cache is not None:
+        if _env_project_root_cache is not None and _env_cache_raw == raw:
             return _env_project_root_cache
-        raw = os.environ.get("PROJECT_PATH", "").strip()
         env_root = _try_resolve_path_env(raw, "PROJECT_PATH")
         _env_project_root_cache = env_root
+        _env_cache_raw = raw
         return env_root
 
 
 def reset_project_root_cache() -> None:
     """Сбрасывает кэш resolve_project_root (для тестов и hot-reload)."""
-    global _env_project_root_cache
+    global _env_project_root_cache, _env_cache_raw
     with _env_cache_lock:
         _env_project_root_cache = None
+        _env_cache_raw = None
 
 
 def resolve_project_root(provided: str = "") -> Path:
@@ -515,8 +599,30 @@ def resolve_project_root(provided: str = "") -> Path:
     # Раньше CWD был предпоследним в цепочке, а SQLite active_workspace_id
     # (один на весь Zed) — первым: оба окна резолвили один проект →
     # PID-lock конфликт и ProjectState.FAILED во втором окне.
+    #
+    # Оговорка (замер 2026-11-16): хост может запустить сервер с cwd, который
+    # НЕ проект (`%TEMP%`, каталог установки), и при этом передать PROJECT_PATH
+    # на настоящий проект. Тогда CWD-first индексировал пустоту: в логе
+    # `[text-index] done: 0 files`, а все инструменты видели пустой индекс.
+    # Поэтому CWD выигрывает только если он сам похож на проект; иначе честно
+    # уступаем явному PROJECT_PATH (позиция 2), а CWD остаётся как был — для
+    # multi-window, где cwd и есть проект.
     cwd = Path.cwd().resolve()
     if not _reject_self_index_target(cwd, source="CWD"):
+        if is_project_root(cwd):
+            logger.debug(f"resolve_project_root: CWD={cwd}")
+            return cwd
+        env_candidate = _resolve_env_project_root()
+        if env_candidate is not None and is_project_root(env_candidate):
+            if env_candidate == cwd:
+                # Тот же путь: подмены нет, предупреждать не о чем.
+                logger.debug(f"resolve_project_root: CWD={cwd} (PROJECT_PATH совпадает)")
+                return cwd
+            logger.warning(
+                f"resolve_project_root: CWD={cwd} не похож на проект — "
+                f"использую PROJECT_PATH={env_candidate}"
+            )
+            return env_candidate
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd
 

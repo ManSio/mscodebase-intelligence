@@ -56,13 +56,26 @@ class GraphRAGQueryEngine:
                 repo_map = self.symbol_index.get_repo_map(str(self.project_path))
                 if repo_map:
                     for file_path, symbols in repo_map.get("symbols_by_file", {}).items():
+                        # SymbolIndex отдаёт список СЛОВАРЕЙ ({name, kind, ...}); старый код
+                        # делал set(symbols) и падал на unhashable dict, из-за чего граф
+                        # оставался пустым (impact/deps → «symbol not found»). Терпим обе
+                        # формы; битый файл не обнуляет граф целиком.
+                        try:
+                            names = {
+                                name
+                                for name in (self._symbol_name(sym) for sym in symbols)
+                                if name
+                            }
+                        except (TypeError, AttributeError) as exc:
+                            logger.warning(f"graph: пропускаю файл {file_path}: {exc}")
+                            continue
                         graph["nodes"].append({
                             "type": "file",
                             "id": file_path,
-                            "symbols": len(symbols),
+                            "symbols": len(names),
                         })
-                        self._file_symbols[file_path] = set(symbols)
-                        for sym in symbols:
+                        self._file_symbols[file_path] = names
+                        for sym in names:
                             self._symbol_files[sym] = file_path
             except Exception as e:
                 logger.warning(f"Failed to build graph from symbol_index: {e}")
@@ -74,6 +87,32 @@ class GraphRAGQueryEngine:
         }
 
         return graph
+
+    @staticmethod
+    def _obj_field(obj, name: str):
+        """Поле из dict ИЛИ объекта (SymbolRef/датакласс): обе формы в кодовой базе."""
+        if isinstance(obj, dict):
+            return obj.get(name)
+        return getattr(obj, name, None)
+
+    @staticmethod
+    def _symbol_name(symbol) -> str | None:
+        """Имя символа из записи repo_map: строка, dict или SymbolRef.
+
+        Формы в кодовой базе разные: `get_repo_map` отдаёт dict-и (`{name, kind}`),
+        `search_symbols`/`find_definitions` — объекты `SymbolRef` (у него имя в
+        атрибуте `symbol`, а не `name`), старые вызывающие — строки.
+        """
+        if isinstance(symbol, str):
+            return symbol or None
+        if isinstance(symbol, dict):
+            name = symbol.get("name") or symbol.get("symbol")
+            return name if isinstance(name, str) and name else None
+        for attr in ("name", "symbol"):
+            value = getattr(symbol, attr, None)
+            if isinstance(value, str) and value:
+                return value
+        return None
 
     def query_impact(self, symbol_name: str, depth: int = 2) -> Dict:
         """Находит что затронет изменение символа."""
@@ -119,9 +158,14 @@ class GraphRAGQueryEngine:
                 symbols = self.symbol_index.search_symbols(feature_name)
                 result["symbols"] = symbols[:20]
 
-                # Get files for symbols
+                # Get files for symbols. search_symbols отдаёт SymbolRef (объект с
+                # атрибутами, __slots__), а старый код ждал dict и падал с
+                # "'SymbolRef' object has no attribute 'get'", из-за чего
+                # feature-запрос всегда возвращал files: [].
                 for sym_info in symbols[:10]:
-                    file_path = sym_info.get("file")
+                    file_path = self._obj_field(sym_info, "file_path") or self._obj_field(
+                        sym_info, "file"
+                    )
                     if file_path and file_path not in result["files"]:
                         result["files"].append(file_path)
             except Exception as e:

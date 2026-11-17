@@ -117,10 +117,120 @@ def test_directory_with_code_files_is_a_project(tmp_path: Path):
     assert is_project_root(tmp_path) is True
 
 
+def _make_chunks_db(path: Path, rows: int, *, keep_open: bool = False):
+    """Настоящая chunks.db с N чанками. keep_open=True оставляет WAL незакрытым."""
+    import sqlite3
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(path)
+    con.execute("pragma journal_mode=wal")
+    con.execute("create table chunks (id integer primary key, file_path text, text text)")
+    con.executemany(
+        "insert into chunks (file_path, text) values (?, ?)",
+        [(f"src/m{i}.py", f"def fn_{i}(): pass") for i in range(rows)],
+    )
+    con.commit()
+    if keep_open:
+        return con
+    con.close()
+    return None
+
+
 def test_previously_indexed_directory_is_a_project(tmp_path: Path):
-    """Если человек уже индексировал каталог, его выбор не отменяем."""
-    (tmp_path / ".mscodebase").mkdir()
+    """Если человек уже индексировал каталог (в chunks.db есть данные), это проект."""
+    _make_chunks_db(tmp_path / ".mscodebase" / "chunks.db", 5)
     assert is_project_root(tmp_path) is True
+
+
+def test_live_index_in_wal_counts_as_a_project(tmp_path: Path):
+    """Живой индекс: данные в `chunks.db-wal`, основной файл — 4096 b.
+
+    Замер ревью 2026-11-16: 40 чанков при открытом соединении давали db 4096 b,
+    и каталог переставал считаться проектом, хотя индекс реально есть.
+    """
+    con = _make_chunks_db(tmp_path / ".mscodebase" / "chunks.db", 40, keep_open=True)
+    try:
+        db = tmp_path / ".mscodebase" / "chunks.db"
+        wal = tmp_path / ".mscodebase" / "chunks.db-wal"
+        assert db.stat().st_size <= 8192, "условия теста: основной файл ещё пустой"
+        assert wal.exists() and wal.stat().st_size > 0, "условия теста: данные в WAL"
+        assert is_project_root(tmp_path) is True
+    finally:
+        con.close()
+
+
+def test_empty_closed_index_does_not_make_a_project(tmp_path: Path):
+    """Пустая (0 чанков) chunks.db — след запуска, а не признак проекта."""
+    _make_chunks_db(tmp_path / ".mscodebase" / "chunks.db", 0)
+    assert is_project_root(tmp_path) is False
+
+
+def test_garbage_chunks_file_is_not_an_index(tmp_path: Path):
+    """Мусорный файл нужного размера — не индекс (ревью 2026-11-16)."""
+    (tmp_path / ".mscodebase").mkdir()
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 32768)
+    assert is_project_root(tmp_path) is False
+
+
+def test_garbage_chunks_file_with_wal_is_not_an_index(tmp_path: Path):
+    (tmp_path / ".mscodebase").mkdir()
+    (tmp_path / ".mscodebase" / "chunks.db").write_bytes(b"\0" * 4096)
+    (tmp_path / ".mscodebase" / "chunks.db-wal").write_bytes(b"\0" * 16384)
+    assert is_project_root(tmp_path) is False
+
+
+def _write_fake_sqlite(path: Path, size: int) -> None:
+    """Файл с настоящим заголовком SQLite и заданным размером."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    header = b"SQLite format 3\x00"
+    path.write_bytes(header + b"\0" * (size - len(header)))
+
+
+def test_garbage_graph_file_is_not_an_index(tmp_path, monkeypatch):
+    """Мусорный graph.db (без заголовка SQLite) проектом не делает."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    (graph_dir / "graph.db").write_bytes(b"\0" * 16384)
+
+    assert is_project_root(project) is False
+
+
+def test_index_with_only_a_symbol_graph_is_a_project(tmp_path, monkeypatch):
+    """Проект может иметь только канонический graph.db (вне каталога проекта)."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    _write_fake_sqlite(graph_dir / "graph.db", 16384)
+
+    assert is_project_root(project) is True
+
+
+def test_tiny_graph_file_does_not_make_a_project(tmp_path, monkeypatch):
+    """Пустая graph.db (4 КБ) — не признак проекта."""
+    from src.core import artifact_paths
+
+    project = tmp_path / "proj"
+    project.mkdir()
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(artifact_paths, "get_data_root", lambda: data_root)
+    graph_dir = artifact_paths._compute_project_dir(project)
+    graph_dir.mkdir(parents=True)
+    _write_fake_sqlite(graph_dir / "graph.db", 4096)
+
+    assert is_project_root(project) is False
+
 
 
 def test_directory_with_only_documents_is_not_a_project(tmp_path: Path):

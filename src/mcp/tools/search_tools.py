@@ -856,6 +856,38 @@ class GetSymbolInfoTool(MCPTool):
         return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
 
+def _impact_not_found_payload(symbol: str, symbol_count: int) -> dict:
+    """Ответ impact_analysis, когда символ не найден.
+
+    Различаем два случая, потому что советы разные:
+    - символьный слой пуст целиком (graph.db без узлов — типично для проекта,
+      проиндексированного без графа): переиндексировать;
+    - символ просто не тот: уточнить имя.
+
+    Замер 2026-11-16: у 4 из 7 реальных проектов graph.db пуст, а инструмент
+    отвечал «Symbol 'X' not found in index» — выглядело как ошибка имени.
+    Тексты — английский источник под `_()` (дефолтная локаль — en).
+    """
+    if symbol_count == 0:
+        return {
+            "status": "warning",
+            "message": _(
+                "Symbol layer is empty: the project graph has no symbols, so "
+                "'{symbol}' cannot be found.",
+                symbol=symbol,
+            ),
+            "next_step": _(
+                "Reindex the project: codebase(action='index', path='project_dir') "
+                "— the symbol graph is built during a full index."
+            ),
+        }
+    return {
+        "status": "warning",
+        "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
+        "next_step": _("Refine the name via `search_code` or `graph_query`"),
+    }
+
+
 class ImpactAnalysisTool(MCPTool):
     """impact_analysis — анализ влияния изменения символа."""
 
@@ -874,11 +906,12 @@ class ImpactAnalysisTool(MCPTool):
 
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
+        symbol_index = self.resolve_symbol_index(explicit_project_root=_pr or None)
         # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            self.resolve_symbol_index(explicit_project_root=_pr or None).get_impact_analysis,
+            symbol_index.get_impact_analysis,
             symbol,
             depth,
         )
@@ -887,11 +920,11 @@ class ImpactAnalysisTool(MCPTool):
             record_tool_result(
                 "impact_analysis", route="graph", confidence=0.0, results_count=0
             )
-            return {
-                "status": "warning",
-                "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
-                "next_step": "Уточните имя символа через `search_code` или `graph_query`",
-            }
+            try:
+                symbol_count = symbol_index.get_symbol_count()
+            except Exception:  # noqa: BLE001 — диагностика не должна ломать ответ
+                symbol_count = -1
+            return _impact_not_found_payload(symbol, symbol_count)
 
         # Guard: защита от не-списковых значений (B2 — TypeError в логах)
         def _safe_count(v):

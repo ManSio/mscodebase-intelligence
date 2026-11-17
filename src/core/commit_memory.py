@@ -52,6 +52,8 @@ class CommitMemory:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._cache_file = self.cache_dir / "commits.json"
         self._commits: List[Dict] = []
+        # hash -> файлы коммита (один batch-вызов git log вместо N diff-tree)
+        self._files_cache: Dict[str, List[str]] = {}
         self._load_cache()
 
     def _load_cache(self):
@@ -72,22 +74,84 @@ class CommitMemory:
         except Exception as e:
             logger.warning(f"Failed to save commit cache: {e}")
 
-    def _get_commit_files(self, commit_hash: str) -> List[str]:
-        """Получает список файлов изменённых в коммите через git diff-tree."""
+    def _load_commit_files_bulk(self, limit: int) -> None:
+        """Один `git log --name-only` вместо `diff-tree` на каждый коммит.
+
+        Windows-правило проекта: Popen + communicate(timeout), без
+        `capture_output=True` (последний вешает пайп в фоновом потоке).
+        Ошибки не критичны — остаётся per-commit fallback.
+        """
         import subprocess
+
+        self._files_cache = {}
         try:
-            result = subprocess.run(
-                ["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r", commit_hash],
+            proc = subprocess.Popen(
+                ["git", "log", f"-n{max(1, limit)}", "--name-only",
+                 "--pretty=format:@@%H"],
                 cwd=str(self.project_path),
-                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_CLEAN_GIT_ENV,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            stdout, _ = proc.communicate(timeout=20)
+        except Exception as exc:  # noqa: BLE001 — fallback ниже
+            logger.debug(f"bulk git log failed: {exc}")
+            return
+
+        current: str | None = None
+        files: List[str] = []
+        for line in (stdout or "").splitlines():
+            if line.startswith("@@"):
+                if current:
+                    self._files_cache[current] = files
+                current = line[2:].strip()
+                files = []
+            elif line.strip() and current:
+                files.append(line.strip())
+        if current:
+            # Пустой список тоже важен: merge/без-файловые коммиты иначе уходят
+            # в per-commit fallback, который в сервере висит (замер 2026-11-17).
+            self._files_cache[current] = files
+
+    def _get_commit_files(self, commit_hash: str) -> List[str]:
+        """Файлы коммита через `git diff-tree` (Popen + communicate).
+
+        `capture_output=True` здесь вешает пайп, когда сервер работает поверх
+        stdio-транспорта (AGENTS.md §6): именно этот fallback подвешивал
+        `get_bug_correlation` на холодном кэше (замер 2026-11-17).
+        """
+        import subprocess
+
+        proc = None
+        try:
+            proc = subprocess.Popen(
+                ["git", "diff-tree", "--no-commit-id", "--name-only", "--root", "-r",
+                 commit_hash],
+                cwd=str(self.project_path),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
                 env=_CLEAN_GIT_ENV,  # не наследуем GIT_* от hook-окружения
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            if result.returncode == 0 and result.stdout.strip():
-                return result.stdout.strip().split("\n")
+            stdout, _ = proc.communicate(timeout=5)
+            return (stdout or "").strip().split("\n") if (stdout or "").strip() else []
         except Exception:
-            pass
-        return []
+            if proc is not None:
+                try:
+                    proc.kill()
+                    proc.communicate()
+                except Exception:  # noqa: BLE001
+                    pass
+            return []
 
     def fetch_commits(self, limit: int = 100) -> List[Dict]:
         """Получает историю коммитов из .git/logs/HEAD (без subprocess).
@@ -115,6 +179,8 @@ class CommitMemory:
         lines = reflog_raw.strip().split('\n')
         # Последние limit строк (новые коммиты в конце)
         recent = lines[-limit:] if len(lines) > limit else lines
+
+        self._load_commit_files_bulk(limit)
 
         commits = []
         seen_hashes: set = set()
@@ -176,8 +242,10 @@ class CommitMemory:
                             if ts_part:
                                 date_str = ts_part[0]
 
-                # Получаем список файлов через git diff-tree
-                files = self._get_commit_files(new_hash)
+                # Файлы коммита: из batch-кэша, иначе точечный diff-tree.
+                files = self._files_cache.get(new_hash)
+                if files is None:
+                    files = self._get_commit_files(new_hash)
 
                 commit = {
                     "hash": new_hash,
