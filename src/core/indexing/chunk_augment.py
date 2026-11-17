@@ -48,3 +48,20 @@ def build_file_prefix(rel_path: str, body: str) -> str:
     """Frozen E26 AUG_TEMPLATE header for one file (no trailing chunk text)."""
     rel = rel_path.replace("\\", "/")
     return f"FILE: {rel}\nSYMBOLS: {' '.join(top_level_defs(body))}\nDOC: {module_doc(body)}\n"
+
+
+_PREFIX_RE = re.compile(
+    r"\AFILE: [^\n]*\nSYMBOLS: [^\n]*\nDOC: [^\n]*\n"
+)
+
+
+def strip_file_prefix(text: str) -> str:
+    """Убрать E26-префикс FILE/SYMBOLS/DOC, если он есть.
+
+    Нужен там, где совпадение имени считается доказательством: имя, которое
+    присутствует только в `SYMBOLS:`-шапке, есть в каждом чанке файла. Аудит
+    engraphis 2026-11-18: у `core/recall.py` 98 из 98 чанков содержали
+    `RecallEngine`, но в 36 (37%) — только в шапке; на выборке 2 000 чанков
+    такое «совпадение по префиксу» дало 54%.
+    """
+    return _PREFIX_RE.sub("", text, count=1)

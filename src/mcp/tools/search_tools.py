@@ -27,6 +27,16 @@ from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
 
+# Виды узлов, у которых граф вызовов осмыслен. У переменной/константы
+# «0 callers» читается как «не используется» — это ложное утверждение
+# (аудит engraphis 2026-11-18).
+_CALLABLE_KINDS = frozenset({
+    "function", "method", "function_definition", "method_definition",
+    "function_declaration", "method_declaration", "function_part",
+    "giant_function_part", "constructor", "arrow_function",
+    "class", "class_definition", "class_declaration", "object",
+})
+
 
 def _render_explain(trace_data: dict, limit: int) -> str:
     """Render a SearchTracer dict as the markdown Explain block.
@@ -833,15 +843,45 @@ class GetSymbolInfoTool(MCPTool):
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             defs = call_graph["definition"]
-            callers = call_graph["callers"][:15]
-            callees = call_graph["callees"][:10]
-            result = _(
-                "🔍 **{query}** — {defs} defs, {callers} callers, {callees} callees\n\n",
-                query=query,
-                defs=len(defs),
-                callers=len(callers),
-                callees=len(callees),
-            )
+            all_callers = call_graph["callers"]
+            all_callees = call_graph["callees"]
+            direct = int(call_graph.get("callers_direct", 0) or 0)
+            total_callers = len(all_callers)
+            hidden_scripts = int(call_graph.get("callers_hidden_scripts", 0) or 0)
+            callees_direct = int(call_graph.get("callees_direct", 0) or 0)
+            kinds = {str(d.get("kind", "")).lower() for d in defs if d.get("kind")}
+            is_callable = bool(kinds & _CALLABLE_KINDS) or not kinds
+            if is_callable:
+                result = _(
+                    "🔍 **{query}** — {defs} defs, {callers} callers, "
+                    "{callees} callees\n",
+                    query=query,
+                    defs=len(defs),
+                    callers=direct,
+                    callees=callees_direct,
+                )
+                if total_callers > direct:
+                    result += _(
+                        "   ↳ всего с транзитивными: {total} (глубина 2)\n",
+                        total=total_callers,
+                    )
+            else:
+                # `_DESTRUCTIVE_PATTERNS — 0 callers` читалось как «не используется»
+                # у переменной, у которой вызовов и не бывает (аудит 2026-11-18).
+                result = _(
+                    "🔍 **{query}** — {defs} defs; это {kinds}: граф вызовов "
+                    "не применим, использования ищите через `grep_code`\n",
+                    query=query,
+                    defs=len(defs),
+                    kinds=", ".join(sorted(kinds)) or "unknown",
+                )
+            if hidden_scripts:
+                result += _(
+                    "   ↳ ещё {n} вызов(ов) из scripts/ или experiments/ скрыто "
+                    "политикой одноразовых скриптов\n",
+                    n=hidden_scripts,
+                )
+            result += "\n"
             if defs:
                 if len(defs) == 1:
                     d = defs[0]
@@ -863,14 +903,18 @@ class GetSymbolInfoTool(MCPTool):
                     result += (
                         "\n💡 Specify an explicit `file_path` to disambiguate.\n"
                     )
-            if callers:
+            if all_callers:
                 result += _("\n⬆️ **Called from:**\n")
-                for c in callers[:5]:
+                for c in all_callers[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
-            if callees:
+                if len(all_callers) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callers))
+            if all_callees:
                 result += _("\n⬇️ **Calls:**\n")
-                for c in callees[:5]:
+                for c in all_callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+                if len(all_callees) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callees))
             # Phase 1 / env-integration: env-accesses для символа (без нового тула).
             if hasattr(si, "get_env_accesses_for_symbol"):
                 env_rows = si.get_env_accesses_for_symbol(query)
@@ -892,8 +936,35 @@ class GetSymbolInfoTool(MCPTool):
         if not results:
             return None
 
-        defs = [r for r in results if getattr(r, "is_definition", False)]
-        usages = [r for r in results if not getattr(r, "is_definition", False)]
+        # search_symbols ищет подстрокой (`%reweight%` → reweight_memory, ...):
+        # `get_symbol_info("reweight")` отвечал «10 definitions» при нуле
+        # определений с таким именем (аудит engraphis 2026-11-18). Точные и
+        # qualified-совпадения отделены от «похожих имён».
+        exact = [
+            r for r in results
+            if getattr(r, "symbol", "") == query
+            or str(getattr(r, "symbol", "")).endswith("." + query)
+        ]
+        if not exact:
+            result = _(
+                "🔍 **{query}** — точного символа нет; похожие имена "
+                "(подстрочное совпадение, это НЕ определения):\n\n",
+                query=query,
+            )
+            for r in results[:8]:
+                result += (
+                    f"   • `{getattr(r, 'symbol', '?')}` — {r.file_path}:{r.line} "
+                    f"({r.kind})\n"
+                )
+            if len(results) > 8:
+                result += _("   … показаны 8 из {n}\n", n=len(results))
+            return result + (
+                "\n\n💡 **next_step:** уточните имя или ищите через `grep_code` "
+                "с `scope=\"all\"`"
+            )
+
+        defs = [r for r in exact if getattr(r, "is_definition", False)]
+        usages = [r for r in exact if not getattr(r, "is_definition", False)]
         result = _(
             "🔍 **{query}** — {defs} definitions, {usages} usages\n\n",
             query=query,

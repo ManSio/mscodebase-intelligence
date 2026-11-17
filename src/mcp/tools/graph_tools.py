@@ -426,6 +426,24 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         project_root = project_root or _kwargs.get("project_root", "")
         max_depth = _kwargs.get("max_depth", 1)
 
+        # `related` отвечает про связи ФАЙЛОВ (CommitMemory). Символ здесь
+        # молча давал `✅ Completed … related_files: []` — ноль выглядел как
+        # факт о коде (аудит engraphis 2026-11-18).
+        if not file_path or not Path(file_path).suffix:
+            return {
+                "status": "error",
+                "code": "VALIDATION_FAILED",
+                "message": (
+                    f"'related' works on files, not symbols: got {file_path!r}. "
+                    "Pass a project-relative file path."
+                ),
+                "allowed_actions": list(_ALLOWED_ACTIONS),
+                "next_step": (
+                    "For a symbol use `get_symbol_info`; for impact use "
+                    "action='query' with query_type='impact'."
+                ),
+            }
+
         if project_root and project_root.strip():
             target_path = Path(project_root).resolve()
         else:
