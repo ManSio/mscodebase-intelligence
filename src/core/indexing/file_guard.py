@@ -22,6 +22,22 @@ __all__ = [
 ]
 logger = logging.getLogger(__name__)
 
+# Данные, а не код: AST их не разбирает, чанки получаются окнами без символов.
+# На корпусе engraphis .json давал 62.3% индекса (31 123 из 49 920 чанков), при
+# этом ни один запрос к коду не выигрывал от этих чанков (кап до 20/файл не
+# изменил ни одной кодовой выдачи — KNOWN_ISSUES 2026-11-17). По умолчанию не
+# индексируем; MSCODEBASE_INDEX_DATA=1 возвращает их (с капом
+# MSCODEBASE_MAX_FALLBACK_CHUNKS). grep_code и read_live_file читают с диска и
+# .json находят в любом случае.
+DATA_EXTENSIONS: frozenset[str] = frozenset({".json"})
+
+
+def data_index_enabled() -> bool:
+    """True, если данные (.json) тоже индексируются (по умолчанию — нет)."""
+    return os.environ.get("MSCODEBASE_INDEX_DATA", "0").strip().lower() in {
+        "1", "true", "yes", "on"
+    }
+
 
 class FileGuard:
     """Многоуровневая фильтрация файлов перед индексацией.
@@ -128,6 +144,11 @@ class FileGuard:
         # Проверка расширения
         if file_path.suffix.lower() not in self.SUPPORTED_EXTENSIONS:
             logger.debug(f"[FILEGUARD SKIP] Unsupported extension: {file_path.suffix}")
+            return False
+
+        # Данные (.json) — не код: без явного MSCODEBASE_INDEX_DATA=1 не берём.
+        if file_path.suffix.lower() in DATA_EXTENSIONS and not data_index_enabled():
+            logger.debug(f"[FILEGUARD SKIP] Data file (MSCODEBASE_INDEX_DATA=0): {file_path}")
             return False
 
         # Простая эвристика минифицированных файлов по имени
