@@ -38,6 +38,12 @@ from src.core.platform_utils import get_zed_db_path
 
 logger = logging.getLogger("mscodebase_server.project_resolution")
 
+# Подмена CWD -> PROJECT_PATH случается на каждом вызове инструмента, когда хост
+# запускает сервер из каталога расширения: 3 203 одинаковых WARNING за неделю.
+# Предупреждаем один раз на пару (cwd, project), дальше — DEBUG: сигнал остаётся
+# в логе, но не топит остальные.
+_CWD_SUBSTITUTIONS_WARNED: set[tuple[str, str]] = set()
+
 # ══════════════════════════════════════════════════════════
 # ext_root: корень установленного расширения.
 # Определяется из PYTHONPATH (надёжнее, чем __file__,
@@ -618,10 +624,17 @@ def resolve_project_root(provided: str = "") -> Path:
                 # Тот же путь: подмены нет, предупреждать не о чем.
                 logger.debug(f"resolve_project_root: CWD={cwd} (PROJECT_PATH совпадает)")
                 return cwd
-            logger.warning(
-                f"resolve_project_root: CWD={cwd} не похож на проект — "
-                f"использую PROJECT_PATH={env_candidate}"
-            )
+            _key = (str(cwd), str(env_candidate))
+            if _key not in _CWD_SUBSTITUTIONS_WARNED:
+                _CWD_SUBSTITUTIONS_WARNED.add(_key)
+                logger.warning(
+                    f"resolve_project_root: CWD={cwd} не похож на проект — "
+                    f"использую PROJECT_PATH={env_candidate}"
+                )
+            else:
+                logger.debug(
+                    f"resolve_project_root: CWD={cwd} -> PROJECT_PATH={env_candidate}"
+                )
             return env_candidate
         logger.debug(f"resolve_project_root: CWD={cwd}")
         return cwd

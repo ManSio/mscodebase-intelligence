@@ -768,7 +768,9 @@ class CodeParser:
 
                 # Защита от гигантских функций (>512 токенов E5-base)
                 if len(text) > self.MAX_CHUNK_CHARS:
-                    logger.warning(
+                    # INFO, не WARNING: это штатное поведение чанкера на больших
+                    # функциях (5 509 строк шума в логах за неделю), а не сбой.
+                    logger.info(
                         "Giant function chunked: %d chars file=%s symbol=%s",
                         len(text), file_path, symbol_name,
                     )
