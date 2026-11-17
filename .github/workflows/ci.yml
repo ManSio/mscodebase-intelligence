@@ -167,6 +167,14 @@ jobs:
         run: python -m pytest tests/ -q --tb=short -m 'not slow and not benchmark' -n auto --cov=src --cov-report=term-missing --cov-fail-under=38
         timeout-minutes: 20
 
+      # Real-corpus smoke (2026-11-17): index → health → search на временном
+      # проекте. Три дефекта того дня (status=0 при записи, symbols=0 при
+      # 49 558 чанках, read-only без issues) всплыли только на чужом корпусе;
+      # дефолтный прогон их не видел. Помечен slow, поэтому запускается здесь.
+      - name: Real-corpus smoke (index, symbols, write_capable)
+        run: python -m pytest tests/test_corpus_smoke.py -q -m slow
+        timeout-minutes: 5
+
       # Grader mutation probe (evalmut-перенос, 2026-08-14): мутационный аудит
       # validate_scores/parse_scores_json — страж контракта градера. Дыра =
       # (вывод доказанно неверен AND градер пропустил); скрипт выходит с
