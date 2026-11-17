@@ -8,6 +8,7 @@ and a raising callback must not abort indexing.
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from src.core.indexing.indexer import Indexer
@@ -44,6 +45,10 @@ class _Self:
     _pipeline = _Pipeline()
     _db_writer = _Writer()
     _chunk_store = _Store()
+    # Метод обновляет кэш статуса под этим локом (как настоящий Indexer).
+    _index_lock = threading.Lock()
+    _cached_total_chunks = 0
+    _cached_unique_files: set = set()
 
     @staticmethod
     def watchdog_heartbeat(label: str = "") -> None:

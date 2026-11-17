@@ -868,19 +868,30 @@ class Indexer(IndexerTableMixin):
         # все инструменты блокируются (инцидент 2026-11-07: 7 314 чанков в
         # chunks.db при total_chunks=0). Текстовая индексация: чанки -> SQLite/
         # FTS5 + AST-граф, без эмбеддингов.
+        #
+        # ВАЖНО: try оборачивает ТОЛЬКО чтение конфига. Раньше он оборачивал и
+        # сам text-only прогон: любая ошибка внутри (например, «unable to open
+        # database file») глушилась, и код молча уходил в dense-конвейер,
+        # которому нужен эмбеддер. С выключенным эмбеддером это давало
+        # «reindexing» и 0 чанков вместо настоящей ошибки (аудит engraphis,
+        # репро 2026-11-17: 5 файлов → RuntimeError: Embedder returned 0
+        # vectors). Ошибка text-only обязана дойти до вызывающего.
         try:
             from src.config.settings import get_config as _get_cfg
 
-            if getattr(_get_cfg().search, "dense_off", False):
-                logger.info(
-                    "Phase 3: dense_off=true → text-only full index "
-                    "(no embeddings; chunks + graph only)."
-                )
-                return self._index_text_only_project(
-                    project_path, progress_callback, phase_callback
-                )
-        except Exception as _cfg_err:
+            _dense_off = bool(getattr(_get_cfg().search, "dense_off", False))
+        except Exception as _cfg_err:  # noqa: BLE001 — без конфига считаем dense
             logger.debug(f"dense_off guard failed: {_cfg_err}")
+            _dense_off = False
+
+        if _dense_off:
+            logger.info(
+                "Phase 3: dense_off=true → text-only full index "
+                "(no embeddings; chunks + graph only)."
+            )
+            return self._index_text_only_project(
+                project_path, progress_callback, phase_callback
+            )
 
         res = self._project_runner.run(
             project_path=project_path,
@@ -1006,6 +1017,12 @@ class Indexer(IndexerTableMixin):
                 records = self._db_writer.write_text_records(parsed)
                 if records:
                     files_indexed += 1
+                    # Кэш статуса: text-only писал в SQLite в обход
+                    # `_write_text_file_records`, поэтому total_chunks мог
+                    # оставаться нулём, пока чанки уже записаны.
+                    with self._index_lock:
+                        self._cached_total_chunks += len(records)
+                        self._cached_unique_files.add(rel)
             if idx % 10 == 0:
                 self.watchdog_heartbeat(f"text-index:{idx}/{total}")
             _report(rel, idx, "parsing")
