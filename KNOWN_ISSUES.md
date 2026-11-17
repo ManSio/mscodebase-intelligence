@@ -5,6 +5,44 @@
 
 ---
 ---
+## 2026-11-18 — аудит ответов на чужом корпусе: 6 дефектов, 5 закрыто, 1 открыт
+
+- **Как проверяли:** 5 вопросов к `engraphis` через MCP, каждый ответ сверен с
+  исходниками на диске (не через индекс) — отчёт `audit_engraphis_2026_11_18.md`.
+- **Найдено:** `get_symbol_info("intent_recall")` — «1 defs, 3 callers», реально
+  3 определения и 4 вызова (вызов из `scripts/` отбрасывался молча); «15 callers» —
+  это `min(total, 15)` без глубины (у `recall` 233); `_DESTRUCTIVE_PATTERNS`
+  (переменная) — «0 callers», читается как «не используется»; `reweight` —
+  «10 definitions» из подстрочного поиска при нуле точных; `investigate` выдавал
+  4 строки `RecallEngine — name match` по чанкам методов (`// Context:`) и
+   `SYMBOLS:`-шапке (54% чанков выборки совпадают только по шапке);
+  `graph_query(action="related", target="intent_recall")` — `✅ Completed … []`.
+- **Fix:** все одноимённые узлы в `definition` (первый — выбор ранжирования,
+  остальные перечисляются как AMBIGUOUS); прямые/транзитивные счётчики раздельно
+  и «скрыто N из scripts/»; для не-вызываемых видов — «граф вызовов не применим»;
+  подстрочные совпадения — «похожие имена», не определения; канал `name` строит
+  строку по определению (`symbol_name == variant`), контекст — ≤2 и только если
+  определения нет; `related` валидирует файл и называет ожидаемый вид.
+- **Замер после:** `intent_recall` → 3 defs + AMBIGUOUS + «скрыто 1»;
+  `_DESTRUCTIVE_PATTERNS` → «не применимо»; `reweight` → «точного нет, похожие»;
+  `investigate` → `verdict: answer`, `engraphis/engines/recall.py:77`;
+  `related` → `VALIDATION_FAILED`. Символьные вызовы — 50 мс.
+- **Guard:** `tests/test_symbol_info_honesty.py` (10), `tests/test_evidence_body_match.py`
+  (9), мутации M67–M74 (M69 — контроль, зелёный намеренно).
+- **Открыто 🟡:** один `impact:IndexError` (`graph.py:1080`, `row[neighbor_col]`,
+  «tuple index out of range») после фиксов не воспроизводится; канал теперь
+  изолирует имена, логирует трейсбек и имя символа, а не только класс ошибки.
+- **Атака на фикс (закрыто в этом же PR):** `no.such.symbol` отвечал пятью
+  определениями — `_find_nodes_flexible` для dotted-запроса добавляет узлы по
+  голому хвосту («symbol»), и они попадали в `definition`. Теперь определения —
+  только точное имя или суффикс «`.query`»; хвост остаётся для поиска вызовов.
+  Guard: `test_dotted_unknown_name_is_not_resolved_by_its_tail`, мутация M74.
+- **Открыто 🟡 (производительность):** первый `get_symbol_info` после старта
+  сервера на engraphis занял 22.6 с и упёрся в таймаут 5 с, повторные — 50 мс.
+  Адаптер напрямую — 17–43 мс на тех же именах, включая 231 caller. Похоже на
+  холодную загрузку символьного слоя, но не доказано: нужен профиль первого
+  вызова после рестарта.
+
 ## 2026-11-17 — `.json` в индексе: 62.5% объёма и ноль пользы для кода — 🟢 закрыто
 
 - **Вопрос:** нужны ли `.json` в индексе вообще. Замер: `.json` — 31 123 чанка из
@@ -256,28 +294,5 @@ P0-5 (`pyproject.toml`) проверен командой — уже испра�
 - **E1 вердикт отрицательный:** plain grep 0.667 vs investigate 0.500 на 24 frozen
   задачах (N=1, in-process, valid-rate указан в `baseline.json`). Фальсификатор из
   `PLAN.md` сработал: заявлять «investigate лучше» нельзя. 🟡
-
----
-## 2026-11-08 — Аудит планов: что реализовано, что осталось — 🟡
-Проверены все планы (`ISSUE.md`, `docs/research/*PLAN|patterns|chain*`, `docs/ISSUES/*`).
-Реализовано и подтверждено кодом: Universal Engine Ф1–Ф4 (sources, plugins, transport-e2e,
-manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind_partial`),
-`run_bounded`/IVF-guard, `blocked`-пути индексатора.
-
-Открыто (каждое — отдельная задача, не «шум»):
-- docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
-  открытый пользовательский дефект поиска.
-- Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.
-- `scripts/audit_protocol_guards.py` не в CI; `--cov-fail-under=38`; mypy/bandit нет.
-- ADR-0006: `call_hierarchy`/`semantic_tokens` без потребителей (0 вызовов в `src/`).
-- `tools/factory/` — прототип «фабрики задач» (2026-10-25): 18 тестов зелёные,
-  `tests/test_factory.py`; в продукт **не** встроен (не MCP-тул, не импортируется из
-  `src/`). Судьба — за владельцем: встроить как отдельный инструмент или перенести в
-  `experiments/`.
-
-Архивировано 2026-11-08 (не удалено): `docs/ISSUES/*`, `docs/research/2026-07-*`,
-`docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
-`docs/archive/README.md`. `pyproject.toml` метаданные (57 tools, classifiers 3.10–3.12)
-исправлены там же.
 
 ---

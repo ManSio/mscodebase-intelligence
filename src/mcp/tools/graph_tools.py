@@ -437,6 +437,29 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
                 "message": f"Path does not exist: {target_path}",
             }
 
+        # `related` отвечает про связи ФАЙЛОВ (CommitMemory). Символ здесь молча
+        # давал `✅ Completed … related_files: []` — ноль выглядел как факт о
+        # коде (аудит engraphis 2026-11-18). Проверяем существование, а не точку
+        # в имени: `Makefile`, `Dockerfile`, `.env` — валидные файлы без
+        # расширения (ревью #157, major 4).
+        candidate = Path(file_path) if file_path else None
+        if candidate is not None and not candidate.is_absolute():
+            candidate = target_path / candidate
+        if candidate is None or not candidate.exists():
+            return {
+                "status": "error",
+                "code": "VALIDATION_FAILED",
+                "message": (
+                    f"'related' works on files, not symbols: {file_path!r} is not "
+                    "a file in this project. Pass a project-relative file path."
+                ),
+                "allowed_actions": list(_ALLOWED_ACTIONS),
+                "next_step": (
+                    "For a symbol use `get_symbol_info`; for impact use "
+                    "action='query' with query_type='impact'."
+                ),
+            }
+
         memory = CommitMemory(target_path)
         extractor = RelationExtractor(memory)
         extractor.extract_all_relations()

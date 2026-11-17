@@ -27,6 +27,15 @@ from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
 
+# Виды узлов, у которых граф вызовов не имеет смысла. Deny-list, а не
+# whitelist: индексатор эмитит function_item/impl_item/interface_declaration и
+# другие виды, которых в списке разрешённых не было бы, и ответ утверждал
+# «граф вызовов не применим», печатая список callers (ревью #157, major 1).
+_NON_CALLABLE_KINDS = frozenset({
+    "variable", "constant", "property", "field", "enum_member", "enum_variant",
+    "key", "module_docstring",
+})
+
 
 def _render_explain(trace_data: dict, limit: int) -> str:
     """Render a SearchTracer dict as the markdown Explain block.
@@ -833,15 +842,51 @@ class GetSymbolInfoTool(MCPTool):
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             defs = call_graph["definition"]
-            callers = call_graph["callers"][:15]
-            callees = call_graph["callees"][:10]
-            result = _(
-                "🔍 **{query}** — {defs} defs, {callers} callers, {callees} callees\n\n",
-                query=query,
-                defs=len(defs),
-                callers=len(callers),
-                callees=len(callees),
-            )
+            all_callers = call_graph["callers"]
+            all_callees = call_graph["callees"]
+            # Прямые считаем по depth, который есть в каждой реализации
+            # (легаси SymbolIndex и _hybrid_build_call_graph новых полей не
+            # ставят) — иначе «0 callers» печаталось рядом со списком callers.
+            direct = sum(1 for c in all_callers if c.get("depth") == 1)
+            total_callers = len(all_callers)
+            hidden_scripts = int(call_graph.get("callers_hidden_scripts", 0) or 0)
+            callees_direct = sum(1 for c in all_callees if c.get("depth") == 1)
+            kinds = {str(d.get("kind", "")).lower() for d in defs if d.get("kind")}
+            # Deny-list, а не whitelist: индексатор эмитит function_item,
+            # impl_item, interface_declaration и др. — с whitelist ответ
+            # говорил «граф не применим» и тут же печатал «Called from».
+            is_callable = not kinds or bool(kinds - _NON_CALLABLE_KINDS)
+            if is_callable:
+                result = _(
+                    "🔍 **{query}** — {defs} defs, {callers} callers, "
+                    "{callees} callees\n",
+                    query=query,
+                    defs=len(defs),
+                    callers=direct,
+                    callees=callees_direct,
+                )
+                if total_callers > direct:
+                    result += _(
+                        "   ↳ всего с транзитивными: {total} (глубина 2)\n",
+                        total=total_callers,
+                    )
+            else:
+                # `_DESTRUCTIVE_PATTERNS — 0 callers` читалось как «не используется»
+                # у переменной, у которой вызовов и не бывает (аудит 2026-11-18).
+                result = _(
+                    "🔍 **{query}** — {defs} defs; это {kinds}: граф вызовов "
+                    "не применим, использования ищите через `grep_code`\n",
+                    query=query,
+                    defs=len(defs),
+                    kinds=", ".join(sorted(kinds)) or "unknown",
+                )
+            if hidden_scripts:
+                result += _(
+                    "   ↳ ещё {n} вызов(ов) из scripts/ или experiments/ скрыто "
+                    "политикой одноразовых скриптов\n",
+                    n=hidden_scripts,
+                )
+            result += "\n"
             if defs:
                 if len(defs) == 1:
                     d = defs[0]
@@ -860,17 +905,23 @@ class GetSymbolInfoTool(MCPTool):
                             f"   {i+1}. `{d.get('file', '?')}` "
                             f"line {d.get('line', '?')} ({d.get('kind', '?')})\n"
                         )
+                    if len(defs) > 10:
+                        result += _("   … показаны 10 из {n}\n", n=len(defs))
                     result += (
                         "\n💡 Specify an explicit `file_path` to disambiguate.\n"
                     )
-            if callers:
+            if all_callers:
                 result += _("\n⬆️ **Called from:**\n")
-                for c in callers[:5]:
+                for c in all_callers[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
-            if callees:
+                if len(all_callers) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callers))
+            if all_callees:
                 result += _("\n⬇️ **Calls:**\n")
-                for c in callees[:5]:
+                for c in all_callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+                if len(all_callees) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callees))
             # Phase 1 / env-integration: env-accesses для символа (без нового тула).
             if hasattr(si, "get_env_accesses_for_symbol"):
                 env_rows = si.get_env_accesses_for_symbol(query)
@@ -892,8 +943,39 @@ class GetSymbolInfoTool(MCPTool):
         if not results:
             return None
 
-        defs = [r for r in results if getattr(r, "is_definition", False)]
-        usages = [r for r in results if not getattr(r, "is_definition", False)]
+        # search_symbols ищет подстрокой (`%reweight%` → reweight_memory, ...):
+        # `get_symbol_info("reweight")` отвечал «10 definitions» при нуле
+        # определений с таким именем (аудит engraphis 2026-11-18). Точные и
+        # qualified-совпадения отделены от «похожих имён».
+        # Сравнение без регистра: find_nodes в графе использует LIKE (ci),
+        # и запрос в нижнем регистре находил символ до правки, а после неё
+        # объявлялся «точного символа нет» (ревью #157, major 2).
+        q_cf = query.casefold()
+        exact = [
+            r for r in results
+            if str(getattr(r, "symbol", "")).casefold() == q_cf
+            or str(getattr(r, "symbol", "")).casefold().endswith("." + q_cf)
+        ]
+        if not exact:
+            result = _(
+                "🔍 **{query}** — точного символа нет; похожие имена "
+                "(подстрочное совпадение, это НЕ определения):\n\n",
+                query=query,
+            )
+            for r in results[:8]:
+                result += (
+                    f"   • `{getattr(r, 'symbol', '?')}` — {r.file_path}:{r.line} "
+                    f"({r.kind})\n"
+                )
+            if len(results) > 8:
+                result += _("   … первые 8 совпадений выдачи поиска\n")
+            return result + (
+                "\n\n💡 **next_step:** уточните имя или ищите через `grep_code` "
+                "с `scope=\"all\"`"
+            )
+
+        defs = [r for r in exact if getattr(r, "is_definition", False)]
+        usages = [r for r in exact if not getattr(r, "is_definition", False)]
         result = _(
             "🔍 **{query}** — {defs} definitions, {usages} usages\n\n",
             query=query,

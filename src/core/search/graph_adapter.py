@@ -604,23 +604,69 @@ class SymbolIndexAdapter(PureGraphMixin):
         node = self._pick_best_node(nodes, symbol)
         if node is not None:
             starts = self._candidate_starts(nodes, node)
-            return self._graph_build_call_graph(node, depth, starts)
+            # Для qualified-запроса ("no.such.symbol") _find_nodes_flexible
+            # добавляет узлы по ГОЛОМУ хвосту ("symbol") — это нужно для
+            # поиска вызовов, но определением такого символа не является.
+            # Аудит engraphis 2026-11-18: dotted-мусор давал «5 definitions».
+            def_nodes = [
+                n for n in nodes
+                if n.name.casefold() == symbol.casefold()
+                or n.name.casefold().endswith("." + symbol.casefold())
+            ]
+            if not def_nodes:
+                # Узлы нашлись только по голому хвосту: для qualified-запроса
+                # это не определение (аудит engraphis 2026-11-18:
+                # «no.such.symbol» отвечал пятью определениями).
+                with self._lock:
+                    return self._hybrid_build_call_graph(symbol, depth)
+            return self._graph_build_call_graph(
+                node, depth, starts, definition_nodes=def_nodes
+            )
 
         with self._lock:
             return self._hybrid_build_call_graph(symbol, depth)
 
     def _graph_build_call_graph(self, node: Node, depth: int,
-                                extra_starts=None) -> Dict:
+                                extra_starts=None,
+                                definition_nodes=None) -> Dict:
         """Call graph из PropertyGraph.
 
         extra_starts: qname'ы одноимённых узлов (real + extern-placeholder) —
         CALLS-рёбра при индексации распределяются между ними в зависимости от
         порядка файлов; BFS по всем сохраняет callers/callees (D1-D3).
+
+        definition_nodes: ВСЕ найденные одноимённые узлы. Раньше в `definition`
+        попадал только _pick_best_node, и `get_symbol_info("intent_recall")`
+        отвечал «1 defs» при трёх определениях в коде (аудит engraphis
+        2026-11-18). Список нужен целиком: инструмент обязан сказать, что
+        определение не одно.
         """
+        defs: list[dict] = []
+        seen_defs: set[tuple] = set()
+        # Выбранный узел первым: остальной код и тесты полагаются на defs[0]
+        # как на основное определение (D1-D3).
+        ordered = [node] + [n for n in (definition_nodes or []) if n is not node]
+        for n in ordered:
+            props = n.properties or {}
+            if props.get("placeholder") or not n.file_path:
+                continue
+            key = (n.file_path, props.get("line", 0),
+                   props.get("kind", n.label.lower()))
+            if key in seen_defs:
+                continue
+            seen_defs.add(key)
+            defs.append({"file": key[0], "line": key[1], "kind": key[2]})
+        if not defs and node.file_path:
+            defs = [{"file": node.file_path,
+                     "line": node.properties.get("line", 0),
+                     "kind": node.properties.get("kind", node.label.lower())}]
+
         result = {
             "symbol": node.name,
-            "definition": [{"file": node.file_path, "line": node.properties.get("line", 0),
-                            "kind": node.properties.get("kind", node.label.lower())}],
+            "definition": defs,
+            # Скрытые скрипты считаются отдельно: «3 callers» скрывал
+            # четвёртый вызов из scripts/ (аудит 2026-11-18).
+            "callers_hidden_scripts": 0,
             "callers": [],
             "callees": [],
             "call_chain": [],
@@ -634,6 +680,7 @@ class SymbolIndexAdapter(PureGraphMixin):
             starts = list(dict.fromkeys([node.qualified_name] + list(extra_starts)))
 
         visited_callers: Set[str] = set(starts)
+        hidden_scripts: Set[str] = set()
         current_level: Set[str] = set(starts)
         for level in range(depth):
             next_level: Set[str] = set()
@@ -643,8 +690,12 @@ class SymbolIndexAdapter(PureGraphMixin):
                 ):
                     if neighbor.qualified_name in visited_callers:
                         continue
-                    # Одноразовые скрипты (experiments//scripts/) — не прод-callers
+                    # Одноразовые скрипты (experiments//scripts/) — не прод-callers.
+                    # Их больше не выкидываем молча: считаем и сообщаем, иначе
+                    # «3 callers» скрывал четвёртый (аудит engraphis 2026-11-18).
                     if self._is_one_off_script(neighbor.file_path):
+                        if level == 0:
+                            hidden_scripts.add(neighbor.qualified_name)
                         continue
                     visited_callers.add(neighbor.qualified_name)
                     result["callers"].append({
@@ -661,6 +712,7 @@ class SymbolIndexAdapter(PureGraphMixin):
             if not current_level:
                 break
             result["depth_reached"] = level + 1
+        result["callers_hidden_scripts"] = len(hidden_scripts)
 
         # Аналогично для callees
         visited_callees: Set[str] = set(starts)

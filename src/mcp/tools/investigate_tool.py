@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import threading
@@ -26,8 +27,55 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.indexing.chunk_augment import strip_file_prefix
 from src.core.search.evidence import EvidenceReport, assess
 from src.mcp.tools.base import MCPTool
+
+logger = logging.getLogger("mscodebase_server.investigate")
+
+
+def body_contains(text: str, needle: str) -> bool:
+    """Совпадение имени в теле чанка, а не в E26-шапке `FILE/SYMBOLS/DOC`.
+
+    Имя символа файла стоит в `SYMBOLS:`-префиксе каждого чанка, поэтому
+    «name match» срабатывал на чанках, где символа нет вовсе (аудит
+    engraphis 2026-11-18; на выборке 2 000 чанков совпадение только по
+    шапке — 54%).
+    """
+    return bool(needle) and needle in strip_file_prefix(text)
+
+
+def name_rows(rows: list[dict], variant: str) -> list[dict]:
+    """Строки канала `name`: сначала определения, контекст — только если их нет.
+
+    Чанк хранит свой `symbol_name`. Если имя встретилось в чанке другого
+    символа (например, `// Context: RecallEngine` у методов класса), это
+    контекст, а не определение: `investigate("where is the recall engine
+    implemented")` выдавал 4 строки «RecallEngine — name match» с номерами
+    методов (842/1271/1594) вместо единственного объявления на 185.
+
+    Правило: определение вытесняет контекст; если определения нет вовсе,
+    показываем не больше двух контекстных строк с пометкой.
+    """
+    defs: list[dict] = []
+    context: list[dict] = []
+    variant_cf = variant.casefold()
+    for row in rows:
+        text = str(row.get("text_full") or row.get("text") or "")
+        if not body_contains(text, variant):
+            continue
+        meta = row.get("metadata") or {}
+        name_cf = str(meta.get("symbol_name") or "").casefold()
+        is_def = name_cf == variant_cf or name_cf.endswith("." + variant_cf)
+        entry = {
+            "is_definition": is_def,
+            "file": meta.get("file", ""),
+            "line": int(meta.get("start_line") or 0),
+            "kind": meta.get("symbol_kind", ""),
+        }
+        (defs if is_def else context).append(entry)
+    return defs or context[:2]
+
 
 # Channel weights, additive on top of each channel's own (rank-based) score.
 # `def_first` is the shipped default: an exact name lookup is evidence, a
@@ -984,16 +1032,14 @@ class InvestigateTool(MCPTool):
                 return found
 
             for variant, rows in await asyncio.to_thread(_lookup):
-                for row in rows:
-                    text = str(row.get("text_full") or row.get("text") or "")
-                    if variant not in text:
-                        continue
-                    meta = row.get("metadata") or {}
+                for found_row in name_rows(rows, variant):
+                    label = ("definition" if found_row["is_definition"]
+                             else "name in body")
                     items.append(
                         {
-                            "file": meta.get("file", ""),
-                            "line": int(meta.get("start_line") or 0),
-                            "text": f"{variant} — name match",
+                            "file": found_row["file"],
+                            "line": found_row["line"],
+                            "text": f"{variant} — {label}",
                             "score": 0.0,
                             "weight": 3.0,
                             "symbol": variant,
@@ -1020,6 +1066,11 @@ class InvestigateTool(MCPTool):
                     cancel_event.set()
                 degraded.append(f"{name}:timeout")
             except Exception as exc:  # noqa: BLE001 — канал не валит ответ
+                # Без трейсбека `degraded: impact:IndexError` ничего не говорит
+                # о причине (аудит engraphis 2026-11-18).
+                logger.warning(
+                    f"investigate channel '{name}' failed: {exc}", exc_info=True
+                )
                 degraded.append(f"{name}:{type(exc).__name__}")
 
         await asyncio.gather(
@@ -1036,7 +1087,13 @@ class InvestigateTool(MCPTool):
 
         def _impact() -> None:
             for name in top_names:
-                res = symbol_index.get_impact_analysis(name, 2) or {}
+                try:
+                    res = symbol_index.get_impact_analysis(name, 2) or {}
+                except Exception as exc:  # noqa: BLE001 — одно имя не валит канал
+                    logger.warning(
+                        f"impact failed for symbol {name!r}: {exc}", exc_info=True
+                    )
+                    continue
                 cg = res.get("call_graph") or {}
                 defs = cg.get("definition") or []
                 if isinstance(defs, dict):

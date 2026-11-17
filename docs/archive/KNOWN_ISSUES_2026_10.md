@@ -453,3 +453,27 @@
   ~0.9167 hit@5**. 95% требует усиления code-канала или LLM-агента.
 
 ---
+---
+## 2026-11-08 — Аудит планов: что реализовано, что осталось — 🟡
+Проверены все планы (`ISSUE.md`, `docs/research/*PLAN|patterns|chain*`, `docs/ISSUES/*`).
+Реализовано и подтверждено кодом: Universal Engine Ф1–Ф4 (sources, plugins, transport-e2e,
+manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind_partial`),
+`run_bounded`/IVF-guard, `blocked`-пути индексатора.
+
+Открыто (каждое — отдельная задача, не «шум»):
+- docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
+  открытый пользовательский дефект поиска.
+- Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.
+- `scripts/audit_protocol_guards.py` не в CI; `--cov-fail-under=38`; mypy/bandit нет.
+- ADR-0006: `call_hierarchy`/`semantic_tokens` без потребителей (0 вызовов в `src/`).
+- `tools/factory/` — прототип «фабрики задач» (2026-10-25): 18 тестов зелёные,
+  `tests/test_factory.py`; в продукт **не** встроен (не MCP-тул, не импортируется из
+  `src/`). Судьба — за владельцем: встроить как отдельный инструмент или перенести в
+  `experiments/`.
+
+Архивировано 2026-11-08 (не удалено): `docs/ISSUES/*`, `docs/research/2026-07-*`,
+`docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
+`docs/archive/README.md`. `pyproject.toml` метаданные (57 tools, classifiers 3.10–3.12)
+исправлены там же.
+
+---
