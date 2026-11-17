@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary
+from src.core.error_handler import ToolError, error_boundary
 from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
@@ -26,7 +26,21 @@ class CrossRepoSearchTool(MCPTool):
 
     @error_boundary("cross_repo_search", timeout_ms=15000)
     async def execute(self, query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        return self.multi_searcher.search(query, limit=8)
+        result = self.multi_searcher.search(query, limit=8)
+        # Векторный кросс-поиск без embedder'а возвращал текст «❌ Ошибка: …»
+        # внутри УСПЕШНОГО ответа (isError=false). Клиент не мог отличить
+        # отказ от пустого результата (аудит 2026-11-17).
+        if isinstance(result, str) and result.startswith("❌ Ошибка:"):
+            raise ToolError(
+                status="warning",
+                message=(
+                    "cross_repo_search недоступен: векторный поиск требует "
+                    "embedder, а сервер работает в текстовом режиме "
+                    "(MSCODEBASE_DENSE_OFF=true)."
+                ),
+                detail=result,
+            )
+        return result
 
 
 class CrossProjectDepsTool(MCPTool):
@@ -119,7 +133,17 @@ class CrossProjectDepsTool(MCPTool):
                 "path": path if path else None,
             }
 
-        return {"status": "error", "message": f"Unknown action: {action}"}
+        return {
+            "status": "error",
+            # Перечень — в тексте: конверт ошибки сохраняет только
+            # message/next_action, произвольные поля теряются.
+            "message": (
+                f"Unknown action: {action}. "
+                f"Допустимые: graph, deps, cycles, shared, impact, path"
+            ),
+            "valid_actions": ["graph", "deps", "cycles", "shared", "impact", "path"],
+            "next_step": "Передайте action одним из valid_actions.",
+        }
 
 
 class GraphQueryTool(MCPTool):
