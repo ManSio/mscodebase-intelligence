@@ -121,6 +121,13 @@ class SQLiteChunkStore:
             )
             """
         )
+        # Индекс по file_path: upsert_records удаляет старые строки файла перед
+        # вставкой (`DELETE ... WHERE file_path = ?`), а без индекса это SCAN
+        # всей таблицы на каждый файл. На 40 056 чанках план был `SCAN chunks`,
+        # и полный индекс engraphis (2 138 файлов) шёл часами (2026-11-17).
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chunks_file_path ON chunks(file_path)"
+        )
         conn.executescript(
             """
             CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN

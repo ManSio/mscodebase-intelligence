@@ -955,6 +955,7 @@ class Indexer(IndexerTableMixin):
 
         files_indexed = 0
         errors = 0
+        from contextlib import nullcontext as _nullcontext
         seen: set[str] = set()
         t0 = time.perf_counter()
 
@@ -1002,12 +1003,24 @@ class Indexer(IndexerTableMixin):
                     logger.debug(f"[text-index] hash check failed for {rel}: {_hash_err}")
 
             try:
-                parsed = self._pipeline.process_file(
-                    rel_path_str=rel,
-                    full_path=full_path,
-                    content=content,
-                    current_hash=current_hash,
+                # Граф писать пачкой: PropertyGraph.batch() держит одну
+                # транзакцию вместо commit на каждый узел/ребро. Без него
+                # полный индекс engraphis писал 214k записей по 288/с
+                # (12.4 мин только на граф, 2026-11-17).
+                _graph = getattr(self._symbol_index, "graph", None)
+                _batch_ok = (
+                    _graph is not None
+                    and hasattr(_graph, "batch")
+                    and os.environ.get("MSCODEBASE_GRAPH_BATCH", "1") != "0"
                 )
+                _ctx = _graph.batch() if _batch_ok else _nullcontext()
+                with _ctx:
+                    parsed = self._pipeline.process_file(
+                        rel_path_str=rel,
+                        full_path=full_path,
+                        content=content,
+                        current_hash=current_hash,
+                    )
             except Exception as exc:  # noqa: BLE001 — один файл не роняет прогон
                 errors += 1
                 logger.debug(f"[text-index] parse error {rel}: {exc}")
@@ -1050,6 +1063,15 @@ class Indexer(IndexerTableMixin):
                 logger.warning("[text-index] save_symbol_index вернул False")
         except Exception as _sym_err:  # noqa: BLE001 — индексация чанков важнее
             logger.warning(f"[text-index] save_symbol_index failed: {_sym_err}")
+
+        # Тихая катастрофа: если ни один файл не обработан, «done: 0 files» —
+        # это не успех. Так выглядел баг с nullcontext (2026-11-17): job
+        # рапортовал done, а индекс оставался пустым.
+        if total and files_indexed == 0 and errors:
+            raise RuntimeError(
+                f"text-index: ни один файл не проиндексирован "
+                f"({errors} ошибок из {total})"
+            )
 
         logger.info(
             f"[text-index] done: {files_indexed} files, {errors} errors, "

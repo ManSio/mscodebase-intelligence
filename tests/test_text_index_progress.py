@@ -48,6 +48,9 @@ class _Self:
     # Метод обновляет кэш статуса под этим локом (как настоящий Indexer).
     _index_lock = threading.Lock()
     _cached_total_chunks = 0
+    # Нет графа в стабе: batch не применяется, guard нулевого результата не
+    # срабатывает, потому что writer возвращает записи.
+    _symbol_index = None
     _cached_unique_files: set = set()
 
     @staticmethod
