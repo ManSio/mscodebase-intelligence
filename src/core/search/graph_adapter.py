@@ -604,8 +604,22 @@ class SymbolIndexAdapter(PureGraphMixin):
         node = self._pick_best_node(nodes, symbol)
         if node is not None:
             starts = self._candidate_starts(nodes, node)
+            # Для qualified-запроса ("no.such.symbol") _find_nodes_flexible
+            # добавляет узлы по ГОЛОМУ хвосту ("symbol") — это нужно для
+            # поиска вызовов, но определением такого символа не является.
+            # Аудит engraphis 2026-11-18: dotted-мусор давал «5 definitions».
+            def_nodes = [
+                n for n in nodes
+                if n.name == symbol or n.name.endswith("." + symbol)
+            ]
+            if not def_nodes:
+                # Узлы нашлись только по голому хвосту: для qualified-запроса
+                # это не определение (аудит engraphis 2026-11-18:
+                # «no.such.symbol» отвечал пятью определениями).
+                with self._lock:
+                    return self._hybrid_build_call_graph(symbol, depth)
             return self._graph_build_call_graph(
-                node, depth, starts, definition_nodes=nodes
+                node, depth, starts, definition_nodes=def_nodes
             )
 
         with self._lock:

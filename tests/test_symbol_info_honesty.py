@@ -103,6 +103,20 @@ def test_answer_says_ambiguous_for_several_definitions():
     assert "AMBIGUOUS: 2 definitions" in text
 
 
+def test_dotted_unknown_name_is_not_resolved_by_its_tail(tmp_path):
+    """`no.such.symbol` не должен находить определение по хвосту `symbol`."""
+    ad = _adapter(tmp_path)
+    ad.add_definitions("D:/P/src/mod.py", [
+        {"name": "symbol", "line": 1, "kind": "function_definition"},
+    ])
+    ad.add_definitions("D:/P/src/mod.py", [
+        {"name": "Class.method", "line": 5, "kind": "function_definition"},
+    ])
+
+    assert ad.build_call_graph("no.such.symbol")["definition"] == []
+    assert len(ad.build_call_graph("Class.method")["definition"]) == 1
+
+
 def test_variable_does_not_claim_zero_callers():
     text = _tool()._answer("_PATTERNS", _FakeSI([
         {"file": "mcp_server.py", "line": 2384, "kind": "variable"},
