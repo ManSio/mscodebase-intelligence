@@ -162,7 +162,12 @@ def find_duplicates(
             break
 
     symbols: List[Dict[str, Any]] = []  # {"file", "name", "tokens", "hash"}
-    for fp in files:
+    for file_pos, fp in enumerate(files):
+        if progress_cb is not None and file_pos and file_pos % 200 == 0:
+            try:
+                progress_cb(file_pos, len(files), "parsing")
+            except Exception:  # noqa: BLE001 — прогресс не роняет скан
+                pass
         try:
             code = fp.read_bytes()
             if not code.strip():

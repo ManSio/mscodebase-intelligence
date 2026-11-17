@@ -26,6 +26,10 @@ class FindDuplicatesTool(MCPTool):
         kwargs: Optional[Dict[str, Any]] = None,
     ) -> dict:
         from src.core.duplication import find_duplicates
+        from src.mcp.notifications import bind_session_from_request
+
+        # Без захвата сессии прогресс некуда отправлять (аудит 2026-11-17).
+        bind_session_from_request()
 
         _kwargs = kwargs or {}
         target_path = (
