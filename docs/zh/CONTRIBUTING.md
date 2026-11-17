@@ -83,7 +83,7 @@ class MyTool(MCPTool):
 3. **注册** —— 把类追加到
    `src/mcp/server_tools.py::register_all_tools()` 中的 `tool_classes`。不要在别处
    直接把它注册到 MCP 应用上：profile 过滤器在所有分组注册完成之后才运行。
-4. **Profile** —— 放进 `CORE_PROFILE`（17 个工具的默认表面，一个意图一个入口），
+4. **Profile** —— 放进 `CORE_PROFILE`（13 个工具的默认表面，一个意图一个入口），
    或让它只在 `MSCODEBASE_MCP_PROFILE=full` 下可见。计数在模块 docstring 中被
    断言：36 core + 16 intel + 13 inline + 4 dev = 69。
 5. **测试与文档** —— 在 `tests/` 下加一个单元测试；任何触及检索或索引的东西都需要

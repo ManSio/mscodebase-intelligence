@@ -186,7 +186,10 @@ claude-code  PASS: server=MSCodebase Intelligence Server tools=17
 cursor       PASS: server=MSCodebase Intelligence Server tools=17
 ```
 
-`tools=17` 是默认 `core` 档案（注册 69，可见 17）；档案表见 README。
+以上是 2026-11-12 的原样记录。2026-11-17 修改 profile 之后，同一命令应输出
+`tools=13`；此处未重新运行（安装目录未同步），因此旧数字保留为记录，而不改写成更新的样子。
+
+`tools=13` 是默认 `core` 档案（注册 69，列出 13，其余按名称仍可调用）；档案表见 README。
 
 在代理面板中依次执行：
 

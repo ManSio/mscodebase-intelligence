@@ -150,12 +150,13 @@ python scripts/rebuild_graph.py
 
 | Профиль | Видимо | Содержимое |
 |---|---:|---|
-| `core` (по умолчанию) | **17** | по одному входу на намерение + 4 обслуживающих |
+| `core` (по умолчанию) | **13** | по одному входу на намерение; остальные вызываемы по имени |
 | `full` | **69** | всё зарегистрированное |
 
 `MSCODEBASE_MCP_TOOLS` по-прежнему работает как явный allowlist и перекрывает профиль. `tool_help()` показывает профиль, видимые инструменты с назначением и имена скрытых.
 
-Видимые 17: `investigate`, `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`, `read_live_file`, `notify_change`, `get_health_report`, `intel_get_project_memory`, `predict_change`, `tool_help`, `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks`.
+Видимые 13: `investigate`, `search_code`, `grep_code`, `get_symbol_info`, `impact_analysis`, `graph_query`, `codebase`, `read_live_file`, `notify_change`, `get_health_report`, `intel_get_project_memory`, `predict_change`, `tool_help`.
+Четыре обслуживающих (`generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks`) скрыты наравне с остальными и вызываются по имени.
 
 Индексация асинхронна: `codebase(action="index", path="project_dir", project_root=...)` запускает
 фоновую задачу и сразу возвращает управление; прогресс — `codebase(action="index", path="progress",
@@ -207,7 +208,7 @@ LanceDB относится к опциональному векторному п
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Добавлять покрывающие тесты к результатам по символу |
 | `MSCODEBASE_CODE_BM25` | `false` | BM25 с учётом идентификаторов |
 | `MSCODEBASE_RU_SYNONYMS` | `false` | Расширение RU → EN кодовых терминов |
-| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность: 17 видимых или все 69 (`full`) |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность: 13 в списке (остальные 56 вызываемы по имени) или все 69 (`full`) |
 | `MSCODEBASE_MCP_TOOLS` | — | Явный allowlist; перекрывает профиль |
 
 `experiments/**` намеренно исключён из индексации: там frozen-панели и артефакты прогонов, и их индексация раньше заставляла BM25 возвращать саму панель вместо кода. Файлы при этом остаются в git.
@@ -229,7 +230,7 @@ Python — основной, полностью отработанный язы�
 - **Полный векторный reindex заблокирован** при `MSCODEBASE_DENSE_OFF=true`: граф — `scripts/rebuild_graph.py`, чанки — `scripts/reindex_text_only.py`.
 - **Заявки на 95% нет:** статический retrieval и проверенные локальные реранкеры до неё не дошли; LLM-планировщик — отдельный эксперимент, не дефолт.
 - **Fast mode — не quality mode:** быстрее, но заметно менее точен на смешанных вопросах.
-- **Видимость инструментов — профиль:** 69 зарегистрировано, 17 видимо. Нет ожидаемого — `tool_help()` и смена профиля.
+- **Видимость инструментов — профиль:** 69 зарегистрировано, 13 в списке (остальные вызываются по имени). Нет ожидаемого — `tool_help()` и смена профиля.
 - **LSP-тулы требуют working basedpyright:** при отсутствии падают быстро и понятно, результат кешируется на 30 с.
 
 ## Разработка

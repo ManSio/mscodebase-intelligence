@@ -147,12 +147,13 @@ python scripts/rebuild_graph.py
 
 | 配置档 | 可见 | 内容 |
 |---|---:|---|
-| `core`（默认） | **17** | 每个意图一个入口 + 4 个维护工具 |
+| `core`（默认） | **13** | 每个意图一个入口；其余工具按名称仍可调用 |
 | `full` | **69** | 全部注册工具 |
 
 `MSCODEBASE_MCP_TOOLS` 仍是显式 allowlist，设置后覆盖配置档。`tool_help()` 报告当前配置档、可见工具及其用途、以及隐藏工具名称。
 
-默认可见 17 个：`investigate`、`search_code`、`grep_code`、`get_symbol_info`、`impact_analysis`、`graph_query`、`codebase`、`read_live_file`、`notify_change`、`get_health_report`、`intel_get_project_memory`、`predict_change`、`tool_help`、`generate_docs`、`bump_version`、`auto_update_docs`、`install_git_hooks`。
+默认可见 13 个：`investigate`、`search_code`、`grep_code`、`get_symbol_info`、`impact_analysis`、`graph_query`、`codebase`、`read_live_file`、`notify_change`、`get_health_report`、`intel_get_project_memory`、`predict_change`、`tool_help`。
+四个维护工具（`generate_docs`、`bump_version`、`auto_update_docs`、`install_git_hooks`）与其余工具一样隐藏，仍可按名称调用。
 
 索引是异步的：`codebase(action="index", path="project_dir", project_root=...)` 启动后台任务并立即返回；
 用 `codebase(action="index", path="progress", ...)` 查询 `state` / `files` / `elapsed`。尚未索引的项目会
@@ -203,7 +204,7 @@ LanceDB 属于可选向量路径，默认 text-first 配置不需要它。
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | 在符号结果后追加覆盖测试 |
 | `MSCODEBASE_CODE_BM25` | `false` | 标识符感知的 BM25 |
 | `MSCODEBASE_RU_SYNONYMS` | `false` | 俄语 → 英语术语扩展 |
-| `MSCODEBASE_MCP_PROFILE` | `core` | 工具面：17 个可见，或 `full` 全部 69 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | 工具面：列出 13 个（其余 56 个按名称仍可调用），或 `full` 全部 69 |
 | `MSCODEBASE_MCP_TOOLS` | — | 显式 allowlist；覆盖配置档 |
 
 `experiments/**` 被有意排除在索引之外：其中是冻结面板与运行产物，索引它们曾让 BM25 返回面板本身而非代码。文件仍保留在 git 中。
@@ -225,7 +226,7 @@ Python 是主要且完整验证的语言。Tree-sitter 解析 JavaScript、TypeS
 - **完整向量重建被阻止**（`MSCODEBASE_DENSE_OFF=true`）：图用 `scripts/rebuild_graph.py`，chunk 用 `scripts/reindex_text_only.py`。
 - **不声称 95%：** 静态检索与已测本地重排器都未达到；LLM 规划器是另一项实验，不是默认路径。
 - **Fast 模式不是 quality 模式：** 更快，但在混合自然语言问题上明显更不准确。
-- **工具可见性由配置档决定：** 注册 69，默认可见 17；找不到时用 `tool_help()` 并切换配置档。
+- **工具可见性由配置档决定：** 注册 69，默认列出 13（其余按名称仍可调用）；找不到时用 `tool_help()` 并切换配置档。
 - **LSP 工具需要可用的 basedpyright：** 缺失时快速失败并给出明确信息，结果缓存 30 秒。
 
 ## 开发

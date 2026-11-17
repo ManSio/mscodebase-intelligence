@@ -18,9 +18,10 @@
 | Fact | Value | How to check |
 |---|---|---|
 | Registered tools | **69** (36 core + 16 intel + 13 inline + 4 dev) | MCP startup log; `tool_help()`; `tests/test_tool_profile.py` |
-| Visible by default | **17** (`MSCODEBASE_MCP_PROFILE=core`) | client tool list; `tool_help()` |
-| Visible with `full` | **69** | `MSCODEBASE_MCP_PROFILE=full` + restart |
-| `tool_help()` | lists profile, visible, hidden | one call |
+| Visible by default | **13** (`MSCODEBASE_MCP_PROFILE=core`) | `python scripts/mcp_surface_size.py` печатает `core=<n> chars=<m>` (метод: `ListToolsResult.model_dump_json()`, все поля) |
+| Visible with `full` | **69** | тот же скрипт: `full=<n> chars=<m>` |
+| `tool_help()` | lists profile, visible, hidden; `tool_help(query="<name>")` returns that tool's `inputSchema` | one call |
+| Side-effect annotations | `destructiveHint` есть у всех 69; `readOnlyHint` не ставится: hot-reload индекса пишет при поиске, поэтому ложный readOnly опаснее отсутствующего | `tests/test_mcp_contract.py`; `python scripts/export_mcp_contract.py --check` |
 
 `execute_script` is optional (`MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`) and
 counted separately from the 69.

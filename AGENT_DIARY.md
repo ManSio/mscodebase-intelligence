@@ -10,6 +10,27 @@
 
 
 
+## 2026-11-17 — поверхность MCP, память и контракт
+
+**Симптом:** `tools/list` стоил 15 037 символов на 17 инструментов, скрытые
+были недостижимы (`remove_tool`), а `grep_code scope="code"` отвечал
+`0 matches` там, где текст есть в литерале, и `investigate` повторял это
+формулировкой «subject does not occur».
+
+**Root cause:** скрытие реализовано удалением из реестра; у памяти не было
+дедупа и связи с символами; scope-фильтр не считал отброшенные совпадения,
+поэтому ноль читался как «нет текста».
+
+**Fix (ветка feat/mcp-surface-memory-contract):** листинг фильтруется без
+удаления (13/69, скрытые вызываемы, схема через `tool_help`); allowlist режет
+весь реестр; `readOnlyHint` заменён на `destructiveHint` (13 истинно);
+NOOP+promote+merge ссылок в памяти; `links.py` (AST, is_relative_to);
+`filtered` в grep и честная причина abstain в investigate; контракт
+`docs/MCP_CONTRACT.json` с `--check`.
+
+**Guard:** `tests/test_tool_surface_contract.py`, `test_mcp_contract.py`,
+`test_memory_noop_and_links.py`, мутации M1–M35 (каждая краснеет).
+
 ## [2026-11-16] WIN — хук печатал «FAILED», а коммит проходил
 
 - **Симптом:** два коммита (`85f2370`, `ee3b449`) созданы, хотя хук в том же

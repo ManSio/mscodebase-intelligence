@@ -22,7 +22,7 @@
 
 | 变量 | 默认值 | 作用 |
 |---|---|---|
-| `MSCODEBASE_MCP_PROFILE` | `core` | 工具面：`core` = 17 个工具，`full` = 全部 69 个 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | 工具面：`core` 列出 13 个（其余按名称仍可调用），`full` = 全部 69 个 |
 | `MSCODEBASE_MCP_TOOLS` | — | 显式的逗号分隔 allowlist；覆盖 profile |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | 注册 `execute_script`（宿主上的 RCE，默认关闭） |
 | `MSCODEBASE_DATA_DIR` | `%LOCALAPPDATA%/mscodebase`（Windows）或 `~/.cache/mscodebase` | graph、memory、jobs、telemetry、commit memory 的根目录 |
@@ -132,7 +132,7 @@ python -c "from src.config.settings import get_config; c=get_config(); print(c.s
 
 | 分组 | 读取位置 |
 |---|---|
-| server/profile/storage（`MSCODEBASE_MCP_PROFILE`、`MSCODEBASE_DATA_DIR` 等） | `src/config/settings.py`、`src/mcp/server_tools.py::CORE_PROFILE`、`src/core/artifact_paths.py::get_data_root` |
+| server/profile/storage（`MSCODEBASE_MCP_PROFILE`、`MSCODEBASE_DATA_DIR` 等） | `src/config/settings.py`、`src/mcp/server_tools.py::CORE_PROFILE`（`core` = 13 个列出的工具，其余按名称仍可调用）、`src/core/artifact_paths.py::get_data_root` |
 | 检索默认值（`MSCODEBASE_DOCS_MARGIN`、`_ONDEMAND_RERANK_*`、`_CODE_BM25_*`） | `src/config/settings.py::SearchConfig`（第 189–268 行） |
 | `MAX_FILE_SIZE_MB`（无前缀） | `src/config/settings.py::SecurityConfig`（第 425 行） |
 | 插件门禁（`MSCODEBASE_STALE_GATE`、`_ISOLATION_GATE`、`_GATE_LOG`、`MSCODEBASE_PY`） | `.opencode/plugin/mscodebase_gate.ts`（第 25–27 行） |
