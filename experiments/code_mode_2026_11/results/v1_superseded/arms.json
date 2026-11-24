@@ -1,0 +1,1058 @@
+[
+ {
+  "id": "E30-E28-01",
+  "gold": "src/core/rate_limiter.py",
+  "A": {
+   "tokens": 5190,
+   "chars": 16664,
+   "hit": true,
+   "ms": 236
+  },
+  "C": {
+   "tokens": 692,
+   "chars": 2144,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 528,
+   "chars": 1859,
+   "hit": false,
+   "ms": 3869
+  }
+ },
+ {
+  "id": "E30-E28-02",
+  "gold": "src/core/redact.py",
+  "A": {
+   "tokens": 5762,
+   "chars": 15683,
+   "hit": true,
+   "ms": 169
+  },
+  "C": {
+   "tokens": 1310,
+   "chars": 3600,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 772,
+   "chars": 2259,
+   "hit": true,
+   "ms": 3383
+  }
+ },
+ {
+  "id": "E30-E28-03",
+  "gold": "src/core/gitignore_parser.py",
+  "A": {
+   "tokens": 4778,
+   "chars": 15869,
+   "hit": true,
+   "ms": 211
+  },
+  "C": {
+   "tokens": 627,
+   "chars": 2004,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 835,
+   "chars": 2779,
+   "hit": true,
+   "ms": 3352
+  }
+ },
+ {
+  "id": "E30-E28-04",
+  "gold": "src/core/embedder_lease.py",
+  "A": {
+   "tokens": 5687,
+   "chars": 18497,
+   "hit": true,
+   "ms": 164
+  },
+  "C": {
+   "tokens": 624,
+   "chars": 1975,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 697,
+   "chars": 2369,
+   "hit": false,
+   "ms": 3839
+  }
+ },
+ {
+  "id": "E30-E28-05",
+  "gold": "src/core/reindex_ledger.py",
+  "A": {
+   "tokens": 4895,
+   "chars": 15906,
+   "hit": true,
+   "ms": 199
+  },
+  "C": {
+   "tokens": 1008,
+   "chars": 3010,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 790,
+   "chars": 2691,
+   "hit": true,
+   "ms": 3642
+  }
+ },
+ {
+  "id": "E30-E28-06",
+  "gold": "src/core/quiet_break_gate.py",
+  "A": {
+   "tokens": 5714,
+   "chars": 17265,
+   "hit": true,
+   "ms": 190
+  },
+  "C": {
+   "tokens": 781,
+   "chars": 2440,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 692,
+   "chars": 2402,
+   "hit": true,
+   "ms": 4369
+  }
+ },
+ {
+  "id": "E30-E28-07",
+  "gold": "src/providers/reranker/reranker_scoring.py",
+  "A": {
+   "tokens": 5490,
+   "chars": 17224,
+   "hit": true,
+   "ms": 176
+  },
+  "C": {
+   "tokens": 1003,
+   "chars": 3100,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 643,
+   "chars": 2430,
+   "hit": true,
+   "ms": 4368
+  }
+ },
+ {
+  "id": "E30-E28-08",
+  "gold": "src/core/error_envelope.py",
+  "A": {
+   "tokens": 5432,
+   "chars": 16156,
+   "hit": true,
+   "ms": 168
+  },
+  "C": {
+   "tokens": 945,
+   "chars": 2946,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 590,
+   "chars": 2243,
+   "hit": true,
+   "ms": 4016
+  }
+ },
+ {
+  "id": "E30-E28-09",
+  "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+  "A": {
+   "tokens": 5940,
+   "chars": 17027,
+   "hit": false,
+   "ms": 197
+  },
+  "C": {
+   "tokens": 750,
+   "chars": 2295,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 633,
+   "chars": 2292,
+   "hit": false,
+   "ms": 2424
+  }
+ },
+ {
+  "id": "E30-E28-10",
+  "gold": "docs/en/SEARCH_PIPELINE.md",
+  "A": {
+   "tokens": 2640,
+   "chars": 8109,
+   "hit": false,
+   "ms": 290
+  },
+  "C": {
+   "tokens": 286,
+   "chars": 937,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 644,
+   "chars": 2224,
+   "hit": false,
+   "ms": 3870
+  }
+ },
+ {
+  "id": "E30-E28-11",
+  "gold": "docs/TRUST_BOUNDARY.md",
+  "A": {
+   "tokens": 6324,
+   "chars": 17854,
+   "hit": true,
+   "ms": 544
+  },
+  "C": {
+   "tokens": 1342,
+   "chars": 4063,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 638,
+   "chars": 2248,
+   "hit": false,
+   "ms": 2316
+  }
+ },
+ {
+  "id": "E30-E28-12",
+  "gold": "docs/en/TELEMETRY.md",
+  "A": {
+   "tokens": 4873,
+   "chars": 14640,
+   "hit": false,
+   "ms": 258
+  },
+  "C": {
+   "tokens": 895,
+   "chars": 2881,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 709,
+   "chars": 2516,
+   "hit": false,
+   "ms": 4347
+  }
+ },
+ {
+  "id": "E30-E28-13",
+  "gold": "docs/adr/0003-verify-on-read.md",
+  "A": {
+   "tokens": 6122,
+   "chars": 18565,
+   "hit": false,
+   "ms": 184
+  },
+  "C": {
+   "tokens": 787,
+   "chars": 2285,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 745,
+   "chars": 2791,
+   "hit": false,
+   "ms": 3699
+  }
+ },
+ {
+  "id": "E30-E28-14",
+  "gold": "docs/en/HANDFOFF.md",
+  "A": {
+   "tokens": 5130,
+   "chars": 15618,
+   "hit": false,
+   "ms": 205
+  },
+  "C": {
+   "tokens": 743,
+   "chars": 2187,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 206,
+   "chars": 575,
+   "hit": false,
+   "ms": 30
+  }
+ },
+ {
+  "id": "E30-E28-15",
+  "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+  "A": {
+   "tokens": 5596,
+   "chars": 16475,
+   "hit": false,
+   "ms": 174
+  },
+  "C": {
+   "tokens": 836,
+   "chars": 2450,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 505,
+   "chars": 1842,
+   "hit": false,
+   "ms": 4212
+  }
+ },
+ {
+  "id": "E30-E28-16",
+  "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+  "A": {
+   "tokens": 5583,
+   "chars": 17870,
+   "hit": false,
+   "ms": 197
+  },
+  "C": {
+   "tokens": 624,
+   "chars": 1940,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 577,
+   "chars": 2034,
+   "hit": false,
+   "ms": 4927
+  }
+ },
+ {
+  "id": "E30-E28-17",
+  "gold": "src/core/indexing/db_writer.py",
+  "A": {
+   "tokens": 4963,
+   "chars": 14522,
+   "hit": true,
+   "ms": 306
+  },
+  "C": {
+   "tokens": 1144,
+   "chars": 3288,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 646,
+   "chars": 2376,
+   "hit": false,
+   "ms": 3881
+  }
+ },
+ {
+  "id": "E30-E28-18",
+  "gold": "src/core/artifact_gc.py",
+  "A": {
+   "tokens": 6085,
+   "chars": 18441,
+   "hit": true,
+   "ms": 856
+  },
+  "C": {
+   "tokens": 670,
+   "chars": 2022,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 734,
+   "chars": 2404,
+   "hit": true,
+   "ms": 3693
+  }
+ },
+ {
+  "id": "E30-E28-19",
+  "gold": "src/providers/reranker/llama_install.py",
+  "A": {
+   "tokens": 5457,
+   "chars": 17493,
+   "hit": true,
+   "ms": 439
+  },
+  "C": {
+   "tokens": 738,
+   "chars": 2318,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 583,
+   "chars": 2096,
+   "hit": true,
+   "ms": 4011
+  }
+ },
+ {
+  "id": "E30-E28-20",
+  "gold": "src/providers/reranker/llama_runner.py",
+  "A": {
+   "tokens": 6159,
+   "chars": 20341,
+   "hit": true,
+   "ms": 398
+  },
+  "C": {
+   "tokens": 709,
+   "chars": 2289,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 663,
+   "chars": 2343,
+   "hit": true,
+   "ms": 3397
+  }
+ },
+ {
+  "id": "E30-E28-21",
+  "gold": "src/providers/embedder/remote_embedder.py",
+  "A": {
+   "tokens": 5407,
+   "chars": 19260,
+   "hit": true,
+   "ms": 573
+  },
+  "C": {
+   "tokens": 697,
+   "chars": 2236,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 680,
+   "chars": 2489,
+   "hit": true,
+   "ms": 4401
+  }
+ },
+ {
+  "id": "E30-E28-22",
+  "gold": "src/core/graph.py",
+  "A": {
+   "tokens": 6345,
+   "chars": 21743,
+   "hit": true,
+   "ms": 673
+  },
+  "C": {
+   "tokens": 1062,
+   "chars": 3169,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 609,
+   "chars": 2276,
+   "hit": true,
+   "ms": 3918
+  }
+ },
+ {
+  "id": "E30-E28-23",
+  "gold": "src/core/search/cypher_sql.py",
+  "A": {
+   "tokens": 4321,
+   "chars": 15546,
+   "hit": true,
+   "ms": 238
+  },
+  "C": {
+   "tokens": 529,
+   "chars": 1569,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 660,
+   "chars": 2216,
+   "hit": true,
+   "ms": 3919
+  }
+ },
+ {
+  "id": "E30-E28-24",
+  "gold": "src/core/bootstrap_tests.py",
+  "A": {
+   "tokens": 3147,
+   "chars": 12043,
+   "hit": true,
+   "ms": 500
+  },
+  "C": {
+   "tokens": 616,
+   "chars": 2062,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 497,
+   "chars": 1956,
+   "hit": true,
+   "ms": 3506
+  }
+ },
+ {
+  "id": "E30-E28-25",
+  "gold": "src/core/indexing/freshness.py",
+  "A": {
+   "tokens": 5894,
+   "chars": 20645,
+   "hit": true,
+   "ms": 700
+  },
+  "C": {
+   "tokens": 771,
+   "chars": 2654,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 594,
+   "chars": 2177,
+   "hit": true,
+   "ms": 4226
+  }
+ },
+ {
+  "id": "E30-E28-26",
+  "gold": "src/core/indexing/parser.py",
+  "A": {
+   "tokens": 6763,
+   "chars": 24284,
+   "hit": true,
+   "ms": 530
+  },
+  "C": {
+   "tokens": 1123,
+   "chars": 3464,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 635,
+   "chars": 2273,
+   "hit": true,
+   "ms": 3883
+  }
+ },
+ {
+  "id": "E30-E28-27",
+  "gold": "src/core/search/engine.py",
+  "A": {
+   "tokens": 5046,
+   "chars": 16830,
+   "hit": true,
+   "ms": 328
+  },
+  "C": {
+   "tokens": 814,
+   "chars": 2397,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 721,
+   "chars": 2670,
+   "hit": true,
+   "ms": 3535
+  }
+ },
+ {
+  "id": "E30-E28-28",
+  "gold": "src/core/indexing/db_manager.py",
+  "A": {
+   "tokens": 5391,
+   "chars": 19196,
+   "hit": true,
+   "ms": 181
+  },
+  "C": {
+   "tokens": 761,
+   "chars": 2367,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 531,
+   "chars": 1840,
+   "hit": true,
+   "ms": 3958
+  }
+ },
+ {
+  "id": "E30-E28-29",
+  "gold": "src/core/intelligence/verify_on_read.py",
+  "A": {
+   "tokens": 4839,
+   "chars": 14839,
+   "hit": true,
+   "ms": 211
+  },
+  "C": {
+   "tokens": 609,
+   "chars": 1984,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 592,
+   "chars": 2123,
+   "hit": true,
+   "ms": 4569
+  }
+ },
+ {
+  "id": "E30-E28-30",
+  "gold": "src/core/indexing/project_indexer_registry.py",
+  "A": {
+   "tokens": 5077,
+   "chars": 17681,
+   "hit": true,
+   "ms": 214
+  },
+  "C": {
+   "tokens": 743,
+   "chars": 2549,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 709,
+   "chars": 2711,
+   "hit": true,
+   "ms": 4248
+  }
+ },
+ {
+  "id": "E30-E28-31",
+  "gold": "src/mcp/tools/indexing_tools.py",
+  "A": {
+   "tokens": 4005,
+   "chars": 13393,
+   "hit": true,
+   "ms": 175
+  },
+  "C": {
+   "tokens": 551,
+   "chars": 1665,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 706,
+   "chars": 2417,
+   "hit": false,
+   "ms": 4433
+  }
+ },
+ {
+  "id": "E30-E28-32",
+  "gold": "src/providers/reranker/search_result_reranker.py",
+  "A": {
+   "tokens": 5090,
+   "chars": 15646,
+   "hit": true,
+   "ms": 196
+  },
+  "C": {
+   "tokens": 689,
+   "chars": 2256,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 633,
+   "chars": 2302,
+   "hit": false,
+   "ms": 3543
+  }
+ },
+ {
+  "id": "E30-E28-33",
+  "gold": "src/core/search/bm25.py",
+  "A": {
+   "tokens": 6196,
+   "chars": 20514,
+   "hit": true,
+   "ms": 229
+  },
+  "C": {
+   "tokens": 735,
+   "chars": 2151,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 737,
+   "chars": 2333,
+   "hit": true,
+   "ms": 3595
+  }
+ },
+ {
+  "id": "E30-D01",
+  "gold": "src/__init__.py",
+  "A": {
+   "tokens": 6646,
+   "chars": 21271,
+   "hit": true,
+   "ms": 219
+  },
+  "C": {
+   "tokens": 1289,
+   "chars": 4034,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 174,
+   "chars": 497,
+   "hit": false,
+   "ms": 31
+  }
+ },
+ {
+  "id": "E30-D02",
+  "gold": "src/core/bootstrap_pipeline.py",
+  "A": {
+   "tokens": 5437,
+   "chars": 19703,
+   "hit": true,
+   "ms": 186
+  },
+  "C": {
+   "tokens": 1064,
+   "chars": 3621,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 552,
+   "chars": 1962,
+   "hit": true,
+   "ms": 3850
+  }
+ },
+ {
+  "id": "E30-D03",
+  "gold": "src/core/doc_sync_engine.py",
+  "A": {
+   "tokens": 5759,
+   "chars": 18582,
+   "hit": true,
+   "ms": 202
+  },
+  "C": {
+   "tokens": 794,
+   "chars": 2563,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 698,
+   "chars": 2179,
+   "hit": true,
+   "ms": 4827
+  }
+ },
+ {
+  "id": "E30-D04",
+  "gold": "src/core/gitignore_parser.py",
+  "A": {
+   "tokens": 5005,
+   "chars": 16109,
+   "hit": true,
+   "ms": 170
+  },
+  "C": {
+   "tokens": 588,
+   "chars": 1911,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 751,
+   "chars": 2602,
+   "hit": true,
+   "ms": 3340
+  }
+ },
+ {
+  "id": "E30-D05",
+  "gold": "src/core/indexing/freshness.py",
+  "A": {
+   "tokens": 5926,
+   "chars": 19247,
+   "hit": true,
+   "ms": 168
+  },
+  "C": {
+   "tokens": 601,
+   "chars": 1845,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 530,
+   "chars": 2015,
+   "hit": false,
+   "ms": 4559
+  }
+ },
+ {
+  "id": "E30-D06",
+  "gold": "src/core/indexing/symbol_index.py",
+  "A": {
+   "tokens": 2157,
+   "chars": 7415,
+   "hit": true,
+   "ms": 209
+  },
+  "C": {
+   "tokens": 798,
+   "chars": 2573,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 172,
+   "chars": 511,
+   "hit": false,
+   "ms": 31
+  }
+ },
+ {
+  "id": "E30-D07",
+  "gold": "src/core/intelligence/tools_reg.py",
+  "A": {
+   "tokens": 2711,
+   "chars": 9250,
+   "hit": true,
+   "ms": 663
+  },
+  "C": {
+   "tokens": 463,
+   "chars": 1422,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 485,
+   "chars": 1900,
+   "hit": true,
+   "ms": 3854
+  }
+ },
+ {
+  "id": "E30-D08",
+  "gold": "src/core/lsp_project_bridge.py",
+  "A": {
+   "tokens": 4210,
+   "chars": 12863,
+   "hit": true,
+   "ms": 179
+  },
+  "C": {
+   "tokens": 877,
+   "chars": 2762,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 773,
+   "chars": 2611,
+   "hit": true,
+   "ms": 3551
+  }
+ },
+ {
+  "id": "E30-D09",
+  "gold": "src/core/relpath.py",
+  "A": {
+   "tokens": 4825,
+   "chars": 18463,
+   "hit": true,
+   "ms": 648
+  },
+  "C": {
+   "tokens": 1256,
+   "chars": 4233,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 757,
+   "chars": 2609,
+   "hit": true,
+   "ms": 4054
+  }
+ },
+ {
+  "id": "E30-D10",
+  "gold": "src/core/search/cypher_parser.py",
+  "A": {
+   "tokens": 1860,
+   "chars": 6014,
+   "hit": true,
+   "ms": 187
+  },
+  "C": {
+   "tokens": 556,
+   "chars": 1776,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 493,
+   "chars": 1754,
+   "hit": false,
+   "ms": 4484
+  }
+ },
+ {
+  "id": "E30-D11",
+  "gold": "src/core/search/trace.py",
+  "A": {
+   "tokens": 5257,
+   "chars": 17643,
+   "hit": true,
+   "ms": 181
+  },
+  "C": {
+   "tokens": 1028,
+   "chars": 3279,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 652,
+   "chars": 2351,
+   "hit": true,
+   "ms": 4811
+  }
+ },
+ {
+  "id": "E30-D12",
+  "gold": "src/mcp/__init__.py",
+  "A": {
+   "tokens": 7677,
+   "chars": 23501,
+   "hit": true,
+   "ms": 271
+  },
+  "C": {
+   "tokens": 1572,
+   "chars": 4586,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 162,
+   "chars": 475,
+   "hit": false,
+   "ms": 34
+  }
+ },
+ {
+  "id": "E30-D13",
+  "gold": "src/mcp/tools/duplication_tool.py",
+  "A": {
+   "tokens": 4435,
+   "chars": 12402,
+   "hit": true,
+   "ms": 207
+  },
+  "C": {
+   "tokens": 616,
+   "chars": 1851,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 836,
+   "chars": 2680,
+   "hit": true,
+   "ms": 3607
+  }
+ },
+ {
+  "id": "E30-D14",
+  "gold": "src/plugins/loader.py",
+  "A": {
+   "tokens": 4694,
+   "chars": 13974,
+   "hit": true,
+   "ms": 156
+  },
+  "C": {
+   "tokens": 499,
+   "chars": 1594,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 599,
+   "chars": 2109,
+   "hit": true,
+   "ms": 3256
+  }
+ },
+ {
+  "id": "E30-D15",
+  "gold": "src/remote_main.py",
+  "A": {
+   "tokens": 4019,
+   "chars": 12622,
+   "hit": true,
+   "ms": 190
+  },
+  "C": {
+   "tokens": 775,
+   "chars": 2234,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 721,
+   "chars": 2264,
+   "hit": true,
+   "ms": 3542
+  }
+ }
+]

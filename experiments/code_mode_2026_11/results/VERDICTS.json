@@ -1,0 +1,114 @@
+{
+ "population": 48,
+ "per_arm": {
+  "A": {
+   "hits": 34,
+   "hit_rate": 0.708,
+   "tokens": {
+    "min": 793,
+    "median": 2403.0,
+    "p90": 3108,
+    "max": 4257,
+    "sum": 115375
+   },
+   "ms": {
+    "median": 220.5,
+    "p90": 605
+   }
+  },
+  "C": {
+   "hits": 34,
+   "hit_rate": 0.708,
+   "tokens": {
+    "min": 136,
+    "median": 409.5,
+    "p90": 623,
+    "max": 947,
+    "sum": 21188
+   },
+   "ms": {
+    "measured": false,
+    "why": "same three calls as arm A inside one program: wall clock is identical by construction, not a second measurement"
+   }
+  },
+  "B": {
+   "hits": 30,
+   "hit_rate": 0.625,
+   "tokens": {
+    "min": 162,
+    "median": 644.5,
+    "p90": 762,
+    "max": 934,
+    "sum": 29618
+   },
+   "ms": {
+    "median": 3838.0,
+    "p90": 4887
+   }
+  }
+ },
+ "paired_on_A_hits": {
+  "n": 34,
+  "median_tokens": {
+   "A": 2323.0,
+   "C": 389.0,
+   "B": 656.0
+  },
+  "median_ms": {
+   "A": 224.0,
+   "C": null,
+   "B": 3855.0
+  }
+ },
+ "unreachable_by_arm_A": [
+  "E30-E28-01",
+  "E30-E28-04",
+  "E30-E28-08",
+  "E30-E28-09",
+  "E30-E28-10",
+  "E30-E28-11",
+  "E30-E28-12",
+  "E30-E28-13",
+  "E30-E28-14",
+  "E30-E28-15",
+  "E30-E28-16",
+  "E30-E28-17",
+  "E30-E28-27",
+  "E30-E28-32"
+ ],
+ "verdicts": {
+  "H1 (C keeps every gold A had: confirm <=5% lost, falsify >=3 cases)": {
+   "lost_cases": 0,
+   "of": 34,
+   "verdict": "CONFIRMED",
+   "note": "near-tautological by construction: C projects A's own text; it measures what the filter drops, not what the projection adds"
+  },
+  "H2 (median tokens C/A: confirm <=0.20, falsify >0.30)": {
+   "value": 0.183,
+   "verdict": "CONFIRMED"
+  },
+  "H3 (investigate does not deliver gold: confirm >=20%, falsify <5%)": {
+   "lost_cases": 6,
+   "of": 34,
+   "rate": 0.176,
+   "refusals": [],
+   "extraction_misses": [
+    "E30-E28-31",
+    "E30-D01",
+    "E30-D05",
+    "E30-D06",
+    "E30-D10",
+    "E30-D12"
+   ],
+   "extraction_rate": 0.176,
+   "verdict": "INCONCLUSIVE",
+   "note": "frozen text said 'loses the exact path'; the split shows two mechanisms (refusal vs extraction), so the protocol advice differs per bucket"
+  },
+  "H4 (tokens_C <= 800 every case: falsify if >=5 cases >1000)": {
+   "over_800": 2,
+   "over_1000": 0,
+   "verdict": "INCONCLUSIVE",
+   "max": 947
+  }
+ }
+}

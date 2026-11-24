@@ -1,0 +1,2923 @@
+[
+ {
+  "name": "set_project",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "search_code",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "mode": {
+     "default": "auto",
+     "title": "Mode",
+     "type": "string"
+    },
+    "limit": {
+     "default": 6,
+     "title": "Limit",
+     "type": "integer"
+    },
+    "filter_layer": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Filter Layer"
+    },
+    "intent_hint": {
+     "default": "auto",
+     "title": "Intent Hint",
+     "type": "string"
+    },
+    "explain": {
+     "default": false,
+     "title": "Explain",
+     "type": "boolean"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "primary_query": {
+     "default": "",
+     "title": "Primary Query",
+     "type": "string"
+    },
+    "must_include": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Must Include"
+    },
+    "symbols": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Symbols"
+    },
+    "intent": {
+     "default": "",
+     "title": "Intent",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "plan_search",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_symbol_info",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "impact_analysis",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "symbol": {
+     "title": "Symbol",
+     "type": "string"
+    },
+    "depth": {
+     "default": 3,
+     "title": "Depth",
+     "type": "integer"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "symbol"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "grep_code",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "pattern": {
+     "title": "Pattern",
+     "type": "string"
+    },
+    "scope": {
+     "default": "code",
+     "title": "Scope",
+     "type": "string"
+    },
+    "file_path": {
+     "default": "",
+     "title": "File Path",
+     "type": "string"
+    },
+    "max_matches": {
+     "default": 50,
+     "title": "Max Matches",
+     "type": "integer"
+    },
+    "context_lines": {
+     "default": 0,
+     "title": "Context Lines",
+     "type": "integer"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "required": [
+    "pattern"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "tool_help",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "default": "",
+     "title": "Query",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "investigate",
+  "description": "hints: identifiers/terms the HOST extracted from the question.\n\nThe server is language-agnostic on purpose: an agent that speaks\nChinese, Russian or English already knows the code-shaped names, so it\npasses them here instead of the server carrying a dictionary per\nlanguage. A hint also lifts the ask-for-identifier gate, because the\nquestion can now be answered exactly.\n",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "limit": {
+     "default": 8,
+     "title": "Limit",
+     "type": "integer"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "include_neighbours": {
+     "default": false,
+     "title": "Include Neighbours",
+     "type": "boolean"
+    },
+    "rerank": {
+     "anyOf": [
+      {
+       "type": "boolean"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Rerank"
+    },
+    "hints": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Hints"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_find_references",
+  "description": "Найти все вхождения символа (определения + использования).\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n    line: строка символа, 0-based (LSP-конвенция).\n    col: колонка символа, 0-based; -1 = автопоиск по symbol_name.\n    symbol_name: имя символа (для автопоиска колонки при col=-1).\n\nReturns:\n    Список позиций \"uri:line:col\" (0-based) или сообщение о недоступности LSP.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "line": {
+     "title": "Line",
+     "type": "integer"
+    },
+    "col": {
+     "default": -1,
+     "title": "Col",
+     "type": "integer"
+    },
+    "symbol_name": {
+     "default": "",
+     "title": "Symbol Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path",
+    "line"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_find_definition",
+  "description": "Найти определение символа (переход к объявлению).\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n    line: строка символа, 0-based (LSP-конвенция).\n    col: колонка символа, 0-based; -1 = автопоиск по symbol_name.\n    symbol_name: имя символа (для автопоиска колонки при col=-1).\n\nReturns:\n    Позиция определения \"uri:line:col\" (0-based) или сообщение.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "line": {
+     "title": "Line",
+     "type": "integer"
+    },
+    "col": {
+     "default": -1,
+     "title": "Col",
+     "type": "integer"
+    },
+    "symbol_name": {
+     "default": "",
+     "title": "Symbol Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path",
+    "line"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_document_symbols",
+  "description": "Получить структуру файла: все классы/функции/переменные с позициями.\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n\nReturns:\n    Дерево символов: \"name (kind) L<start>..L<end>\" (0-based), с вложенностью.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_get_type_info",
+  "description": "Получить выведенный тип и сигнатуру символа в позиции (line, col).\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n    line: строка символа, 0-based (LSP-конвенция).\n    col: колонка символа, 0-based; -1 = автопоиск по symbol_name.\n    symbol_name: имя символа (для автопоиска колонки при col=-1).\n\nReturns:\n    Markdown-строка с типом/сигнатурой/docstring или сообщение.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "line": {
+     "title": "Line",
+     "type": "integer"
+    },
+    "col": {
+     "default": -1,
+     "title": "Col",
+     "type": "integer"
+    },
+    "symbol_name": {
+     "default": "",
+     "title": "Symbol Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path",
+    "line"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_get_diagnostics",
+  "description": "Проверить файл: ошибки типов, неимпортированные модули, синтаксис.\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n    wait_ms: сколько ждать публикации диагностики (по умолчанию 800).\n\nReturns:\n    Список диагностик (severity/message/позиция) или \"ошибок не найдено\".\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "wait_ms": {
+     "default": 800,
+     "title": "Wait Ms",
+     "type": "integer"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "lsp_get_code_actions",
+  "description": "Получить доступные быстрые правки (автоимпорт, quickfix) в позиции.\n\nArgs:\n    file_path: путь к файлу (абсолютный или от корня проекта).\n    line: строка символа, 0-based (LSP-конвенция).\n    col: колонка символа, 0-based.\n    symbol_name: имя символа (для автопоиска колонки при col=0 и line указана).\n\nReturns:\n    Список CodeAction: title / kind / число правок / превью первой.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "line": {
+     "default": 0,
+     "title": "Line",
+     "type": "integer"
+    },
+    "col": {
+     "default": 0,
+     "title": "Col",
+     "type": "integer"
+    },
+    "symbol_name": {
+     "default": "",
+     "title": "Symbol Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "codebase",
+  "description": "Hub: диспетчеризация по action в профильные инструменты.",
+  "inputSchema": {
+   "properties": {
+    "action": {
+     "default": "",
+     "title": "Action",
+     "type": "string"
+    },
+    "old_name": {
+     "default": "",
+     "title": "Old Name",
+     "type": "string"
+    },
+    "new_name": {
+     "default": "",
+     "title": "New Name",
+     "type": "string"
+    },
+    "symbol": {
+     "default": "",
+     "title": "Symbol",
+     "type": "string"
+    },
+    "to_file": {
+     "default": "",
+     "title": "To File",
+     "type": "string"
+    },
+    "new_code": {
+     "default": "",
+     "title": "New Code",
+     "type": "string"
+    },
+    "anchor_symbol": {
+     "default": "",
+     "title": "Anchor Symbol",
+     "type": "string"
+    },
+    "path": {
+     "default": "",
+     "title": "Path",
+     "type": "string"
+    },
+    "file_path": {
+     "default": "",
+     "title": "File Path",
+     "type": "string"
+    },
+    "apply": {
+     "default": false,
+     "title": "Apply",
+     "type": "boolean"
+    },
+    "force": {
+     "default": false,
+     "title": "Force",
+     "type": "boolean"
+    },
+    "allow_collision": {
+     "default": false,
+     "title": "Allow Collision",
+     "type": "boolean"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "max_count": {
+     "default": 10,
+     "title": "Max Count",
+     "type": "integer"
+    },
+    "impact_token": {
+     "default": "",
+     "title": "Impact Token",
+     "type": "string"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "additionalProperties": true,
+       "type": "object"
+      }
+     ],
+     "title": "Result"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "structural_search",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "pattern": {
+     "default": "class_inheritance",
+     "title": "Pattern",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_repo_map",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_repo_rank",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "top_k": {
+     "default": 10,
+     "title": "Top K",
+     "type": "integer"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "scan_changes",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "generate_chunk_summaries",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "cross_repo_search",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "query": {
+     "title": "Query",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "query"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "cross_project_deps",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "action": {
+     "default": "graph",
+     "title": "Action",
+     "type": "string"
+    },
+    "project_name": {
+     "default": "",
+     "title": "Project Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "graph_query",
+  "description": "Мультиплексированный графовый запрос.\n\nBS-7 (аудит Bot_snow): `query`/`name` отсутствовали в схеме —\nклиент не мог передать Cypher-запрос или имя переменной\n(«query is required» / «name is required» при пустом target).\nТеперь параметры в схеме; `target` остаётся как backward-compat.\n\nproject_root (multi-window): если задан — графовые операции\nбиндятся к этому проекту, иначе к активному проекту MCP-сессии.\n",
+  "inputSchema": {
+   "properties": {
+    "action": {
+     "default": "query",
+     "title": "Action",
+     "type": "string"
+    },
+    "query_type": {
+     "default": "",
+     "title": "Query Type",
+     "type": "string"
+    },
+    "target": {
+     "default": "",
+     "title": "Target",
+     "type": "string"
+    },
+    "query": {
+     "default": "",
+     "title": "Query",
+     "type": "string"
+    },
+    "name": {
+     "default": "",
+     "title": "Name",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "detect_communities",
+  "description": "Детектирует сообщества в графе текущего проекта.",
+  "inputSchema": {
+   "properties": {
+    "edge_types": {
+     "anyOf": [
+      {
+       "items": {},
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Edge Types"
+    },
+    "max_nodes": {
+     "default": 20000,
+     "title": "Max Nodes",
+     "type": "integer"
+    },
+    "max_edges": {
+     "default": 200000,
+     "title": "Max Edges",
+     "type": "integer"
+    },
+    "resolution": {
+     "default": 1.0,
+     "title": "Resolution",
+     "type": "number"
+    },
+    "top_communities": {
+     "default": 20,
+     "title": "Top Communities",
+     "type": "integer"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_bug_correlation",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "file_path": {
+     "default": "",
+     "title": "File Path",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_hotspots",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "find_similar_bugs",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "error_message": {
+     "title": "Error Message",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "error_message"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "find_duplicates",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_context",
+  "description": "\ntargets: список символов (backward compat)\nintent: explain|modify|debug|test|git_history|find_caller_callee|prepare_change|verify_change\nkwargs: legacy targets через kwargs.get(\"targets\")\n",
+  "inputSchema": {
+   "properties": {
+    "targets": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Targets"
+    },
+    "intent": {
+     "default": "explain",
+     "title": "Intent",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "submit_background_task",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "task_type": {
+     "title": "Task Type",
+     "type": "string"
+    },
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "task_type",
+    "project_root"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_task_status",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "task_id": {
+     "title": "Task Id",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "task_id"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "verify_action",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "action_type": {
+     "title": "Action Type",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "action_type"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "get_action_receipt",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "action_id": {
+     "title": "Action Id",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "action_id"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "stale_detector",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "predict_change",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "bootstrap_pipeline",
+  "description": "",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "src_dir": {
+     "default": "",
+     "title": "Src Dir",
+     "type": "string"
+    },
+    "graph_path": {
+     "default": "",
+     "title": "Graph Path",
+     "type": "string"
+    },
+    "extra_pytest_args": {
+     "anyOf": [
+      {
+       "items": {
+        "type": "string"
+       },
+       "type": "array"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Extra Pytest Args"
+    },
+    "trace_timeout": {
+     "anyOf": [
+      {
+       "type": "number"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Trace Timeout"
+    },
+    "kwargs": {
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "kwargs"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "additionalProperties": true,
+     "title": "Result",
+     "type": "object"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "execute_script",
+  "description": "Execute Python code in a sandboxed environment.\n\nSecurity layers:\n1. AST validation — blocks dangerous patterns before execution\n2. Module allowlist — only safe stdlib modules permitted\n3. Subprocess isolation — code runs in separate process with restricted env\n4. Timeout enforcement — kills long-running code\n5. Audit logging — every execution logged\n\nArgs:\n    code: Python code to execute\n    timeout: Max execution time in seconds (5-120)\n    args: Command-line arguments (passed as sys.argv)\n\nReturns:\n    Structured dict:\n    {stdout, stderr, exit_code, duration_ms, truncated, timed_out}\n",
+  "inputSchema": {
+   "properties": {
+    "code": {
+     "title": "Code",
+     "type": "string"
+    },
+    "timeout": {
+     "default": 30,
+     "title": "Timeout",
+     "type": "integer"
+    },
+    "args": {
+     "default": "",
+     "title": "Args",
+     "type": "string"
+    }
+   },
+   "required": [
+    "code"
+   ],
+   "title": "executeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "executeOutput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "idempotentHint": true
+  }
+ },
+ {
+  "name": "intel_get_runtime_status",
+  "description": "Получить агрегированный статус здоровья рантайма, ИИ-провайдеров и индексов за 1 вызов.",
+  "inputSchema": {
+   "properties": {},
+   "title": "get_runtime_statusArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_runtime_statusOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_trigger_reindex",
+  "description": "Двухфазный инструмент: запустить асинхронную переиндексацию проекта без блокировки Zed.\n\nПараметры:\n    mode: \"incremental\" — только изменённые файлы (быстро)\n          \"full\" — очистить БД и переиндексировать всё с нуля\n\nВозвращает:\n    job_id — для опроса статуса через intel_get_job_status\n    poll_interval_seconds — рекомендованная задержка перед первым опросом\n    estimated_seconds — примерное общее время выполнения\n",
+  "inputSchema": {
+   "properties": {
+    "mode": {
+     "default": "incremental",
+     "title": "Mode",
+     "type": "string"
+    }
+   },
+   "title": "trigger_reindexArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "trigger_reindexOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_reset_index",
+  "description": "Полный сброс индекса: удалить LanceDB БД и запустить переиндексацию с нуля. Не требует перезапуска.",
+  "inputSchema": {
+   "properties": {},
+   "title": "reset_indexArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "reset_indexOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_get_job_status",
+  "description": "Получить текущий прогресс и статус фоновой задачи по ее ID.\n\nВозвращает:\n    progress — 0.0..1.0\n    poll_interval_seconds — оптимальная задержка перед следующим опросом\n    estimated_seconds — примерное оставшееся время\n    progress_label — человекочитаемый статус\n",
+  "inputSchema": {
+   "properties": {
+    "job_id": {
+     "title": "Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "job_id"
+   ],
+   "title": "get_job_statusArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_job_statusOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_code_topology",
+  "description": "Получить граф вызовов, ссылки и результаты статического анализа для символа кода (< 2 сек).",
+  "inputSchema": {
+   "properties": {
+    "symbol_name": {
+     "title": "Symbol Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "symbol_name"
+   ],
+   "title": "code_topologyArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "code_topologyOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_log_incident",
+  "description": "Записать инцидент или баг в историю расследований проекта для предотвращения повторения ошибок.",
+  "inputSchema": {
+   "properties": {
+    "component": {
+     "title": "Component",
+     "type": "string"
+    },
+    "symptom": {
+     "title": "Symptom",
+     "type": "string"
+    },
+    "root_cause": {
+     "title": "Root Cause",
+     "type": "string"
+    },
+    "fix": {
+     "title": "Fix",
+     "type": "string"
+    },
+    "success": {
+     "title": "Success",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "component",
+    "symptom",
+    "root_cause",
+    "fix",
+    "success"
+   ],
+   "title": "log_incidentArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "log_incidentOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_get_project_memory",
+  "description": "Получить карту памяти проекта (Архитектурные решения ADR, Технический долг, Известные костыли).\n\nADR-0002: REFUTED-узлы скрыты по умолчанию; include_retracted=True — показать все (аудит).\nADR-0003: verify_on_read=True (по умолчанию) — ленивая проверка ACTIVE-узлов при чтении\n(SILENT_ABSENCE -> REFUTED, найденные -> VERIFIED); False — отключить для отладки.\nlimit: сколько узлов секции показывать в сводке (0 — показать все; аудит/полный список).\nproject_root: явный путь к целевому проекту (multi-window) — читать память\nИМЕННО этого проекта, а не активного/CWD (R3TF, 2026-08-26).\nВывод включает VOR-ресипт: checked/total узлов, бюджет, latency — потребитель\nвидит, сколько реально проверено в этом чтении (пол: измерение ниже пола — преждевременно).\n",
+  "inputSchema": {
+   "properties": {
+    "include_retracted": {
+     "default": false,
+     "title": "Include Retracted",
+     "type": "boolean"
+    },
+    "verify_on_read": {
+     "default": true,
+     "title": "Verify On Read",
+     "type": "boolean"
+    },
+    "limit": {
+     "default": 3,
+     "title": "Limit",
+     "type": "integer"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "get_project_memoryArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_project_memoryOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_add_memory_node",
+  "description": "Добавить запись в проектную память. Разделы: 'adrs', 'known_issues', 'tech_debt', 'failed_attempts'.\n\nstatus (ADR-0002): 'ACTIVE' (по умолчанию, не проверено) | 'VERIFIED' (проверено против кода).\nREFUTED при записи недоступен — только через intel_retract_memory_node.\n",
+  "inputSchema": {
+   "properties": {
+    "section": {
+     "title": "Section",
+     "type": "string"
+    },
+    "data_json": {
+     "title": "Data Json",
+     "type": "string"
+    },
+    "status": {
+     "default": "ACTIVE",
+     "title": "Status",
+     "type": "string"
+    }
+   },
+   "required": [
+    "section",
+    "data_json"
+   ],
+   "title": "add_memory_nodeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "add_memory_nodeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_retract_memory_node",
+  "description": "Отозвать узел проектной памяти (ADR-0002): ACTIVE/VERIFIED → REFUTED.\n\nreason обязателен — отзыв не бывает молчаливым. Отозванный узел\nскрывается из intel_get_project_memory (виден с include_retracted=True).\n",
+  "inputSchema": {
+   "properties": {
+    "node_id": {
+     "title": "Node Id",
+     "type": "string"
+    },
+    "reason": {
+     "title": "Reason",
+     "type": "string"
+    }
+   },
+   "required": [
+    "node_id",
+    "reason"
+   ],
+   "title": "retract_memory_nodeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "retract_memory_nodeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_restore_memory_node",
+  "description": "Восстановить узел из REFUTED (ручной возврат факта, ADR-0002/0003).\n\nПереводит узел из REFUTED обратно в ACTIVE, фиксирует причину восстановления\n(restore_reason) и время (restored_at). Добавляет флаг\nfalse_retraction=true для метрики ложных отзывов (спека v1).\nВосстановление без непустой причины невозможно.\n",
+  "inputSchema": {
+   "properties": {
+    "node_id": {
+     "title": "Node Id",
+     "type": "string"
+    },
+    "reason": {
+     "title": "Reason",
+     "type": "string"
+    }
+   },
+   "required": [
+    "node_id",
+    "reason"
+   ],
+   "title": "restore_memory_nodeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "restore_memory_nodeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_supersede_memory_node",
+  "description": "Пометить узел как SUPERSEDED — заменён более свежим фактом.\n\nSUPERSEDED — терминальный статус (не REFUTED): факт был верен, но устарел.\nВ отличие от REFUTED, это не опровержение, а естественная смена знания.\nОпционально: new_node_id — ID нового узла, который замещает старый.\n",
+  "inputSchema": {
+   "properties": {
+    "node_id": {
+     "title": "Node Id",
+     "type": "string"
+    },
+    "reason": {
+     "title": "Reason",
+     "type": "string"
+    },
+    "new_node_id": {
+     "default": "",
+     "title": "New Node Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "node_id",
+    "reason"
+   ],
+   "title": "supersede_memory_nodeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "supersede_memory_nodeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_auto_collect_adrs",
+  "description": "Автоматический сбор ADR из git-лога.\n\nСканирует последние N коммитов, находит архитектурные решения\n(feat/refactor/arch/adr) и сохраняет их в проектную память.\n\nArgs:\n    max_commits: Сколько последних коммитов проверить (по умолч. 50)\n\nReturns:\n    Отчёт: сколько ADR найдено и сохранено\n",
+  "inputSchema": {
+   "properties": {
+    "max_commits": {
+     "default": 50,
+     "title": "Max Commits",
+     "type": "integer"
+    }
+   },
+   "title": "auto_collect_adrsArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "auto_collect_adrsOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_get_hotspots",
+  "description": "Показать Топ-5 файлов проекта с наивысшей плотностью рисков и баг-нагрузки.",
+  "inputSchema": {
+   "properties": {},
+   "title": "get_hotspotsArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_hotspotsOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_analyze_incident",
+  "description": "Найти аналогичные инциденты из прошлого по тексту ошибки и выдать готовые решения.",
+  "inputSchema": {
+   "properties": {
+    "error_message": {
+     "title": "Error Message",
+     "type": "string"
+    }
+   },
+   "required": [
+    "error_message"
+   ],
+   "title": "analyze_incidentArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "analyze_incidentOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_predict_root_cause",
+  "description": "Root Cause Engine: Пресказать наиболее вероятную причину сбоя на основе логов ошибки, рантайма и истории.",
+  "inputSchema": {
+   "properties": {
+    "error_message": {
+     "title": "Error Message",
+     "type": "string"
+    },
+    "component_context": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Component Context"
+    }
+   },
+   "required": [
+    "error_message"
+   ],
+   "title": "predict_root_causeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "predict_root_causeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_get_telemetry",
+  "description": "Показать телеметрию: runtime счётчики + per-tool метрики.\n\nArgs:\n    days: кол-во дней истории (пока не используется, always 0)\n\nReturns:\n    Markdown-таблица для человека.\n",
+  "inputSchema": {
+   "properties": {
+    "days": {
+     "default": 7,
+     "title": "Days",
+     "type": "integer"
+    }
+   },
+   "title": "get_telemetryArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_telemetryOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "debug_runtime_passport",
+  "description": "Диагностика: возвращает 'паспорт' текущего процесса MCP.\n\nЕсли RUN_ID в ответе отличается от ожидаемого — значит процесс\nне перезапустился после обновления кода (Zed держит старый).\n",
+  "inputSchema": {
+   "properties": {},
+   "title": "debug_runtime_passportArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "debug_runtime_passportOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_get_project_context",
+  "description": "Единый снэпшот состояния проекта: state, index, bridge, health,\nmemory (incidents/ADRs) и фоновые задачи — одним вызовом.\n\nArgs:\n    project_root: путь к проекту (по умолчанию — текущий проект).\n\nReturns:\n    JSON со всей известной информацией о проекте.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "intel_get_project_contextArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "intel_get_project_contextOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_explain_project_state",
+  "description": "Человекочитаемый диагноз состояния проекта.\n\nArgs:\n    project_root: путь к проекту (по умолчанию — текущий).\n\nReturns:\n    Текстовый диагноз с состоянием каждого слоя.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "intel_explain_project_stateArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "intel_explain_project_stateOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_runtime_counters",
+  "description": "Возвращает счётчики runtime: сколько запросов выполнено,\nсколько отклонено и по какой причине.\n\nЕсли blocked > 5% от calls — архитектура требует внимания.\n",
+  "inputSchema": {
+   "properties": {},
+   "title": "get_runtime_countersArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "get_runtime_countersOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_tool_health",
+  "description": "Панель здоровья инструментов:成功率, latency, confidence, routes.",
+  "inputSchema": {
+   "properties": {},
+   "title": "intel_tool_healthArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "intel_tool_healthOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "intel_execution_timeline",
+  "description": "Лента последних действий системы (имплиситный success signal).\n\nArgs:\n    limit: сколько последних записей показать (по умолчанию 15, макс 50).\n\nReturns:\n    Таблица с хронологией вызовов.\n",
+  "inputSchema": {
+   "properties": {
+    "limit": {
+     "default": 15,
+     "title": "Limit",
+     "type": "integer"
+    }
+   },
+   "title": "intel_execution_timelineArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "intel_execution_timelineOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "refresh_db_connection",
+  "description": "Сбрасывает handle БД и переподключается к LanceDB.\n\nВызывать после внешних миграций (drop_table, add_columns)\nили когда таблица повреждена. Не требует перезапуска MCP.\n",
+  "inputSchema": {
+   "properties": {},
+   "title": "refresh_db_connectionArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "refresh_db_connectionOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "notify_change",
+  "description": "Обновляет индекс одного файла через LSP VFS или диск.\n\nP0: замыкает workflow edit → notify → reindex. Доступен напрямую\n(также работает через hub-инструмент index(action=\"notify\")).\n\nArgs:\n    file_path: путь к файлу (абсолютный или относительно корня проекта).\n    project_root: явный проект; без него — активный.\n    kwargs: опциональные доп. параметры.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "required": [
+    "file_path"
+   ],
+   "title": "notify_changeArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "notify_changeOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "read_live_file",
+  "description": "Читает файл из памяти LSP (включая несохранённые изменения).\n\nДоступен напрямую (также через system(action=\"read\")).\n\nArgs:\n    absolute_path: абсолютный путь к файлу (Windows формат).\n    file_path: относительный путь от корня проекта.\n    start_line: первая строка (1-indexed). 0 = с начала.\n    end_line: последняя строка (включительно). 0 = до конца.\n    project_root: явный корень для относительного file_path; без него —\n        активный проект.\n",
+  "inputSchema": {
+   "properties": {
+    "absolute_path": {
+     "default": "",
+     "title": "Absolute Path",
+     "type": "string"
+    },
+    "file_path": {
+     "default": "",
+     "title": "File Path",
+     "type": "string"
+    },
+    "start_line": {
+     "default": 0,
+     "title": "Start Line",
+     "type": "integer"
+    },
+    "end_line": {
+     "default": 0,
+     "title": "End Line",
+     "type": "integer"
+    },
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "title": "read_live_fileArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_logs",
+  "description": "Возвращает последние ошибки и предупреждения из логов проекта.\n\nДоступен напрямую (также через system(action=\"logs\")).\n\nArgs:\n    project_root: путь к проекту (по умолчанию — текущий).\n    kwargs: опциональные доп. параметры.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "get_logsArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "get_health_report",
+  "description": "Полная диагностика системы: индекс, bridge, health, providers.\n\nДоступен напрямую (также через system(action=\"health\")).\n\nArgs:\n    project_root: путь к проекту (по умолчанию — текущий).\n    kwargs: опциональные доп. параметры.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "get_health_reportArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "dual_arm_health_check",
+  "description": "Двухрукая проверка здоровья (mutation + health).\n\nNegative arm: mutmut mutation testing — обязан падать на введённом дефекте.\nPositive arm: get_health_report — обычная диагностика.\n\nNegative control (правило Тома): guard, который не умеет падать, бесполезен.\nmutmut требует fork() — на Windows работает ТОЛЬКО в WSL.\nCI (ubuntu matrix): полный mutmut run; локально: MSCODEBASE_MUTMUT=1 + WSL.\nБез WSL / отключено — Arm 1 пропускается с warning, Arm 2 выполняется.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "default": "",
+     "title": "Project Root",
+     "type": "string"
+    },
+    "kwargs": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Kwargs"
+    }
+   },
+   "title": "dual_arm_health_checkArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "ack_impact",
+  "description": "Подтверждает осведомлённость о влиянии изменений в файле.\n\nВызывается после impact_analysis(). Открывает окно (TTL=600s),\nв течение которого write-операции на файле разрешены.\nДоступен напрямую (также через write(action=\"ack\")).\n\nArgs:\n    file_path: путь к файлу, чьё влияние подтверждается.\n    impact_token: HMAC-токен из ответа impact_analysis или guard DENY.\n",
+  "inputSchema": {
+   "properties": {
+    "file_path": {
+     "title": "File Path",
+     "type": "string"
+    },
+    "impact_token": {
+     "title": "Impact Token",
+     "type": "string"
+    }
+   },
+   "required": [
+    "file_path",
+    "impact_token"
+   ],
+   "title": "ack_impactArguments",
+   "type": "object"
+  }
+ },
+ {
+  "name": "generate_docs",
+  "description": "DEPRECATED — используй auto_update_docs.\n\nГенерирует Markdown-документацию из PropertyGraph для любого проекта.\nСохраняет результат в файл docs/generated/MODULE_INDEX.md.\n\nArgs:\n    project_root: Абсолютный путь к корню проекта.\n\nReturns:\n    Сводка: сколько файлов обработано + путь к файлу.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "generate_docsArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "generate_docsOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "bump_version",
+  "description": "Бамп версии проекта (pyproject.toml) и обновление CHANGELOG.\n\nArgs:\n    project_root: Абсолютный путь к корню проекта.\n    part: 'major', 'minor', 'patch' (по умолч. 'patch').\n    dry_run: Если True — только показать изменения без записи.\n\nReturns:\n    Результат: новая версия или dry-run отчёт.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "part": {
+     "default": "patch",
+     "title": "Part",
+     "type": "string"
+    },
+    "dry_run": {
+     "default": false,
+     "title": "Dry Run",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "bump_versionArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "bump_versionOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "auto_update_docs",
+  "description": "Автоматическое обновление документации проекта.\n\nArgs:\n    project_root: Абсолютный путь к корню проекта.\n    action: 'update' (полное обновление),\n            'check' (проверить устаревание),\n            'verify' (проверить code-референсы в .md).\n\nReturns:\n    Отчёт об обновлении или статус.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "action": {
+     "default": "update",
+     "title": "Action",
+     "type": "string"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "auto_update_docsArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "auto_update_docsOutput",
+   "type": "object"
+  }
+ },
+ {
+  "name": "install_git_hooks",
+  "description": "Устанавливает/удаляет/проверяет pre-commit хуки MSCodeBase в проекте.\n\nArgs:\n    project_root: Абсолютный путь к корню проекта.\n    action: 'install' (по умолч.), 'uninstall', 'status'.\n\nReturns:\n    Результат операции.\n",
+  "inputSchema": {
+   "properties": {
+    "project_root": {
+     "title": "Project Root",
+     "type": "string"
+    },
+    "action": {
+     "default": "install",
+     "title": "Action",
+     "type": "string"
+    }
+   },
+   "required": [
+    "project_root"
+   ],
+   "title": "install_git_hooksArguments",
+   "type": "object"
+  },
+  "outputSchema": {
+   "properties": {
+    "result": {
+     "title": "Result",
+     "type": "string"
+    }
+   },
+   "required": [
+    "result"
+   ],
+   "title": "install_git_hooksOutput",
+   "type": "object"
+  }
+ }
+]
