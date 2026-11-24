@@ -59,6 +59,18 @@ class OnnxEmbedderClient:
         except Exception:
             return False
 
+    def _health_check_fast(self) -> bool:
+        """Сначала дешёвый TCP-тест, HTTP — только если порт открыт.
+
+        Замер 2026-11-16: cold start тратил 8.9 с из 13.3 с внутри
+        `create_mcp_server` на `urlopen` к ещё не поднятому серверу — каждый
+        вызов ждал соединения ~1.8 с. Отказ на loopback приходит мгновенно,
+        поэтому сначала `connect_ex` с коротким таймаутом.
+        """
+        if not self._is_server_running():
+            return False
+        return self._health_check()
+
     def _acquire_launch_mutex(self) -> bool:
         """
         Пытается захватить Named Mutex для запуска сервера.
@@ -115,10 +127,29 @@ class OnnxEmbedderClient:
             logger.warning(f"[ONNX Client] Server script not found: {server_script}")
             return False
 
-        # Флаги для Windows: DETACHED_PROCESS | CREATE_NO_WINDOW
+        # Каталога модели нет — процесс умрёт через ~0.1 с, а `_wait_for_server`
+        # прождёт все 60 с (замер 2026-11-17: именно это стоило минуты в worktree
+        # без .codebase_models). Отказываем до запуска и называем места поиска.
+        from src.core.embedder.model_paths import candidate_dirs, resolve_model_dir
+
+        if resolve_model_dir(self.model_name) is None:
+            searched = ", ".join(str(p) for p in candidate_dirs(self.model_name))
+            logger.error(
+                "[ONNX Client] model directory not found for %s (searched: %s); "
+                "not launching the server",
+                self.model_name,
+                searched,
+            )
+            return False
+
+        # Флаги для Windows. ВАЖНО: DETACHED_PROCESS (0x8) нельзя комбинировать
+        # с CREATE_NO_WINDOW — при такой паре Windows игнорирует запрет окна, и
+        # каждый запуск сервера (в том числе retry раз в 60 с) мигает консолью.
+        # CREATE_NO_WINDOW + CREATE_NEW_PROCESS_GROUP: окна нет, процесс живёт
+        # независимо от родителя.
         creation_flags = 0
-        if sys.platform == 'win32':
-            creation_flags = 0x00000008 | 0x08000000  # DETACHED_PROCESS | CREATE_NO_WINDOW
+        if sys.platform == "win32":
+            creation_flags = 0x08000000 | 0x00000200  # CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
 
         env = os.environ.copy()
         env["ONNX_PORT"] = str(self.port)
@@ -164,7 +195,7 @@ class OnnxEmbedderClient:
         """
         start = time.time()
         while time.time() - start < timeout:
-            if self._health_check():
+            if self._health_check_fast():
                 return True
             time.sleep(0.5)
         logger.warning(f"[ONNX Client] Сервер не поднялся за {timeout:.0f}s")

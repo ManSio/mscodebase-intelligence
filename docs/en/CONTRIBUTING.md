@@ -83,7 +83,7 @@ class MyTool(MCPTool):
 3. **Registration** — append the class to `tool_classes` in
    `src/mcp/server_tools.py::register_all_tools()`. Do not register it directly on
    the MCP app elsewhere: the profile filter runs after all groups register.
-4. **Profile** — put it in `CORE_PROFILE` (the 17-tool default surface, one entry
+4. **Profile** — put it in `CORE_PROFILE` (the 13-tool default surface, one entry
    per intent) or leave it visible only under `MSCODEBASE_MCP_PROFILE=full`. The
    counts are asserted in the module docstring: 36 core + 16 intel + 13 inline +
    4 dev = 69.

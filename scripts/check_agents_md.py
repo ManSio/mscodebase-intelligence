@@ -100,7 +100,7 @@ def repo_files(root: Path) -> tuple[set[str], set[str]] | None:
     for extra in ((), ("--others", "--exclude-standard")):
         proc = subprocess.run(
             ["git", "ls-files", "-z", *extra],
-            cwd=str(root), capture_output=True,
+            cwd=str(root), capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         if proc.returncode != 0:
             return None

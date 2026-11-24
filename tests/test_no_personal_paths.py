@@ -38,7 +38,7 @@ def _tracked_files() -> list[str]:
     try:
         out = subprocess.run(
             ["git", "ls-files", "-z"], cwd=REPO, capture_output=True,
-            text=True, encoding="utf-8",
+            text=True, encoding="utf-8", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
     except OSError:
         return []

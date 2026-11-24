@@ -179,14 +179,14 @@ from, so the client sees a **profile**:
 
 | Profile | Visible | What it contains |
 |---|---:|---|
-| `core` (default) | **17** | one entry per intent + 4 maintenance tools |
+| `core` (default) | **13** | one entry per intent; the rest stay callable by name |
 | `full` | **69** | everything registered |
 
 `MSCODEBASE_MCP_TOOLS` remains an explicit comma-separated allowlist and
 overrides the profile when set. `tool_help()` reports the active profile, the
 visible tools with a one-line intent, and the hidden names.
 
-Default-visible 17:
+Default-visible 13:
 
 | Tool | Purpose |
 |---|---|
@@ -203,7 +203,9 @@ Default-visible 17:
 | `intel_get_project_memory` | ADRs, incidents, known issues |
 | `predict_change` | changed files, affected tests, risk |
 | `tool_help` | profile and discovery |
-| `generate_docs`, `bump_version`, `auto_update_docs`, `install_git_hooks` | maintenance |
+
+The four maintenance tools (`generate_docs`, `bump_version`, `auto_update_docs`,
+`install_git_hooks`) are hidden like the rest and stay callable by name.
 
 Indexing is asynchronous: `codebase(action="index", path="project_dir", project_root=...)` starts a
 background job and returns immediately; poll `codebase(action="index", path="progress", ...)` for
@@ -272,7 +274,7 @@ The ones that change behaviour most:
 | `MSCODEBASE_TESTS_SIGNAL` | `false` | Append covering tests to symbol results |
 | `MSCODEBASE_CODE_BM25` | `false` | Identifier-aware BM25 scoring |
 | `MSCODEBASE_RU_SYNONYMS` | `false` | Russian → English code-term expansion |
-| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: 17 visible, or all 69 with `full` |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: 13 listed (the other 56 stay callable by name), or all 69 with `full` |
 | `MSCODEBASE_MCP_TOOLS` | — | Explicit allowlist; overrides the profile |
 
 `experiments/**` is intentionally excluded from indexing: it contains frozen
@@ -309,7 +311,7 @@ Deliberate, documented boundaries rather than hidden behaviour:
   reach it. An LLM planner is a separate experiment, not the default path.
 - **Fast mode is not quality mode:** faster, materially less accurate on mixed
   natural-language questions.
-- **Tool visibility is a profile:** 69 registered, 17 visible. If a tool you
+- **Tool visibility is a profile:** 69 registered, 13 listed (the rest are callable by name). If a tool you
   expect is missing, run `tool_help()` and switch the profile.
 - **LSP tools need a working basedpyright:** they fail fast with a clear
   message when it is missing, and the result is cached for 30 seconds.

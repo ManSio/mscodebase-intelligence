@@ -21,10 +21,10 @@ def _make_repo(tmp_path) -> Path:
     repo = tmp_path / "proj"
     repo.mkdir()
     assert subprocess.run(
-        ["git", "init", "-b", "main"], cwd=repo, capture_output=True
+        ["git", "init", "-b", "main"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     ).returncode == 0
-    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (repo / "src").mkdir()
     (repo / "src" / "widget.py").write_text("def render():\n    return 1\n", encoding="utf-8")
     (repo / "tests").mkdir()
@@ -32,8 +32,8 @@ def _make_repo(tmp_path) -> Path:
         "from src.widget import render\n\ndef test_render():\n    assert render() == 1\n",
         encoding="utf-8",
     )
-    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, capture_output=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return repo
 
 

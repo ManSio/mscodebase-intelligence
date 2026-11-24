@@ -40,6 +40,48 @@ from src.core.intelligence.store import IntelligenceStore, JobHistoryStore
 from src.utils.i18n import _
 
 
+def _find_noop(nodes, section: str, data) -> dict | None:
+    """Узел, который уже содержит этот факт (ADD/NOOP), или None.
+
+    Отдельная функция, а не условие в цикле: тест мутирует именно решение,
+    а не обвязку (AGENTS §5.1).
+    """
+    for existing in nodes or []:
+        if not isinstance(existing, dict):
+            continue
+        if existing.get("section") != section:
+            continue
+        if existing.get("status") not in ("ACTIVE", "VERIFIED"):
+            continue
+        if _same_fact(existing.get("data"), data):
+            return existing
+    return None
+
+
+def _same_fact(left, right) -> bool:
+    """Совпадает ли содержимое факта без служебных полей.
+
+    anchors/symbols/timestamp зависят от момента записи, поэтому в сравнение
+    не входят: иначе NOOP не срабатывал бы именно на повторной записи. Ключи
+    вырезаются рекурсивно, на любой глубине: вложенный `anchors` — тоже
+    служебное поле, и сравнивать его значило бы терять NOOP на повторной записи.
+    """
+    _VOLATILE = {"anchors", "symbols", "timestamp", "node_id"}
+
+    def canon(value):
+        if isinstance(value, dict):
+            return {k: canon(v) for k, v in sorted(value.items()) if k not in _VOLATILE}
+        if isinstance(value, list):
+            return [canon(v) for v in value]
+        return value
+
+    try:
+        return json.dumps(canon(left), sort_keys=True, ensure_ascii=False) == \
+            json.dumps(canon(right), sort_keys=True, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return False
+
+
 class _AsyncLockAdapter:
     """Адаптирует threading.Lock к async-контексту.
 
@@ -385,7 +427,7 @@ class ProjectIntelligenceLayer:
                             return int(parts[4])
             else:
                 out = subprocess.check_output(
-                    ["ss", "-ltnp"], timeout=3
+                    ["ss", "-ltnp"], timeout=3, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
                 ).decode("utf-8", errors="replace")
                 import re as _re
 
@@ -1422,6 +1464,18 @@ class ProjectIntelligenceLayer:
             if captured:
                 data["anchors"] = captured
 
+            # Ссылки память → символ: только реально объявленные символы
+            # проекта (см. links.py). Новый инструмент не нужен: поле
+            # возвращается вместе с узлом в intel_get_project_memory.
+            try:
+                from src.core.intelligence.links import extract_symbol_links
+
+                links = extract_symbol_links(data, self.project_path)
+                if links:
+                    data["symbols"] = links
+            except Exception as _link_err:  # noqa: BLE001 — ссылки не блокируют запись
+                logger.debug("symbol links skipped: %s", _link_err)
+
         new_node = {
             "node_id": f"NODE-{uuid.uuid4().hex[:6]}",
             "section": section,
@@ -1433,6 +1487,49 @@ class ProjectIntelligenceLayer:
         # add и retract — не должны терять аппенды при конкуренции).
         async with _AsyncLockAdapter(self._write_lock):
             nodes = self._load_flat_memory_nodes()
+
+            # ADD / NOOP: точное повторение факта не создаёт второй узел —
+            # возвращаем существующий (замер 2026-11-17: две одинаковые записи
+            # дали NODE-393bc4 и NODE-2c20a8, т.е. дубль). Служебные поля
+            # (anchors/symbols/timestamp) в сравнении не участвуют.
+            duplicate = _find_noop(nodes, section, data)
+            if duplicate is not None:
+                # Ссылки/якоря, посчитанные при повторной записи, дополняют
+                # существующий узел: иначе старый факт навсегда остаётся без
+                # связи с символом (ревью №3, nit 2).
+                merged_fields = False
+                if isinstance(data, dict) and isinstance(duplicate.get("data"), dict):
+                    for field in ("symbols", "anchors"):
+                        if data.get(field) and not duplicate["data"].get(field):
+                            duplicate["data"][field] = data[field]
+                            merged_fields = True
+                if merged_fields:
+                    self.store._save_json("project_memory.json", nodes)
+                # NOOP не понижает факт: повторная запись того же факта со
+                # status="VERIFIED" повышает статус существующего узла, а не
+                # отбрасывается (иначе проверенное навсегда остаётся ACTIVE).
+                if status == "VERIFIED" and duplicate.get("status") != "VERIFIED":
+                    duplicate["status"] = "VERIFIED"
+                    duplicate["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    self.store._save_json("project_memory.json", nodes)
+                    logger.info(
+                        f"Запись NOOP+promote: {duplicate.get('node_id')} → VERIFIED"
+                    )
+                    return _(
+                        "op: noop — факт уже записан как {node_id} в разделе "
+                        "'{section}'; статус повышен до VERIFIED.",
+                        node_id=duplicate.get("node_id"),
+                        section=section,
+                    )
+                logger.info(f"Запись NOOP: факт уже есть как {duplicate.get('node_id')}")
+                return _(
+                    "op: noop — факт уже записан как {node_id} в разделе "
+                    "'{section}' (status: {status}); новая запись не создана.",
+                    node_id=duplicate.get("node_id"),
+                    section=section,
+                    status=duplicate.get("status"),
+                )
+
             nodes.append(new_node)
             self.store._save_json("project_memory.json", nodes)
         logger.info(f"Запись {new_node['node_id']} добавлена в {section} ({status})")

@@ -10,6 +10,190 @@
 
 
 
+## 2026-11-24 — рантайм-метрики были в git
+
+**Симптом:** `M telemetry/tool_metrics.json` после каждого запуска сервера из репо.
+**Root cause:** `server_factory.py:248` пишет в `<ext_root>/telemetry/`, а в dev
+`_ext_root` = репозиторий; файл трекнут (в HEAD — `{}`).
+**Fix:** `git rm --cached` + `.gitignore` (`tool_metrics.json`, `.tmp`);
+runtime-путь не менялся.
+**Guard:** `test_runtime_metrics_file_is_not_tracked` (красный до untrack).
+
+## 2026-11-24 — тесты гадили в CWD и в реальный data root
+
+**Симптом:** `MagicMock/mock.project_path/<id>/.mscodebase/chunks.db` (491 файл /
+16.3 MB на дерево); прогон suite добавил 672 строки `MagicMock` в реальный
+`D:\mscodebase-data\logs\mcp_global.log`.
+
+**Root cause:** (1) `Searcher.__init__` строил chunk store из `indexer.project_path`
+без проверки типа, а `MagicMock` проходит как `os.PathLike`; (2) лог-хендлер
+биндился один раз и не переезжал при смене `MSCODEBASE_DATA_DIR`, per-test
+фикстура опаздывала.
+
+**Fix:** `engine.py` — `str|PurePath` + пустая строка; `log_manager.py` — ключ
+`project|log_file`, снятие/закрытие старого хендлера под локом; `conftest.py` —
+session-temp data root до collection; `.gitignore` — `MagicMock/`.
+Коммит: `d33268e`.
+
+**Guard:** `tests/test_isolation_guards.py` (5 тестов; 3 мутации красят).
+Проверка: 2902 passed / 12 skipped (437 s), slow 88 / 4; «грязные» файлы из
+temp-CWD — 0 файлов и +0 строк в реальном логе.
+
+## 2026-11-18 — ответы про символы врали: определения, счётчики, контекст
+
+**Симптом:** на чужом корпусе (engraphis) сверка по исходникам дала 6 расхождений:
+`intent_recall` — «1 defs» при трёх определениях; «3 callers» скрывал вызов из
+`scripts/`; «15 callers» = min(total, 15); у переменной «0 callers» читалось как
+«не используется»; `reweight` — «10 definitions» из подстрочного поиска;
+`investigate` показывал методы класса как «RecallEngine — name match».
+
+**Root cause (класс):** ответы строились по одному выбранному узлу и по срезу
+списка, а совпадение имени в теле/`SYMBOLS:`-шапке/`Context:` считалось
+доказательством определения.
+
+**Fix (PR #157):** в `definition` — все одноимённые узлы (первый — выбор ранжирования,
+остальные в AMBIGUOUS); прямые/транзитивные callers раздельно + «скрыто N из
+scripts/»; не-вызываемые виды — «граф вызовов не применим»; подстрочные совпадения
+— «похожие имена»; канал `name` предпочитает чанк-определение (`symbol_name ==
+variant`); `related` валидирует файл. Плюс логгер в `investigate` (его не было) и
+изоляция имени в канале `impact`.
+
+**Guard:** `tests/test_symbol_info_honesty.py` (10), `tests/test_evidence_body_match.py`
+(9), мутации M67–M74 (M69 — контроль). После фикса: `intent_recall` → 3 defs,
+`investigate` → `engines/recall.py:77`, `related` → VALIDATION_FAILED.
+
+## 2026-11-17 — `.json` в индексе: 62% объёма, ноль пользы для кода
+
+**Симптом:** из 49 920 чанков engraphis 31 123 (62.3%) — `.json`; один
+`eval/datasets/.../runtime.json` давал 1 146 окон.
+
+**Root cause:** AST JSON не парсит (нет грамматики, `.json` нет в
+`PARSE_EXTENSIONS`, language-pack 53 языка JSON не содержит), поэтому всё шло
+fallback-окнами без символа и адреса; кодовые запросы от них не выигрывали.
+
+**Fix (9631a75):** `FileGuard` не берёт `.json` без `MSCODEBASE_INDEX_DATA=1`;
+`.ipynb` остаётся (это код в ячейках). Замер на 2 134 файлах: чанки
+`49 920 → 18 747`, БД `287 → 143 MB`, `6.8 → 6.0 мин`, hit@1 `7/8` (как при капе
+20), `.py`/`.js` без изменений (16 380 / 1 397).
+
+**Allowlist:** агенту нужны не данные, а описание возможностей — манифесты и
+контракты инструментов. Индексируются всегда: `package.json`, `package-lock.json`,
+`npm-shrinkwrap.json`, `tsconfig.json`, `plugin.json`, `marketplace.json`,
+`*.plugin.json` и файлы с ключами `inputSchema`/`surfaces`/`annotations`
+(≤512 KB). На корпусе это 8 файлов из 445, цена — +67 чанков (18 814);
+`destructiveHint` → top-1 `docs/MCP_CONTRACT.json`.
+
+**Guard:** `tests/test_data_files_not_indexed.py`, обновлённая матрица
+`test_file_exists.py`, мутации M60–M62.
+
+## 2026-11-17 — 62% индекса — данные, а не код
+
+**Симптом:** один `eval/datasets/.../runtime.json` давал 1 146 чанков и вытеснял
+код из выдачи `search_code`; индекс engraphis — 49 920 чанков.
+
+**Root cause:** `.json` = 31 123 чанка (62.3%) — целиком fallback-ветка, потому что
+AST такие файлы не разбирает; капа на неё не было, а «кап на файл» резал бы и код.
+
+**Fix (768b210):** `MSCODEBASE_MAX_FALLBACK_CHUNKS=20` только для fallback; AST не
+капается (символы 36 589 → 36 589). Обрезка видна в выдаче строкой `// NOTE`, а не
+metadata (db_writer её не сохраняет). A/B на 2 134 файлах: чанки 49 920 → 25 209,
+БД 287 → 172 MB, время 6.8 → 6.5 мин, hit@1 8/8 → 7/8 (потерян запрос к самим
+данным; grep_code/read_live_file файл находят).
+
+**Guard:** `tests/test_fallback_chunk_cap.py`, мутации M56–M59.
+
+## 2026-11-17 — read-only, статусы и «круги»
+
+**Симптом:** второй сервер на тот же data-dir молча жил read-only; health
+показывал `issues: []`, `total_chunks=0` при идущей записи, `symbols=0` при
+49 558 чанках, `Tool profile=core: -35 видимых`.
+
+**Root cause (класс, не инстанс):** четыре разных места рапортовали не то, что
+есть, и два места глотали ошибку. Это один класс: «наблюдаемое состояние не
+связано с фактическим» + «ошибка не доходит до вызывающего».
+
+**Fix:** `DATABASE_LOCKED` + `DatabaseLockedError`; health: issue
+`database_lock`, `write_capable`, `auto_index: skipped: причина`; text-only не
+падает в dense и сохраняет symbol index; статус обновляется пофайлово.
+
+**Guard:** `tests/test_write_capability.py`, `test_text_only_fallback.py`,
+мутации M40–M46. Класс зафиксирован в `~/.config/opencode/knowledge/PATTERNS.md`.
+
+## 2026-11-17 — поверхность MCP, память и контракт
+
+**Симптом:** `tools/list` стоил 15 037 символов на 17 инструментов, скрытые
+были недостижимы (`remove_tool`), а `grep_code scope="code"` отвечал
+`0 matches` там, где текст есть в литерале, и `investigate` повторял это
+формулировкой «subject does not occur».
+
+**Root cause:** скрытие реализовано удалением из реестра; у памяти не было
+дедупа и связи с символами; scope-фильтр не считал отброшенные совпадения,
+поэтому ноль читался как «нет текста».
+
+**Fix (ветка feat/mcp-surface-memory-contract):** листинг фильтруется без
+удаления (13/69, скрытые вызываемы, схема через `tool_help`); allowlist режет
+весь реестр; `readOnlyHint` заменён на `destructiveHint` (13 истинно);
+NOOP+promote+merge ссылок в памяти; `links.py` (AST, is_relative_to);
+`filtered` в grep и честная причина abstain в investigate; контракт
+`docs/MCP_CONTRACT.json` с `--check`.
+
+**Guard:** `tests/test_tool_surface_contract.py`, `test_mcp_contract.py`,
+`test_memory_noop_and_links.py`, мутации M1–M35 (каждая краснеет).
+
+## [2026-11-16] WIN — хук печатал «FAILED», а коммит проходил
+
+- **Симптом:** два коммита (`85f2370`, `ee3b449`) созданы, хотя хук в том же
+  выводе печатал `❌ Pre-commit checks FAILED.`; `git commit` вернул 0.
+- **Root Cause:** `ensure_project_python` передавал управление через
+  `os.execv`. На Windows `execv` **не заменяет** процесс: родитель выходит с
+  кодом 0, дочерний хук продолжает печатать вердикт уже после коммита. Гейт
+  становился совещательным — ровно на том пути (git → global `python` → venv),
+  которым идёт каждый коммит в этом репозитории. Проба: parent `EXIT=0`, а
+  `child ran` печатается после.
+- **Fix (до/после, `MSCB_PRECOMMIT_GATE_TIMEOUT=1`):** старый хук —
+  `❌ FAILED`, `OLD_HOOK_EXIT=0`; новый — `❌ FAILED`, `FIXED_HOOK_EXIT=1`.
+  Вместо `execv` — `_RUN(argv, env=MSCB_HOOK_REEXEC=1)` + `sys.exit(rc)`;
+  `OSError` (интерпретатор не стартовал) → тоже exit 1, а не тишина.
+- **Guard:** `tests/test_hook_interpreter.py` — 3 новых теста, два из них
+  красные на старом хуке (`test_reexec_propagates_the_child_verdict`,
+  `test_unstartable_interpreter_fails_closed`); P-048.
+- **Урок:** «хук сказал FAILED» — это текст, а не код возврата. Проверять надо
+  `$LASTEXITCODE` процесса, который видит git, а не последнюю строку вывода.
+
+## [2026-11-15] WIN — мигающие окна cmd: 135 bare-вызовов subprocess
+
+- **Симптом:** на Windows мигают окна `cmd` при работе сервера/тестов; владелец
+  связывал это с прогонами тестов.
+- **Root Cause:** при отсутствии консоли у родителя каждый `subprocess.*` без
+  `CREATE_NO_WINDOW` создаёт свою консоль. `silent_subprocess.apply()` патчил
+  процесс только там, где его импортировали, — а импортировал один `src/main.py`.
+  AST-скан: **135 bare-вызовов в 57 файлах** (`src/`, `tests/`, `scripts/`).
+- **Измерено, что НЕ является источником:** WinEvent-хук на `EVENT_OBJECT_SHOW`
+  во время прогона 50 subprocess-тестов — **0 показанных консольных окон**;
+  перечисление видимых окон консоли — 0. Значит смотреть надо не на «тесты», а
+  на конкретное дерево процессов: 16 живых `cmd.exe` от
+  `npx -y @mobilenext/mobile-mcp@latest` (по одному на старт сессии OpenCode).
+- **Fix:** флаг проставлен во всех 135 местах; `remote_main.py` и `cli.py` тоже
+  применяют `silent_subprocess`; guard `tests/test_no_console_windows.py`
+  (сканер + позитив/негатив-контроль на синтетике).
+- **Урок:** «динамический патч» закрывает только свой процесс; статический
+  контракт (guard по AST) переживает любой новый entry-point.
+## [2026-11-15] ROOT — `C:\Windows\.mscodebase`: как cwd стал «проектом»
+
+- **Симптом:** в каталоге ОС лежит `chunks.db` на 105 МБ (10 264 чанка),
+  в профиле ещё 376 МБ. Удалить «невозможно», пока сервер держит БД.
+- **Root Cause (лог, `RUN_ID e77c87a6e138`):** хост дал
+  `PROJECT_PATH='${workspaceRoot}'` — неразвёрнутый плейсхолдер. Код считал его
+  путём, тот не существовал, резолвер откатился на CWD (`C:\Windows`),
+  автоиндексация пошла по системе, а `get_chunks_db_path()` пишет БД **внутрь**
+  корня → `.mscodebase` в каталоге ОС.
+- **Fix:** `is_forbidden_root()` (SystemRoot/Program Files/корни дисков/профиль/
+  temp) закрывает резолвер и `get_chunks_db_path`; `is_project_root()` делает
+  автоиндексацию условной; `${…}`/`%…%` в env → WARNING и отказ.
+- **Guard:** `tests/test_root_guards.py` (20 тестов, 3 мутации → по одному
+  красному). Урок: «любой cwd = проект» — это допущение, а не факт; у проекта
+  есть маркер, у системы его нет.
+
 ## [2026-11-14] BENCH — бенчмарк четыре дня печатал кэш из git
 
 - **Симптом:** `run.py --split dev` закончился за 0.2 мин и выдал 12/19/23 — те же
@@ -2080,3 +2264,46 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 **Проверка:** `node --test` — 18/18; `pytest tests/test_workflow_pins.py` — 10/10; `check_workflow_pins.py` — `11 uses, 7 checkout(s), 0 problem(s)`; мутации 6/6 (символ, флаг, containment, файловый cap, строковый cap, claim-клауза) и 3/3 (SHA, persist-credentials, версия) — краснеют; полный suite 2645 passed, 10 skipped.
 
 **Граница:** правки через `bash` (heredoc, `sed -i`, `tee`) гейт не видит; на docs-only коммите плагин работает всегда (он в хосте, не в хуке). Поведение в живом хосте не проверялось — плагин загружается при старте сессии (`⏳` до перезапуска OpenCode).
+## [2026-11-16] E2E-замер MCP по 7 реальным проектам: 6 фиксов в ветке `fix/symbol-graph`
+
+**Симптомы (живой прогон, 56 вызовов + 7 handshake):** `impact_analysis` → «Symbol not found
+in index» при непустом chunks.db; `graph_query feature` → `files: []`; пустой проект при
+`cwd ≠ проект` (`[text-index] done: 0 files`); первый запрос на свежем проекте → `INDEX_NOT_READY`;
+`initialize` 14.6 с; `get_health_report` первый вызов 9.0 с и `critical` из-за 40 чужих `[ERROR]`
+в общем логе.
+
+**Root cause:** `graph_rag` делал `set(symbols)` по списку dict-ов из `get_repo_map`
+(`unhashable`) и `.get()` по `SymbolRef`; резолвер был CWD-first без проверки «похож ли cwd на
+проект»; `require_ready_project` падал до первых чанков; на `dense_off` всё равно опрашивались
+llama :8080, ONNX :9876 и LM Studio :8080.
+
+**Fix (6 коммитов):** `b63c76e` graph dict+SymbolRef; `1a54bea` PROJECT_PATH при непроектном cwd;
+`6a020a3` ожидание первых чанков (`MSCODEBASE_INDEX_WAIT_S`); `adc867a` нет probe'ов в текстовом
+режиме; `472ad48` кэш PROJECT_PATH по сырому значению; `5595394` health читает хвост лога и не
+зовёт общий лог critical.
+
+**Guard:** 5+5+5+4+6+3 теста (graph, resolve, index-wait, embedder, health, impact-message);
+каждая правка проверена мутацией — мутант красит свой тест. Полный прогон: 2704 passed, 11 skipped.
+
+**Замеры:** services 5772→1627 мс; `initialize` при живом держателе лока 14.7→10.4 с (остаток —
+PID-lock, KNOWN_ISSUES 2026-11-16); first `get_health_report` 9028→986 мс, вердикт
+`critical`→`degraded`; bench 50/56 → 54/56. У 4 из 7 проектов `graph.db` был пуст — переиндексация
+вернула символьный слой (AgentFactory 668→1134 чанка, impact работает).
+
+**Отозвано:** «tools/list отдаёт 0 инструментов» и «graph_query падает везде» — артефакты harness
+(readline без сверки `id`, неверный `query_type`); «символ мёртв на AgentFactory» — ground truth
+брался из `experiments/**`, который не индексируется.
+
+## [2026-11-24] Гейт ссылок P-xxx + герметичность теста консоли
+
+**Симптом:** параллельная правка `AGENTS.md` сделала `P-086` тройным (поправка Holm / живость харнесса / pre-push гейт) и добавила ссылки `P-087`/`P-088`, которых в реестре нет; ни один тест этого не видел.
+
+**Root cause:** ссылки на ловушки — текст без машинной проверки; реестр и правила живут в разных файлах, сверять нечем.
+
+**Fix:** `scripts/check_rule_refs.py` (0 clean / 1 проблемы / 2 не измеримо, `--selftest`); реестр +`P-087`…`P-090`; `AGENTS.md` §5.15 → `P-089`, §11 → `P-090` (`dd0f278`, `e1fe4bc`).
+
+**Guard:** selftest 5/5 (clean / dangling / duplicate / нет реестра / пустое дерево); мутация `P-999` в копии правил → `rc=1` с `AGENTS.md:192`.
+
+**Побочно:** `tests/test_no_console_windows.py` сканировал файловую систему, а не индекс git → краснел от gitignored scratch (3 файла от 23–26.07 перенесены в `%TEMP%`, не удалены). Скан ограничен `git ls-files`; доказано: 3 passed → мутация в трекнутом файле → 1 failed → 3 passed.
+
+**Не сделано:** гейт не подключён к pre-push (на машине без `~/.config/opencode` будет `rc=2` — это UNMEASURED, не pass).

@@ -1,0 +1,28 @@
+{
+ "summary": {
+  "call": "investigate",
+  "args": {
+   "query": "where is modification_guard defined and what breaks if I change it",
+   "limit": 8
+  },
+  "ms": 3222,
+  "chars": 4232,
+  "tokens": 1096
+ },
+ "raw": {
+  "jsonrpc": "2.0",
+  "id": 10,
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "🧭 investigate: `where is modification_guard defined and what breaks if I change it`\n   identifiers: modification_guard, breaks\n   results: 8\n   exact: modification_guard=66, breaks=8\n   verdict: answer (1.00) — function at src/core/modification_guard.py:180 (row 5 → promoted)\n\n1. src/core/modification_guard.py:180  [definition+impact]  ✓def:function ✓exact\n   modification_guard — function_definition\n2. src/core/modification_guard.py:1  [name]\n   modification_guard — name match\n3. src/core/modification_guard.py:39  [name]\n   modification_guard — name match\n4. src/core/modification_guard.py:57  [name]\n   modification_guard — name match\n5. src/core/modification_guard.py:93  [name]\n   modification_guard — name match\n6. AGENT_DIARY.md:1869  [name]\n   ModificationGuard — name match\n7. docs/archive/ISSUES/modification_guard_gaps.md:2  [name]\n   modification_guard — name match\n8. docs/archive/KNOWN_ISSUES_2026_11.md:6  [name]\n   ModificationGuard — name match\n\n📎 dossier:\n   definition: def modification_guard( — src/core/modification_guard.py:180\n   risk: modification_guard — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• modification_guard (function_definition) — D:/Project/MSCodeBase/src/core/modification_guard.py:180\n• TestAckImpact (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:46\n• TestAckImpact.test_accepts_valid_token (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:60\n• TestAckImpact.test_multiple_files_independent (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:103\n• TestChangePreview.test_refuted_when_test_breaks (function_definition) — D:/Project/MSCodeBase/tests/test_change_preview.py:60\n• TestChangePreview.test_refuted_when_test_breaks (function_definition) — D:/Project/MSCodeBase/tests/test_change_preview.py:60\n\nДальше: get_symbol_info(\"modification_guard\") | impact_analysis | read_live_file(\"src/core/modification_guard.py\")"
+    }
+   ],
+   "structuredContent": {
+    "result": "🧭 investigate: `where is modification_guard defined and what breaks if I change it`\n   identifiers: modification_guard, breaks\n   results: 8\n   exact: modification_guard=66, breaks=8\n   verdict: answer (1.00) — function at src/core/modification_guard.py:180 (row 5 → promoted)\n\n1. src/core/modification_guard.py:180  [definition+impact]  ✓def:function ✓exact\n   modification_guard — function_definition\n2. src/core/modification_guard.py:1  [name]\n   modification_guard — name match\n3. src/core/modification_guard.py:39  [name]\n   modification_guard — name match\n4. src/core/modification_guard.py:57  [name]\n   modification_guard — name match\n5. src/core/modification_guard.py:93  [name]\n   modification_guard — name match\n6. AGENT_DIARY.md:1869  [name]\n   ModificationGuard — name match\n7. docs/archive/ISSUES/modification_guard_gaps.md:2  [name]\n   modification_guard — name match\n8. docs/archive/KNOWN_ISSUES_2026_11.md:6  [name]\n   ModificationGuard — name match\n\n📎 dossier:\n   definition: def modification_guard( — src/core/modification_guard.py:180\n   risk: modification_guard — function_definition\n   before editing: predict_change(mode=\"static\") + write preview/ack\n\nСимволы:\n• modification_guard (function_definition) — D:/Project/MSCodeBase/src/core/modification_guard.py:180\n• TestAckImpact (class_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:46\n• TestAckImpact.test_accepts_valid_token (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:60\n• TestAckImpact.test_multiple_files_independent (function_definition) — D:/Project/MSCodeBase/tests/test_modification_guard.py:103\n• TestChangePreview.test_refuted_when_test_breaks (function_definition) — D:/Project/MSCodeBase/tests/test_change_preview.py:60\n• TestChangePreview.test_refuted_when_test_breaks (function_definition) — D:/Project/MSCodeBase/tests/test_change_preview.py:60\n\nДальше: get_symbol_info(\"modification_guard\") | impact_analysis | read_live_file(\"src/core/modification_guard.py\")"
+   },
+   "isError": false
+  }
+ }
+}

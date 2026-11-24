@@ -104,6 +104,61 @@ def find_project_root() -> Path | None:
     return None
 
 
+def resolve_project_python(project_root: Path) -> Path | None:
+    """The interpreter that owns this project's dependencies.
+
+    Git runs the hook through the shebang (`#!/usr/bin/env python`), which is the
+    *global* interpreter, not the project venv. On 2026-11-15 that made gate-zero
+    collect 92 errors on green code (no `httpx`), so every code commit looked red.
+    Order: `MSCB_PYTHON` override → `venv` → `.venv`.
+    """
+    override = os.environ.get("MSCB_PYTHON")
+    if override:
+        candidate = Path(override)
+        return candidate if candidate.is_file() else None
+    names = ("python.exe", "python") if os.name == "nt" else ("python",)
+    for env_dir in ("venv", ".venv"):
+        for name in names:
+            candidate = project_root / env_dir / ("Scripts" if os.name == "nt" else "bin") / name
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def ensure_project_python(project_root: Path) -> None:
+    """Run the hook under the project interpreter, once, and keep its verdict.
+
+    Swapping interpreters keeps every gate — including `verify_diary ->
+    pytest tests/` — in one interpreter, so a gate cannot run half in the venv
+    and half outside it.
+
+    `os.execv` was the obvious way and it silently broke the gate: on Windows it
+    starts the child and returns to the parent, which exits 0 — so git saw a
+    green hook, committed, and the real verdict ("❌ Pre-commit checks FAILED")
+    printed afterwards from a detached process. Observed twice on 2026-11-16:
+    two commits landed while the hook was reporting failure. A subprocess plus
+    `sys.exit(returncode)` is the only form whose exit code git can read.
+    """
+    if os.environ.get("MSCB_HOOK_REEXEC") == "1":
+        return
+    target = resolve_project_python(project_root)
+    if target is None:
+        print("  ⚠️  interpreter: project venv not found; gates run with "
+              f"{sys.executable} (gate-zero may fail on missing deps)", flush=True)
+        return
+    if Path(sys.executable).resolve() == target.resolve():
+        return
+    env = os.environ.copy()
+    env["MSCB_HOOK_REEXEC"] = "1"
+    argv = [str(target), str(Path(__file__).resolve()), *sys.argv[1:]]
+    try:
+        proc = _RUN(argv, cwd=str(project_root), env=env)
+    except OSError as exc:
+        print(f"  ❌ interpreter: cannot start {target} ({exc})", flush=True)
+        sys.exit(1)
+    sys.exit(proc.returncode)
+
+
 def run_script(script_path: str, label: str, extra_args: list[str] | None = None) -> bool:
     """Запускает скрипт и возвращает True если успешно."""
     project_root = find_project_root()
@@ -178,7 +233,14 @@ def _staged_files() -> list[str]:
 
 
 def main():
+    root = find_project_root()
+    if root is not None:
+        ensure_project_python(root)
     print("🔍 MSCodeBase pre-commit checks:", flush=True)
+    print(f"  🔧 interpreter: {sys.executable} (Python {sys.version.split()[0]})", flush=True)
+    if os.environ.get("MSCB_HOOK_DRY_RUN") == "1":
+        print("  dry-run: interpreter resolved, gates not run", flush=True)
+        return 0
     all_ok = True
 
     # gate-zero тянет полный `pytest tests/`. Измерено 2026-10-03 на этой машине:

@@ -167,7 +167,7 @@ def _detect_cpu() -> dict:
             # 8 — тот же консервативный дефолт, что был при отказе wmic
             info["ram_gb"] = _windows_ram_gb() or 8
         elif sys.platform == "darwin":
-            out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], timeout=5)
+            out = subprocess.check_output(["sysctl", "-n", "hw.memsize"], timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             info["ram_gb"] = int(out.strip()) // (1024**3)
         elif sys.platform == "linux":
             with open("/proc/meminfo") as f:
@@ -184,7 +184,7 @@ def _detect_cpu() -> dict:
         if sys.platform == "win32":
             info["name"] = _windows_cpu_name() or info["name"]
         elif sys.platform == "darwin":
-            out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=5)
+            out = subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             info["name"] = out.decode("utf-8", errors="replace").strip()
         elif sys.platform == "linux":
             with open("/proc/cpuinfo") as f:
@@ -1009,7 +1009,7 @@ def get_system_summary() -> dict:
     elif sys.platform == "darwin":
         try:
             out = subprocess.check_output(
-                ["sw_vers", "-productVersion"], timeout=5
+                ["sw_vers", "-productVersion"], timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             os_name = f"macOS {out.decode().strip()}"
         except Exception:
@@ -1017,7 +1017,7 @@ def get_system_summary() -> dict:
     elif sys.platform == "linux":
         try:
             out = subprocess.check_output(
-                ["lsb_release", "-ds"], timeout=5
+                ["lsb_release", "-ds"], timeout=5, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             os_name = out.decode().strip()
         except Exception:

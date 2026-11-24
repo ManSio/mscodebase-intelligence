@@ -15,12 +15,12 @@ import scripts.lock_guard as lg
 def _make_repo(tmp_path) -> Path:
     repo = tmp_path / "proj"
     repo.mkdir()
-    assert subprocess.run(["git", "init", "-b", "main"], cwd=repo, capture_output=True).returncode == 0
-    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, capture_output=True)
+    assert subprocess.run(["git", "init", "-b", "main"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).returncode == 0
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "config", "user.name", "t"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (repo / "a.py").write_text("A = 1\n", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, capture_output=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "commit", "-m", "base"], cwd=repo, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     return repo
 
 

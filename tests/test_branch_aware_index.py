@@ -27,14 +27,14 @@ class TestBranchAwareIndex:
 
             # Инициализируем git
             import subprocess
-            subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "init"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             # Создаём файл и коммит
             (tmp_path / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             branch_index = BranchAwareIndex(tmp_path)
             branch = branch_index.get_current_branch()

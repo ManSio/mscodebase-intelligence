@@ -395,3 +395,117 @@
 - **Артефакты:** `experiments/e36_ablation/`.
 
 ---
+
+## 2026-10-25 — E46/E46b: PageRank repo map — работает, но не 95% — 🟡
+- **Граф:** 9,315 nodes / 47,286 edges / 759 code files (docs нет).
+- **E46 personalized:** 1k/2k/4k = 0.271/0.417/0.521; code-only 0.325/0.500/0.625; docs 0.
+- **E46b +RU→EN:** 0.271/0.458/0.562; code-only 0.325/0.550/0.675.
+- **Вердикт:** PageRank ≫ degree/global, но 95% на 1k недостижимо; docs-gold вне графа.
+  Нужны docs-узлы, персонализация RU→EN+symbols, BM25 top-files до PageRank.
+- **Артефакты:** `experiments/e46_pagerank_map/`, `e46b_pagerank_ru/`.
+
+---
+## 2026-10-25 — E44: agent rewrites — keywords +1 h1; fusion/identifiers хуже — 🟡
+- **Плечи:** baseline / keywords / identifiers / agent_all на 48 запросах E30.
+- **Результат:** baseline 0.688/0.771, 84 ms; keywords **0.708**/0.771, 78 ms;
+  identifiers 0.583/0.750; agent_all 0.688/0.771, 147 ms.
+- **Вердикт:** одна чистая формулировка лучше флуда; агентский план должен выбирать primary query,
+  а не фьюзить все варианты. **Артефакты:** `experiments/e44_agent_rewrite/`.
+
+---
+## 2026-10-25 — E41–E43: chain audit — docs intent, experiments, concept tags — 🟡 open
+- **Диагностика:** RRF top5 35/48; 13 misses (8 docs gold, 5 recall).
+- **E41:** исключение `experiments/` — 0.688/0.771 → 0.688/0.750, p50 81→43 ms.
+- **E42:** intent-aware demote — без изменений; `auto_detect_intent` не распознаёт docs.
+- **E43:** concept tags ×0.9 — без изменений; ×1.1 — 0.188/0.250 (precision collapse).
+- **Вывод:** нужен точный symbol-level concept layer (аннотации), а не keyword-count boost.
+- **Артефакты:** `experiments/e41_no_experiments/`, `e42_intent_demote/`, `e43_concepts/`.
+
+---
+## 2026-10-25 — E40: RU→EN синонимы — ноль — 🟡 neutral
+- **Плечи:** baseline / ru_synonyms на 48 запросах E30; `synonyms_ru.py`.
+- **Результат:** оба 0.688/0.771, p50 159/176 ms. H6 PASS; H1/H2/H3/H4/H5 FAIL.
+- **Вердикт:** варианты дают те же top-5; RRF схлопывает дубликаты. Словарь — утилита,
+  не рычаг. 95% на панели недостижимо.
+- **Артефакты:** `experiments/e40_ru_synonyms/`.
+---
+## 2026-10-25 — E55/E56: chain modes; docs gold-language bottleneck — 🟡
+- **E55:** hybrid/quality/deep 0.688/0.771 (p50 45–48 ms); fast 0.542/0.729
+  (p50 19 ms); `nodemote/intent/ru/p3` — 0 эффекта на hit@1.
+- **E56:** exact-path docs_only 0.021/0.062; **translation-normalized docs_only
+  0.750**, oracle **0.812/0.917**; p50 131 ms. BM25 отдаёт `docs/ru/X.md` при
+  gold `docs/en/X.md` — это **gold canonicalization**, не слабый docs-канал.
+- **Дешёвый путь:** explicit `intent="docs"` + docs-only FTS (без LLM-router).
+  Параметры `demote/intent/ru/p3` на панели не помогают.
+- **Реализовано:** `Searcher.search_docs()` + `search_code(intent="docs")`;
+  exact 1/8, same-basename **6/8**; тест `tests/test_search_docs.py`.
+- **Добавлено:** language-dedupe (ru/en/zh → один документ, prefer query lang)
+  + `delete_files()`/prune в `scripts/reindex_text_only.py`.
+- Production: graph 12,753 nodes; index 7,314 chunks (0 experiments); tests 32 pass.
+
+---
+## 2026-10-25 — E52: clean baseline — hit@1 0.688, hit@5 0.750; docs=0 — 🟡
+- Clean index: 7,258 chunks (удалено 9,089 experiments); leakage 0/48.
+- **clean production 0.688/0.750** (p50 72ms); contaminated 0.688/0.771.
+  **Supersede:** hit@5 0.771 → 0.750; hit@1 не изменился.
+- Subsets clean: code 0.825/0.900, docs 0.000/0.000.
+- **Oracle router** (code 0.825 + docs-only BM25 0.75) = **0.8125 hit@1 /
+  ~0.9167 hit@5**. 95% требует усиления code-канала или LLM-агента.
+
+---
+---
+## 2026-11-08 — Аудит планов: что реализовано, что осталось — 🟡
+Проверены все планы (`ISSUE.md`, `docs/research/*PLAN|patterns|chain*`, `docs/ISSUES/*`).
+Реализовано и подтверждено кодом: Universal Engine Ф1–Ф4 (sources, plugins, transport-e2e,
+manifest-parity), `TrustBoundary`, modification-guard (HMAC `ack_impact` + `bind_partial`),
+`run_bounded`/IVF-guard, `blocked`-пути индексатора.
+
+Открыто (каждое — отдельная задача, не «шум»):
+- docs-канал: hit@1 0.000 при same-basename 0.750 (E47/E51/E52/E55/E56) — единственный
+  открытый пользовательский дефект поиска.
+- Multi-client write (R-8/E-10): workspace-lock в `src/remote_main.py` нет.
+- `scripts/audit_protocol_guards.py` не в CI; `--cov-fail-under=38`; mypy/bandit нет.
+- ADR-0006: `call_hierarchy`/`semantic_tokens` без потребителей (0 вызовов в `src/`).
+- `tools/factory/` — прототип «фабрики задач» (2026-10-25): 18 тестов зелёные,
+  `tests/test_factory.py`; в продукт **не** встроен (не MCP-тул, не импортируется из
+  `src/`). Судьба — за владельцем: встроить как отдельный инструмент или перенести в
+  `experiments/`.
+
+Архивировано 2026-11-08 (не удалено): `docs/ISSUES/*`, `docs/research/2026-07-*`,
+`docs/{en,ru,zh}/{HANDFOFF,ARCHITECTURE_LAYERS,ARCHITECTURE_DEEP}.md` — см.
+`docs/archive/README.md`. `pyproject.toml` метаданные (57 tools, classifiers 3.10–3.12)
+исправлены там же.
+
+---
+---
+## 2026-11-08 — XERJ-пакет: run по протоколу (research / эксперимент / внедрение) — 🟡
+Пакет `experiments/xerj_2026_11/`: добавлены `DECISION.md`, `RESEARCH.md`,
+`baseline_raw.txt` + `run_baseline.py`, `tests/test_no_silent_success.py`.
+P0-5 (`pyproject.toml`) проверен командой — уже исправлен ранее (`check_metadata.py`, 6/6).
+
+Закрыто в этом прогоне:
+- `investigate` терял grep-канал на своём же репозитории: `_search` парсил tree-sitter'ом
+  каждый файл даже при нуле совпадений → 23.0 s и `degraded: grep:timeout` на каждом
+  запросе. Добавлен prefilter по regex до парсинга (`grep_tool.py`); набор совпадений не
+  изменился (P01: 30 matches до и после). In-process: 7.2–8.1 s, канал живой.
+- `investigate` больше не выдаёт «соседей» за ответ: в шапке `exact: <ident>=N`, а при
+  нуле совпадений по субъекту — предупреждение «results below are neighbours, not
+  matches». Guard: `tests/test_no_silent_success.py` (5 из 8 падали на коде до правки).
+
+Открыто (новое, из этого прогона):
+- **Таймаут канала не отменяет поток.** `asyncio.wait_for(asyncio.to_thread(...))`
+  снимает ожидание, но работа продолжается. В долгоживущем процессе (MCP-хост) каждый
+  таймаут оставляет живой парсер: следующие вызовы идут медленнее, и замер после
+  нескольких таймаутов недействителен. Наблюдено: 24 задачи в одном процессе,
+  `grep:timeout` → 22–30 s на последующих. Нужен либо cooperative-cancel в каналах,
+  либо отдельный executor с учётом зомби. 🟡
+- **CLI-мост не умеет project-scoped инструменты.** `python -m src.cli investigate …`
+  всегда отдаёт `project_not_ready (state=UNINITIALIZED)` за ~5 s: реестр проектов
+  инициализируется только в MCP-хосте. Поэтому бенчмарк гоняется in-process с
+  примированием реестра; `investigate` в allowlist не добавлен, чтобы не публиковать
+  заведомо нерабочий путь. 🟡
+- **E1 вердикт отрицательный:** plain grep 0.667 vs investigate 0.500 на 24 frozen
+  задачах (N=1, in-process, valid-rate указан в `baseline.json`). Фальсификатор из
+  `PLAN.md` сработал: заявлять «investigate лучше» нельзя. 🟡
+
+---

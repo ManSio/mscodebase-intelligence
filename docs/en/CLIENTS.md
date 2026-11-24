@@ -183,7 +183,7 @@ python scripts/verify_client_snippets.py --install-root <install-root>
 
 It renders each client's snippet exactly as the installer does, launches that command
 in a throwaway directory, performs an MCP `initialize` + `tools/list` handshake and
-prints one line per client. Expected (measured 2026-11-12):
+prints one line per client. Last recorded run (2026-11-12):
 
 ```
 generic      PASS: server=MSCodebase Intelligence Server tools=17
@@ -193,7 +193,12 @@ claude-code  PASS: server=MSCodebase Intelligence Server tools=17
 cursor       PASS: server=MSCodebase Intelligence Server tools=17
 ```
 
-`tools=17` is the default `core` profile (69 are registered, 17 visible); see the
+That block is the 2026-11-12 run, recorded as it printed. After the 2026-11-17
+profile change the same command must print `tools=13`; it was not re-run here
+because the install root was not re-synced, so the old numbers stay as a
+transcript instead of being edited to look newer.
+
+`tools=13` is the default `core` profile (69 are registered, 13 listed; the rest are callable by name); see the
 profile table in the README.
 
 From the agent panel, in this order:

@@ -50,7 +50,8 @@
    (`register_all_tools`).
 3. Применить **профиль инструментов** (`_apply_tool_profile`): полный реестр
    собирается целиком (все 69 инструментов), затем всё, что вне `CORE_PROFILE`,
-   удаляется из клиентской поверхности. Регистрация не зависит от профиля — это
+   скрывается из `tools/list`. Скрытые остаются зарегистрированными и
+   вызываются по имени, схема — `tool_help(query="<имя>")` (замер 2026-11-17). Регистрация не зависит от профиля — это
    утверждение было ложным до 2026-11-08, когда жёстко заданный дефолтный allowlist
    всё ещё урезал регистрацию до 56 имён, а `_apply_tool_profile` выполнялся раньше,
    чем регистрировались dev-инструменты. Теперь инвариант закреплён в
@@ -113,7 +114,7 @@
 ## 6. Слой инструментов
 
 **Зарегистрировано 69** инструментов (36 core + 16 intel + 13 inline + 4 dev);
-дефолтный профиль `core` открывает **17**. `execute_script` — опциональный 70-й
+дефолтный профиль `core` показывает в списке **13** (остальные 56 скрыты из `tools/list`, но вызываемы по имени). `execute_script` — опциональный 70-й
 инструмент за `MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true`.
 
 Видимый набор — одна запись на намерение: `investigate`, `search_code`,
@@ -167,6 +168,6 @@ replace/insert) с preview и impact-guard.
 | `experiments/**` исключён из индексации | `src/core/indexing/file_guard.py` |
 | владелец поиска | `src/core/search/engine.py::Searcher` |
 | парсинг и граф | `src/core/indexing/parser.py`, `src/core/graph.py` |
-| профиль `core` = 17 из 69 | `src/mcp/server_tools.py::CORE_PROFILE`; замер `tools/list`: 17 / 69, 2026-11-12 |
+| профиль `core` = 13 из 69 | `src/mcp/server_tools.py::CORE_PROFILE`; перевывод: `python scripts/mcp_surface_size.py` (печатает число и размер) |
 | опциональный LSP-слой | инструменты `lsp_*`, кеш отказов 30 с (`src/config/settings.py::LSPConfig`) |
 

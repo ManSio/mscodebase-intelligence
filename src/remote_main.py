@@ -38,6 +38,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route, WebSocketRoute
 
+# Windows: entry-точка без этого импорта спавнит видимые консоли для git/python
+# (сам импорт применяет патч subprocess.Popen/run/check_* — silent_subprocess).
+import src.core.silent_subprocess  # noqa: F401
 from src.core.di_container import ServiceCollection
 from src.core.rate_limiter import CircuitBreaker, SlidingWindowRateLimiter
 from src.sync.server import LiveSyncServer

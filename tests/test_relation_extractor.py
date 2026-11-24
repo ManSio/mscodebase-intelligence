@@ -15,16 +15,16 @@ class TestRelationExtractor:
 
     def _init_git(self, path: Path):
         """Инициализирует git репозиторий."""
-        subprocess.run(["git", "init"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True)
-        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True)
+        subprocess.run(["git", "init"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def _create_multi_file_commit(self, path: Path, files: dict, message: str):
         """Создаёт коммит с несколькими файлами."""
         for name, content in files.items():
             (path / name).write_text(content)
-        subprocess.run(["git", "add", "."], cwd=path, capture_output=True)
-        subprocess.run(["git", "commit", "-m", message], cwd=path, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        subprocess.run(["git", "commit", "-m", message], cwd=path, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     def test_cochange_relations(self):
         """Извлекает связи со-изменения."""

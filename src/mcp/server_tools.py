@@ -9,13 +9,15 @@ server_tools.py — Регистрация MCP-инструментов.
 - dev_tools: generate_docs, bump_version, auto_update_docs, install_git_hooks (4)
 - Всего регистрируется: 36 core + 16 intel + 13 inline + 4 dev = 69 MCP-инструментов
   (+1 optional execute_script при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true → 70)
-- Профиль поверхности (MSCODEBASE_MCP_PROFILE): core оставляет 17 (CORE_PROFILE),
-  full отдаёт все 69. Регистрация от профиля НЕ зависит (2026-11-08); явный
-  MSCODEBASE_MCP_TOOLS остаётся allowlist-перекрытием.
+- Профиль поверхности (MSCODEBASE_MCP_PROFILE): core оставляет 13 (CORE_PROFILE),
+  full отдаёт все 69. Регистрация от профиля НЕ зависит (2026-11-08); скрытие —
+  только из `tools/list` (2026-11-17): скрытые вызываются по имени, схема —
+  `tool_help(<name>)`. Явный MSCODEBASE_MCP_TOOLS — allowlist-перекрытие.
 - DI Container: 18 unique services (19 add_singleton calls, 1 duplicate key)
 
-Проверено 2026-11-08 прогоном create_mcp_server(): core → 69 зарегистрировано,
-17 видимых; full → 69/69. Раньше в этом докстринге было "31/64/65/49" —
+Проверено 2026-11-17 прогоном create_mcp_server(): core → 69 зарегистрировано,
+13 в tools/list, скрытый structural_search вызван успешно; full → 69/69.
+Размер поверхности печатает `python scripts/mcp_surface_size.py`. Раньше в этом докстринге было "31/64/65/49" —
 числа не соответствовали ни одному режиму.
 
 Согласовано 2026-08-28: audit pass; устраняет doc↔code drift (раньше было "61", "64", "49" в разных файлах).
@@ -57,46 +59,124 @@ CORE_PROFILE = {
     "intel_get_project_memory",
     "predict_change",
     "tool_help",
-    # Dev/maintenance tools stay visible: they are 4 names, not a selection
-    # problem, and hiding them made tool_help under-report the surface.
-    "auto_update_docs",
-    "bump_version",
-    "generate_docs",
-    "install_git_hooks",
+    # Dev/maintenance tools НЕ видны по умолчанию (ядро 13 инструментов вместо
+    # 17; размер печатает scripts/mcp_surface_size.py),
+    # но остаются зарегистрированными: вызов по имени работает, схема
+    # выдаётся через tool_help (замер 2026-11-17).
 }
 
 # Полный каталог (имя → первая строка описания), заполняется до фильтрации.
 _FULL_CATALOG: Dict[str, str] = {}
+# Схемы всех зарегистрированных инструментов: tool_help отдаёт их по запросу
+# (schema-on-demand вместо раздувания tools/list).
+_TOOL_SCHEMAS: Dict[str, Dict[str, Any]] = {}
+# Имена, скрытые из tools/list текущим профилем (но вызываемые).
+# Состояние модульное: один сервер на процесс (второй FastMCP перетрёт профиль).
+_HIDDEN_NAMES: set = set()
+
+# Инструменты, которые могут изменить ИСХОДНИКИ проекта или его память
+# (source of truth, не восстанавливаемое пересборкой). Только у них
+# destructiveHint=True. Производное состояние — индекс, кэш git-истории,
+# телеметрия, снапшоты — destructive не считается: оно пересоздаётся.
+#
+# readOnlyHint мы НЕ ставим вовсе: по спецификации MCP он значит «не меняет
+# окружение», а hot-reload индекса делает это почти любой поисковый инструмент
+# (search_code → freshness → запись в SQLite/FTS5). Ложный readOnly опаснее
+# отсутствующего: клиент решает по нему, можно ли звать параллельно.
+_DESTRUCTIVE_NAMES = {
+    # запись исходников. Правки символов (rename/move/replace/delete/insert)
+    # — это action внутри `codebase`, отдельных инструментов с такими именами
+    # в реестре нет (проверено по docs/MCP_CONTRACT.json).
+    "codebase",
+    "generate_docs", "auto_update_docs", "bump_version", "install_git_hooks",
+    # проект и его память
+    "set_project",
+    "intel_add_memory_node", "intel_supersede_memory_node",
+    "intel_retract_memory_node", "intel_restore_memory_node",
+    "intel_log_incident", "intel_auto_collect_adrs",
+    # 70-й инструмент (при MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true) исполняет
+    # произвольный код на хосте — destructive по определению.
+    "execute_script",
+}
+
+# Не идемпотентны, но и не destructive по нашему определению (меняют
+# производное состояние/очередь): повтор вызова — не то же самое.
+_NON_IDEMPOTENT_NAMES = _DESTRUCTIVE_NAMES | {
+    "intel_reset_index", "intel_trigger_reindex", "notify_change",
+    "submit_background_task", "bootstrap_pipeline", "generate_chunk_summaries",
+    "scan_changes", "refresh_db_connection", "dual_arm_health_check",
+    "verify_action", "predict_change",
+}
 
 
 def _apply_tool_profile(mcp) -> None:
     """Оставить в клиентской поверхности только CORE_PROFILE (или всё)."""
     profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
+    # Явный allowlist перекрывает профиль и режет ВЕСЬ реестр (а не только
+    # core-группу): README обещает «explicit allowlist», и раньше он давал 9
+    # инструментов из 69, а не 35 (ревью №4).
+    allowlist = {
+        item.strip() for item in os.environ.get("MSCODEBASE_MCP_TOOLS", "").split(",")
+        if item.strip()
+    }
     manager = getattr(mcp, "_tool_manager", None)
     tools = getattr(manager, "_tools", None)
     if not isinstance(tools, dict):
         logger.warning("🧰 Tool profile: не удалось перечислить инструменты — поверхность полная")
         return
 
+    from mcp.types import ToolAnnotations
+
     _FULL_CATALOG.clear()
+    _TOOL_SCHEMAS.clear()
     for name, tool in tools.items():
         desc = (getattr(tool, "description", "") or "").strip().split("\n")[0]
         _FULL_CATALOG[name] = desc[:120]
+        schema = getattr(tool, "parameters", None)
+        if isinstance(schema, dict):
+            _TOOL_SCHEMAS[name] = schema
+        # Единственный источник — `_DESTRUCTIVE_NAMES`. Регистрация своих
+        # аннотаций не ставит (ревью №2). readOnlyHint не выставляем: его
+        # истинность опровергнута (search_code пишет индекс), а ложный
+        # readOnly хуже отсутствующего. destructiveHint явный у всех.
+        tool.annotations = ToolAnnotations(
+            destructiveHint=name in _DESTRUCTIVE_NAMES,
+            idempotentHint=name not in _NON_IDEMPOTENT_NAMES,
+        )
 
-    if profile == "full":
+    if profile == "full" and not allowlist:
+        # Снимаем возможный фильтр от предыдущего применения (hot-reload/тесты):
+        # пустое множество = список не режется.
+        _HIDDEN_NAMES.clear()
         logger.info(f"🧰 Tool profile=full: {len(tools)} видимых инструментов")
         return
 
-    hidden = [name for name in tools if name not in CORE_PROFILE]
-    for name in hidden:
-        try:
-            mcp.remove_tool(name)
-        except Exception as exc:  # noqa: BLE001 — один тул не роняет старт
-            logger.debug("remove_tool(%s) failed: %s", name, exc)
+    visible = allowlist or set(CORE_PROFILE)
+    hidden = {name for name in tools if name not in visible}
+    _HIDDEN_NAMES.clear()
+    _HIDDEN_NAMES.update(hidden)
+    if not hidden:
+        return
+
+    # ВАЖНО: инструменты НЕ удаляем. `mcp.remove_tool()` делает их
+    # недоступными по имени, поэтому скрытие стоило возможности: агент не мог
+    # вызвать скрытое, даже зная имя из tool_help. Фильтруем только листинг —
+    # `call_tool` по имени продолжает работать (проверено живым stdio-прогоном
+    # 2026-11-17: tools/list скрыл, tools/call прошёл).
+    if not getattr(manager, "_profile_filter_installed", False):
+        _original_list = manager.list_tools
+
+        def _filtered_list_tools():
+            return [item for item in _original_list() if item.name not in _HIDDEN_NAMES]
+
+        manager.list_tools = _filtered_list_tools
+        manager._profile_filter_installed = True
+
     logger.info(
-        f"🧰 Tool profile=core: {len(tools) - len(hidden)} видимых, "
-        f"{len(hidden)} скрыто (MSCODEBASE_MCP_PROFILE=full — показать все; "
-        f"tool_help — что есть)"
+        f"🧰 Tool profile={'allowlist' if allowlist else 'core'}: "
+        f"{len(tools) - len(hidden)} видимых, "
+        f"{len(hidden)} скрыто из списка (вызов по имени и tool_help работают; "
+        f"MSCODEBASE_MCP_PROFILE=full — показать все)"
     )
 
 
@@ -239,82 +319,32 @@ def register_all_tools(mcp, services):
             "🔒 ExecuteScriptTool отключён. Включить: MSCODEBASE_EXECUTE_SCRIPT_ENABLED=true в .env"
         )
 
-    # ─── CodeGraph-inspired DEFAULT_TOOLS filter ──────────
-    _raw_allowlist_env = os.environ.get("MSCODEBASE_MCP_TOOLS")
-    _raw_allowlist = (_raw_allowlist_env or "").strip()
-    _profile = os.environ.get("MSCODEBASE_MCP_PROFILE", "core").strip().lower()
-    if _profile == "full":
-        # Полный профиль: регистрируем всё, пост-фильтр не режет.
-        _show_all = True
-        _allowed_names = set()
-    elif _raw_allowlist_env is not None and not _raw_allowlist:
-        _show_all = True
-        _allowed_names = set()
-    elif _raw_allowlist:
-        _allowed_names = set(_raw_allowlist.split(","))
-        _show_all = False
-    else:
-        # Профиль поверхности (MSCODEBASE_MCP_PROFILE) — единственный фильтр по
-        # умолчанию: регистрируем ВСЕ инструменты, наружу отдаёт CORE_PROFILE
-        # (_apply_tool_profile). До 2026-11-08 здесь лежал ручной allowlist на
-        # 39 имён: в профиле core регистрировалось 56 тулов вместо 69, а
-        # tool_help показывал скрытые неполно (52 из 69 реально существовали).
-        # Явный MSCODEBASE_MCP_TOOLS по-прежнему перекрывает профиль.
-        _allowed_names = set()
-        _show_all = True
-
-    # Cache экземпляров: каждая tool-класс инстанцируется ровно один раз,
-    # экземпляр переиспользуется и для фильтра по имени, и для регистрации.
+    # Allowlist и профиль применяются ТОЛЬКО к листингу (_apply_tool_profile):
+    # регистрация всегда полная. Иначе скрытые по allowlist инструменты
+    # исчезали из реестра и отвечали «Unknown tool», включая tool_help
+    # (ревью №5, major 3).
     _name_cache: dict = {}
+    _filtered_classes = list(tool_classes)
+    for _cls in _filtered_classes:
+        if _cls not in _name_cache:
+            _name_cache[_cls] = _cls(services)
+    logger.info(
+        f"📐 MCP Tools: {len(_filtered_classes)} зарегистрировано "
+        f"(MSCODEBASE_MCP_TOOLS={os.environ.get('MSCODEBASE_MCP_TOOLS', '') or 'default'}; "
+        "фильтр — только листинг)"
+    )
 
-    if _show_all:
-        logger.info(f"📐 MCP Tools: все {len(tool_classes)} инструментов видимы")
-        _filtered_classes = tool_classes
-        for _cls in _filtered_classes:
-            if _cls not in _name_cache:
-                _name_cache[_cls] = _cls(services)
-    else:
-        _before = len(tool_classes)
-        _filtered_classes = []
-        for _cls in tool_classes:
-            if _cls not in _name_cache:
-                _name_cache[_cls] = _cls(services)
-            _name = _name_cache[_cls].name
-            if _name not in _allowed_names:
-                logger.debug(f"  🔇 Tool hidden: {_name}")
-                continue
-            _filtered_classes.append(_cls)
-        logger.info(
-            f"📐 MCP Tools: {len(_filtered_classes)}/{_before} видимы "
-            f"(MSCODEBASE_MCP_TOOLS={_raw_allowlist or 'default'})"
-        )
-
-    from mcp.types import ToolAnnotations
-
-    _write_tool_names = {
-        "codebase",
-        "rename_symbol",
-        "move_symbol",
-        "safe_delete",
-        "replace_symbol",
-        "insert_before_symbol",
-        "insert_after_symbol",
-        "ack_impact",
-        "notify_change",
-        "index_project_dir",
-    }
-
+    # Аннотации НЕ ставятся здесь: регистрационная догадка по неполному списку
+    # писала readOnlyHint=True для set_project/bootstrap_pipeline и т.п.
+    # Единственный источник — _apply_tool_profile/_DESTRUCTIVE_NAMES (он работает
+    # после регистрации всех групп).
     registered = 0
     failed = []
     for tool_cls in _filtered_classes:
         try:
             instance = _name_cache.get(tool_cls) or tool_cls(services)
             _name = instance.name
-            _annotations = ToolAnnotations(
-                readOnlyHint=_name not in _write_tool_names,
-                idempotentHint=True,
-            )
-            mcp.tool(name=_name, annotations=_annotations)(instance.execute)
+            mcp.tool(name=_name)(instance.execute)
             registered += 1
             logger.debug(f"  🔧 Tool registered: {instance.name}")
         except Exception as e:

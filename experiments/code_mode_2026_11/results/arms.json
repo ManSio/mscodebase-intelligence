@@ -1,0 +1,1106 @@
+[
+ {
+  "id": "E30-E28-01",
+  "gold": "src/core/rate_limiter.py",
+  "first_path": "src\\core\\indexing\\project_indexer_registry.py",
+  "A": {
+   "tokens": 3278,
+   "chars": 10647,
+   "hit": false,
+   "ms": 643
+  },
+  "C": {
+   "tokens": 429,
+   "chars": 1441,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 528,
+   "chars": 1859,
+   "hit": false,
+   "ms": 11435
+  }
+ },
+ {
+  "id": "E30-E28-02",
+  "gold": "src/core/redact.py",
+  "first_path": "src\\core\\redact.py",
+  "A": {
+   "tokens": 2420,
+   "chars": 6699,
+   "hit": true,
+   "ms": 475
+  },
+  "C": {
+   "tokens": 651,
+   "chars": 1793,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 934,
+   "chars": 2654,
+   "hit": true,
+   "ms": 6827
+  }
+ },
+ {
+  "id": "E30-E28-03",
+  "gold": "src/core/gitignore_parser.py",
+  "first_path": "src\\core\\gitignore_parser.py",
+  "A": {
+   "tokens": 2022,
+   "chars": 7182,
+   "hit": true,
+   "ms": 230
+  },
+  "C": {
+   "tokens": 383,
+   "chars": 1273,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 835,
+   "chars": 2779,
+   "hit": true,
+   "ms": 4101
+  }
+ },
+ {
+  "id": "E30-E28-04",
+  "gold": "src/core/embedder_lease.py",
+  "first_path": "D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md",
+  "A": {
+   "tokens": 2414,
+   "chars": 7845,
+   "hit": false,
+   "ms": 177
+  },
+  "C": {
+   "tokens": 136,
+   "chars": 418,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 652,
+   "chars": 2184,
+   "hit": false,
+   "ms": 4254
+  }
+ },
+ {
+  "id": "E30-E28-05",
+  "gold": "src/core/reindex_ledger.py",
+  "first_path": "src\\core\\reindex_ledger.py",
+  "A": {
+   "tokens": 1888,
+   "chars": 6939,
+   "hit": true,
+   "ms": 254
+  },
+  "C": {
+   "tokens": 420,
+   "chars": 1355,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 797,
+   "chars": 2720,
+   "hit": true,
+   "ms": 4069
+  }
+ },
+ {
+  "id": "E30-E28-06",
+  "gold": "src/core/quiet_break_gate.py",
+  "first_path": "src\\core\\quiet_break_gate.py",
+  "A": {
+   "tokens": 2745,
+   "chars": 7905,
+   "hit": true,
+   "ms": 238
+  },
+  "C": {
+   "tokens": 387,
+   "chars": 1239,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 692,
+   "chars": 2402,
+   "hit": true,
+   "ms": 9066
+  }
+ },
+ {
+  "id": "E30-E28-07",
+  "gold": "src/providers/reranker/reranker_scoring.py",
+  "first_path": "src\\providers\\reranker\\reranker_scoring.py",
+  "A": {
+   "tokens": 2828,
+   "chars": 8876,
+   "hit": true,
+   "ms": 330
+  },
+  "C": {
+   "tokens": 496,
+   "chars": 1479,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 643,
+   "chars": 2430,
+   "hit": true,
+   "ms": 5070
+  }
+ },
+ {
+  "id": "E30-E28-08",
+  "gold": "src/core/error_envelope.py",
+  "first_path": "src\\core\\error_handler.py",
+  "A": {
+   "tokens": 2721,
+   "chars": 8393,
+   "hit": false,
+   "ms": 273
+  },
+  "C": {
+   "tokens": 478,
+   "chars": 1766,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 548,
+   "chars": 2069,
+   "hit": true,
+   "ms": 4526
+  }
+ },
+ {
+  "id": "E30-E28-09",
+  "gold": "docs/en/GRACEFUL_DEGRADATION.md",
+  "first_path": "src\\core\\indexing\\startup_diagnostics.py",
+  "A": {
+   "tokens": 3161,
+   "chars": 9087,
+   "hit": false,
+   "ms": 153
+  },
+  "C": {
+   "tokens": 437,
+   "chars": 1356,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 633,
+   "chars": 2292,
+   "hit": false,
+   "ms": 2311
+  }
+ },
+ {
+  "id": "E30-E28-10",
+  "gold": "docs/en/SEARCH_PIPELINE.md",
+  "first_path": "src\\core\\search\\scoring.py",
+  "A": {
+   "tokens": 2159,
+   "chars": 6541,
+   "hit": false,
+   "ms": 235
+  },
+  "C": {
+   "tokens": 297,
+   "chars": 980,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 654,
+   "chars": 2252,
+   "hit": false,
+   "ms": 4809
+  }
+ },
+ {
+  "id": "E30-E28-11",
+  "gold": "docs/TRUST_BOUNDARY.md",
+  "first_path": "src\\core\\bootstrap_trace_plugin.py",
+  "A": {
+   "tokens": 2662,
+   "chars": 7359,
+   "hit": false,
+   "ms": 814
+  },
+  "C": {
+   "tokens": 619,
+   "chars": 1841,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 638,
+   "chars": 2248,
+   "hit": false,
+   "ms": 2325
+  }
+ },
+ {
+  "id": "E30-E28-12",
+  "gold": "docs/en/TELEMETRY.md",
+  "first_path": "D:\\Project\\MSCodeBase\\ISSUE.md",
+  "A": {
+   "tokens": 1905,
+   "chars": 5257,
+   "hit": false,
+   "ms": 210
+  },
+  "C": {
+   "tokens": 335,
+   "chars": 1085,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 709,
+   "chars": 2516,
+   "hit": false,
+   "ms": 4266
+  }
+ },
+ {
+  "id": "E30-E28-13",
+  "gold": "docs/adr/0003-verify-on-read.md",
+  "first_path": "src\\core\\project_resolution.py",
+  "A": {
+   "tokens": 2618,
+   "chars": 8509,
+   "hit": false,
+   "ms": 165
+  },
+  "C": {
+   "tokens": 586,
+   "chars": 1786,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 745,
+   "chars": 2791,
+   "hit": false,
+   "ms": 3636
+  }
+ },
+ {
+  "id": "E30-E28-14",
+  "gold": "docs/en/HANDFOFF.md",
+  "first_path": "src\\core\\project_resolution.py",
+  "A": {
+   "tokens": 2510,
+   "chars": 7705,
+   "hit": false,
+   "ms": 172
+  },
+  "C": {
+   "tokens": 633,
+   "chars": 1971,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 206,
+   "chars": 575,
+   "hit": false,
+   "ms": 30
+  }
+ },
+ {
+  "id": "E30-E28-15",
+  "gold": "docs/en/ZED_WINDOWS_QUIRKS.md",
+  "first_path": "tools\\knowledge\\CONSOLIDATION.md",
+  "A": {
+   "tokens": 2392,
+   "chars": 7457,
+   "hit": false,
+   "ms": 155
+  },
+  "C": {
+   "tokens": 521,
+   "chars": 1528,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 505,
+   "chars": 1845,
+   "hit": false,
+   "ms": 3797
+  }
+ },
+ {
+  "id": "E30-E28-16",
+  "gold": "docs/en/SYSTEM_REQUIREMENTS.md",
+  "first_path": "src\\providers\\reranker\\llama_runner.py",
+  "A": {
+   "tokens": 2645,
+   "chars": 8185,
+   "hit": false,
+   "ms": 164
+  },
+  "C": {
+   "tokens": 399,
+   "chars": 1247,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 582,
+   "chars": 2059,
+   "hit": false,
+   "ms": 4064
+  }
+ },
+ {
+  "id": "E30-E28-17",
+  "gold": "src/core/indexing/db_writer.py",
+  "first_path": "docs\\archive\\KNOWN_ISSUES_2026_09.md",
+  "A": {
+   "tokens": 3085,
+   "chars": 8935,
+   "hit": false,
+   "ms": 302
+  },
+  "C": {
+   "tokens": 567,
+   "chars": 1606,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 646,
+   "chars": 2376,
+   "hit": false,
+   "ms": 3649
+  }
+ },
+ {
+  "id": "E30-E28-18",
+  "gold": "src/core/artifact_gc.py",
+  "first_path": "src\\core\\artifact_gc.py",
+  "A": {
+   "tokens": 2882,
+   "chars": 8567,
+   "hit": true,
+   "ms": 843
+  },
+  "C": {
+   "tokens": 278,
+   "chars": 860,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 734,
+   "chars": 2404,
+   "hit": true,
+   "ms": 3843
+  }
+ },
+ {
+  "id": "E30-E28-19",
+  "gold": "src/providers/reranker/llama_install.py",
+  "first_path": "src\\providers\\reranker\\llama_install.py",
+  "A": {
+   "tokens": 2179,
+   "chars": 6955,
+   "hit": true,
+   "ms": 517
+  },
+  "C": {
+   "tokens": 519,
+   "chars": 1671,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 583,
+   "chars": 2096,
+   "hit": true,
+   "ms": 3872
+  }
+ },
+ {
+  "id": "E30-E28-20",
+  "gold": "src/providers/reranker/llama_runner.py",
+  "first_path": "src\\providers\\reranker\\llama_runner.py",
+  "A": {
+   "tokens": 2257,
+   "chars": 7363,
+   "hit": true,
+   "ms": 371
+  },
+  "C": {
+   "tokens": 354,
+   "chars": 1138,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 663,
+   "chars": 2343,
+   "hit": true,
+   "ms": 3217
+  }
+ },
+ {
+  "id": "E30-E28-21",
+  "gold": "src/providers/embedder/remote_embedder.py",
+  "first_path": "src\\providers\\embedder\\remote_embedder.py",
+  "A": {
+   "tokens": 2321,
+   "chars": 8276,
+   "hit": true,
+   "ms": 488
+  },
+  "C": {
+   "tokens": 507,
+   "chars": 1701,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 680,
+   "chars": 2489,
+   "hit": true,
+   "ms": 4386
+  }
+ },
+ {
+  "id": "E30-E28-22",
+  "gold": "src/core/graph.py",
+  "first_path": "D:\\Project\\MSCodeBase\\EXPERIMENTS_LOG.md",
+  "A": {
+   "tokens": 2288,
+   "chars": 7728,
+   "hit": true,
+   "ms": 498
+  },
+  "C": {
+   "tokens": 350,
+   "chars": 960,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 609,
+   "chars": 2276,
+   "hit": true,
+   "ms": 3553
+  }
+ },
+ {
+  "id": "E30-E28-23",
+  "gold": "src/core/search/cypher_sql.py",
+  "first_path": "src\\core\\search\\cypher_sql.py",
+  "A": {
+   "tokens": 2373,
+   "chars": 7955,
+   "hit": true,
+   "ms": 217
+  },
+  "C": {
+   "tokens": 353,
+   "chars": 1092,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 660,
+   "chars": 2216,
+   "hit": true,
+   "ms": 3591
+  }
+ },
+ {
+  "id": "E30-E28-24",
+  "gold": "src/core/bootstrap_tests.py",
+  "first_path": "D:\\Project\\MSCodeBase\\AGENT_DIARY.md",
+  "A": {
+   "tokens": 1284,
+   "chars": 4642,
+   "hit": true,
+   "ms": 488
+  },
+  "C": {
+   "tokens": 196,
+   "chars": 660,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 497,
+   "chars": 1956,
+   "hit": true,
+   "ms": 3232
+  }
+ },
+ {
+  "id": "E30-E28-25",
+  "gold": "src/core/indexing/freshness.py",
+  "first_path": "D:\\Project\\MSCodeBase\\AGENT_DIARY.md",
+  "A": {
+   "tokens": 2786,
+   "chars": 8669,
+   "hit": true,
+   "ms": 478
+  },
+  "C": {
+   "tokens": 176,
+   "chars": 525,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 594,
+   "chars": 2177,
+   "hit": true,
+   "ms": 3562
+  }
+ },
+ {
+  "id": "E30-E28-26",
+  "gold": "src/core/indexing/parser.py",
+  "first_path": "src\\core\\indexing\\parser.py",
+  "A": {
+   "tokens": 3730,
+   "chars": 12583,
+   "hit": true,
+   "ms": 596
+  },
+  "C": {
+   "tokens": 699,
+   "chars": 2103,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 635,
+   "chars": 2273,
+   "hit": true,
+   "ms": 3867
+  }
+ },
+ {
+  "id": "E30-E28-27",
+  "gold": "src/core/search/engine.py",
+  "first_path": "src\\core\\search\\scoring.py",
+  "A": {
+   "tokens": 2337,
+   "chars": 7495,
+   "hit": false,
+   "ms": 267
+  },
+  "C": {
+   "tokens": 463,
+   "chars": 1398,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 754,
+   "chars": 2800,
+   "hit": true,
+   "ms": 3449
+  }
+ },
+ {
+  "id": "E30-E28-28",
+  "gold": "src/core/indexing/db_manager.py",
+  "first_path": "src\\core\\indexing\\indexer_table.py",
+  "A": {
+   "tokens": 2718,
+   "chars": 9498,
+   "hit": true,
+   "ms": 151
+  },
+  "C": {
+   "tokens": 505,
+   "chars": 1635,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 531,
+   "chars": 1840,
+   "hit": true,
+   "ms": 3439
+  }
+ },
+ {
+  "id": "E30-E28-29",
+  "gold": "src/core/intelligence/verify_on_read.py",
+  "first_path": "src\\core\\intelligence\\tools_reg.py",
+  "A": {
+   "tokens": 2736,
+   "chars": 8469,
+   "hit": true,
+   "ms": 203
+  },
+  "C": {
+   "tokens": 353,
+   "chars": 1128,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 592,
+   "chars": 2123,
+   "hit": true,
+   "ms": 4684
+  }
+ },
+ {
+  "id": "E30-E28-30",
+  "gold": "src/core/indexing/project_indexer_registry.py",
+  "first_path": "src\\core\\multi_project_searcher.py",
+  "A": {
+   "tokens": 2667,
+   "chars": 9001,
+   "hit": true,
+   "ms": 172
+  },
+  "C": {
+   "tokens": 421,
+   "chars": 1368,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 714,
+   "chars": 2701,
+   "hit": true,
+   "ms": 4408
+  }
+ },
+ {
+  "id": "E30-E28-31",
+  "gold": "src/mcp/tools/indexing_tools.py",
+  "first_path": "src\\sync\\server.py",
+  "A": {
+   "tokens": 2325,
+   "chars": 7604,
+   "hit": true,
+   "ms": 144
+  },
+  "C": {
+   "tokens": 397,
+   "chars": 1190,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 706,
+   "chars": 2417,
+   "hit": false,
+   "ms": 4203
+  }
+ },
+ {
+  "id": "E30-E28-32",
+  "gold": "src/providers/reranker/search_result_reranker.py",
+  "first_path": "src\\providers\\reranker\\multi_provider.py",
+  "A": {
+   "tokens": 2170,
+   "chars": 6324,
+   "hit": false,
+   "ms": 132
+  },
+  "C": {
+   "tokens": 389,
+   "chars": 1310,
+   "hit": false,
+   "ms": null
+  },
+  "B": {
+   "tokens": 633,
+   "chars": 2302,
+   "hit": false,
+   "ms": 3345
+  }
+ },
+ {
+  "id": "E30-E28-33",
+  "gold": "src/core/search/bm25.py",
+  "first_path": "src\\core\\commit_memory.py",
+  "A": {
+   "tokens": 2538,
+   "chars": 9313,
+   "hit": true,
+   "ms": 150
+  },
+  "C": {
+   "tokens": 373,
+   "chars": 1198,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 737,
+   "chars": 2333,
+   "hit": true,
+   "ms": 3833
+  }
+ },
+ {
+  "id": "E30-D01",
+  "gold": "src/__init__.py",
+  "first_path": "src\\__init__.py",
+  "A": {
+   "tokens": 3741,
+   "chars": 11970,
+   "hit": true,
+   "ms": 224
+  },
+  "C": {
+   "tokens": 947,
+   "chars": 2902,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 174,
+   "chars": 497,
+   "hit": false,
+   "ms": 28
+  }
+ },
+ {
+  "id": "E30-D02",
+  "gold": "src/core/bootstrap_pipeline.py",
+  "first_path": "src\\core\\bootstrap_pipeline.py",
+  "A": {
+   "tokens": 2170,
+   "chars": 8286,
+   "hit": true,
+   "ms": 144
+  },
+  "C": {
+   "tokens": 493,
+   "chars": 1829,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 552,
+   "chars": 1962,
+   "hit": true,
+   "ms": 3723
+  }
+ },
+ {
+  "id": "E30-D03",
+  "gold": "src/core/doc_sync_engine.py",
+  "first_path": "src\\core\\doc_sync_engine.py",
+  "A": {
+   "tokens": 2614,
+   "chars": 8271,
+   "hit": true,
+   "ms": 167
+  },
+  "C": {
+   "tokens": 385,
+   "chars": 1300,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 698,
+   "chars": 2179,
+   "hit": true,
+   "ms": 5230
+  }
+ },
+ {
+  "id": "E30-D04",
+  "gold": "src/core/gitignore_parser.py",
+  "first_path": "src\\core\\gitignore_parser.py",
+  "A": {
+   "tokens": 1792,
+   "chars": 6207,
+   "hit": true,
+   "ms": 224
+  },
+  "C": {
+   "tokens": 326,
+   "chars": 1067,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 751,
+   "chars": 2602,
+   "hit": true,
+   "ms": 3585
+  }
+ },
+ {
+  "id": "E30-D05",
+  "gold": "src/core/indexing/freshness.py",
+  "first_path": "src\\core\\indexing\\freshness.py",
+  "A": {
+   "tokens": 2531,
+   "chars": 7790,
+   "hit": true,
+   "ms": 140
+  },
+  "C": {
+   "tokens": 375,
+   "chars": 1176,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 564,
+   "chars": 2141,
+   "hit": false,
+   "ms": 4405
+  }
+ },
+ {
+  "id": "E30-D06",
+  "gold": "src/core/indexing/symbol_index.py",
+  "first_path": "src\\core\\indexing\\symbol_index.py",
+  "A": {
+   "tokens": 994,
+   "chars": 3241,
+   "hit": true,
+   "ms": 164
+  },
+  "C": {
+   "tokens": 391,
+   "chars": 1248,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 172,
+   "chars": 511,
+   "hit": false,
+   "ms": 28
+  }
+ },
+ {
+  "id": "E30-D07",
+  "gold": "src/core/intelligence/tools_reg.py",
+  "first_path": "src\\core\\intelligence\\tools_reg.py",
+  "A": {
+   "tokens": 1241,
+   "chars": 4085,
+   "hit": true,
+   "ms": 627
+  },
+  "C": {
+   "tokens": 337,
+   "chars": 1055,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 485,
+   "chars": 1900,
+   "hit": true,
+   "ms": 3771
+  }
+ },
+ {
+  "id": "E30-D08",
+  "gold": "src/core/lsp_project_bridge.py",
+  "first_path": "src\\core\\lsp_project_bridge.py",
+  "A": {
+   "tokens": 1896,
+   "chars": 5743,
+   "hit": true,
+   "ms": 142
+  },
+  "C": {
+   "tokens": 546,
+   "chars": 1741,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 773,
+   "chars": 2611,
+   "hit": true,
+   "ms": 3259
+  }
+ },
+ {
+  "id": "E30-D09",
+  "gold": "src/core/relpath.py",
+  "first_path": "src\\core\\relpath.py",
+  "A": {
+   "tokens": 1792,
+   "chars": 6412,
+   "hit": true,
+   "ms": 717
+  },
+  "C": {
+   "tokens": 431,
+   "chars": 1357,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 757,
+   "chars": 2609,
+   "hit": true,
+   "ms": 4236
+  }
+ },
+ {
+  "id": "E30-D10",
+  "gold": "src/core/search/cypher_parser.py",
+  "first_path": "src\\core\\search\\cypher_sql.py",
+  "A": {
+   "tokens": 793,
+   "chars": 2540,
+   "hit": true,
+   "ms": 130
+  },
+  "C": {
+   "tokens": 289,
+   "chars": 882,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 493,
+   "chars": 1754,
+   "hit": false,
+   "ms": 4046
+  }
+ },
+ {
+  "id": "E30-D11",
+  "gold": "src/core/search/trace.py",
+  "first_path": "src\\core\\search\\trace.py",
+  "A": {
+   "tokens": 2271,
+   "chars": 8183,
+   "hit": true,
+   "ms": 161
+  },
+  "C": {
+   "tokens": 480,
+   "chars": 1599,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 652,
+   "chars": 2351,
+   "hit": true,
+   "ms": 4433
+  }
+ },
+ {
+  "id": "E30-D12",
+  "gold": "src/mcp/__init__.py",
+  "first_path": "src\\mcp\\__init__.py",
+  "A": {
+   "tokens": 4257,
+   "chars": 12668,
+   "hit": true,
+   "ms": 340
+  },
+  "C": {
+   "tokens": 934,
+   "chars": 2843,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 162,
+   "chars": 475,
+   "hit": false,
+   "ms": 36
+  }
+ },
+ {
+  "id": "E30-D13",
+  "gold": "src/mcp/tools/duplication_tool.py",
+  "first_path": "src\\mcp\\tools\\duplication_tool.py",
+  "A": {
+   "tokens": 1835,
+   "chars": 4949,
+   "hit": true,
+   "ms": 159
+  },
+  "C": {
+   "tokens": 379,
+   "chars": 1188,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 836,
+   "chars": 2680,
+   "hit": true,
+   "ms": 3912
+  }
+ },
+ {
+  "id": "E30-D14",
+  "gold": "src/plugins/loader.py",
+  "first_path": "src\\plugins\\loader.py",
+  "A": {
+   "tokens": 2664,
+   "chars": 8012,
+   "hit": true,
+   "ms": 135
+  },
+  "C": {
+   "tokens": 307,
+   "chars": 995,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 559,
+   "chars": 1969,
+   "hit": true,
+   "ms": 3296
+  }
+ },
+ {
+  "id": "E30-D15",
+  "gold": "src/remote_main.py",
+  "first_path": "src\\remote_main.py",
+  "A": {
+   "tokens": 1740,
+   "chars": 5417,
+   "hit": true,
+   "ms": 149
+  },
+  "C": {
+   "tokens": 461,
+   "chars": 1357,
+   "hit": true,
+   "ms": null
+  },
+  "B": {
+   "tokens": 721,
+   "chars": 2264,
+   "hit": true,
+   "ms": 3063
+  }
+ }
+]

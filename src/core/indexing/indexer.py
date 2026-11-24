@@ -868,19 +868,30 @@ class Indexer(IndexerTableMixin):
         # все инструменты блокируются (инцидент 2026-11-07: 7 314 чанков в
         # chunks.db при total_chunks=0). Текстовая индексация: чанки -> SQLite/
         # FTS5 + AST-граф, без эмбеддингов.
+        #
+        # ВАЖНО: try оборачивает ТОЛЬКО чтение конфига. Раньше он оборачивал и
+        # сам text-only прогон: любая ошибка внутри (например, «unable to open
+        # database file») глушилась, и код молча уходил в dense-конвейер,
+        # которому нужен эмбеддер. С выключенным эмбеддером это давало
+        # «reindexing» и 0 чанков вместо настоящей ошибки (аудит engraphis,
+        # репро 2026-11-17: 5 файлов → RuntimeError: Embedder returned 0
+        # vectors). Ошибка text-only обязана дойти до вызывающего.
         try:
             from src.config.settings import get_config as _get_cfg
 
-            if getattr(_get_cfg().search, "dense_off", False):
-                logger.info(
-                    "Phase 3: dense_off=true → text-only full index "
-                    "(no embeddings; chunks + graph only)."
-                )
-                return self._index_text_only_project(
-                    project_path, progress_callback, phase_callback
-                )
-        except Exception as _cfg_err:
+            _dense_off = bool(getattr(_get_cfg().search, "dense_off", False))
+        except Exception as _cfg_err:  # noqa: BLE001 — без конфига считаем dense
             logger.debug(f"dense_off guard failed: {_cfg_err}")
+            _dense_off = False
+
+        if _dense_off:
+            logger.info(
+                "Phase 3: dense_off=true → text-only full index "
+                "(no embeddings; chunks + graph only)."
+            )
+            return self._index_text_only_project(
+                project_path, progress_callback, phase_callback
+            )
 
         res = self._project_runner.run(
             project_path=project_path,
@@ -944,6 +955,7 @@ class Indexer(IndexerTableMixin):
 
         files_indexed = 0
         errors = 0
+        from contextlib import nullcontext as _nullcontext
         seen: set[str] = set()
         t0 = time.perf_counter()
 
@@ -991,12 +1003,24 @@ class Indexer(IndexerTableMixin):
                     logger.debug(f"[text-index] hash check failed for {rel}: {_hash_err}")
 
             try:
-                parsed = self._pipeline.process_file(
-                    rel_path_str=rel,
-                    full_path=full_path,
-                    content=content,
-                    current_hash=current_hash,
+                # Граф писать пачкой: PropertyGraph.batch() держит одну
+                # транзакцию вместо commit на каждый узел/ребро. Без него
+                # полный индекс engraphis писал 214k записей по 288/с
+                # (12.4 мин только на граф, 2026-11-17).
+                _graph = getattr(self._symbol_index, "graph", None)
+                _batch_ok = (
+                    _graph is not None
+                    and hasattr(_graph, "batch")
+                    and os.environ.get("MSCODEBASE_GRAPH_BATCH", "1") != "0"
                 )
+                _ctx = _graph.batch() if _batch_ok else _nullcontext()
+                with _ctx:
+                    parsed = self._pipeline.process_file(
+                        rel_path_str=rel,
+                        full_path=full_path,
+                        content=content,
+                        current_hash=current_hash,
+                    )
             except Exception as exc:  # noqa: BLE001 — один файл не роняет прогон
                 errors += 1
                 logger.debug(f"[text-index] parse error {rel}: {exc}")
@@ -1006,6 +1030,12 @@ class Indexer(IndexerTableMixin):
                 records = self._db_writer.write_text_records(parsed)
                 if records:
                     files_indexed += 1
+                    # Кэш статуса: text-only писал в SQLite в обход
+                    # `_write_text_file_records`, поэтому total_chunks мог
+                    # оставаться нулём, пока чанки уже записаны.
+                    with self._index_lock:
+                        self._cached_total_chunks += len(records)
+                        self._cached_unique_files.add(rel)
             if idx % 10 == 0:
                 self.watchdog_heartbeat(f"text-index:{idx}/{total}")
             _report(rel, idx, "parsing")
@@ -1023,6 +1053,25 @@ class Indexer(IndexerTableMixin):
                     logger.info(f"[text-index] pruned {len(stale)} stale files")
             except Exception as exc:  # noqa: BLE001 — prune не роняет индексацию
                 logger.warning(f"[text-index] prune failed: {exc}")
+
+        # Символьный индекс: pipeline пополнил его в памяти, но text-only путь
+        # никогда его не сохранял (это делал только `_write_text_file_records`).
+        # Итог на реальном корне: 49 558 чанков и 0 узлов в graph.db →
+        # get_symbol_info/impact_analysis/graph_query отвечали «not found».
+        try:
+            if not self._index_guard.save_symbol_index(self._symbol_index):
+                logger.warning("[text-index] save_symbol_index вернул False")
+        except Exception as _sym_err:  # noqa: BLE001 — индексация чанков важнее
+            logger.warning(f"[text-index] save_symbol_index failed: {_sym_err}")
+
+        # Тихая катастрофа: если ни один файл не обработан, «done: 0 files» —
+        # это не успех. Так выглядел баг с nullcontext (2026-11-17): job
+        # рапортовал done, а индекс оставался пустым.
+        if total and files_indexed == 0 and errors:
+            raise RuntimeError(
+                f"text-index: ни один файл не проиндексирован "
+                f"({errors} ошибок из {total})"
+            )
 
         logger.info(
             f"[text-index] done: {files_indexed} files, {errors} errors, "

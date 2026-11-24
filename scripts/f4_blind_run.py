@@ -61,7 +61,7 @@ def run_one(bin_: str, model: str, variant: str, workdir: Path, handout: Path,
            f"--file={handout}", "--variant", variant]
     env = dict(os.environ, PYTHONUTF8="1", NO_COLOR="1")
     try:
-        p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env)
+        p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
         return f"[TIMEOUT after {timeout}s — run not completed]"
     raw = (p.stdout or b"") + b"\n" + (p.stderr or b"")

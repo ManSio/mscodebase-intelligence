@@ -277,9 +277,12 @@ def build_startup_report(
 
 
 def log_startup_report(report: StartupReport) -> None:
-    """Логирует отчёт целиком (для стартового пути MCP)."""
-    text = report.to_human()
+    """Логирует отчёт одной строкой: многострочный текст в логе давал
+    WARNING с пустым сообщением (первая строка — перевод строки), и агент
+    видел «предупреждение без текста» (замер 2026-11-17, clean run).
+    """
+    text = " ".join(report.to_human().split())
     if report.issues:
-        logger.warning("\n" + text)
+        logger.warning(text)
     else:
-        logger.info("\n" + text)
+        logger.info(text)

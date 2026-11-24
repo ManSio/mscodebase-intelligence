@@ -47,16 +47,16 @@ def test_sha256_text_equals_file(tmp_path):
 
 
 def test_get_base_commit_in_git_repo(tmp_path):
-    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     subprocess.run(
-        ["git", "config", "user.email", "t@t.t"], cwd=tmp_path, check=True
+        ["git", "config", "user.email", "t@t.t"], cwd=tmp_path, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     subprocess.run(
-        ["git", "config", "user.name", "t"], cwd=tmp_path, check=True
+        ["git", "config", "user.name", "t"], cwd=tmp_path, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     (tmp_path / "f.txt").write_text("hello", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
-    subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    subprocess.run(["git", "commit", "-qm", "init"], cwd=tmp_path, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     commit = get_base_commit(str(tmp_path))
     assert len(commit) == 40
 

@@ -28,7 +28,7 @@ def _run_cli(extra_env: dict[str, str] | None = None,
         env.update(extra_env)
     cmd = [sys.executable, "-B", str(GATE_CLI), *(extra_args or [])]
     return subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT,
-                          env=env, timeout=180)
+                          env=env, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
 
 def test_selftest_passes_rc0():

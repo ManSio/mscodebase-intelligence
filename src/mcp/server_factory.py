@@ -453,6 +453,16 @@ def run_server(original_stdout=None):
         _shutdown_services()
 
 
+def auto_index_block_reason(indexer) -> str:
+    """Причина, по которой автоиндексация бессмысленна (пустая строка — можно).
+
+    Read-only означает, что базу держит другой процесс MCP: запись будет
+    отвергнута, поэтому запускать индексацию = создавать видимость работы.
+    """
+    issue = getattr(getattr(indexer, "db_manager", None), "_startup_issue", None)
+    return str(issue) if issue else ""
+
+
 async def _delayed_auto_index(services):
     """Запускает автоиндексацию с задержкой после старта сервера.
 
@@ -460,8 +470,26 @@ async def _delayed_auto_index(services):
     """
     try:
         from src.mcp.tools.base import resolve_indexer_for_request
-        indexer = resolve_indexer_for_request(services)
+
+        # Всё это — синхронный диск/БД. На event loop такие вызовы задерживают
+        # `initialize` на секунды (замер 2026-11-16: handshake 14.7 с при
+        # create_mcp_server 2.2 с — разницу съедали синхронные проверки
+        # автоиндексации, выполнявшиеся прямо в корутине).
+        indexer = await asyncio.to_thread(resolve_indexer_for_request, services)
         if indexer is None:
+            return
+
+        from src.core.project_resolution import is_project_root
+
+        if not await asyncio.to_thread(is_project_root, indexer.project_path):
+            # Без маркера (.git/pyproject.toml/package.json/...) cwd может быть
+            # чем угодно — домашним каталогом или C:\Windows. Автоиндексация
+            # такого корня = десятки тысяч чужих файлов + `.mscodebase` внутри ОС.
+            logger.warning(
+                f"⏸ Auto-index: в {indexer.project_path} нет маркеров проекта — "
+                f"автоиндексация пропущена. Явный вызов: "
+                f'codebase(action="index", path="project_dir").'
+            )
             return
 
         from src.core.project_resolution import ext_root as _ext_root
@@ -472,67 +500,173 @@ async def _delayed_auto_index(services):
         except Exception:
             pass
 
-        status = indexer.get_status()
+        # Read-only из-за чужого PID-lock: индексация заведомо не запишет.
+        _block = auto_index_block_reason(indexer)
+        if _block:
+            from src.core.indexing import auto_index_state as _auto
+
+            _auto.mark_skipped("database locked by another MCP process")
+            logger.warning(
+                f"⏸ Auto-index: база занята другим процессом MCP — индексация "
+                f"не запущена (read-only). {_block}"
+            )
+            return
+
+        status = await asyncio.to_thread(indexer.get_status)
         if status.get("total_chunks", 0) > 0:
             logger.info(f"⏸ Auto-index: индекс не пуст ({status.get('total_chunks', 0)} чанков), пропускаем")
             return
 
-        # Задача 3/5: человеческий отчёт вместо Rust-трейса при пустом/битом
-        # индексе — пользователь сразу видит причину и действие.
+        # Отмечаем ожидание СРАЗУ после решения «индексировать»: хост спрашивает
+        # индекс раньше, чем закончатся диагностика и sleep(1.5), и должен
+        # видеть «строится», а не «не запускалась».
+        from src.core.indexing import auto_index_state as _auto_state
+
+        _auto_state.mark_started()
         try:
-            _dbm_diag = getattr(indexer, "db_manager", None)
-            if _dbm_diag is not None and hasattr(_dbm_diag, "human_report"):
-                logger.warning(f"\n{_dbm_diag.human_report()}")
-            else:
-                from src.core.indexing.startup_diagnostics import (
-                    build_startup_report,
-                    log_startup_report,
-                )
-
-                log_startup_report(
-                    build_startup_report(
-                        db_path=getattr(indexer, "db_path", indexer.project_path),
-                        current_pid=os.getpid(),
-                    )
-                )
-        except Exception as _diag_err:
-            logger.debug(f"startup diagnostics log failed: {_diag_err}")
-
-        # Ждём готовности рантайма
-        await asyncio.sleep(1.5)
-
-        from src.core.project_resolution import ext_root as _ext_root
-        if indexer.project_path.resolve() == _ext_root.resolve():
-            logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
-            return
-
-        logger.info("🚀 Auto-index: starting background indexing task")
-
-        # Guard (AGENTS.md §5.13): запрещаем concurrent search
-        _dbm = getattr(indexer, "db_manager", None)
-        if _dbm is not None and hasattr(_dbm, "set_reindexing"):
-            _dbm.set_reindexing()
-        try:
-            c = await asyncio.to_thread(indexer.index_project, indexer.project_path)
-            logger.info(f"✅ Auto-index: completed ({c} files)")
-            # State machine: get_indexer() ставил INDEXING при пустом индексе —
-            # после успешной авто-индексации переводим в READY, иначе паспорт
-            # вечно показывает «Project State: INDEXING» (косметический баг,
-            # 2026-08-26; заодно разблокирует wait_until_ready).
+            # Задача 3/5: человеческий отчёт вместо Rust-трейса при пустом/битом
+            # индексе — пользователь сразу видит причину и действие.
             try:
-                from src.core.di_container import ProjectIndexerRegistry as _PIRKey
-                from src.core.indexing.project_indexer_registry import (
-                    ProjectState as _PS,
-                )
+                _dbm_diag = getattr(indexer, "db_manager", None)
+                if _dbm_diag is not None and hasattr(_dbm_diag, "human_report"):
+                    # Одной строкой: `\n` в начале давал WARNING с пустым
+                    # сообщением (clean run 2026-11-17). Уровень — по факту:
+                    # здоровая диагностика это INFO, WARNING только при issue.
+                    _report_text = " ".join(str(_dbm_diag.human_report()).split())
+                    if getattr(_dbm_diag, "_startup_issue", None):
+                        logger.warning(_report_text)
+                    else:
+                        logger.info(_report_text)
+                else:
+                    from src.core.indexing.startup_diagnostics import (
+                        build_startup_report,
+                        log_startup_report,
+                    )
 
-                _reg = services.resolve(_PIRKey)
-                if _reg is not None and hasattr(_reg, "set_state"):
-                    _reg.set_state(indexer.project_path, _PS.READY)
-            except Exception as _state_err:  # noqa: BLE001 — статус не роняем
-                logger.debug(f"auto-index set_state READY failed: {_state_err}")
+                    await asyncio.to_thread(
+                        log_startup_report,
+                        build_startup_report(
+                            db_path=getattr(indexer, "db_path", indexer.project_path),
+                            current_pid=os.getpid(),
+                        ),
+                    )
+            except Exception as _diag_err:
+                logger.debug(f"startup diagnostics log failed: {_diag_err}")
+
+            # Ждём готовности рантайма
+            await asyncio.sleep(1.5)
+
+            # Перепроверяем: пока спали, индекс мог наполнить явный вызов
+            # `codebase(action="index", path="project_dir")` — тогда второй
+            # прогон не нужен (иначе дублируются уведомления и работа).
+            try:
+                _status_after = await asyncio.to_thread(indexer.get_status)
+                if (
+                    _status_after.get("total_chunks", 0) > 0
+                    or _status_after.get("reindex_in_progress") is True
+                ):
+                    logger.info(
+                        "⏸ Auto-index: индекс уже наполняется или наполнен — пропускаю"
+                    )
+                    return
+            except Exception as _recheck_err:  # noqa: BLE001 — не блокируем автозапуск
+                logger.debug(f"Auto-index recheck failed: {_recheck_err}")
+
+            from src.core.project_resolution import ext_root as _ext_root
+            if indexer.project_path.resolve() == _ext_root.resolve():
+                logger.info("⏸ Auto-index: project_root == ext_root, пропускаем")
+                return
+
+            logger.info("🚀 Auto-index: starting background indexing task")
+
+            # Guard (AGENTS.md §5.13): запрещаем concurrent search
+            _dbm = getattr(indexer, "db_manager", None)
+            if _dbm is not None and hasattr(_dbm, "set_reindexing"):
+                _dbm.set_reindexing()
+
+            # Уведомления хосту: индексация больше не «молчит» (замер 2026-11-16:
+            # notifications=0 за 56 вызовов). Прогресс идёт из worker-потока,
+            # поэтому отправляем его в loop через run_coroutine_threadsafe.
+            from src.mcp import notifications as _notify
+
+            loop = asyncio.get_running_loop()
+            _last_pct = {"value": -10.0}
+
+            def _on_progress(current, done, total, phase="indexing"):
+                try:
+                    # `current` — путь файла (строка), число обработанных — `done`.
+                    pct = (done / total * 100.0) if total else 0.0
+                    if pct - _last_pct["value"] < 10.0:
+                        return
+                    _last_pct["value"] = pct
+                    message = (
+                        f"Индексация {indexer.project_path.name}: "
+                        f"{done}/{total} ({pct:.0f}%)"
+                    )
+                    _notify.schedule(
+                        _notify.notify_log("info", message, "mscodebase.indexer"), loop
+                    )
+                except Exception:  # noqa: BLE001 — прогресс не должен ломать индексацию
+                    pass
+
+            try:
+                _notify.schedule(
+                    _notify.notify_log(
+                        "info",
+                        f"Индексация началась: {indexer.project_path}",
+                        "mscodebase.indexer",
+                    ),
+                    loop,
+                )
+            except RuntimeError:  # loop уже закрыт (тесты/завершение процесса)
+                pass
+            try:
+                import inspect
+
+                try:
+                    _accepts_progress = (
+                        "progress_callback"
+                        in inspect.signature(indexer.index_project).parameters
+                    )
+                except (TypeError, ValueError):  # встроенные/обёрнутые callable
+                    _accepts_progress = False
+                if _accepts_progress:
+                    c = await asyncio.to_thread(
+                        indexer.index_project, indexer.project_path, _on_progress
+                    )
+                else:
+                    c = await asyncio.to_thread(
+                        indexer.index_project, indexer.project_path
+                    )
+                logger.info(f"✅ Auto-index: completed ({c} files)")
+                try:
+                    await _notify.notify_log(
+                        "info",
+                        f"Индексация завершена: {indexer.project_path} ({c} файлов)",
+                        "mscodebase.indexer",
+                    )
+                except Exception:  # noqa: BLE001 — уведомление не роняет индексацию
+                    pass
+                # State machine: get_indexer() ставил INDEXING при пустом индексе —
+                # после успешной авто-индексации переводим в READY, иначе паспорт
+                # вечно показывает «Project State: INDEXING» (косметический баг,
+                # 2026-08-26; заодно разблокирует wait_until_ready).
+                try:
+                    from src.core.di_container import ProjectIndexerRegistry as _PIRKey
+                    from src.core.indexing.project_indexer_registry import (
+                        ProjectState as _PS,
+                    )
+
+                    _reg = services.resolve(_PIRKey)
+                    if _reg is not None and hasattr(_reg, "set_state"):
+                        _reg.set_state(indexer.project_path, _PS.READY)
+                except Exception as _state_err:  # noqa: BLE001 — статус не роняем
+                    logger.debug(f"auto-index set_state READY failed: {_state_err}")
+            finally:
+                if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
+                    _dbm.clear_reindexing()
         finally:
-            if _dbm is not None and hasattr(_dbm, "clear_reindexing"):
-                _dbm.clear_reindexing()
+            _auto_state.mark_finished()
     except Exception as e:
         logger.warning(f"Auto-index: {e}", exc_info=True)
 
@@ -632,12 +766,20 @@ def _start_llama_sync():
 
     Управляется тумблером LLAMA_CPP_ENABLED (config.py / .env).
     По умолчанию выключен — embedder (порт 8080) не поднимается.
+
+    Тумблер общий для embedder и реранкера: они используют один бинарь и
+    GGUF-модели. Иначе при LLAMA_CPP_ENABLED=false реранкер всё равно лез
+    спавниться и писал `ERROR GGUF модель не найдена` на каждом старте
+    (замер 2026-11-16: ERROR в логе на каждом запуске).
     """
     try:
         from src.config.settings import get_config
 
         if not get_config().embedding.llama_cpp_enabled:
-            logger.info("🦙 llama.cpp отключён (LLAMA_CPP_ENABLED=false). Пропускаю авто-запуск.")
+            logger.info(
+                "🦙 llama.cpp отключён (LLAMA_CPP_ENABLED=false). "
+                "Пропускаю авто-запуск embedder и реранкера."
+            )
             return
     except Exception as _cfg_err:
         logger.warning(f"llama toggle check failed: {_cfg_err}")

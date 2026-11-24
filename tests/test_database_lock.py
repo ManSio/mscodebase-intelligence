@@ -132,7 +132,7 @@ class TestContention:
         proc = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(0.1)"],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         dead_pid = proc.pid
         proc.wait(timeout=10)

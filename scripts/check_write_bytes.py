@@ -163,7 +163,7 @@ def main(argv: list[str]) -> int:
         out = subprocess.run(
             ["git", "-C", str(root), "ls-files", "-z"],
             capture_output=True,
-            check=True,
+            check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         ).stdout
         rel = [p for p in out.decode("utf-8").split("\0") if p]
         # Generated-артефакты экспериментов — данные, а не авторские файлы.

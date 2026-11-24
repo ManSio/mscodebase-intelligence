@@ -21,6 +21,8 @@ import sys
 from pathlib import Path
 from typing import Type
 
+# Windows: подавляет окна консоли у дочерних процессов (импорт = apply()).
+import src.core.silent_subprocess  # noqa: F401
 from src.core.di_container import create_service_collection
 from src.core.redact import redacted_count
 

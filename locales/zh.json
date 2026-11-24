@@ -76,5 +76,10 @@
   "⏱ Performance": "⏱ 性能",
   "\n📁 **Other projects:**\n": "\n📁 **其他项目:**\n",
   "\n📊 **Tools:**\n": "\n📊 **工具:**\n",
-  "\n📅 **History (snapshots):**\n": "\n📅 **历史 (快照):**\n"
+  "\n📅 **History (snapshots):**\n": "\n📅 **历史 (快照):**\n",
+  "Reindex the project: codebase(action='index', path='project_dir') — the symbol graph is built during a full index.": "重建索引：codebase(action='index', path='project_dir') — 符号图在完整索引时构建。",
+  "Refine the name via `search_code` or `graph_query`": "请通过 `search_code` 或 `graph_query` 确认符号名称",
+  "Symbol layer is empty: the project graph has no symbols, so '{symbol}' cannot be found.": "符号层为空：项目图中没有任何符号，因此无法找到 '{symbol}'。",
+  "Index is being built for {path}. Retry in a few seconds or check codebase(action='index', path='progress').": "正在为 {path} 构建索引。请几秒后重试或检查 codebase(action='index', path='progress')。",
+  "Index is empty for {path} and no indexing was started. Run codebase(action='index', path='project_dir').": " {path} 的索引为空，且没有启动索引。请运行 codebase(action='index', path='project_dir')。"
 }

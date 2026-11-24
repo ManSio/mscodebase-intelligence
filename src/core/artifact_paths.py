@@ -394,7 +394,8 @@ def _migrate_into(new_dir: Path, project_path: Path) -> Dict[str, str]:
                 report[f".codebase_indices/{sub}"] = str(dst)
             except Exception as _e:  # noqa: BLE001 — best-effort миграция
                 logger.warning(
-                    f"Artifact migration SKIPPED .codebase_indices/{sub}: {_e}"
+                    f"Artifact migration SKIPPED .codebase_indices/{sub}: {_e} "
+                    f"(src={src}, dst={dst})"
                 )
                 report[f".codebase_indices/{sub}"] = f"SKIPPED: {_e}"
 
@@ -407,7 +408,10 @@ def _migrate_into(new_dir: Path, project_path: Path) -> Dict[str, str]:
                 shutil.move(str(src), str(dst))
                 report[f".codebase/{suffix}"] = str(dst)
             except Exception as _e:  # noqa: BLE001
-                logger.warning(f"Artifact migration SKIPPED .codebase/{suffix}: {_e}")
+                logger.warning(
+                    f"Artifact migration SKIPPED .codebase/{suffix}: {_e} "
+                    f"(src={src}, dst={dst})"
+                )
                 report[f".codebase/{suffix}"] = f"SKIPPED: {_e}"
 
     old_telemetry = project_path / ".mscodebase" / "telemetry"
@@ -416,7 +420,10 @@ def _migrate_into(new_dir: Path, project_path: Path) -> Dict[str, str]:
             shutil.move(str(old_telemetry), str(new_dir / "telemetry"))
             report[".mscodebase/telemetry"] = str(new_dir / "telemetry")
         except Exception as _e:  # noqa: BLE001
-            logger.warning(f"Artifact migration SKIPPED .mscodebase/telemetry: {_e}")
+            logger.warning(
+                f"Artifact migration SKIPPED .mscodebase/telemetry: {_e} "
+                f"(src={old_telemetry}, dst={new_dir / 'telemetry'})"
+            )
             report[".mscodebase/telemetry"] = f"SKIPPED: {_e}"
 
     if report:

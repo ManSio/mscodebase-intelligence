@@ -64,7 +64,7 @@ def test_is_pid_alive_dead_process_returns_false():
     До фикса OpenProcess(SYNCHRONIZE) возвращал handle для завершённого
     процесса (объект жив, пока у родителя handle) → ложный True.
     """
-    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc = subprocess.Popen([sys.executable, "-c", "pass"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     proc.wait(timeout=10)
     proc.communicate()
     # Даём ОС время убрать объект процесса

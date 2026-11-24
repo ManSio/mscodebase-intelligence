@@ -29,7 +29,11 @@ sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11"))
 sys.path.insert(0, str(ROOT / "experiments" / "xerj_2026_11" / "evidence_gate"))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from capture import load_capture  # noqa: E402
+from capture import (  # noqa: E402
+    check_capture_before_run,
+    check_denominator_after_run,
+    load_capture,
+)
 from run_gate import _files, _invalid, _norm, _tools_for  # noqa: E402
 from wilson import wilson  # noqa: E402
 
@@ -55,6 +59,13 @@ def _solvable(task: dict) -> bool:
 
 def _kept_gold(task: dict) -> list[str]:
     return [g for g in task["gold"] if (CORPUS / g).is_file()]
+
+
+def _product_rev() -> str:
+    """The revision of the *product* (this repository), recorded in every row."""
+    out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                         capture_output=True, text=True, encoding="utf-8")
+    return out.stdout.strip() if out.returncode == 0 else "unknown"
 
 
 def _corpus_files() -> list[str]:
@@ -144,6 +155,16 @@ def main() -> int:
         help="reuse rows from results_<split>.partial.jsonl (default: drop it and run the panel)",
     )
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--allow-replay",
+        action="store_true",
+        help="score a capture without executing the panel (the 0.2-minute run)",
+    )
+    parser.add_argument(
+        "--allow-mixed",
+        action="store_true",
+        help="score a capture whose rows came from another product revision or corpus",
+    )
     args = parser.parse_args()
 
     if args.split == "sealed" and not args.sealed:
@@ -180,7 +201,9 @@ def main() -> int:
         CORPUS, factory=services.resolve(IndexerFactoryKey)
     )
     head = indexer._symbol_index.graph.get_meta("build_head") or ""
-    print(f"corpus build_head={head[:12]} expected={BASE[:12]}")
+    rev = _product_rev()
+    corpus_head = head[:12]
+    print(f"corpus build_head={head[:12]} expected={BASE[:12]} product_rev={rev[:12]}")
     baseline = GrepBaseline(_corpus_files())
 
     rows = []
@@ -196,6 +219,21 @@ def main() -> int:
         return 2
     lock.write_text(str(os.getpid()), encoding="utf-8")
     rows, done = load_capture(partial, args.resume)
+    panel_ids = [task["id"] for task in tasks]
+    executed, resumed, refusal = check_capture_before_run(
+        rows,
+        done,
+        panel_ids,
+        rev=rev,
+        corpus_head=corpus_head,
+        allow_replay=args.allow_replay,
+        allow_mixed=args.allow_mixed,
+    )
+    print(f"executed={executed} resumed={resumed} of {len(panel_ids)}", flush=True)
+    if refusal:
+        print(f"ABORT: {refusal}", flush=True)
+        lock.unlink(missing_ok=True)
+        return 3
 
     searcher = tool.resolve_searcher(explicit_project_root=str(CORPUS))
     for index, task in enumerate(tasks, 1):
@@ -215,6 +253,8 @@ def main() -> int:
         search_files = _files_from_rows(raw)
         row = {
             "id": task["id"],
+            "rev": rev,
+            "corpus_head": corpus_head,
             "valid": not _invalid(text),
             "tool_top1": _hits(files, task["gold"], 1),
             "tool_top5": _hits(files, task["gold"], 5),
@@ -264,6 +304,11 @@ def main() -> int:
                   f"hit@5={cell['top5']}/{total} any@8={cell['any8']}/{total}")
 
     out = HERE / f"results_{args.split}{suffix}.json"
+    refusal = check_denominator_after_run(rows, panel_ids)
+    if refusal:
+        print(f"ABORT: {refusal}", flush=True)
+        lock.unlink(missing_ok=True)
+        return 3
     out.write_text(json.dumps({
         "split": args.split, "tasks": len(tasks), "dropped_unsolvable": dropped,
         "corpus_head": head, "stats": stats,
@@ -273,7 +318,7 @@ def main() -> int:
     lock.unlink(missing_ok=True)
 
     if invalid:
-        print("ABORT: a task did not run; the denominator is not the panel.")
+        print(f"ABORT: {invalid} tasks returned an invalid answer; the denominator is not the panel.")
         return 3
     if head[:12] != BASE[:12]:
         print("ABORT: corpus is not the frozen base commit.")

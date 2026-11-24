@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Optional
@@ -37,6 +39,7 @@ from src.core.indexing.project_indexer_registry import (
     ProjectIndexerRegistry,
 )
 from src.core.utils.self_index_guard import _is_self_index_path
+from src.utils.i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +332,102 @@ class MCPTool(ABC):
                     ),
                 )
 
+    _INDEX_WAIT_ENV = "MSCODEBASE_INDEX_WAIT_S"
+    # 3 с, а не 8: ожидание живёт внутри инструмента, у которого свой
+    # `error_boundary`. У `get_symbol_info` он 5000 мс, и бюджет 8 с превращал
+    # честное «индекс пуст» в TIMEOUT с ложным советом «меньше результатов»
+    # (ревью 2026-11-16).
+    _INDEX_WAIT_DEFAULT_S = 3.0
+    # Потолок: держим ниже самого короткого таймаута инструмента (5 с), иначе
+    # `float("inf")`/`1e300` из env снова дают TIMEOUT вместо ответа.
+    _INDEX_WAIT_MAX_S = 4.0
+    # Сколько ждать появления признака «автоиндексация началась»: задача
+    # создаётся сразу после handshake, но не мгновенно. 1 с покрывает гонку и
+    # не заставляет пустой проект платить больше.
+    _INDEX_START_GRACE_S = 1.0
+
+    def _index_wait_budget(self) -> float:
+        """Сколько секунд ждать первые чанки автоиндексации (env-настройка)."""
+        raw = os.environ.get(self._INDEX_WAIT_ENV, "").strip()
+        if not raw:
+            return self._INDEX_WAIT_DEFAULT_S
+        try:
+            value = float(raw)
+        except ValueError:
+            return self._INDEX_WAIT_DEFAULT_S
+        if value != value:  # NaN
+            return self._INDEX_WAIT_DEFAULT_S
+        return min(max(0.0, value), self._INDEX_WAIT_MAX_S)
+
+    @staticmethod
+    def _empty_index_hint(indexer, status: dict) -> str:
+        """Почему индекс пуст — с советом, который соответствует состоянию.
+
+        Раньше на пустом проекте без автоиндексации писали «Auto-index не
+        завершился», хотя его никто и не запускал: совет уводил в сторону.
+        Тексты — английский источник под `_()`.
+        """
+        from src.core.indexing import auto_index_state
+
+        path = getattr(indexer, "project_path", "?")
+        building = bool(
+            status.get("is_reindexing")
+            or status.get("reindex_in_progress")
+            or auto_index_state.is_running()
+        )
+        if building:
+            return _(
+                "Index is being built for {path}. Retry in a few seconds or "
+                "check codebase(action='index', path='progress').",
+                path=path,
+            )
+        return _(
+            "Index is empty for {path} and no indexing was started. Run "
+            "codebase(action='index', path='project_dir').",
+            path=path,
+        )
+
+    async def _wait_for_first_chunks(self, indexer, poll_s: float = 0.25) -> bool:
+        """Ждёт появления первых чанков, пока идёт автоиндексация.
+
+        Зачем: `initialize` отвечает через ~7 с после старта процесса, а
+        автоиндексация в этот момент ещё пишет чанки (на живом проекте из 31
+        файла — ~1 с). Первый запрос агента приходил через 7 мс после handshake
+        и получал `Index is empty → run index_project_dir()`, хотя индексация
+        уже шла.
+
+        Ждём только при реальной индексации: `auto_index_state.is_running()`.
+        На пустом проекте, где автоиндексация не запускалась, ожидание
+        ограничено коротким окном появления признака (`_INDEX_START_GRACE_S`),
+        иначе любой первый запрос платил бы полный бюджет впустую.
+        """
+        budget = self._index_wait_budget()
+        if budget <= 0:
+            return False
+
+        from src.core.indexing import auto_index_state
+
+        started = time.monotonic()
+        deadline = started + budget
+        grace_deadline = started + self._INDEX_START_GRACE_S
+        while True:
+            # Сначала статус, потом сон: последняя итерация не должна спать
+            # после дедлайна (ревью 2026-11-16).
+            try:
+                status = await asyncio.to_thread(indexer.get_status)
+            except Exception:  # noqa: BLE001 — статус не должен ломать запрос
+                return False
+            if status.get("total_chunks", 0) > 0:
+                return True
+
+            now = time.monotonic()
+            indexing = auto_index_state.is_running()
+            if not indexing and now >= grace_deadline:
+                return False
+            if now >= deadline:
+                return False
+            await asyncio.sleep(poll_s)
+
     async def require_ready_project(
         self,
         explicit_project_root: Optional[str] = None,
@@ -354,6 +453,12 @@ class MCPTool(ABC):
             IndexNotReadyError: если проект READY, но индекс пуст.
         """
         from src.core.runtime_coordinator import RuntimeCoordinator
+
+        # Захватываем MCP-сессию: через неё фоновые задачи смогут присылать
+        # уведомления о прогрессе индексации (замер 2026-11-16: notifications=0).
+        from src.mcp.notifications import bind_session_from_request
+
+        bind_session_from_request()
 
         coord = RuntimeCoordinator(self._services)
         target = self._resolve_target_path(explicit_project_root)
@@ -427,12 +532,14 @@ class MCPTool(ABC):
                     code="REINDEX_IN_PROGRESS",
                 )
             if status.get("total_chunks", 0) == 0:
-                raise IndexNotReadyError(
-                    detail=(
-                        f"Index is empty for project: {indexer.project_path}. "
-                        f"Run index_project_dir() first."
+                # Первый запрос после handshake приходит раньше, чем автоиндекс
+                # успевает записать чанки (замер 2026-11-16: проект из 31 файла —
+                # ingest ~1 с, запрос через 7 мс). Даём индексации короткий шанс
+                # вместо совета «запусти индексацию», которая уже идёт.
+                if not await self._wait_for_first_chunks(indexer):
+                    raise IndexNotReadyError(
+                        detail=self._empty_index_hint(indexer, status)
                     )
-                )
         except IndexNotReadyError:
             raise
         except ToolError:

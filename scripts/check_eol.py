@@ -27,7 +27,7 @@ def scan(root: Path) -> list[tuple[str, str]]:
         capture_output=True,
         text=True,
         encoding="utf-8",
-        errors="replace",
+        errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip() or "git ls-files --eol failed")
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
             capture_output=True,
             text=True,
             encoding="utf-8",
-            errors="replace",
+            errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         ).stdout.splitlines()
     )
     print(f"EOL GATE: PASS  tracked={total}  stored=LF")

@@ -1,0 +1,105 @@
+{
+ "summary": {
+  "calls": [
+   {
+    "call": "search_code",
+    "ms": 778,
+    "chars": 11260,
+    "tokens": 3454
+   },
+   {
+    "call": "get_symbol_info",
+    "ms": 39,
+    "chars": 1836,
+    "tokens": 518
+   },
+   {
+    "call": "impact_analysis",
+    "ms": 36,
+    "chars": 5706,
+    "tokens": 1736
+   }
+  ],
+  "total_tokens_naive_sum": 5708,
+  "cumulative_context_tokens": [
+   3454,
+   3972,
+   5708
+  ]
+ },
+ "raw": [
+  {
+   "call": "search_code",
+   "args": {
+    "query": "modification_guard",
+    "mode": "fast"
+   },
+   "ms": 778,
+   "chars": 11260,
+   "tokens": 3454,
+   "raw": {
+    "jsonrpc": "2.0",
+    "id": 10,
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "📂 Project: D:\\Project\\MSCodeBase\n🔍 **Search:** `mode=fast` — **12** results (718ms, mode=fast)\n\n1. 📄 **tests/test_modification_guard.py** (line -10000046, src)\n```\nclass_definition TestAckImpact\n📍 tests/test_modification_guard.py:46\n```\n\n2. 📄 **tests/test_modification_guard.py** (line -10000060, src)\n```\nfunction_definition TestAckImpact.test_accepts_valid_token\n📍 tests/test_modification_guard.py:60\n```\n\n3. 📄 **tests/test_modification_guard.py** (line -10000103, src)\n```\nfunction_definition TestAckImpact.test_multiple_files_independent\n📍 tests/test_modification_guard.py:103\n```\n\n4. 📄 **tests/test_modification_guard.py** (line -10000093, src)\n```\nfunction_definition TestAckImpact.test_normalizes_path\n📍 tests/test_modification_guard.py:93\n```\n\n5. 📄 **tests/test_modification_guard.py** (line -10000049, src)\n```\nfunction_definition TestAckImpact.test_rejects_empty_token\n📍 tests/test_modification_guard.py:49\n```\n\n6. 📄 **tests/test_modification_guard.py** (line -10000055, src)\n```\nfunction_definition TestAckImpact.test_rejects_invalid_token\n📍 tests/test_modification_guard.py:55\n```\n\n7. 📄 **docs/archive/ISSUES/modification_guard_gaps.md** (line 2, docs)\n```\nFILE: docs/archive/ISSUES/modification_guard_gaps.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.issues.modification_guard_gaps\nFrom D:\\Project\\MSCodeBase\\docs\\archive\\ISSUES\\modification_guard_gaps.md, section '## Status: Partially addressed (2026-07-23)':\n## Status: Partially addressed (2026-07-23)\n\n**What was found:** `src/core/modification_guard.py` implements a full decorator\n`modification_guard(pagerank_min, blast_min, ack_ttl)` with deny logic based on\nPageRank/blast radius. Grep across all `src/` found zero `@modification_guard`\nor calls to the factory — only `ack_impact` (the acknowledgment endpoint) was\nused. The guard was inert.\n\n**What was done:** Connected `@modification_guard` to `WriteTool.execute()` and\nfixed fail-open → fail-closed in lookup functions.\n\n**What remains (3 gaps, need decision):**\n```\n\n8. 📄 **src/core/modification_guard.py** (line 1, core)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: module | module_docstring | core.modification_guard\n\"\"\"Modification Guard — защита от деструктивных операций на горячих файлах.\n\nПаттерн Qartez: перед write-операцией проверяем PageRank и blast radius.\nЕсли файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала.\n\nAck-система: после impact_analysis() пользователь получает TTL=600s,\nв течение которого write разрешён.\n\"\"\"\n```\n\n9. 📄 **src/core/modification_guard.py** (line 39, core)\n   📞 **Called by:** `_make_ack_token` in D:/Project/MSCodeBase/src/core/modification_guard.py:52, `ack_impact` in D:/Project/MSCodeBase/src/core/modification_guard.py:81\n   *...and 1 more*\n   📞 **Calls:** 38 function(s)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: function | function_definition | core.modification_guard\ndef _file_fingerprint(file_path: str) -> str:\r\n    \"\"\"Хэш mtime+size файла — токен привязан к конкретному состоянию.\"\"\"\r\n    try:\r\n        p = Path(file_path)\r\n        stat = p.stat()\r\n        return f\"{stat.st_mtime_ns}:{stat.st_size}\"\r\n    except OSError:\r\n        return \"missing\"\n```\n\n10. 📄 **src/core/modification_guard.py** (line 57, core)\n   📞 **Called by:** `ack_impact` in D:/Project/MSCodeBase/src/core/modification_guard.py:70\n   📞 **Calls:** 38 function(s)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: function | function_definition | core.modification_guard\ndef _verify_ack_token(file_path: str, token: str) -> bool:\r\n    \"\"\"Проверяет, что токен валиден для текущего состояния файла.\"\"\"\r\n    expected = _make_ack_token(file_path)\r\n    return hmac.compare_digest(expected, token)\n```\n\n*...and 2 more*\n\n💡 **next_step:** для графа вызовов символа используйте `get_symbol_info`; для оценки влияния — `impact_analysis`"
+      }
+     ],
+     "structuredContent": {
+      "result": "📂 Project: D:\\Project\\MSCodeBase\n🔍 **Search:** `mode=fast` — **12** results (718ms, mode=fast)\n\n1. 📄 **tests/test_modification_guard.py** (line -10000046, src)\n```\nclass_definition TestAckImpact\n📍 tests/test_modification_guard.py:46\n```\n\n2. 📄 **tests/test_modification_guard.py** (line -10000060, src)\n```\nfunction_definition TestAckImpact.test_accepts_valid_token\n📍 tests/test_modification_guard.py:60\n```\n\n3. 📄 **tests/test_modification_guard.py** (line -10000103, src)\n```\nfunction_definition TestAckImpact.test_multiple_files_independent\n📍 tests/test_modification_guard.py:103\n```\n\n4. 📄 **tests/test_modification_guard.py** (line -10000093, src)\n```\nfunction_definition TestAckImpact.test_normalizes_path\n📍 tests/test_modification_guard.py:93\n```\n\n5. 📄 **tests/test_modification_guard.py** (line -10000049, src)\n```\nfunction_definition TestAckImpact.test_rejects_empty_token\n📍 tests/test_modification_guard.py:49\n```\n\n6. 📄 **tests/test_modification_guard.py** (line -10000055, src)\n```\nfunction_definition TestAckImpact.test_rejects_invalid_token\n📍 tests/test_modification_guard.py:55\n```\n\n7. 📄 **docs/archive/ISSUES/modification_guard_gaps.md** (line 2, docs)\n```\nFILE: docs/archive/ISSUES/modification_guard_gaps.md\nSYMBOLS: \nDOC: \n// Scope: section | markdown_section | archive.issues.modification_guard_gaps\nFrom D:\\Project\\MSCodeBase\\docs\\archive\\ISSUES\\modification_guard_gaps.md, section '## Status: Partially addressed (2026-07-23)':\n## Status: Partially addressed (2026-07-23)\n\n**What was found:** `src/core/modification_guard.py` implements a full decorator\n`modification_guard(pagerank_min, blast_min, ack_ttl)` with deny logic based on\nPageRank/blast radius. Grep across all `src/` found zero `@modification_guard`\nor calls to the factory — only `ack_impact` (the acknowledgment endpoint) was\nused. The guard was inert.\n\n**What was done:** Connected `@modification_guard` to `WriteTool.execute()` and\nfixed fail-open → fail-closed in lookup functions.\n\n**What remains (3 gaps, need decision):**\n```\n\n8. 📄 **src/core/modification_guard.py** (line 1, core)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: module | module_docstring | core.modification_guard\n\"\"\"Modification Guard — защита от деструктивных операций на горячих файлах.\n\nПаттерн Qartez: перед write-операцией проверяем PageRank и blast radius.\nЕсли файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала.\n\nAck-система: после impact_analysis() пользователь получает TTL=600s,\nв течение которого write разрешён.\n\"\"\"\n```\n\n9. 📄 **src/core/modification_guard.py** (line 39, core)\n   📞 **Called by:** `_make_ack_token` in D:/Project/MSCodeBase/src/core/modification_guard.py:52, `ack_impact` in D:/Project/MSCodeBase/src/core/modification_guard.py:81\n   *...and 1 more*\n   📞 **Calls:** 38 function(s)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: function | function_definition | core.modification_guard\ndef _file_fingerprint(file_path: str) -> str:\r\n    \"\"\"Хэш mtime+size файла — токен привязан к конкретному состоянию.\"\"\"\r\n    try:\r\n        p = Path(file_path)\r\n        stat = p.stat()\r\n        return f\"{stat.st_mtime_ns}:{stat.st_size}\"\r\n    except OSError:\r\n        return \"missing\"\n```\n\n10. 📄 **src/core/modification_guard.py** (line 57, core)\n   📞 **Called by:** `ack_impact` in D:/Project/MSCodeBase/src/core/modification_guard.py:70\n   📞 **Calls:** 38 function(s)\n```\nFILE: src/core/modification_guard.py\nSYMBOLS: _file_fingerprint _make_ack_token _verify_ack_token ack_impact _normalize_path _project_root_for_file _get_pagerank_for_file _get_blast_radius_for_file modification_guard\nDOC: Modification Guard — защита от деструктивных операций на горячих файлах. Паттерн Qartez: перед write-операцией проверяем PageRank и blast radius. Если файл \"горячий\" — возвращаем Deny с требованием вызвать impact_analysis сначала. Ack-система: после impact_analysis() пользователь получает TTL=600s, в течение которого write разрешён. \n// Scope: function | function_definition | core.modification_guard\ndef _verify_ack_token(file_path: str, token: str) -> bool:\r\n    \"\"\"Проверяет, что токен валиден для текущего состояния файла.\"\"\"\r\n    expected = _make_ack_token(file_path)\r\n    return hmac.compare_digest(expected, token)\n```\n\n*...and 2 more*\n\n💡 **next_step:** для графа вызовов символа используйте `get_symbol_info`; для оценки влияния — `impact_analysis`"
+     },
+     "isError": false
+    }
+   }
+  },
+  {
+   "call": "get_symbol_info",
+   "args": {
+    "query": "modification_guard"
+   },
+   "ms": 39,
+   "chars": 1836,
+   "tokens": 518,
+   "raw": {
+    "jsonrpc": "2.0",
+    "id": 11,
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "🔍 **modification_guard** — 1 defs, 11 callers, 0 callees\n\n📄 Definition: `D:/Project/MSCodeBase/src/core/modification_guard.py` line 180\n\n⬆️ **Called from:**\n   • `TestModificationGuard.test_allows_non_hot_file` → D:/Project/MSCodeBase/tests/test_modification_guard.py:142\n   • `TestModificationGuard.test_denies_hot_file_without_ack` → D:/Project/MSCodeBase/tests/test_modification_guard.py:171\n   • `TestModificationGuard.test_allows_hot_file_with_ack` → D:/Project/MSCodeBase/tests/test_modification_guard.py:210\n   • `TestModificationGuard.test_reblocks_after_ttl_expiry` → D:/Project/MSCodeBase/tests/test_modification_guard.py:256\n   • `TestModificationGuard.test_expired_ack_is_cleaned_up` → D:/Project/MSCodeBase/tests/test_modification_guard.py:300\n\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
+      }
+     ],
+     "structuredContent": {
+      "result": "🔍 **modification_guard** — 1 defs, 11 callers, 0 callees\n\n📄 Definition: `D:/Project/MSCodeBase/src/core/modification_guard.py` line 180\n\n⬆️ **Called from:**\n   • `TestModificationGuard.test_allows_non_hot_file` → D:/Project/MSCodeBase/tests/test_modification_guard.py:142\n   • `TestModificationGuard.test_denies_hot_file_without_ack` → D:/Project/MSCodeBase/tests/test_modification_guard.py:171\n   • `TestModificationGuard.test_allows_hot_file_with_ack` → D:/Project/MSCodeBase/tests/test_modification_guard.py:210\n   • `TestModificationGuard.test_reblocks_after_ttl_expiry` → D:/Project/MSCodeBase/tests/test_modification_guard.py:256\n   • `TestModificationGuard.test_expired_ack_is_cleaned_up` → D:/Project/MSCodeBase/tests/test_modification_guard.py:300\n\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
+     },
+     "isError": false
+    }
+   }
+  },
+  {
+   "call": "impact_analysis",
+   "args": {
+    "symbol": "modification_guard"
+   },
+   "ms": 36,
+   "chars": 5706,
+   "tokens": 1736,
+   "raw": {
+    "jsonrpc": "2.0",
+    "id": 12,
+    "result": {
+     "content": [
+      {
+       "type": "text",
+       "text": "✅ **Completed** (34ms)\n  • symbol:  modification_guard\n  • depth:  3\n  • direct callers:  11\n  • transitive callers:  0\n  • direct callees:  0\n  • transitive callees:  0\n  • risk level:  medium\n  • risk score:  46\n  • affected files: \n  -  D:/Project/MSCodeBase/src/core/modification_guard.py\n  -  D:/Project/MSCodeBase/tests/test_modification_guard.py\n  • affected modules: \n  -  core\n  -  tests\n  • impact grouped: \n  • depth_1_will_break: \n    - \n      • symbol:  TestModificationGuard.test_allows_non_hot_file\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  142\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_denies_hot_file_without_ack\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  171\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_allows_hot_file_with_ack\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  210\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_reblocks_after_ttl_expiry\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  256\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_expired_ack_is_cleaned_up\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  300\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_no_file_path_no_symbol_passes\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  321\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_guard_returns_diagnostics\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  352\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_guard_token_matches_ack\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  395\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_file_path_only_triggers_pagerank_check\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  438\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - \n      • symbol:  TestModificationGuard.test_symbol_only_triggers_blast_check\n      • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n      • line:  469\n      • kind:  function_definition\n      • depth:  1\n      • confidence:  0.8\n    - ... and 1 more\n  • depth_2_may_break:  []\n  • depth_3_review:  []\n  • top callers: \n  - \n    • symbol:  TestModificationGuard.test_allows_non_hot_file\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  142\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_denies_hot_file_without_ack\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  171\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_allows_hot_file_with_ack\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  210\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_reblocks_after_ttl_expiry\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  256\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_expired_ack_is_cleaned_up\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  300\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_no_file_path_no_symbol_passes\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  321\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_guard_returns_diagnostics\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  352\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_guard_token_matches_ack\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  395\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_file_path_only_triggers_pagerank_check\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  438\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  - \n    • symbol:  TestModificationGuard.test_symbol_only_triggers_blast_check\n    • file:  D:/Project/MSCodeBase/tests/test_modification_guard.py\n    • line:  469\n    • kind:  function_definition\n    • depth:  1\n    • confidence:  0.8\n  • next step:  Проверьте affected_files через `read_live_file`; при высоком risk_score — просмотрите impact_grouped.depth_1_will_break\n"
+      }
+     ],
+     "isError": false
+    }
+   }
+  }
+ ]
+}

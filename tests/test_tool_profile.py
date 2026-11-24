@@ -28,8 +28,13 @@ def _mcp_with(names) -> FastMCP:
     return mcp
 
 
-def _visible(mcp: FastMCP) -> set[str]:
-    return set(mcp._tool_manager._tools)  # noqa: SLF001 — единственный синхронный список
+def _listed(mcp: FastMCP) -> set[str]:
+    """То, что реально уходит клиенту в tools/list."""
+    return {tool.name for tool in mcp._tool_manager.list_tools()}  # noqa: SLF001
+
+
+def _registered(mcp: FastMCP) -> set[str]:
+    return set(mcp._tool_manager._tools)  # noqa: SLF001
 
 
 def test_core_profile_hides_everything_else(monkeypatch):
@@ -39,7 +44,9 @@ def test_core_profile_hides_everything_else(monkeypatch):
 
     st._apply_tool_profile(mcp)
 
-    assert _visible(mcp) == set(st.CORE_PROFILE)
+    assert _listed(mcp) == set(st.CORE_PROFILE)
+    # Скрытие — только из списка: инструмент остаётся зарегистрированным.
+    assert "lsp_find_definition" in _registered(mcp)
     assert "lsp_find_definition" in st._FULL_CATALOG
 
 
@@ -50,7 +57,7 @@ def test_full_profile_keeps_everything(monkeypatch):
 
     st._apply_tool_profile(mcp)
 
-    assert _visible(mcp) == set(names)
+    assert _listed(mcp) == set(names)
 
 
 def test_tool_help_reports_hidden_tools(monkeypatch):
@@ -64,7 +71,7 @@ def test_tool_help_reports_hidden_tools(monkeypatch):
     assert "profile: core" in out
     assert "search_code" in out
     assert "lsp_find_definition" in out      # скрыт, но перечислен
-    assert "MSCODEBASE_MCP_PROFILE=full" in out
+    assert "вызываемы по имени" in out
 
 
 def test_core_profile_registers_full_registry_then_hides(monkeypatch):
@@ -84,7 +91,8 @@ def test_core_profile_registers_full_registry_then_hides(monkeypatch):
     app = FastMCP("profile-runtime")
     st.register_all_tools(app, MagicMock())
 
-    visible = set(app._tool_manager._tools)  # noqa: SLF001
+    visible = {tool.name for tool in app._tool_manager.list_tools()}  # noqa: SLF001
+    registered = set(app._tool_manager._tools)  # noqa: SLF001
     catalog = set(st._FULL_CATALOG)
 
     # Профиль не должен выпускать наружу ничего вне CORE_PROFILE.
@@ -94,14 +102,40 @@ def test_core_profile_registers_full_registry_then_hides(monkeypatch):
     assert len(catalog) > len(visible), (len(catalog), len(visible))
     # Ядро интентов регистрируется всегда (intel-слой может быть заблокирован
     # self-indexing guard'ом в CI — это не повод падать).
+    # intel-слой регистрируется только когда корень признан user project:
+    # на CI (checkout — не user project) его нет, и это штатно.
     always = {
         "investigate", "search_code", "grep_code", "get_symbol_info",
         "impact_analysis", "graph_query", "codebase", "read_live_file",
         "notify_change", "get_health_report", "predict_change", "tool_help",
-        "generate_docs", "bump_version", "auto_update_docs", "install_git_hooks",
     }
     assert always <= visible, sorted(always - visible)
+    # Dev-инструменты ушли из видимой поверхности, но остаются вызываемыми.
+    for name in ("generate_docs", "bump_version", "auto_update_docs", "install_git_hooks"):
+        assert name in registered, name
+        assert name not in visible, name
     # Скрытые инструменты действительно перечислены в каталоге.
     assert "debug_runtime_passport" in catalog
     assert "debug_runtime_passport" not in visible
 
+
+
+def test_allowlist_filters_listing_not_registration(monkeypatch):
+    """allowlist режет листинг, а не реестр (ревью №5, major 3).
+
+    До правки 34 core-инструмента не регистрировались вовсе: get_symbol_info
+    и даже 	ool_help отвечали «Unknown tool».
+    """
+    from unittest.mock import MagicMock
+
+    monkeypatch.setenv("MSCODEBASE_MCP_TOOLS", "search_code")
+    monkeypatch.delenv("MSCODEBASE_MCP_PROFILE", raising=False)
+
+    app = FastMCP("allowlist-runtime")
+    st.register_all_tools(app, MagicMock())
+
+    listed = {tool.name for tool in app._tool_manager.list_tools()}  # noqa: SLF001
+    registered = set(app._tool_manager._tools)  # noqa: SLF001
+
+    assert listed == {"search_code"}, sorted(listed)
+    assert {"codebase", "tool_help", "get_symbol_info"} <= registered, sorted(registered)[:10]

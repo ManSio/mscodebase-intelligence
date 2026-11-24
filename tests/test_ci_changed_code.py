@@ -50,7 +50,7 @@ def test_empty_change_is_not_code():
 def test_unknown_base_fails_open():
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "ci_changed_code.py"), "does-not-exist"],
-        cwd=str(REPO), capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(REPO), capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == "true", proc.stderr
@@ -59,7 +59,7 @@ def test_unknown_base_fails_open():
 def test_head_against_itself_is_not_code():
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "ci_changed_code.py"), "HEAD"],
-        cwd=str(REPO), capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(REPO), capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 0
     assert proc.stdout.strip() == "false", proc.stderr

@@ -16,7 +16,7 @@ for gate, payload, want in CASES:
     p = subprocess.run(
         [sys.executable, "-B", "tools/verification/gates.py", "--gate", gate,
          "--input", json.dumps(payload)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace")
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     try:
         got = json.loads(p.stdout)["verdict"]
     except (ValueError, KeyError, TypeError) as e:

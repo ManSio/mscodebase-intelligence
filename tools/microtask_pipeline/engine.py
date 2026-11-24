@@ -1,4 +1,4 @@
-﻿"""Super protocol: every operation of the pipeline is a microstep.
+"""Super protocol: every operation of the pipeline is a microstep.
 
 One microstep = one tool = one bounded observation = one receipt. The executor
 (model) never carries an artifact: it names a file and a line range, the
@@ -412,7 +412,7 @@ class Harness:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=HTTP_TIMEOUT_S,
+            timeout=HTTP_TIMEOUT_S, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         blob = (proc.stdout or "") + (proc.stderr or "")
         self.outputs[handle] = blob
@@ -757,7 +757,7 @@ def verify_step(microtask: Microtask, repo: Path) -> dict:
         text=True,
         encoding="utf-8",
         errors="replace",
-        timeout=600,
+        timeout=600, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return {"cmd": microtask.acceptance, "exit": proc.returncode, "tail": (proc.stdout or "")[-300:]}
 

@@ -39,7 +39,7 @@ def run_stream(s: tuple) -> str:
     t0 = time.time()
     print(f"[{time.strftime('%H:%M:%S')}] START {cond}/{model} x{runs}", flush=True)
     p = subprocess.run(cmd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+                       encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     dt = time.time() - t0
     print(f"[{time.strftime('%H:%M:%S')}] DONE  {cond}/{model} in {dt:.0f}s "
           f"rc={p.returncode} | {p.stdout.strip()} {p.stderr.strip()}", flush=True)

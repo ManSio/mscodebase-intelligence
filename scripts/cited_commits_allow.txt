@@ -1,0 +1,6 @@
+# Citations that live in another repository.
+# Format: <short-hash> = <where it lives and why it cannot resolve here>
+# A tracked hash that exists here but is unreachable from any remote branch is
+# NOT allowed by this file: that is the squash-merge trap (P-045).
+f1693787ade6 = sqlalchemy commit named in the post (checks out only in sqlalchemy)
+7df2f82 = pallets/click corpus base commit (checks out only in pallets/click)

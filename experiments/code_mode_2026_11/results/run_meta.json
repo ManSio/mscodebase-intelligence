@@ -1,0 +1,9 @@
+{
+ "started_at": "2026-11-15T10:43:33",
+ "git_head": "19d5190be7e992bad85bfac1db2ac22f1c4ee471",
+ "git_dirty": true,
+ "index_status": "📂 D:\\Project\\MSCodeBase\n🟢 **MSCodeBase** — active\n📦 **Chunks:** `7455` | **Files:** `527` | **Symbols:** `13255`\n🧠 **Embedder:** ⚠️ Заглушка\n\n📁 **Другие проекты:**\n   • `456789`\n   • `Bot_snow`\n\n",
+ "python": "C:\\Users\\misha\\AppData\\Local\\Zed\\extensions\\mscodebase-intelligence\\venv\\Scripts\\python.exe",
+ "tokenizer": "cl100k_base",
+ "finished_at": "2026-11-15T10:46:53"
+}

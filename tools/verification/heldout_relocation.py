@@ -54,7 +54,7 @@ with tempfile.TemporaryDirectory() as td:
     for script, extra in GATES:
         p = subprocess.run([PY, "-B", str(HERE / script), *extra], cwd=td,
                            capture_output=True, text=True, encoding="utf-8",
-                           errors="replace", timeout=300)
+                           errors="replace", timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         ok = p.returncode == 0
         results.append(ok)
         print(f"  [{'OK ' if ok else 'XX '}] {script:28} from temp cwd -> rc={p.returncode}")
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as td:
     env = dict(os.environ, MSCB_PROJECTS_ROOT=td)
     p = subprocess.run([PY, "-B", str(HERE / "g5_denominator.py")], env=env,
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
+                       errors="replace", timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     out = (p.stdout or "") + (p.stderr or "")
     # Before scope profiles existed this expected exit 2: a missing sibling repo was
     # a fatal dependency. Now the gate narrows to repo_only and says so. What must
@@ -88,7 +88,7 @@ with tempfile.TemporaryDirectory() as td:
     env = dict(os.environ, MSCB_PROJECTS_ROOT=td, MSCB_REPO_ROOT=td)
     p = subprocess.run([PY, "-B", str(HERE / "g5_denominator.py")], env=env,
                        capture_output=True, text=True, encoding="utf-8",
-                       errors="replace", timeout=300)
+                       errors="replace", timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     out = (p.stdout or "") + (p.stderr or "")
     printed_number = bool(re.search(r"coverage[ ]+[0-9]", out))
     ok = p.returncode == 2 and not printed_number
@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory() as td:
 # --- 4. and with the CORRECT root it still reports a number --------------------
 print("\n-- 4. control: the real root still produces a number (not stuck refusing)")
 p = subprocess.run([PY, str(HERE / "g5_denominator.py")], capture_output=True,
-                   text=True, encoding="utf-8", errors="replace", timeout=300)
+                   text=True, encoding="utf-8", errors="replace", timeout=300, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 out = p.stdout or ""
 # the summary row is the ALL line; assert it carries an integer candidate count
 m = re.search(r"^ALL\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)", out, re.MULTILINE)

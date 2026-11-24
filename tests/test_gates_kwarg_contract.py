@@ -28,7 +28,7 @@ from tools.verification.gates import ALLOW, BLOCK, UNKNOWN, run  # noqa: E402
 def _cli(gate: str, payload: dict) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-B", str(GATES), "--gate", gate, "--input", json.dumps(payload)],
-        capture_output=True, text=True, cwd=ROOT, timeout=120,
+        capture_output=True, text=True, cwd=ROOT, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 
@@ -89,6 +89,6 @@ def test_every_gate_is_reachable_through_the_cli(gate, payload):
 
 def test_selftest_still_passes():
     proc = subprocess.run([sys.executable, "-B", str(GATES), "--selftest"],
-                          capture_output=True, text=True, cwd=ROOT, timeout=180)
+                          capture_output=True, text=True, cwd=ROOT, timeout=180, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     assert proc.returncode == 0, proc.stdout[-2000:]
     assert "SELFTEST PASSED" in proc.stdout

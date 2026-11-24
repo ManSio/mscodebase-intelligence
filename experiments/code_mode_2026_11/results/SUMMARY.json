@@ -1,0 +1,62 @@
+{
+ "population": 48,
+ "arms": [
+  "A",
+  "C",
+  "B"
+ ],
+ "median_tokens": {
+  "A": 2403.0,
+  "C": 409.5,
+  "B": 644.5
+ },
+ "median_ms": {
+  "A": 220.5,
+  "C": null,
+  "B": 3838.0
+ },
+ "ms_measured": {
+  "A": true,
+  "C": false,
+  "B": true
+ },
+ "hit_rate": {
+  "A": 0.708,
+  "C": 0.708,
+  "B": 0.625
+ },
+ "C_tokens_over_A_median": 0.183,
+ "C_lost_gold_where_A_had_it": [],
+ "B_lost_gold_where_A_had_it": [
+  "E30-E28-31",
+  "E30-D01",
+  "E30-D05",
+  "E30-D06",
+  "E30-D10",
+  "E30-D12"
+ ],
+ "C_over_800": [
+  "E30-D01",
+  "E30-D12"
+ ],
+ "C_over_1000": [],
+ "A_first_path_is_gold": {
+  "count": 25,
+  "of": 48,
+  "note": "the naive follow-up step used the first path printed by search, never the gold name (audit 2026-11-15, blocker 2)"
+ },
+ "control_scorer": {
+  "positive_full_path": true,
+  "positive_absolute_path": true,
+  "positive_bare_at_start": true,
+  "positive_backslash_variant": true,
+  "positive_dot_slash": true,
+  "positive_uppercase": true,
+  "negative_spurious_segment": false,
+  "negative_basename_only": false,
+  "negative_other_dir_prefix": false,
+  "negative_suffix_extension": false
+ },
+ "raw_texts": "results/raw_texts/arm_texts.json.gz",
+ "run_meta": "results/run_meta.json"
+}

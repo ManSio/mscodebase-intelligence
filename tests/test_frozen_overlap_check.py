@@ -21,7 +21,7 @@ F4B_SYMPTOM = REPO / "experiments" / "4A_unit_of_return" / "frozen" / "f4b" / "h
 def _run(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(SCRIPT), *args],
-        cwd=REPO, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=REPO, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
 
 

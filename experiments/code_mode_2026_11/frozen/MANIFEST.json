@@ -1,0 +1,14 @@
+{
+ "queries": {
+  "path": "QUERIES.jsonl",
+  "sha256": "d4934cb7875bd239745fd935dcdef4a6e3e206781b400303c677505de56d9fac",
+  "lines": 48,
+  "source": "D:\\Project\\MSCodeBase\\experiments\\e47_pagerank_docs\\frozen\\QUERIES.jsonl"
+ },
+ "frozen_at": "2026-11-15",
+ "arms": [
+  "A:3-call raw",
+  "C:same calls + code projection",
+  "B:investigate"
+ ]
+}

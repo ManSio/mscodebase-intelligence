@@ -25,7 +25,7 @@
 
 | Переменная | По умолчанию | Эффект |
 |---|---|---|
-| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность инструментов: `core` = 17 инструментов, `full` = все 69 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Поверхность инструментов: `core` = 13 в списке (остальные вызываемы по имени), `full` = все 69 |
 | `MSCODEBASE_MCP_TOOLS` | — | Явный allowlist через запятую; перекрывает профиль |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Регистрирует `execute_script` (RCE на хосте, по умолчанию выключено) |
 | `MSCODEBASE_DATA_DIR` | `%LOCALAPPDATA%/mscodebase` (Windows) или `~/.cache/mscodebase` | Корень для графа, памяти, jobs, телеметрии, памяти коммитов |
@@ -80,6 +80,9 @@
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | Watchdog зависаний для долгих переиндексаций |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | Автоотключение IVF после N неудачных optimize/create |
 | `MAX_FILE_SIZE_MB` (security, без префикса — так читает `SecurityConfig`, `src/config/settings.py:425`) | `10` | Файлы больше этого пропускаются |
+| `MSCODEBASE_GRAPH_BATCH` | `1` | Писать граф символов одной транзакцией на файл (`PropertyGraph.batch()`). `0` возвращает commit на каждый узел/ребро (~6,8× медленнее на полном корпусе) |
+| `MSCODEBASE_MAX_FALLBACK_CHUNKS` | `20` | Кап fallback-чанков на файл — те файлы, которые AST не разбирает (JSON-данные, минифицированные бандлы, конфиги). `0` — индексировать целиком; отрицательное значение считается опечаткой и оставляет `20`. Чанки кода (AST) не капаются никогда. Смена значения требует полной переиндексации: хеши файлов не меняются, инкрементальный прогон файл пропустит |
+| `MSCODEBASE_INDEX_DATA` | `0` | Индексировать ли данные (`.json`) вообще. По умолчанию нет: на engraphis они давали 62.3% индекса (31 123 из 49 920 чанков), из которых 90% объёма — замороженные артефакты бенчмарка, и ни один запрос к коду от них не выигрывал. Два исключения индексируются всегда: манифесты проекта (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `tsconfig.json`, `plugin.json`, `marketplace.json`, `*.plugin.json`, `composer.json`, `deno.json`, `renovate.json`) и контракты инструментов, распознанные по ключам (`inputSchema`, `surfaces`, `annotations`, файл ≤512 KB) — то, что говорит агенту, как подключён проект и что умеет сервер. На engraphis это 8 файлов из 445. `.ipynb` — код, индексируется всегда; `grep_code` и `read_live_file` читают `.json` с диска в любом случае. Включение не добирает прошлое: удалите `<проект>/.mscodebase/chunks.db*` и переиндексируйте |
 
 ## 5. Провайдеры (все опциональны)
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
 import threading
@@ -26,8 +27,55 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from src.core.di_container import ServiceCollection
 from src.core.error_handler import error_boundary
+from src.core.indexing.chunk_augment import strip_file_prefix
 from src.core.search.evidence import EvidenceReport, assess
 from src.mcp.tools.base import MCPTool
+
+logger = logging.getLogger("mscodebase_server.investigate")
+
+
+def body_contains(text: str, needle: str) -> bool:
+    """Совпадение имени в теле чанка, а не в E26-шапке `FILE/SYMBOLS/DOC`.
+
+    Имя символа файла стоит в `SYMBOLS:`-префиксе каждого чанка, поэтому
+    «name match» срабатывал на чанках, где символа нет вовсе (аудит
+    engraphis 2026-11-18; на выборке 2 000 чанков совпадение только по
+    шапке — 54%).
+    """
+    return bool(needle) and needle in strip_file_prefix(text)
+
+
+def name_rows(rows: list[dict], variant: str) -> list[dict]:
+    """Строки канала `name`: сначала определения, контекст — только если их нет.
+
+    Чанк хранит свой `symbol_name`. Если имя встретилось в чанке другого
+    символа (например, `// Context: RecallEngine` у методов класса), это
+    контекст, а не определение: `investigate("where is the recall engine
+    implemented")` выдавал 4 строки «RecallEngine — name match» с номерами
+    методов (842/1271/1594) вместо единственного объявления на 185.
+
+    Правило: определение вытесняет контекст; если определения нет вовсе,
+    показываем не больше двух контекстных строк с пометкой.
+    """
+    defs: list[dict] = []
+    context: list[dict] = []
+    variant_cf = variant.casefold()
+    for row in rows:
+        text = str(row.get("text_full") or row.get("text") or "")
+        if not body_contains(text, variant):
+            continue
+        meta = row.get("metadata") or {}
+        name_cf = str(meta.get("symbol_name") or "").casefold()
+        is_def = name_cf == variant_cf or name_cf.endswith("." + variant_cf)
+        entry = {
+            "is_definition": is_def,
+            "file": meta.get("file", ""),
+            "line": int(meta.get("start_line") or 0),
+            "kind": meta.get("symbol_kind", ""),
+        }
+        (defs if is_def else context).append(entry)
+    return defs or context[:2]
+
 
 # Channel weights, additive on top of each channel's own (rank-based) score.
 # `def_first` is the shipped default: an exact name lookup is evidence, a
@@ -156,6 +204,74 @@ def _abstains(per: Dict[str, int], known: bool, include_neighbours: bool) -> boo
             return False
         counts.append(int(value))
     return not known and not any(counts)
+
+
+def _should_abstain(
+    per: Dict[str, int], filtered: Dict[str, int], known: bool, include_neighbours: bool
+) -> bool:
+    """Абстенция с учётом совпадений, отброшенных scope=code.
+
+    Имя, встречающееся только в литералах/комментариях, в коде ЕСТЬ: ответ
+    «subject does not occur» был бы ложью (репро infrawise 2026-11-17:
+    `implemented_by` = 0 в scope=code и 9 в scope=all).
+    """
+    # Только субъект: литералы ЧУЖОГО идентификатора не должны гасить отказ
+    # по отсутствующему субъекту — иначе соседи выдаются как ответ
+    # (регресс класса XERJ #3021, ревью №3).
+    subject = next(iter(per), "")
+    if subject and int((filtered or {}).get(subject) or 0) > 0:
+        return False
+    return _abstains(per, known, include_neighbours)
+
+
+def _literal_abstain_reason(filtered: Dict[str, int], subject: str = "") -> str:
+    """Причина abstain, когда совпадения есть, но только в литералах.
+
+    Считаются совпадения СУБЪЕКТА (первый ключ `per`), а не всех
+    идентификаторов: иначе причина говорила бы о чужих литералах.
+    Пустая строка — обычный случай (совпадений вне scope не было).
+    """
+    counts = dict(filtered or {})
+    skipped = int(counts.get(subject) or 0) if subject else sum(
+        int(value or 0) for value in counts.values()
+    )
+    if not skipped:
+        return ""
+    return (
+        f"{skipped} occurrence(s) only inside comments/strings "
+        '(scope="code"); grep_code(scope="all") shows them'
+    )
+
+
+def _exact_note(per: Dict[str, int], filtered: Dict[str, int], rows: int) -> str:
+    """Строка про точные совпадения: называет настоящую причину нуля."""
+    if not per:
+        return ""
+    counts = ", ".join(f"{k}={v}" for k, v in list(per.items())[:3])
+    subject = next(iter(per))
+    anything = any(int(v or 0) > 0 for v in per.values())
+    only_literals = int((filtered or {}).get(subject) or 0)
+    if only_literals and not anything:
+        return (
+            f"   ⚠️ exact: {counts} in code scope — {only_literals} "
+            "occurrence(s) sit inside comments/strings; "
+            'grep_code(pattern, scope="all") shows them.'
+        )
+    if rows and int(per[subject] or 0) == 0 and not anything:
+        return (
+            f"   ⚠️ exact: {counts} — no identifier occurs in the indexed "
+            "code; the results below are neighbours, not matches."
+        )
+    if rows and int(per[subject] or 0) == 0:
+        # E73 recovered answer: the subject is absent, another identifier
+        # occurs. Calling those rows "neighbours" was false - they are
+        # exact hits for the other names (major 1 of the E73 review).
+        return (
+            f"   ⚠️ exact: {counts} — the subject does not occur in the "
+            "indexed code; the rows below match the other identifiers, "
+            "not the subject."
+        )
+    return f"   exact: {counts}"
 
 
 _CYRILLIC_QUERY_RE = re.compile(r"[А-Яа-яЁё]")
@@ -746,7 +862,9 @@ class InvestigateTool(MCPTool):
         # symbol channels always answer with neighbours, so without this count
         # an unanswerable question ("where is X implemented", X absent) looks
         # the same as a real answer — the class XERJ ships as a defect (#3021).
-        exact: Dict[str, Any] = {"per": {}}
+        # `filtered` — совпадения, отброшенные scope=code (строки/комментарии):
+        # без него «0 в коде» неотличимо от «нет вообще» (репро infrawise).
+        exact: Dict[str, Any] = {"per": {}, "filtered": {}}
 
         async def _search() -> None:
             raw = await searcher.hybrid_search_async(
@@ -856,13 +974,20 @@ class InvestigateTool(MCPTool):
             # 2026-11-08: cancel after one file, symbol lives on disk).
             if res.get("cancelled"):
                 return
+            extra_counts = res.get("extra_totals") or []
+            extra_filtered = res.get("extra_filtered") or []
             for index, ident in enumerate(idents):
                 if index == 0:
                     count = res.get("total", 0)
+                    skipped = res.get("filtered", 0)
                 else:
-                    extra = res.get("extra_totals") or []
-                    count = extra[index - 1] if index - 1 < len(extra) else 0
+                    count = extra_counts[index - 1] if index - 1 < len(extra_counts) else 0
+                    skipped = (
+                        extra_filtered[index - 1]
+                        if index - 1 < len(extra_filtered) else 0
+                    )
                 exact["per"][ident] = int(count or 0)
+                exact["filtered"][ident] = int(skipped or 0)
             for match in matches:
                 is_raise = asks_raises and bool(
                     re.search(r"\braise\b", str(match.get("text") or ""))
@@ -907,16 +1032,14 @@ class InvestigateTool(MCPTool):
                 return found
 
             for variant, rows in await asyncio.to_thread(_lookup):
-                for row in rows:
-                    text = str(row.get("text_full") or row.get("text") or "")
-                    if variant not in text:
-                        continue
-                    meta = row.get("metadata") or {}
+                for found_row in name_rows(rows, variant):
+                    label = ("definition" if found_row["is_definition"]
+                             else "name in body")
                     items.append(
                         {
-                            "file": meta.get("file", ""),
-                            "line": int(meta.get("start_line") or 0),
-                            "text": f"{variant} — name match",
+                            "file": found_row["file"],
+                            "line": found_row["line"],
+                            "text": f"{variant} — {label}",
                             "score": 0.0,
                             "weight": 3.0,
                             "symbol": variant,
@@ -943,6 +1066,11 @@ class InvestigateTool(MCPTool):
                     cancel_event.set()
                 degraded.append(f"{name}:timeout")
             except Exception as exc:  # noqa: BLE001 — канал не валит ответ
+                # Без трейсбека `degraded: impact:IndexError` ничего не говорит
+                # о причине (аудит engraphis 2026-11-18).
+                logger.warning(
+                    f"investigate channel '{name}' failed: {exc}", exc_info=True
+                )
                 degraded.append(f"{name}:{type(exc).__name__}")
 
         await asyncio.gather(
@@ -959,7 +1087,13 @@ class InvestigateTool(MCPTool):
 
         def _impact() -> None:
             for name in top_names:
-                res = symbol_index.get_impact_analysis(name, 2) or {}
+                try:
+                    res = symbol_index.get_impact_analysis(name, 2) or {}
+                except Exception as exc:  # noqa: BLE001 — одно имя не валит канал
+                    logger.warning(
+                        f"impact failed for symbol {name!r}: {exc}", exc_info=True
+                    )
+                    continue
                 cg = res.get("call_graph") or {}
                 defs = cg.get("definition") or []
                 if isinstance(defs, dict):
@@ -1084,7 +1218,13 @@ class InvestigateTool(MCPTool):
                     known = bool(has_symbol(subject))
                 except Exception:  # noqa: BLE001 — cannot answer means unknown
                     known = True
-        if _abstains(per, known, include_neighbours):
+        filtered = {
+            str(k): int(v or 0)
+            for k, v in (exact.get("filtered") or {}).items()
+        }
+        # scope=code выбросил совпадения в строках/комментариях — значит имя в
+        # коде ЕСТЬ. Отказ «subject does not occur» был бы ложью (infrawise).
+        if _should_abstain(per, filtered, known, include_neighbours):
             withheld = len(merged)
             merged = []
 
@@ -1104,6 +1244,12 @@ class InvestigateTool(MCPTool):
                 intent="references" if intent_callers else "explore",
                 abstain_hint=bool(withheld),
             )
+            # Причина abstain должна называть настоящую причину: если имя есть
+            # только в литералах, «no verified candidate» читается как «имени
+            # нет» (репро infrawise 2026-11-17, реалит через scope=code).
+            literal_reason = _literal_abstain_reason(filtered, subject)
+            if literal_reason and report.verdict == "abstain":
+                report.reason = literal_reason
             kept = set(report.kept_indices)
             merged = [row for index, row in enumerate(merged) if index in kept]
             if report.promote:
@@ -1140,26 +1286,13 @@ class InvestigateTool(MCPTool):
             str(k): int(v or 0)
             for k, v in ((exact or {}).get("per") or {}).items()
         }
-        if per:
-            counts = ", ".join(f"{k}={v}" for k, v in list(per.items())[:3])
-            subject = next(iter(per))
-            anything = any(v > 0 for v in per.values())
-            if merged and per[subject] == 0 and not anything:
-                lines.append(
-                    f"   ⚠️ exact: {counts} — no identifier occurs in the indexed "
-                    "code; the results below are neighbours, not matches."
-                )
-            elif merged and per[subject] == 0:
-                # E73 recovered answer: the subject is absent, another identifier
-                # occurs. Calling those rows "neighbours" was false - they are
-                # exact hits for the other names (major 1 of the E73 review).
-                lines.append(
-                    f"   ⚠️ exact: {counts} — the subject does not occur in the "
-                    "indexed code; the rows below match the other identifiers, "
-                    "not the subject."
-                )
-            else:
-                lines.append(f"   exact: {counts}")
+        filtered = {
+            str(k): int(v or 0)
+            for k, v in ((exact or {}).get("filtered") or {}).items()
+        }
+        note = _exact_note(per, filtered, len(merged))
+        if note:
+            lines.append(note)
         if evidence is not None:
             # A deterministic score, not a probability: the number of
             # independent facts that hold for the best row.

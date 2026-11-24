@@ -35,7 +35,7 @@ def _run(tmp: Path, diff_text: str, *extra: str) -> tuple[int, str]:
     diff_file.write_text(diff_text, encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(tmp), "--diff-file", str(diff_file), *extra],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -76,7 +76,7 @@ def _git_repo(tmp: Path, files: dict[str, str]) -> Path:
     }
 
     def git(*args: str) -> None:
-        subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True, env=env)
+        subprocess.run(["git", *args], cwd=str(repo), check=True, capture_output=True, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
     for rel, body in files.items():
         target = repo / rel
@@ -93,7 +93,7 @@ def _run_in(repo: Path, diff_text: str) -> tuple[int, str]:
     diff_file.write_text(diff_text, encoding="utf-8")
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(repo), "--diff-file", str(diff_file)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.returncode, proc.stdout + proc.stderr
 
@@ -282,7 +282,7 @@ def test_junction_to_outside_the_repo_is_rejected(tmp_path):
     outside.mkdir(exist_ok=True)
     (outside / "secret.py").write_text("SECRET = 1\n", encoding="utf-8")
     subprocess.run(["cmd", "/c", "mklink", "/J", str(tmp_path / "src" / "linked"), str(outside)],
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     code, out = _run(tmp_path, _diff("docs/en/x.md", ["See `src/linked/secret.py`."]))
     assert code == 1, out
 
@@ -334,10 +334,10 @@ def test_prose_in_a_file_that_never_cited_code_is_rejected(tmp_path):
 def test_staged_mode_reads_the_index(tmp_path):
     repo = _git_repo(tmp_path, {"docs/a.md": "start\n", "src/m.py": "def f():\n    return 1\n"})
     (repo / "docs" / "a.md").write_text("start\nSee `src/nope.py`.\n", encoding="utf-8")
-    subprocess.run(["git", "add", "docs/a.md"], cwd=str(repo), check=True, capture_output=True)
+    subprocess.run(["git", "add", "docs/a.md"], cwd=str(repo), check=True, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(repo), "--staged"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 1, proc.stdout + proc.stderr
     assert "docs/a.md" in proc.stdout
@@ -365,7 +365,7 @@ def test_non_utf8_diff_file_fails_loudly(tmp_path):
     diff_file.write_bytes(_diff("docs/en/x.md", ["See `src/core/nope.py`."]).encode("utf-16"))
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(tmp_path), "--diff-file", str(diff_file)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 3, proc.stdout + proc.stderr
     assert "not UTF-8" in (proc.stdout + proc.stderr)
@@ -395,6 +395,6 @@ def test_gate_flags_a_real_offending_change_in_this_repo(tmp_path):
     )
     proc = subprocess.run(
         [sys.executable, str(SCRIPT), "--repo", str(REPO), "--diff-file", str(diff_file)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert proc.returncode == 1, proc.stdout + proc.stderr

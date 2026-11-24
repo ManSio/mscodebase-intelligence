@@ -10,8 +10,11 @@ Root conftest.py — adds project root to sys.path so `from src.*` imports work.
 в свой tmp_path, который pytest удаляет автоматически.
 """
 
+import atexit
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -19,6 +22,38 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+# ── Session data root: active before any src import or fixture ────────────────
+# _isolated_data_root below is per-test, which is too late for process-global
+# logging: the first setup_project_logging() binds a file handler, and the old
+# handler kept writing to the path it was created with. Observed 2026-11-24:
+# one suite run put 672 MagicMock lines into the real
+# D:\mscodebase-data\logs\mcp_global.log. Collection and import-time calls now
+# see a temp root; each test still overrides it with its own tmp_path.
+SESSION_DATA_ROOT = Path(tempfile.mkdtemp(prefix="mscb-tests-data-"))
+os.environ["MSCODEBASE_DATA_DIR"] = str(SESSION_DATA_ROOT)
+
+
+def _cleanup_session_data_root() -> None:
+    import logging
+
+    logging.shutdown()
+    shutil.rmtree(SESSION_DATA_ROOT, ignore_errors=True)
+
+
+atexit.register(_cleanup_session_data_root)
+
+# Windows: патч обязан стоять ДО спавна xdist-воркеров. execnet поднимает воркеры
+# через subprocess.Popen В КОНТРОЛЛЕРЕ, до выполнения фикстур, поэтому autouse-
+# фикстура ниже их уже не накрывает — каждый воркер открывал видимое окно консоли
+# (замер 2026-11-15: 3 вспышки на прогон `-n auto`). Здесь патч применяется на
+# импорте conftest, то есть до первого спавна.
+try:  # POSIX/усечённая установка: apply() — no-op
+    from src.core.silent_subprocess import apply as _apply_silent_subprocess
+
+    _apply_silent_subprocess()
+except Exception:  # noqa: BLE001 - тесты не должны падать из-за патча окна
+    pass
 
 
 @pytest.fixture(autouse=True)

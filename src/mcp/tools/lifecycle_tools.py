@@ -183,7 +183,11 @@ class VerifyActionTool(MCPTool):
             results.append(contract.verify_git_push(cwd=project_root or None))
 
         else:
-            return f"❌ Unknown action type: {action_type}"
+            valid = ["file_write", "git_commit", "git_push", "index_sync", "all"]
+            return (
+                f"❌ Unknown action type: {action_type}. "
+                f"Допустимые: {', '.join(valid)}"
+            )
 
         report = format_verification_report(results)
 

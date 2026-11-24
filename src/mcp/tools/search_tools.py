@@ -27,6 +27,15 @@ from src.utils.ui_formatter import format_search_code
 
 logger = logging.getLogger("mscodebase_server.search_tools")
 
+# Виды узлов, у которых граф вызовов не имеет смысла. Deny-list, а не
+# whitelist: индексатор эмитит function_item/impl_item/interface_declaration и
+# другие виды, которых в списке разрешённых не было бы, и ответ утверждал
+# «граф вызовов не применим», печатая список callers (ревью #157, major 1).
+_NON_CALLABLE_KINDS = frozenset({
+    "variable", "constant", "property", "field", "enum_member", "enum_variant",
+    "key", "module_docstring",
+})
+
 
 def _render_explain(trace_data: dict, limit: int) -> str:
     """Render a SearchTracer dict as the markdown Explain block.
@@ -766,19 +775,118 @@ class GetSymbolInfoTool(MCPTool):
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
         si = self.resolve_symbol_index(explicit_project_root=_pr or None)
+
+        answer = self._answer(query, si)
+        if answer is not None:
+            return answer
+
+        # Индекс мог отстать: файл появился после последней сборки. Одна сверка
+        # свежести (stat-sweep, ~18 мс на 1100 файлов) с бюджетом 3 с; без неё
+        # «not found» врёт про символ, который в файле уже есть (issue #150).
+        changed, refresh_error = await self._refresh_after_miss(_pr)
+        if changed:
+            si = self.resolve_symbol_index(explicit_project_root=_pr or None)
+            answer = self._answer(query, si)
+            if answer is not None:
+                return answer + _(
+                    "\n\n♻️ Index refreshed before the answer: {changed} file(s) "
+                    "re-indexed, so the symbol was missing from the old index.",
+                    changed=changed,
+                )
+            return _(
+                "ℹ️ **{query}** — not found after refreshing {changed} file(s); "
+                "the symbol is not declared in the project.\n\n💡 **next_step:** "
+                "перепроверьте имя через `search_code` или `grep_code`.",
+                query=query,
+                changed=changed,
+            )
+        if refresh_error:
+            return _(
+                "ℹ️ **{query}** — not found; the symbol index may be stale "
+                "(freshness check failed: {error}). If the file appeared recently, "
+                "run notify_change or codebase(index).\n\n💡 **next_step:** "
+                "перепроверьте имя через `search_code` или `grep_code`.",
+                query=query,
+                error=refresh_error,
+            )
+        return _(
+            "ℹ️ **{query}** — not found\n\n💡 **next_step:** попробуйте "
+            "`search_code` с другим запросом или `graph_query` для поиска по графу\n",
+            query=query,
+        )
+
+    async def _refresh_after_miss(self, project_root: str) -> tuple[int, str]:
+        """Одна сверка свежести после промаха. Возвращает (файлов, ошибка).
+
+        Бюджет 3 с меньше таймаута инструмента (5 с): сверка не должна
+        превращать «символа нет» в «таймаут инструмента».
+        """
+        try:
+            indexer = self.resolve_indexer(explicit_project_root=project_root or None)
+            project_path = getattr(indexer, "project_path", None)
+            verify = getattr(indexer, "verify_index_freshness", None)
+            if project_path is None or not callable(verify):
+                return 0, ""
+            changed = await asyncio.wait_for(
+                asyncio.to_thread(verify, project_path), timeout=3.0
+            )
+            return int(changed or 0), ""
+        except asyncio.TimeoutError:
+            return 0, "timeout after 3s"
+        except Exception as exc:  # noqa: BLE001 — сверка не роняет инструмент
+            return 0, str(exc)
+
+    def _answer(self, query: str, si: Any) -> Optional[str]:
+        """Ответ по индексу или None, если символа там нет."""
         call_graph = si.build_call_graph(query, depth=2)
 
         if call_graph["definition"] or call_graph["callers"] or call_graph["callees"]:
             defs = call_graph["definition"]
-            callers = call_graph["callers"][:15]
-            callees = call_graph["callees"][:10]
-            result = _(
-                "🔍 **{query}** — {defs} defs, {callers} callers, {callees} callees\n\n",
-                query=query,
-                defs=len(defs),
-                callers=len(callers),
-                callees=len(callees),
-            )
+            all_callers = call_graph["callers"]
+            all_callees = call_graph["callees"]
+            # Прямые считаем по depth, который есть в каждой реализации
+            # (легаси SymbolIndex и _hybrid_build_call_graph новых полей не
+            # ставят) — иначе «0 callers» печаталось рядом со списком callers.
+            direct = sum(1 for c in all_callers if c.get("depth") == 1)
+            total_callers = len(all_callers)
+            hidden_scripts = int(call_graph.get("callers_hidden_scripts", 0) or 0)
+            callees_direct = sum(1 for c in all_callees if c.get("depth") == 1)
+            kinds = {str(d.get("kind", "")).lower() for d in defs if d.get("kind")}
+            # Deny-list, а не whitelist: индексатор эмитит function_item,
+            # impl_item, interface_declaration и др. — с whitelist ответ
+            # говорил «граф не применим» и тут же печатал «Called from».
+            is_callable = not kinds or bool(kinds - _NON_CALLABLE_KINDS)
+            if is_callable:
+                result = _(
+                    "🔍 **{query}** — {defs} defs, {callers} callers, "
+                    "{callees} callees\n",
+                    query=query,
+                    defs=len(defs),
+                    callers=direct,
+                    callees=callees_direct,
+                )
+                if total_callers > direct:
+                    result += _(
+                        "   ↳ всего с транзитивными: {total} (глубина 2)\n",
+                        total=total_callers,
+                    )
+            else:
+                # `_DESTRUCTIVE_PATTERNS — 0 callers` читалось как «не используется»
+                # у переменной, у которой вызовов и не бывает (аудит 2026-11-18).
+                result = _(
+                    "🔍 **{query}** — {defs} defs; это {kinds}: граф вызовов "
+                    "не применим, использования ищите через `grep_code`\n",
+                    query=query,
+                    defs=len(defs),
+                    kinds=", ".join(sorted(kinds)) or "unknown",
+                )
+            if hidden_scripts:
+                result += _(
+                    "   ↳ ещё {n} вызов(ов) из scripts/ или experiments/ скрыто "
+                    "политикой одноразовых скриптов\n",
+                    n=hidden_scripts,
+                )
+            result += "\n"
             if defs:
                 if len(defs) == 1:
                     d = defs[0]
@@ -797,25 +905,27 @@ class GetSymbolInfoTool(MCPTool):
                             f"   {i+1}. `{d.get('file', '?')}` "
                             f"line {d.get('line', '?')} ({d.get('kind', '?')})\n"
                         )
+                    if len(defs) > 10:
+                        result += _("   … показаны 10 из {n}\n", n=len(defs))
                     result += (
                         "\n💡 Specify an explicit `file_path` to disambiguate.\n"
                     )
-            if callers:
+            if all_callers:
                 result += _("\n⬆️ **Called from:**\n")
-                for c in callers[:5]:
+                for c in all_callers[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
-            if callees:
+                if len(all_callers) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callers))
+            if all_callees:
                 result += _("\n⬇️ **Calls:**\n")
-                for c in callees[:5]:
+                for c in all_callees[:5]:
                     result += f"   • `{c.get('symbol', '?')}` → {c.get('file', '?')}:{c.get('line', '?')}\n"
+                if len(all_callees) > 5:
+                    result += _("   … показаны 5 из {n}\n", n=len(all_callees))
             # Phase 1 / env-integration: env-accesses для символа (без нового тула).
-            # Только если SymbolIndex поддерживает метод (backward compat с индексами,
-            # где не было add_env_accesses — pre-Phase-0).
             if hasattr(si, "get_env_accesses_for_symbol"):
                 env_rows = si.get_env_accesses_for_symbol(query)
                 if env_rows:
-                    # Дедуп по env_key: один символ может читать DB_PORT в 3 строках
-                    # — выводим 1 раз, со счётчиком occurrences.
                     by_key: Dict[str, int] = {}
                     for r in env_rows:
                         by_key[r["env_key"]] = by_key.get(r["env_key"], 0) + 1
@@ -829,16 +939,43 @@ class GetSymbolInfoTool(MCPTool):
                     )
             return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
 
-        # Fallback: поиск по имени
-        results = self.resolve_symbol_index().search_symbols(query)
+        results = si.search_symbols(query)
         if not results:
-            return _(
-                "ℹ️ **{query}** — not found\n\n💡 **next_step:** попробуйте `search_code` с другим запросом или `graph_query` для поиска по графу\n",
+            return None
+
+        # search_symbols ищет подстрокой (`%reweight%` → reweight_memory, ...):
+        # `get_symbol_info("reweight")` отвечал «10 definitions» при нуле
+        # определений с таким именем (аудит engraphis 2026-11-18). Точные и
+        # qualified-совпадения отделены от «похожих имён».
+        # Сравнение без регистра: find_nodes в графе использует LIKE (ci),
+        # и запрос в нижнем регистре находил символ до правки, а после неё
+        # объявлялся «точного символа нет» (ревью #157, major 2).
+        q_cf = query.casefold()
+        exact = [
+            r for r in results
+            if str(getattr(r, "symbol", "")).casefold() == q_cf
+            or str(getattr(r, "symbol", "")).casefold().endswith("." + q_cf)
+        ]
+        if not exact:
+            result = _(
+                "🔍 **{query}** — точного символа нет; похожие имена "
+                "(подстрочное совпадение, это НЕ определения):\n\n",
                 query=query,
             )
+            for r in results[:8]:
+                result += (
+                    f"   • `{getattr(r, 'symbol', '?')}` — {r.file_path}:{r.line} "
+                    f"({r.kind})\n"
+                )
+            if len(results) > 8:
+                result += _("   … первые 8 совпадений выдачи поиска\n")
+            return result + (
+                "\n\n💡 **next_step:** уточните имя или ищите через `grep_code` "
+                "с `scope=\"all\"`"
+            )
 
-        defs = [r for r in results if getattr(r, "is_definition", False)]
-        usages = [r for r in results if not getattr(r, "is_definition", False)]
+        defs = [r for r in exact if getattr(r, "is_definition", False)]
+        usages = [r for r in exact if not getattr(r, "is_definition", False)]
         result = _(
             "🔍 **{query}** — {defs} definitions, {usages} usages\n\n",
             query=query,
@@ -854,6 +991,38 @@ class GetSymbolInfoTool(MCPTool):
             for u in usages[:5]:
                 result += f"   • `{u.file_path}` строка {u.line}\n"
         return result + "\n\n💡 **next_step:** используйте `impact_analysis` для оценки blast radius символа"
+
+
+def _impact_not_found_payload(symbol: str, symbol_count: int) -> dict:
+    """Ответ impact_analysis, когда символ не найден.
+
+    Различаем два случая, потому что советы разные:
+    - символьный слой пуст целиком (graph.db без узлов — типично для проекта,
+      проиндексированного без графа): переиндексировать;
+    - символ просто не тот: уточнить имя.
+
+    Замер 2026-11-16: у 4 из 7 реальных проектов graph.db пуст, а инструмент
+    отвечал «Symbol 'X' not found in index» — выглядело как ошибка имени.
+    Тексты — английский источник под `_()` (дефолтная локаль — en).
+    """
+    if symbol_count == 0:
+        return {
+            "status": "warning",
+            "message": _(
+                "Symbol layer is empty: the project graph has no symbols, so "
+                "'{symbol}' cannot be found.",
+                symbol=symbol,
+            ),
+            "next_step": _(
+                "Reindex the project: codebase(action='index', path='project_dir') "
+                "— the symbol graph is built during a full index."
+            ),
+        }
+    return {
+        "status": "warning",
+        "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
+        "next_step": _("Refine the name via `search_code` or `graph_query`"),
+    }
 
 
 class ImpactAnalysisTool(MCPTool):
@@ -874,11 +1043,12 @@ class ImpactAnalysisTool(MCPTool):
 
         _pr = project_root or (kwargs or {}).get("project_root", "")
         await self.require_ready_project(explicit_project_root=_pr or None)
+        symbol_index = self.resolve_symbol_index(explicit_project_root=_pr or None)
         # CPU-bound: get_impact_analysis делает BFS по графу — выгружаем в ThreadPool
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            self.resolve_symbol_index(explicit_project_root=_pr or None).get_impact_analysis,
+            symbol_index.get_impact_analysis,
             symbol,
             depth,
         )
@@ -887,11 +1057,11 @@ class ImpactAnalysisTool(MCPTool):
             record_tool_result(
                 "impact_analysis", route="graph", confidence=0.0, results_count=0
             )
-            return {
-                "status": "warning",
-                "message": _("Symbol '{symbol}' not found in index", symbol=symbol),
-                "next_step": "Уточните имя символа через `search_code` или `graph_query`",
-            }
+            try:
+                symbol_count = symbol_index.get_symbol_count()
+            except Exception:  # noqa: BLE001 — диагностика не должна ломать ответ
+                symbol_count = -1
+            return _impact_not_found_payload(symbol, symbol_count)
 
         # Guard: защита от не-списковых значений (B2 — TypeError в логах)
         def _safe_count(v):

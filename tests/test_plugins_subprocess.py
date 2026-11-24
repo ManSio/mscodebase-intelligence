@@ -113,7 +113,7 @@ def test_runner_fail_closed_direct(tmp_path, store):
     runner = ROOT / "src" / "plugins" / "runner.py"
     r = subprocess.run(
         [sys.executable, str(runner), str(d), str(tmp_path / "data")],
-        cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=30,
+        cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=30, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     assert r.returncode == 2, f"runner should fail closed, got {r.returncode}"
     assert not marker.exists(), "runner executed untrusted plugin code (RCE!)"

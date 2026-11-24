@@ -25,6 +25,34 @@ from src.core.search.graph_adapter import SymbolIndexAdapter
 from src.mcp.tools.base import MCPTool
 from src.mcp.tools.search_tools import GetSymbolInfoTool, ImpactAnalysisTool, SearchCodeTool
 
+
+def _run_git_log(project_root: str, file_path: str, limit: int,
+                 timeout: float) -> str:
+    """`git log --oneline` без capture_output: Popen + communicate(timeout).
+
+    `subprocess.run(capture_output=True)` в фоновом потоке на Windows вешает
+    пайп (AGENTS.md §6): именно из-за этого git-секция упиралась в таймаут 30 с.
+    """
+    proc = subprocess.Popen(
+        ["git", "--no-pager", "log", "--oneline", f"-{int(limit)}", "--", file_path],
+        cwd=str(project_root),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    try:
+        stdout, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        return ""
+    return (stdout or "").strip()
+
+
 _MAX_TARGETS = 10
 TOKEN_LIMIT = 2000
 SECTION_BUDGETS = {
@@ -342,16 +370,9 @@ class GetContextTool(MCPTool):
 
         try:
             project_root = self._resolve_target_path(None) or Path.cwd()
-            r = await asyncio.to_thread(
-                subprocess.run,
-                ["git", "--no-pager", "log", "--oneline", "-6", "--", file_path],
-                cwd=str(project_root),
-                capture_output=True,
-                text=True,
-                timeout=15,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            out = await asyncio.to_thread(
+                _run_git_log, str(project_root), file_path, 6, 15.0
             )
-            out = r.stdout.strip()
             snippet = out or f"[git: no history for {file_path}]"
         except Exception as e:  # noqa: BLE001
             snippet = f"[git error: {e}]"

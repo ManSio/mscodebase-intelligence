@@ -172,3 +172,40 @@ def test_symbol_ref_fields_are_mapped(tmp_path):
 
     assert "IndexStatusReporter" in out
     assert "index_status.py:22" in out
+
+
+def test_literal_only_identifier_is_named_in_the_answer(tmp_path, monkeypatch):
+    """Совпадение только в литерале: ответ называет scope и НЕ уходит в отказ.
+
+    Тест пинит РЕШЕНИЕ, а не подстроку: индекс символов отвечает «не знаю
+    такого», поэтому отказ возможен только если `filtered` не дошёл до
+    решающих веток (ревью №4, major 3.4).
+    """
+    from src.core.indexing.parser import CodeParser
+    from src.mcp.tools.grep_tool import GrepCodeTool
+
+    monkeypatch.setattr(GrepCodeTool, "resolve_parser", lambda self: CodeParser())
+    (tmp_path / "types.py").write_text(
+        "KIND = 'implemented_by'\n", encoding="utf-8"
+    )
+    tool = _fake_tool(tmp_path)
+
+    class _UnknownSymbols:
+        def search_symbols(self, query, top_k=3):
+            return []
+
+        def has_symbol(self, name):
+            return False
+
+    tool.resolve_symbol_index = lambda **kw: _UnknownSymbols()  # type: ignore[assignment]
+
+    out = asyncio.run(tool.execute("implemented_by", project_root=str(tmp_path)))
+
+    # 1) причина abstain называет литералы, 2) строка exact — тоже,
+    # 3) отказа нет: совпадение в литерале — это найденное имя, не «нет имени».
+    verdict_line = next(line for line in out.splitlines() if "verdict:" in line)
+    assert "only inside comments/strings" in verdict_line, verdict_line
+    exact_lines = [ln for ln in out.splitlines() if "exact:" in ln]
+    assert any("occurrence(s) sit inside" in ln for ln in exact_lines), exact_lines
+    assert "withheld" not in out.lower(), out
+    assert "subject does not occur" not in out

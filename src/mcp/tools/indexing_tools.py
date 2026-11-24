@@ -310,6 +310,12 @@ class IndexProjectDirTool(MCPTool):
         if not target_path.exists():
             return f"❌ Path does not exist: {path}"
 
+        # Захват MCP-сессии до старта фонового потока: уведомления о прогрессе
+        # индексации уходят хосту через эту сессию.
+        from src.mcp.notifications import bind_session_from_request
+
+        bind_session_from_request()
+
         # INC-6BCB-v3: self-indexing guard в resolve_indexer уже заблокировал бы
         # эту операцию, но даём более понятное сообщение ДО создания Indexer.
         # Используем SystemArtifacts (Layer 1) — не нужно импортировать
@@ -364,6 +370,41 @@ class IndexProjectDirTool(MCPTool):
             return f"❌ Не удалось открыть проект {target_path.name}: {exc}"
         services = self._services
 
+        # Уведомления хосту: раньше полная индексация шла молча, и агент мог
+        # только опрашивать progress вручную (замер 2026-11-16: notifications=0).
+        from src.mcp import notifications as _notify
+
+        _loop = asyncio.get_running_loop()
+        _last_pct = {"value": -10.0}
+
+        def _progress(current, done, total, phase="indexing"):
+            try:
+                # `current` — путь файла (строка), число обработанных — `done`.
+                pct = (done / total * 100.0) if total else 0.0
+                if pct - _last_pct["value"] < 10.0:
+                    return
+                _last_pct["value"] = pct
+                _notify.schedule(
+                    _notify.notify_log(
+                        "info",
+                        f"Индексация {target_path.name}: {done}/{total} ({pct:.0f}%)",
+                        "mscodebase.indexer",
+                    ),
+                    _loop,
+                )
+            except Exception:  # noqa: BLE001 — прогресс не должен ломать индексацию
+                pass
+
+        try:
+            _notify.schedule(
+                _notify.notify_log(
+                    "info", f"Индексация началась: {target_path}", "mscodebase.indexer"
+                ),
+                _loop,
+            )
+        except RuntimeError:  # loop уже закрыт (например, тест завершился)
+            pass
+
         def _worker() -> None:
             started = time.time()
             registry = None
@@ -378,7 +419,21 @@ class IndexProjectDirTool(MCPTool):
             except Exception:  # noqa: BLE001 — state machine не блокирует индексацию
                 registry = None
             try:
-                indexed = indexer.index_project(target_path)
+                import inspect
+
+                try:
+                    _accepts_progress = (
+                        "progress_callback"
+                        in inspect.signature(indexer.index_project).parameters
+                    )
+                except (TypeError, ValueError):
+                    _accepts_progress = False
+                if _accepts_progress:
+                    indexed = indexer.index_project(
+                        target_path, progress_callback=_progress
+                    )
+                else:
+                    indexed = indexer.index_project(target_path)
                 _set_job(
                     key,
                     state="done",
@@ -386,6 +441,18 @@ class IndexProjectDirTool(MCPTool):
                     finished_at=time.time(),
                     elapsed_s=round(time.time() - started, 1),
                 )
+                try:
+                    _notify.schedule(
+                        _notify.notify_log(
+                            "info",
+                            f"Индексация завершена: {target_path.name} "
+                            f"({indexed} файлов)",
+                            "mscodebase.indexer",
+                        ),
+                        _loop,
+                    )
+                except RuntimeError:  # loop закрыт — уведомление не обязательно
+                    pass
                 if registry is not None:
                     registry.set_state(target_path, ProjectState.READY)
                 logger.info(

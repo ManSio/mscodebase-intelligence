@@ -95,7 +95,7 @@ def run_acceptance(cmd: str, cwd: Path) -> tuple[int, str]:
         encoding="utf-8",
         errors="replace",
         timeout=900,
-        env=env,
+        env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
     return proc.returncode, ((proc.stdout or "") + (proc.stderr or ""))[-800:]
 

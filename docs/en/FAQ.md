@@ -60,7 +60,7 @@ Registration and visibility are separate. **69** tools are always registered
 (36 core + 16 intel + 13 inline + 4 dev). The surface is filtered by profile:
 
 ```bash
-# default: 17 tools, one entry per intent
+# default: 13 tools listed, one entry per intent (the rest are callable by name)
 MSCODEBASE_MCP_PROFILE=core
 
 # everything

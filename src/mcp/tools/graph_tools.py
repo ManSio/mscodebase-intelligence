@@ -4,12 +4,13 @@ cross_repo_search, cross_project_deps.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from src.core.di_container import ServiceCollection
-from src.core.error_handler import error_boundary
+from src.core.error_handler import ToolError, error_boundary
 from src.core.graph import EdgeType, NodeLabel, PropertyGraph
 from src.core.multi_project_searcher import MultiProjectSearcher
 from src.mcp.tools.base import MCPTool
@@ -26,7 +27,21 @@ class CrossRepoSearchTool(MCPTool):
 
     @error_boundary("cross_repo_search", timeout_ms=15000)
     async def execute(self, query: str, kwargs: Optional[Dict[str, Any]] = None) -> str:
-        return self.multi_searcher.search(query, limit=8)
+        result = self.multi_searcher.search(query, limit=8)
+        # Векторный кросс-поиск без embedder'а возвращал текст «❌ Ошибка: …»
+        # внутри УСПЕШНОГО ответа (isError=false). Клиент не мог отличить
+        # отказ от пустого результата (аудит 2026-11-17).
+        if isinstance(result, str) and result.startswith("❌ Ошибка:"):
+            raise ToolError(
+                status="warning",
+                message=(
+                    "cross_repo_search недоступен: векторный поиск требует "
+                    "embedder, а сервер работает в текстовом режиме "
+                    "(MSCODEBASE_DENSE_OFF=true)."
+                ),
+                detail=result,
+            )
+        return result
 
 
 class CrossProjectDepsTool(MCPTool):
@@ -119,7 +134,31 @@ class CrossProjectDepsTool(MCPTool):
                 "path": path if path else None,
             }
 
-        return {"status": "error", "message": f"Unknown action: {action}"}
+        return {
+            "status": "error",
+            # Перечень — в тексте: конверт ошибки сохраняет только
+            # message/next_action, произвольные поля теряются.
+            "message": (
+                f"Unknown action: {action}. "
+                f"Допустимые: graph, deps, cycles, shared, impact, path"
+            ),
+            "valid_actions": ["graph", "deps", "cycles", "shared", "impact", "path"],
+            "next_step": "Передайте action одним из valid_actions.",
+        }
+
+
+# Допустимые action. Список закрыт: неизвестное значение — ошибка, а не
+# молчаливый GraphRAG (issue #150: `action="callers"` висел 90 с).
+_ALLOWED_ACTIONS = (
+    "query",
+    "cypher",
+    "related",
+    "path",
+    "flow",
+    "drift",
+    "verify",
+    "isolation",
+)
 
 
 class GraphQueryTool(MCPTool):
@@ -197,9 +236,25 @@ class GraphQueryTool(MCPTool):
             return await self._execute_verify(target, kwargs, project_root=_project_root)
         elif action == "isolation":
             return await self._execute_isolation(kwargs, project_root=_project_root)
-        else:
-            # По умолчанию — GraphRAG (action="query")
-            return await self._execute_query(query_type or "impact", target, kwargs, project_root=_project_root)
+        if action not in _ALLOWED_ACTIONS:
+            # Раньше здесь был «тихий» GraphRAG-фолбэк: неверный action давал
+            # таймаут вместо объяснения (issue #150).
+            return {
+                "status": "error",
+                "code": "VALIDATION_FAILED",
+                "message": (
+                    f"Unknown action '{action}'. This tool accepts only the "
+                    "documented actions; it does not guess."
+                ),
+                "allowed_actions": list(_ALLOWED_ACTIONS),
+                "next_step": (
+                    "For callers/definitions use `get_symbol_info`; for impact "
+                    "use action='query' with query_type='impact'."
+                ),
+            }
+        return await self._execute_query(
+            query_type or "impact", target, kwargs, project_root=_project_root
+        )
 
     async def _execute_query(
         self, query_type: str, target: str, kwargs: Optional[Dict[str, Any]] = None,
@@ -215,7 +270,7 @@ class GraphQueryTool(MCPTool):
         )
 
         if query_type == "impact":
-            result = engine.query_impact(target)
+            result = await asyncio.to_thread(engine.query_impact, target)
             return {
                 "status": "ok",
                 "action": "query",
@@ -228,7 +283,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "feature":
-            result = engine.query_feature(target)
+            result = await asyncio.to_thread(engine.query_feature, target)
             symbols_raw = result.get("symbols", [])
             symbols_dicts = []
             for s in symbols_raw:
@@ -249,7 +304,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "deps":
-            result = engine.query_dependencies(target)
+            result = await asyncio.to_thread(engine.query_dependencies, target)
             return {
                 "status": "ok",
                 "action": "query",
@@ -261,7 +316,7 @@ class GraphQueryTool(MCPTool):
             }
 
         elif query_type == "tests":
-            tests = engine.query_tests(target)
+            tests = await asyncio.to_thread(engine.query_tests, target)
             return {
                 "status": "ok",
                 "action": "query",
@@ -272,8 +327,49 @@ class GraphQueryTool(MCPTool):
             }
 
         known_types = "impact|feature|deps|tests"
+
+        # `find_definition` — прямое «где определён символ». Символьный индекс
+        # умеет это нативно; раньше запрос отвергался как неизвестный, и агент
+        # уходил в `search_code`/`codebase`, хотя ответ был рядом.
+        if query_type.lower() in (
+            "find_definition",
+            "find_definitions",
+            "definition",
+            "find_symbol",
+        ):
+            definitions = []
+            try:
+                raw = engine.symbol_index.find_definitions(target) if engine.symbol_index else []
+            except Exception as exc:  # noqa: BLE001 — ответ важнее диагностики
+                return {
+                    "status": "error",
+                    "action": "query",
+                    "query_type": "find_definition",
+                    "target": target,
+                    "message": f"Symbol lookup failed: {exc}",
+                }
+            for item in raw or []:
+                if hasattr(item, "to_dict"):
+                    definitions.append(item.to_dict())
+                elif isinstance(item, dict):
+                    definitions.append(item)
+                else:
+                    definitions.append({"symbol": str(item)})
+            return {
+                "status": "ok",
+                "action": "query",
+                "query_type": "find_definition",
+                "target": target,
+                "count": len(definitions),
+                "definitions": definitions,
+                "next_step": (
+                    "Откройте `file` на строке `line` через `read_live_file`; "
+                    "для оценки влияния — `impact_analysis`"
+                ),
+            }
+
         hint = f"""
-Available query_type: {known_types}
+Available query_type: {known_types}|find_definition
 Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
         return {"status": "error", "action": "query", "message": f"Unknown query_type: {query_type}. {hint}"}
 
@@ -339,6 +435,29 @@ Note: for Cypher queries use action='cypher', for data flow use action='flow'"""
                 "status": "error",
                 "action": "related",
                 "message": f"Path does not exist: {target_path}",
+            }
+
+        # `related` отвечает про связи ФАЙЛОВ (CommitMemory). Символ здесь молча
+        # давал `✅ Completed … related_files: []` — ноль выглядел как факт о
+        # коде (аудит engraphis 2026-11-18). Проверяем существование, а не точку
+        # в имени: `Makefile`, `Dockerfile`, `.env` — валидные файлы без
+        # расширения (ревью #157, major 4).
+        candidate = Path(file_path) if file_path else None
+        if candidate is not None and not candidate.is_absolute():
+            candidate = target_path / candidate
+        if candidate is None or not candidate.exists():
+            return {
+                "status": "error",
+                "code": "VALIDATION_FAILED",
+                "message": (
+                    f"'related' works on files, not symbols: {file_path!r} is not "
+                    "a file in this project. Pass a project-relative file path."
+                ),
+                "allowed_actions": list(_ALLOWED_ACTIONS),
+                "next_step": (
+                    "For a symbol use `get_symbol_info`; for impact use "
+                    "action='query' with query_type='impact'."
+                ),
             }
 
         memory = CommitMemory(target_path)

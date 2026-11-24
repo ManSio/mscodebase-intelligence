@@ -345,9 +345,9 @@ class TestExecutionContract:
         with tempfile.TemporaryDirectory() as tmp:
             # Инициализируем git
             import subprocess
-            subprocess.run(["git", "init"], cwd=tmp, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp, capture_output=True)
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp, capture_output=True)
+            subprocess.run(["git", "init"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             # Создаём файл но не коммитим
             (Path(tmp) / "dirty.py").write_text("x = 1")
@@ -375,12 +375,12 @@ class TestExecutionContract:
         """Метрика last_commit."""
         with tempfile.TemporaryDirectory() as tmp:
             import subprocess
-            subprocess.run(["git", "init"], cwd=tmp, capture_output=True)
-            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp, capture_output=True)
-            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp, capture_output=True)
+            subprocess.run(["git", "init"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             (Path(tmp) / "test.py").write_text("x = 1")
-            subprocess.run(["git", "add", "."], cwd=tmp, capture_output=True)
-            subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp, capture_output=True)
+            subprocess.run(["git", "add", "."], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp, capture_output=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
 
             report = HealthReport(Path(tmp))
             result = report.run_full_diagnostic()

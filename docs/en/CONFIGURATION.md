@@ -22,7 +22,7 @@ Groups below mirror the dataclasses: `server`, `search`, `embedding`, `index`,
 
 | Variable | Default | Effect |
 |---|---|---|
-| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: `core` = 17 tools, `full` = all 69 |
+| `MSCODEBASE_MCP_PROFILE` | `core` | Tool surface: `core` = 13 tools listed (the rest stay callable by name), `full` = all 69 |
 | `MSCODEBASE_MCP_TOOLS` | — | Explicit comma-separated allowlist; overrides the profile |
 | `MSCODEBASE_EXECUTE_SCRIPT_ENABLED` | `false` | Registers `execute_script` (RCE on the host, off by default) |
 | `MSCODEBASE_DATA_DIR` | `%LOCALAPPDATA%/mscodebase` (Windows) or `~/.cache/mscodebase` | Root for graph, memory, jobs, telemetry, commit memory |
@@ -77,6 +77,9 @@ frozen panels must never appear as search hits.
 | `MSCODEBASE_REINDEX_STALL_SEC` | — | Stall watchdog for long reindexes |
 | `MSCODEBASE_IVF_MAX_ABANDONS` | — | Auto-disable IVF after N failed optimize/create |
 | `MAX_FILE_SIZE_MB` (security, no prefix — as read by `SecurityConfig`, `src/config/settings.py:425`) | `10` | Files above this are skipped |
+| `MSCODEBASE_GRAPH_BATCH` | `1` | Write the symbol graph through one transaction per file (`PropertyGraph.batch()`). `0` restores commit-per-node/edge (~6.8× slower on a full corpus) |
+| `MSCODEBASE_MAX_FALLBACK_CHUNKS` | `20` | Cap on fallback chunks per file — the files AST cannot parse (JSON data, minified bundles, configs). `0` indexes them in full; a negative value is treated as a typo and keeps `20`. Code (AST) chunks are never capped. Changing it needs a full reindex: file hashes do not change, so incremental runs skip the file |
+| `MSCODEBASE_INDEX_DATA` | `0` | Index data files (`.json`) at all. Off by default: on engraphis they were 62.3% of the index (31 123 of 49 920 chunks), 90% of that being frozen benchmark artefacts, and no code query improved by them. Two exceptions stay indexed: project manifests (`package.json`, `package-lock.json`, `npm-shrinkwrap.json`, `tsconfig.json`, `plugin.json`, `marketplace.json`, `*.plugin.json`, `composer.json`, `deno.json`, `renovate.json`) and tool contracts recognised by keys (`inputSchema`, `surfaces`, `annotations`, file ≤512 KB) — the files that tell an agent how the project is wired and what the server exposes. That is 8 of 445 `.json` on engraphis. `.ipynb` is code and is always indexed; `grep_code` and `read_live_file` read `.json` from disk either way. Turning this on does not backfill: delete `<project>/.mscodebase/chunks.db*` and reindex |
 
 ## 5. Providers (all optional)
 

@@ -100,7 +100,9 @@ def test_should_skip_file_in_system_dir(tmp_path):
         ("script.sh", True),
         ("readme.md", True),
         ("notes.txt", True),
-        ("data.json", True),
+        # .json в белом списке INDEX_EXTENSIONS, но по политике данных
+        # (2026-11-17) не индексируется без MSCODEBASE_INDEX_DATA=1.
+        ("data.json", False),
         ("image.png", False),
         ("archive.zip", False),
         ("Makefile", False),
@@ -111,3 +113,11 @@ def test_extension_matrix(tmp_path, name, expected):
     f = _write(tmp_path / name, b"x" * 4)
     guard = FileGuard(tmp_path)
     assert guard.is_safe_to_index(f) is expected
+
+
+def test_json_passes_when_data_is_enabled(tmp_path, monkeypatch):
+    """`.json` остаётся в белом списке: с MSCODEBASE_INDEX_DATA=1 он индексируется."""
+    monkeypatch.setenv("MSCODEBASE_INDEX_DATA", "1")
+    f = _write(tmp_path / "data.json", b'{"a": 1}')
+    guard = FileGuard(tmp_path)
+    assert guard.is_safe_to_index(f) is True

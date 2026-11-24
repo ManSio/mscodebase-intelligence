@@ -1,0 +1,88 @@
+{
+ "population": 48,
+ "arms": [
+  "A",
+  "C",
+  "B"
+ ],
+ "median_tokens": {
+  "A": 5324.0,
+  "C": 755.5,
+  "B": 643.5
+ },
+ "median_ms": {
+  "A": 208.0,
+  "C": null,
+  "B": 3861.5
+ },
+ "ms_measured": {
+  "A": true,
+  "C": false,
+  "B": true
+ },
+ "hit_rate": {
+  "A": 0.854,
+  "C": 0.854,
+  "B": 0.625
+ },
+ "C_tokens_over_A_median": 0.143,
+ "C_lost_gold_where_A_had_it": [],
+ "B_lost_gold_where_A_had_it": [
+  "E30-E28-01",
+  "E30-E28-04",
+  "E30-E28-11",
+  "E30-E28-17",
+  "E30-E28-31",
+  "E30-E28-32",
+  "E30-D01",
+  "E30-D05",
+  "E30-D06",
+  "E30-D10",
+  "E30-D12"
+ ],
+ "C_over_800": [
+  "E30-E28-02",
+  "E30-E28-05",
+  "E30-E28-07",
+  "E30-E28-08",
+  "E30-E28-11",
+  "E30-E28-12",
+  "E30-E28-15",
+  "E30-E28-17",
+  "E30-E28-22",
+  "E30-E28-26",
+  "E30-E28-27",
+  "E30-D01",
+  "E30-D02",
+  "E30-D08",
+  "E30-D09",
+  "E30-D11",
+  "E30-D12"
+ ],
+ "C_over_1000": [
+  "E30-E28-02",
+  "E30-E28-05",
+  "E30-E28-07",
+  "E30-E28-11",
+  "E30-E28-17",
+  "E30-E28-22",
+  "E30-E28-26",
+  "E30-D01",
+  "E30-D02",
+  "E30-D09",
+  "E30-D11",
+  "E30-D12"
+ ],
+ "control_scorer": {
+  "positive_full_path": true,
+  "positive_absolute_path": true,
+  "positive_bare_at_start": true,
+  "positive_backslash_variant": true,
+  "negative_spurious_segment": false,
+  "negative_basename_only": false,
+  "negative_other_dir_prefix": false,
+  "negative_suffix_extension": false
+ },
+ "raw_texts": "results/raw_texts/arm_texts.json.gz",
+ "run_meta": "results/run_meta.json"
+}

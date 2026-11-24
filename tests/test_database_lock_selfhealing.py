@@ -392,7 +392,7 @@ class TestLiveProcessNotKilled:
         proc = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(60)"],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         try:
             lock_path = tmp_path / ".write_lock"

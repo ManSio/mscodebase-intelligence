@@ -67,7 +67,7 @@ def main() -> int:
                 ["git", "rev-parse", "--short", "HEAD"],
                 cwd=str(ROOT),
                 capture_output=True,
-                timeout=10,
+                timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
             )
             .stdout.decode()
             .strip()
