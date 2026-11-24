@@ -153,6 +153,24 @@ def test_log_handler_follows_the_current_data_root(tmp_path, monkeypatch):
         _reset()
 
 
+def test_runtime_metrics_file_is_not_tracked():
+    """The server rewrites this file every 10 calls; git must not track it."""
+    import subprocess
+
+    repo = Path(__file__).resolve().parents[1]
+    proc = subprocess.run(
+        ["git", "ls-files", "--error-unmatch", "telemetry/tool_metrics.json"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    assert proc.returncode != 0, (
+        "telemetry/tool_metrics.json is runtime state written by the MCP server; "
+        "tracking it makes every server run dirty the work tree"
+    )
+
+
 def test_conftest_pins_a_temp_session_root():
     import conftest
 

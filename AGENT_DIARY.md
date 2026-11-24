@@ -10,6 +10,15 @@
 
 
 
+## 2026-11-24 — рантайм-метрики были в git
+
+**Симптом:** `M telemetry/tool_metrics.json` после каждого запуска сервера из репо.
+**Root cause:** `server_factory.py:248` пишет в `<ext_root>/telemetry/`, а в dev
+`_ext_root` = репозиторий; файл трекнут (в HEAD — `{}`).
+**Fix:** `git rm --cached` + `.gitignore` (`tool_metrics.json`, `.tmp`);
+runtime-путь не менялся.
+**Guard:** `test_runtime_metrics_file_is_not_tracked` (красный до untrack).
+
 ## 2026-11-24 — тесты гадили в CWD и в реальный data root
 
 **Симптом:** `MagicMock/mock.project_path/<id>/.mscodebase/chunks.db` (491 файл /

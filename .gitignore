@@ -67,6 +67,9 @@ desktop.ini
 .pytest_cache/
 # Searcher built a chunk store from a mocked project_path (audit 2026-11-24).
 MagicMock/
+# Runtime metrics rewritten by the MCP server every 10 calls (audit 2026-11-24).
+/telemetry/tool_metrics.json
+/telemetry/tool_metrics.tmp
 .coverage
 .coverage*
 .coveragerc
