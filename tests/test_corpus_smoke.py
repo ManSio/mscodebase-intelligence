@@ -50,7 +50,9 @@ def server(tmp_path, monkeypatch):
 
 def _call(mcp, name: str, args: dict) -> str:
     """FastMCP возвращает либо (content, meta), либо dict/str — приводим к тексту."""
-    result = asyncio.run(mcp._tool_manager.call_tool(name, args))  # noqa: SLF001
+    result = asyncio.run(mcp.call_tool(name, args))
+    if hasattr(result, "content"):  # mcp 2.x: CallToolResult
+        return "".join(getattr(block, "text", "") for block in result.content)
     if isinstance(result, tuple):
         blocks = result[0]
         return "".join(getattr(block, "text", "") for block in blocks)
