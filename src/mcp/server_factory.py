@@ -145,7 +145,7 @@ def start_heartbeat_monitor(mcp):
             server.request_handlers["mscodebase/heartbeat"] = _on_heartbeat
         _heartbeat_service.start_monitor()
     except Exception as e:
-        logger.warning(f"Heartbeat: {e}")
+        logger.debug("Heartbeat handler not registered: %s", e)
 
 
 # ══════════════════════════════════════════════════════════
@@ -153,11 +153,51 @@ def start_heartbeat_monitor(mcp):
 # ══════════════════════════════════════════════════════════
 
 
+def _project_version() -> str:
+    """Версия проекта для `serverInfo.version` (а не версия SDK).
+
+    mcp 1.x подставлял в `serverInfo.version` свою версию (видели `1.30.0`),
+    mcp 2.x без явного `version=` отдаёт пустую строку. Читаем pyproject
+    (источник истины для `bump_version.py`), fallback — установленные метаданные.
+    """
+    try:
+        import re as _re
+        from pathlib import Path as _Path
+
+        pyproject = _Path(__file__).resolve().parents[2] / "pyproject.toml"
+        text = pyproject.read_text(encoding="utf-8")
+        found = _re.search(r'^version\s*=\s*"([^"]+)"', text, _re.M)
+        if found:
+            return found.group(1)
+    except Exception:  # noqa: BLE001 - версия не должна ронять старт
+        pass
+    try:
+        from importlib.metadata import version as _dist_version
+
+        return _dist_version("mscodebase-intelligence")
+    except Exception:  # noqa: BLE001
+        return "0.0.0"
+
+
 def create_mcp_server():
     """Создаёт и настраивает MCP-сервер с DI-контейнером."""
-    from mcp.server.fastmcp import FastMCP
+    try:  # mcp >= 2
+        from mcp.server.mcpserver import MCPServer as _Server
+    except ModuleNotFoundError as exc:  # mcp 1.x (до миграции)
+        # Только «нет модуля mcp.server.mcpserver»: ImportError внутри пакета
+        # (например, отсутствующий httpx2) не должен маскироваться под 1.x.
+        if exc.name not in {"mcp.server.mcpserver", "mcp.server"}:
+            raise
+        from mcp.server.fastmcp import FastMCP as _Server
 
-    mcp = FastMCP("MSCodebase Intelligence Server")
+    try:
+        # 2.x: version = версия проекта в serverInfo (не версия SDK).
+        mcp = _Server("MSCodebase Intelligence Server", version=_project_version())
+    except TypeError:
+        # 1.x: version в конструкторе нет.
+        mcp = _Server("MSCodebase Intelligence Server")
+    # isError: на 2.x ставит middleware через install_is_error_flag (ниже),
+    # на 1.x — перехват низкоуровневого хендлера.
 
     # Lazy импорты: хелперы старта — из context (ARCLUX 2026-08-17,
     # разрыв цикла server↔factory); _ext_root/resolve_project_root — из core (ARCH-03).
@@ -286,13 +326,33 @@ def _wire_plugins(mcp):
 
 def _register_notification_broker(mcp, services):
     try:
-        from mcp.types import InitializedNotification
-
+        from src.core.error_handler import set_notification_broker
         from src.core.notification_broker import NotificationBroker
         broker = services.resolve(NotificationBroker)
-        server = mcp._mcp_server
-        from src.core.error_handler import set_notification_broker
+        # Брокер ставим в любом случае: error_boundary через него публикует
+        # диагностику, а не молча пишет в никуда.
         set_notification_broker(broker)
+    except Exception as e:
+        logger.warning(f"NotificationBroker: {e}")
+        return
+
+    server = getattr(mcp, "_mcp_server", None)
+    if server is None:
+        # MCP SDK 2.x: `_mcp_server` нет, а публичного API для server-initiated
+        # кастомных уведомлений (`mscodebase/*`) тоже нет — `send_notification`
+        # принимает только типизированные нотификации протокола. Поэтому сессию
+        # к брокеру привязать нечем: publish честно логирует drop.
+        # progress.json (файл-контракт для агента) пишется независимо от сессии.
+        # Решение и план возврата канала — ADR-0008, «Деградации на 2.x».
+        logger.warning(
+            "NotificationBroker: push-канал отключён на MCP SDK 2.x "
+            "(нет публичного API для кастомных серверных уведомлений); "
+            "progress.json продолжает работать. См. ADR-0008."
+        )
+        return
+
+    try:
+        from mcp.types import InitializedNotification
 
         async def _on_init(notification: InitializedNotification):
             try:
@@ -312,8 +372,14 @@ def _register_notification_broker(mcp, services):
 
 
 def _register_extension_handlers(mcp, services):
+    server = getattr(mcp, "_mcp_server", None)
+    if server is None:
+        # 2.x: `request_handlers` удалён — кастомные JSON-RPC методы не
+        # регистрируются (решение и обоснование — ADR-0008, решение 1).
+        logger.debug("Extension handlers: не регистрируются на MCP SDK 2.x (ADR-0008)")
+        return
+
     try:
-        server = mcp._mcp_server
         from src.mcp.tools.base import resolve_indexer_for_request
         if not (hasattr(server, "request_handlers") and isinstance(server.request_handlers, dict)):
             return

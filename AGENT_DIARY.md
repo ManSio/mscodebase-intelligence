@@ -193,6 +193,30 @@ NOOP+promote+merge ссылок в памяти; `links.py` (AST, is_relative_to
 - **Guard:** `tests/test_root_guards.py` (20 тестов, 3 мутации → по одному
   красному). Урок: «любой cwd = проект» — это допущение, а не факт; у проекта
   есть маркер, у системы его нет.
+## [2026-11-15] MCP — миграция на SDK 2.3 и три тихие деградации, которые увидело ревью
+
+- **Симптом:** после `mcp==1.30 → 2.3` suite был зелёным только с незакоммиченной
+  правкой, `isError` на 1.x не читался, а `NotificationBroker` умирал молча.
+- **Root Cause:** (1) в 2.x поле результата — `is_error`, в 1.x — `isError`, хелпер
+  теста читал только snake_case; (2) `_register_notification_broker` падал на
+  `mcp._mcp_server` ДО `set_notification_broker`, поэтому `_error_broker is None`;
+  (3) мой probe `server/discover` шёл без modern `_meta` и я записал в ADR ложный
+  вывод «2026-07-28 не обслуживается».
+- **Fix (PR #139):** `_is_error` читает оба написания; брокер ставится до ветвления
+  по версии, на 2.x — один WARNING со ссылкой на ADR; контракт текста ошибок
+  зафиксирован по линиям (1.x — оригинал, 2.x — generic); ADR переписан:
+  `initialize(2026-07-28)` → counter-offer `2025-11-25`, но `server/discover`
+  **с** `_meta` отдаёт `2026-07-28` и 17 инструментов. Второй проход ревью нашёл
+  ещё два: E-07 звал `streamablehttp_client` (в 2.x — `streamable_http_client`),
+  и Streamable HTTP без явного `transport_security` отбивал не-localhost `Host`
+  (421) — оба закрыты, на Host есть регресс-тест.
+- **Guard:** `tests/test_mcp_wiring_degradations.py` (4 теста) краснеет, если брокер
+  перестанут ставить (мутация `set_notification_broker`→`pass`: 2 failed) или если
+  деградация начнёт маскироваться; `test_raising_tool_still_reports_error` краснеет
+  при инверсии ветки (1 failed). Обе линии: `2643 passed` / `2643 passed`, rc=0
+  (после мержа main и закрытия второго ревью).
+- **Урок:** «зелено только в моём грязном дереве» — это красное; проверять HEAD,
+  а не рабочую копию.
 
 ## [2026-11-14] BENCH — бенчмарк четыре дня печатал кэш из git
 
