@@ -10,6 +10,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
@@ -496,8 +497,22 @@ class Searcher(BM25Mixin, FTS5Mixin, ISearcher, AgenticSearchMixin):
                 )
 
                 _project = getattr(self.indexer, "project_path", None)
-                if _project is not None:
+                # Only real paths may become a storage location. A mock/test
+                # double used to produce ``<cwd>/MagicMock/.../chunks.db``
+                # (491 files / 16.3 MB per tree, audit 2026-11-24).
+                # isinstance(MagicMock(), os.PathLike) is True (it fakes
+                # __fspath__), so accept only str/pathlib paths, not arbitrary
+                # PathLike objects. A blank string resolves to CWD.
+                _is_path = isinstance(_project, PurePath) or (
+                    isinstance(_project, str) and bool(_project.strip())
+                )
+                if _is_path:
                     self._chunk_store = SQLiteChunkStore(get_chunks_db_path(_project))
+                elif _project is not None:
+                    logger.debug(
+                        "SQLite chunk store disabled: project_path is %s, not a path",
+                        type(_project).__name__,
+                    )
             except Exception as _cs_err:
                 logger.warning(f"SQLite chunk store init failed: {_cs_err}")
         self._multi_reranker: Optional[MultiProviderReranker] = None
