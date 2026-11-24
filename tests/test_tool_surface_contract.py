@@ -8,15 +8,24 @@ from __future__ import annotations
 
 import asyncio
 
-from mcp.server.fastmcp import FastMCP
+try:  # mcp 2.x: MCPServer; 1.x: FastMCP
+    from mcp.server.mcpserver import MCPServer as _Server
+except ImportError:  # pragma: no cover - откатная линия 1.x
+    from mcp.server.fastmcp import FastMCP as _Server
 
 from src.core.di_container import ServiceCollection
 from src.mcp import server_tools as st
 from src.mcp.tools.help_tool import ToolHelpTool
 
 
-def _mcp_with(names) -> FastMCP:
-    mcp = FastMCP("surface-test")
+def _destructive(ann):
+    """destructiveHint (1.x) / destructive_hint (2.x) — одно и то же поле."""
+    value = getattr(ann, "destructiveHint", None)
+    return getattr(ann, "destructive_hint", None) if value is None else value
+
+
+def _mcp_with(names):
+    mcp = _Server("surface-test")
     for name in names:
         def _fn() -> str:  # noqa: ANN202
             return f"ok:{name}"
@@ -34,8 +43,12 @@ def test_hidden_tool_is_still_callable(monkeypatch):
     listed = {t.name for t in mcp._tool_manager.list_tools()}  # noqa: SLF001
     assert "structural_search" not in listed, "скрытый не должен быть в списке"
 
-    result = asyncio.run(mcp._tool_manager.call_tool("structural_search", {}))  # noqa: SLF001
-    text = result[0].text if isinstance(result, tuple) else str(result)
+    result = asyncio.run(mcp.call_tool("structural_search", {}))
+    content = getattr(result, "content", None)
+    if content:
+        text = content[0].text
+    else:
+        text = result[0].text if isinstance(result, tuple) else str(result)
     assert "ok:structural_search" in str(text)
 
 
@@ -46,9 +59,9 @@ def test_annotations_are_present_for_every_registered_tool(monkeypatch):
 
     for name, tool in mcp._tool_manager._tools.items():  # noqa: SLF001
         assert tool.annotations is not None, name
-        assert isinstance(tool.annotations.destructiveHint, bool), name
-    assert mcp._tool_manager._tools["search_code"].annotations.destructiveHint is False  # noqa: SLF001
-    assert mcp._tool_manager._tools["codebase"].annotations.destructiveHint is True  # noqa: SLF001
+        assert isinstance(_destructive(tool.annotations), bool), name
+    assert _destructive(mcp._tool_manager._tools["search_code"].annotations) is False  # noqa: SLF001
+    assert _destructive(mcp._tool_manager._tools["codebase"].annotations) is True  # noqa: SLF001
 
 
 def test_tool_help_returns_schema_for_hidden_tool(monkeypatch):
@@ -148,5 +161,5 @@ def test_execute_script_is_destructive_when_enabled(monkeypatch):
     mcp = _mcp_with(["search_code", "execute_script"])
     st._apply_tool_profile(mcp)
 
-    assert mcp._tool_manager._tools["execute_script"].annotations.destructiveHint is True  # noqa: SLF001
-    assert mcp._tool_manager._tools["search_code"].annotations.destructiveHint is False  # noqa: SLF001
+    assert _destructive(mcp._tool_manager._tools["execute_script"].annotations) is True  # noqa: SLF001
+    assert _destructive(mcp._tool_manager._tools["search_code"].annotations) is False  # noqa: SLF001

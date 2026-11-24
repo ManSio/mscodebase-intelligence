@@ -71,7 +71,7 @@ def build_contract() -> dict:
             "name": name,
             "description": (getattr(tool, "description", "") or "").strip(),
             "inputSchema": getattr(tool, "parameters", {}) or {},
-            "annotations": annotations.model_dump(mode="json", exclude_none=True)
+            "annotations": annotations.model_dump(mode="json", by_alias=True, exclude_none=True)
             if annotations is not None else {},
         })
     encoded = json.dumps(tools, sort_keys=True, separators=(",", ":")).encode()

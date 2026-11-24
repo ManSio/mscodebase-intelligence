@@ -20,7 +20,7 @@
 | `from mcp.server.mcpserver import MCPServer` | есть; `mcp.server.fastmcp` больше не рабочий модуль (в 2.3 он существует как заглушка и кидает `ModuleNotFoundError`) |
 | Наш сервер создаётся | да: `MCPServer`, `name="MSCodebase Intelligence Server"` |
 | `serverInfo.version` | **3.5.0** (было `1.30` — версия SDK) |
-| Видимых инструментов | **17** (core-профиль), `_tool_manager` + `remove_tool` работают |
+| Видимых инструментов | **13** (core-профиль; `docs/FACTS.md:21`, живой `tools/list`), `_tool_manager` + `remove_tool` работают |
 | Публичные методы v2 | `tool`, `add_tool`, `remove_tool`, `run_stdio_async`, `streamable_http_app(**kwargs)`, `session_manager`, `middleware`, `custom_route` |
 
 ## Что ломается (снятые частные API)
@@ -60,7 +60,7 @@ Phase 1 их не ломает на 1.30 (импорт с fallback), но при
   `sse-starlette` остаётся транзитивной (в lock уже линия 3.4.x, требование `>=3`
   выполнено); `httpx` остаётся, потому что его импортирует наш код.
 - Приёмка: `initialize` на 2025-06-18 и 2025-11-25, `server/discover` с modern
-  `_meta` (2026-07-28), `tools/list` = 17 и 69 (`full`), stdio + Streamable HTTP,
+  `_meta` (2026-07-28), `tools/list` = 13 и 69 (`full`), stdio + Streamable HTTP,
   5 клиентских сниппетов, `tests/` целиком, `transport-equiv-e2e`.
 
 ## Откат
@@ -90,7 +90,7 @@ Phase 1 их не ломает на 1.30 (импорт с fallback), но при
 |---|---|
 | `initialize(2026-07-28)` | counter-offer `2025-11-25` — handshake modern не умеет |
 | `server/discover` **с** `_meta` первым | `supportedVersions: ["2026-07-28"]`; top-level `serverInfo` нет — версия сервера приходит в `_meta.io.modelcontextprotocol/serverInfo` (`3.5.0`) |
-| `tools/list` / `tools/call` в modern-соединении | 17 инструментов, `isError` по конверту работает |
+| `tools/list` / `tools/call` в modern-соединении | 13 инструментов (core), `isError` по конверту работает |
 | enveloped-запрос на legacy-соединении | `-32601` / `INVALID_REQUEST` — ожидаемо |
 
 Приёмка поэтому формулируется как «`Client(mode="2026-07-28")` → `tools/list` +
