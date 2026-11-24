@@ -102,6 +102,7 @@ inline: `intel_get_project_context`, `intel_explain_project_state`,
 ## 6. Контракт правки
 
 - Прочитать файл → `impact_analysis` (риск средний и выше) → точечная правка, стиль соседнего кода.
+  Машинно: `.opencode/plugin/edit_gate.mjs` блокирует правку файла, не прочитанного в этой сессии.
 - После `edit`/`write` — `notify_change(file_path)`, затем `codebase(action="index", path="status")`.
 - `codebase(action="move")` переносит **символ** между файлами (`symbol`+`to_file`), файл не перемещает;
   файл перемещён — `notify_change`, иначе индекс держит старый путь.

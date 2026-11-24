@@ -1,5 +1,7 @@
 // mscodebase_gate.ts — opencode-хук: детерминированные заметки MSCodeBase в момент действия.
 //
+// Gate 0 (перед любым инструментом): read-before-edit + свежесть прочитанного
+//   (`edit_gate.mjs`; switch MSCODEBASE_EDIT_GATE=block|warn|off, default block).
 // Два гейта на `git commit` (мост: `python -m src.cli <tool> <json>`, cwd=проект; CLI --project игнорирует):
 //   1. stale_detector — BLOCK при дрейфе версий (доказан в E6: модель отказ не обходит).
 //   2. graph_query isolation — ADVISORY: «тихий слом» графа (осиротение узла). Soft: у гейта есть FP.
@@ -20,6 +22,11 @@ import { appendFileSync, mkdirSync } from "node:fs"
 import { execFile } from "node:child_process"
 import { dirname, join } from "node:path"
 import { tmpdir } from "node:os"
+
+// Gate 0: файл обязан быть прочитан в этой сессии и не меняться на диске после
+// чтения (AGENTS §11). Логика и тесты — `edit_gate.mjs`,
+// `node --test .opencode/plugin/edit_gate.test.mjs`.
+import { createEditGate } from "./edit_gate.mjs"
 
 // Project-local venv by default; MSCODEBASE_PY overrides. No machine-specific path.
 const LOG = process.env.MSCODEBASE_GATE_LOG ?? join(tmpdir(), "opencode", "mscodebase_gate.log")
@@ -96,9 +103,14 @@ function docsOnlyStaged(directory: string): Promise<boolean> {
 const stash = new Map<string, string>()
 
 export default (async ({ directory }) => {
-  log({ kind: "init", directory, stale: STALE_MODE, isolation: ISO_MODE })
+  const editGate = createEditGate({ directory, log })
+  log({ kind: "init", directory, stale: STALE_MODE, isolation: ISO_MODE, edit_gate: process.env.MSCODEBASE_EDIT_GATE ?? "block" })
   return {
     "tool.execute.before": async (input: any, output: any) => {
+      // Gate 0: read-before-edit + свежесть прочитанного. Бросает до любых
+      // внешних вызовов: это самая дешёвая проверка и самая частая причина отказа.
+      await editGate["tool.execute.before"](input, output)
+
       if (input.tool !== "bash") return
       const cmd = String(output.args?.command ?? "")
       if (!/\bgit\s+commit\b/.test(cmd)) return
@@ -146,6 +158,7 @@ export default (async ({ directory }) => {
     },
 
     "tool.execute.after": async (input: any, output: any) => {
+      await editGate["tool.execute.after"](input)
       if (ISO_MODE !== "advisory") return
       const cached = stash.get(input.callID)
       if (!cached) return

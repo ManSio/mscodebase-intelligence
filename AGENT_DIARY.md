@@ -2253,6 +2253,17 @@ BREACH: MSC-P-19 | date: 2026-10-03 | rule: §12 | guard_at_time: no | detected_
 
 **Что сделано по итогам:** гейт подключён в `.githooks/pre-commit` (15-й) и в CI-шаг `AGENTS.md facts`; R2 переписан на индекс git (точный + casefold, `./`, каталоги по префиксу, glob-пути исключены, расширения `csv|log|png|svg`); бюджет 160 закреплён литералом; добавлены тесты на все обходы (31); в файле исправлены оба ложных утверждения и возвращены project-specific правила (text-first `DENSE_OFF`, пины `==` + `check_lock_drift.sh`, `MSCODEBASE_MCP_TOOLS`, Docker/WSL, `audit-cache`, параллельные сессии, inline-intel, полный список корневых файлов).
 
+## [2026-11-15] A1+A3: «прочитай перед правкой» стало отказом, пины CI — SHA
+
+**Симптом:** `AGENTS.md §6` требует «сначала прочитать файл», а `AGENTS.md §7` — «чужой файл не коммитить», но плагин `.opencode/plugin/mscodebase_gate.ts` перехватывал только `bash` + `git commit`: правка непрочитанного файла и правка файла, изменившегося на диске (параллельная сессия), ничем не ловились. Параллельно все `uses:` в `.github/workflows/ci.yml` были на тегах (`actions/checkout@v5`) — подвинутый тег = чужой код в CI с токеном; `persist-credentials` не задавался.
+
+**Fix (A1):** `.opencode/plugin/edit_gate.mjs` — Gate 0 в `tool.execute.before`: `edit`/`write`/`patch` по существующему файлу проходит, только если файл читали в этой сессии и sha1 не изменился; свой `after`-хук обновляет факт, поэтому вторая правка не блокируется собственной записью. Переключатель `MSCODEBASE_EDIT_GATE=block|warn|off`, состояние в памяти по `sessionID`, крупные файлы (>8 МБ) — по size+mtime. Логика — `.mjs` без зависимостей, тесты `node --test` (не требуют opencode и `npm install`).
+
+**Fix (A3):** `scripts/check_workflow_pins.py`: каждое удалённое `uses:` — `owner/action@<40 hex>` с комментарием версии, каждый `checkout` — `persist-credentials: false`; пустой скан = exit 1. Пины: checkout v5.1.0, setup-python v5.6.0 (SHA берутся из refs/tags через git ls-remote). Шаг `Edit-gate logic (node)` в CI + `AGENTS.md §6` (одна строка).
+
+**Проверка:** `node --test` — 18/18; `pytest tests/test_workflow_pins.py` — 10/10; `check_workflow_pins.py` — `11 uses, 7 checkout(s), 0 problem(s)`; мутации 6/6 (символ, флаг, containment, файловый cap, строковый cap, claim-клауза) и 3/3 (SHA, persist-credentials, версия) — краснеют; полный suite 2645 passed, 10 skipped.
+
+**Граница:** правки через `bash` (heredoc, `sed -i`, `tee`) гейт не видит; на docs-only коммите плагин работает всегда (он в хосте, не в хуке). Поведение в живом хосте не проверялось — плагин загружается при старте сессии (`⏳` до перезапуска OpenCode).
 ## [2026-11-16] E2E-замер MCP по 7 реальным проектам: 6 фиксов в ветке `fix/symbol-graph`
 
 **Симптомы (живой прогон, 56 вызовов + 7 handshake):** `impact_analysis` → «Symbol not found
