@@ -5,6 +5,31 @@
 
 ---
 ---
+## 2026-11-24 — тесты писали в CWD и в реальный data root — 🟢 закрыто
+
+- **Симптом:** в корне репо и в install-root — `MagicMock/mock.project_path/<id>/.mscodebase/chunks.db`
+  (491 файл / 16.3 MB на дерево); один прогон suite добавил 672 строки `MagicMock`
+  в реальный `D:\mscodebase-data\logs\mcp_global.log`.
+- **Корень (замер):** `Searcher.__init__` строил `SQLiteChunkStore(get_chunks_db_path(indexer.project_path))`
+  без проверки типа; `MagicMock` проходит как `os.PathLike` (фейковый `__fspath__`).
+  Лог-хендлер биндился к `get_logs_dir()` один раз и не переезжал при смене
+  `MSCODEBASE_DATA_DIR`; per-test фикстура срабатывала после биндинга.
+- **Fix:** `engine.py` — только `str|PurePath`, пустая строка отклоняется;
+  `log_manager.py` — ключ `project|log_file`, project-scoped снятие старого
+  хендлера с обоих логгеров и закрытие под `threading.Lock`, ключ пишется только
+  после успешного attach; `tests/conftest.py` — session-temp `MSCODEBASE_DATA_DIR`
+  до collection; `.gitignore` — `MagicMock/`.
+- **Проверка:** 5 guard-тестов; 3 мутации (отключить store целиком, не закрывать
+  старый хендлер, не перебиндить A→B→A) красят соответствующий тест. Полный
+  suite в чистом worktree — 2902 passed, 12 skipped, 91 deselected (437 s);
+  slow — 88 passed, 4 skipped. Прогон 5 «грязных» файлов из temp-CWD — 47 passed,
+  0 файлов в CWD, +0 строк в реальном логе.
+- **Guard:** `tests/test_isolation_guards.py` (5 тестов).
+- **Открыто (тот же класс):** `src/core/search/scoring.py:300-302` (`CommitMemory(project_path)`)
+  и `engine.py:2345-2346` (`_Path(root)`) по-прежнему доверяют `indexer.project_path`;
+  в наблюдённом сценарии каталогов не создавали (в `MagicMock/` был только
+  `chunks.db`), но проверки типа там нет.
+
 ## 2026-11-18 — аудит ответов на чужом корпусе: 6 дефектов, 5 закрыто, 1 открыт
 
 - **Как проверяли:** 5 вопросов к `engraphis` через MCP, каждый ответ сверен с

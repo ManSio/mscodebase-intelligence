@@ -10,6 +10,26 @@
 
 
 
+## 2026-11-24 — тесты гадили в CWD и в реальный data root
+
+**Симптом:** `MagicMock/mock.project_path/<id>/.mscodebase/chunks.db` (491 файл /
+16.3 MB на дерево); прогон suite добавил 672 строки `MagicMock` в реальный
+`D:\mscodebase-data\logs\mcp_global.log`.
+
+**Root cause:** (1) `Searcher.__init__` строил chunk store из `indexer.project_path`
+без проверки типа, а `MagicMock` проходит как `os.PathLike`; (2) лог-хендлер
+биндился один раз и не переезжал при смене `MSCODEBASE_DATA_DIR`, per-test
+фикстура опаздывала.
+
+**Fix:** `engine.py` — `str|PurePath` + пустая строка; `log_manager.py` — ключ
+`project|log_file`, снятие/закрытие старого хендлера под локом; `conftest.py` —
+session-temp data root до collection; `.gitignore` — `MagicMock/`.
+Коммит: `d33268e`.
+
+**Guard:** `tests/test_isolation_guards.py` (5 тестов; 3 мутации красят).
+Проверка: 2902 passed / 12 skipped (437 s), slow 88 / 4; «грязные» файлы из
+temp-CWD — 0 файлов и +0 строк в реальном логе.
+
 ## 2026-11-18 — ответы про символы врали: определения, счётчики, контекст
 
 **Симптом:** на чужом корпусе (engraphis) сверка по исходникам дала 6 расхождений:
