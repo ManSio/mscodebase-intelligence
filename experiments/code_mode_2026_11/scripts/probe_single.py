@@ -1,6 +1,8 @@
 """Probe one MCP tool call over the real protocol; report chars/tokens of the answer."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import contextlib
 import json
 import os
@@ -11,7 +13,7 @@ import time
 
 import tiktoken
 
-REPO = r"D:\Project\MSCodeBase"
+REPO = str(Path(__file__).resolve().parents[3])  # repo root, no personal path
 PY = os.path.join(
     os.environ["LOCALAPPDATA"],
     "Zed", "extensions", "mscodebase-intelligence", "venv", "Scripts", "python.exe",

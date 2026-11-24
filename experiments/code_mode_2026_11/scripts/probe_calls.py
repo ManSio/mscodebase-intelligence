@@ -6,6 +6,8 @@ Measures what the *client* would feed back into the model's context
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import contextlib
 import json
 import os
@@ -17,7 +19,7 @@ import time
 
 import tiktoken
 
-REPO = r"D:\Project\MSCodeBase"
+REPO = str(Path(__file__).resolve().parents[3])  # repo root, no personal path
 PY = os.path.join(
     os.environ["LOCALAPPDATA"],
     "Zed", "extensions", "mscodebase-intelligence", "venv", "Scripts", "python.exe",

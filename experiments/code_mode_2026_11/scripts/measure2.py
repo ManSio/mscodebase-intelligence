@@ -1,10 +1,11 @@
 import json
+import tempfile
 from pathlib import Path
 
 import tiktoken
 
 ENC = tiktoken.get_encoding("cl100k_base")
-D = Path(r"C:\Users\misha\AppData\Local\Temp\opencode\codemode-exp")
+D = Path(tempfile.gettempdir()) / "opencode" / "codemode-exp"
 
 
 def type_of(s):

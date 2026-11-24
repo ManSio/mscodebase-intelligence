@@ -4,6 +4,8 @@ Usage: python probe_tools.py <core|full> <out.json>
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import json
 import os
 import subprocess
@@ -12,7 +14,7 @@ import tempfile
 import threading
 import time
 
-REPO = r"D:\Project\MSCodeBase"
+REPO = str(Path(__file__).resolve().parents[3])  # repo root, no personal path
 PY = os.path.join(
     os.environ["LOCALAPPDATA"],
     "Zed", "extensions", "mscodebase-intelligence", "venv", "Scripts", "python.exe",
