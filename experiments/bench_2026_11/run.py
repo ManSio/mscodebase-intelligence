@@ -35,6 +35,7 @@ from capture import (  # noqa: E402
     load_capture,
 )
 from run_gate import _files, _invalid, _norm, _tools_for  # noqa: E402
+from runtime import EmbedderCounter, runtime_stamp  # noqa: E402
 from wilson import wilson  # noqa: E402
 
 BASE = "7c2c7a3c6417539bc08f807d6790fe6e722d3a84"
@@ -163,7 +164,7 @@ def main() -> int:
     parser.add_argument(
         "--allow-mixed",
         action="store_true",
-        help="score a capture whose rows came from another product revision or corpus",
+        help="score a capture whose rows came from another product revision, corpus, or runtime",
     )
     args = parser.parse_args()
 
@@ -236,25 +237,40 @@ def main() -> int:
         return 3
 
     searcher = tool.resolve_searcher(explicit_project_root=str(CORPUS))
+    embedder = getattr(searcher, "embedder", None)
+
+    def _rerank_mode() -> str:
+        timing = getattr(searcher, "_last_rerank_timing", None) or {}
+        return str(timing.get("mode") or "")
+
     for index, task in enumerate(tasks, 1):
         if task["id"] in done:
             continue
-        text = asyncio.run(tool.execute(query=task["question"], limit=8,
-                                        project_root=str(CORPUS)))
-        files = _norm(_files(text), CORPUS)
-        nb_text = asyncio.run(tool.execute(query=task["question"], limit=8,
-                                           include_neighbours=True,
-                                           project_root=str(CORPUS)))
-        nb_files = _norm(_files(nb_text), CORPUS)
-        grep = baseline.rank(task["question"])
-        raw = asyncio.run(
-            searcher.hybrid_search_async(task["question"], limit=50, rerank=False)
+        modes: set[str] = set()
+        with EmbedderCounter(embedder) as counter:
+            text = asyncio.run(tool.execute(query=task["question"], limit=8,
+                                            project_root=str(CORPUS)))
+            modes.add(_rerank_mode())
+            files = _norm(_files(text), CORPUS)
+            nb_text = asyncio.run(tool.execute(query=task["question"], limit=8,
+                                               include_neighbours=True,
+                                               project_root=str(CORPUS)))
+            modes.add(_rerank_mode())
+            nb_files = _norm(_files(nb_text), CORPUS)
+            grep = baseline.rank(task["question"])
+            raw = asyncio.run(
+                searcher.hybrid_search_async(task["question"], limit=50, rerank=False)
+            )
+            modes.add(_rerank_mode())
+        runtime = runtime_stamp(
+            embedder, searcher, calls=counter.calls, rerank_modes=modes
         )
         search_files = _files_from_rows(raw)
         row = {
             "id": task["id"],
             "rev": rev,
             "corpus_head": corpus_head,
+            "runtime": runtime,
             "valid": not _invalid(text),
             "tool_top1": _hits(files, task["gold"], 1),
             "tool_top5": _hits(files, task["gold"], 5),
@@ -279,7 +295,9 @@ def main() -> int:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
         print(f"  {index:>3}/{len(tasks)} {task['id']} "
               f"tool@5={row['tool_top5']} nb@5={row['neighbours_top5']} "
-              f"search@5={row['search_top5']}", flush=True)
+              f"search@5={row['search_top5']} "
+              f"embed={row['runtime']['embed_calls']} "
+              f"rerank={','.join(row['runtime']['rerank_modes']) or '-'}", flush=True)
 
     invalid = sum(1 for r in rows if not r["valid"])
     stats = {arm: _stats(rows, arm) for arm in ("tool", "neighbours", "search", "grep")}

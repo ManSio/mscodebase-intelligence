@@ -48,8 +48,8 @@ def test_hidden_tool_is_still_callable(monkeypatch):
     if content:
         text = content[0].text
     else:
-        # mcp 2.x returns (list[TextContent], metadata); 1.x returned an object
-        # with `.content` or a bare tuple. Read the first block, not the tuple slot.
+        # mcp 1.x returns (list[TextContent], metadata); 2.x returns an object
+        # with `.content`. Read the first block, not the tuple slot.
         first = result[0] if isinstance(result, tuple) and result else result
         if isinstance(first, list) and first and hasattr(first[0], "text"):
             text = first[0].text

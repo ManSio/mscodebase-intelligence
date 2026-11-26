@@ -10,6 +10,19 @@
 
 
 
+## 2026-11-26 — benchmark-строка не несла backend (комментарий @sudokat_)
+
+**Симптом:** `--resume` мог сшить строки, измеренные при разных backend'ах, если
+`rev`/`corpus_head` совпадали; в строке не было ни backend, ни счётчика вызовов.
+**Root cause:** provenance ограничивался ревизией и корпусом; ONNX-флап (60s) оставался
+событием лога, а `check_capture_before_run` не имел третьего поля.
+**Fix:** `runtime.py` — `EmbedderCounter` + `runtime_stamp`; строка несёт
+`embedder/embed_calls/rerank_modes/dense_off/ondemand_rerank`; `capture.py` отказывает
+смешению, если различающийся компонент использовался (`embed_calls>0` или не-text rerank),
+и разрешает текстовой панели пережить флап неиспользуемого демона.
+**Guard:** `tests/test_bench_runtime.py` (16); мутант «убрать проверку» — 5 красных;
+E2E: tampered row → exit 3, control → rc=0, флап → rc=0.
+
 ## 2026-11-24 — рантайм-метрики были в git
 
 **Симптом:** `M telemetry/tool_metrics.json` после каждого запуска сервера из репо.

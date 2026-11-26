@@ -34,8 +34,28 @@ def _capture_module():
 PANEL = ["a1", "b2", "c3"]
 
 
+def _runtime() -> dict:
+    # A complete row carries runtime provenance since the ONNX-flap guard.
+    return {
+        "embedder": "text_only",
+        "embed_calls": 0,
+        "rerank_modes": ["sqlite_fts5"],
+        "dense_off": True,
+        "ondemand_rerank": False,
+    }
+
+
 def _rows(*ids: str, rev: str = REV, corpus_head: str = CORPUS) -> list[dict]:
-    return [{"id": i, "rev": rev, "corpus_head": corpus_head, "tool_top5": False} for i in ids]
+    return [
+        {
+            "id": i,
+            "rev": rev,
+            "corpus_head": corpus_head,
+            "runtime": _runtime(),
+            "tool_top5": False,
+        }
+        for i in ids
+    ]
 
 
 def _check(rows, done, panel=PANEL, **kwargs):
