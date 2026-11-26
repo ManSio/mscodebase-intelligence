@@ -48,7 +48,13 @@ def test_hidden_tool_is_still_callable(monkeypatch):
     if content:
         text = content[0].text
     else:
-        text = result[0].text if isinstance(result, tuple) else str(result)
+        # mcp 2.x returns (list[TextContent], metadata); 1.x returned an object
+        # with `.content` or a bare tuple. Read the first block, not the tuple slot.
+        first = result[0] if isinstance(result, tuple) and result else result
+        if isinstance(first, list) and first and hasattr(first[0], "text"):
+            text = first[0].text
+        else:
+            text = str(result)
     assert "ok:structural_search" in str(text)
 
 
